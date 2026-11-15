@@ -24,7 +24,7 @@ from homeassistant.util import dt as dt_util
 from . import SmoobuConfigEntry
 from .coordinator import SmoobuCoordinator
 from .entity import SmoobuEntity
-from .models import booking_attributes, is_blocked, parse_date
+from .models import booking_attributes, guest_name, is_blocked, parse_date, pet_hint
 
 C = SmoobuCoordinator
 
@@ -37,6 +37,18 @@ def _guest_bookings_on(c: C, apt: int, field: str) -> list[dict[str, Any]]:
         for b in c.bookings_for(apt)
         if not is_blocked(b) and parse_date(b.get(field)) == today
     ]
+
+
+def _pet_attrs(booking: dict[str, Any] | None) -> dict[str, Any]:
+    """Gast, Anreise und Fundstelle zum Hunde-Hinweis."""
+    if not booking:
+        return {}
+    return {
+        "gastname": guest_name(booking),
+        "anreise": booking.get("arrival"),
+        "abreise": booking.get("departure"),
+        "hund_hinweis": pet_hint(booking),
+    }
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -76,6 +88,20 @@ APARTMENT_BINARY: tuple[SmoobuBinaryDescription, ...] = (
             c.default_checkout,
             c.checkout_buffer,
         ),
+    ),
+    SmoobuBinaryDescription(
+        # Laufende Buchung mit Hund/Haustier (Preiselement oder Notiz)
+        key="hund_aktueller_gast",
+        icon="mdi:dog",
+        value_fn=lambda c, a: pet_hint(c.current_booking(a)) is not None,
+        attrs_fn=lambda c, a: _pet_attrs(c.current_booking(a)),
+    ),
+    SmoobuBinaryDescription(
+        # Nächste Buchung mit Hund/Haustier → z. B. Hundedecke/Napf bereitlegen
+        key="hund_naechster_gast",
+        icon="mdi:dog-side",
+        value_fn=lambda c, a: pet_hint(c.next_booking(a)) is not None,
+        attrs_fn=lambda c, a: _pet_attrs(c.next_booking(a)),
     ),
     SmoobuBinaryDescription(
         # Abreise und Anreise am selben Tag → Reinigung zwischen 11 und 16 Uhr

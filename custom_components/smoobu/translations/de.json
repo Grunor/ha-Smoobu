@@ -48,7 +48,8 @@
           "days_back": "Rückblick (Tage)",
           "days_ahead": "Vorschau (Tage)",
           "enrich_count": "Detaildaten für die nächsten n Buchungen",
-          "checkout_buffer": "Puffer nach Smoobu-Abreisezeit"
+          "checkout_buffer": "Puffer nach Smoobu-Abreisezeit",
+          "payment_excluded_channels": "Kanäle mit Zahlung über das Portal"
         },
         "data_description": {
           "scan_interval": "Rückfall-Abfrage zusätzlich zum Webhook.",
@@ -56,7 +57,8 @@
           "default_checkin": "Gilt, wenn in der Buchung keine Ankunftszeit steht.",
           "default_checkout": "Gilt, wenn in der Buchung keine Abreisezeit steht (Freigabezeit, ohne Puffer).",
           "enrich_count": "Laufende + nächste n Buchungen je Wohnung mit Vor-/Nachname, Kurtaxe usw. ergänzen.",
-          "checkout_buffer": "Steht in der Buchung eine Abreisezeit, gilt die Wohnung erst nach dieser Zeit + Puffer als frei. Ohne Abreisezeit gilt der Standard-Check-out."
+          "checkout_buffer": "Steht in der Buchung eine Abreisezeit, gilt die Wohnung erst nach dieser Zeit + Puffer als frei. Ohne Abreisezeit gilt der Standard-Check-out.",
+          "payment_excluded_channels": "Buchungen dieser Kanäle zählen nicht als offene Zahlung (das Portal kassiert, Smoobu meldet trotzdem „unbezahlt“)."
         }
       }
     }
@@ -82,6 +84,12 @@
       },
       "gastdaten_fehlen": {
         "name": "Gastdaten fehlen"
+      },
+      "hund_aktueller_gast": {
+        "name": "Hund aktueller Gast"
+      },
+      "hund_naechster_gast": {
+        "name": "Hund nächster Gast"
       }
     },
     "sensor": {

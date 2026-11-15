@@ -35,6 +35,9 @@ CONF_ENRICH_COUNT = "enrich_count"  # Wie viele kommende Buchungen je Wohnung De
 # Wohnung als frei gilt (Gast verlässt die Wohnung oft später als angegeben).
 # Gilt NICHT für den Standard-Check-out (der ist bereits die Freigabezeit).
 CONF_CHECKOUT_BUFFER = "checkout_buffer"
+# Kanäle, deren Zahlung über das Portal läuft (Smoobu meldet dort oft
+# "price-paid: No", obwohl das Portal kassiert) → nicht als offen zählen.
+CONF_PAYMENT_EXCLUDED_CHANNELS = "payment_excluded_channels"
 
 DEFAULT_SCAN_INTERVAL = 10
 DEFAULT_DAYS_BACK = 30
@@ -46,6 +49,7 @@ DEFAULT_CHECKOUT = "11:00"
 DEFAULT_USE_WEBHOOK = True
 DEFAULT_ENRICH_COUNT = 3
 DEFAULT_CHECKOUT_BUFFER = 0
+DEFAULT_PAYMENT_EXCLUDED_CHANNELS = ["Airbnb", "Booking.com"]
 
 FALLBACK_CHECKIN = time(16, 0)
 FALLBACK_CHECKOUT = time(11, 0)

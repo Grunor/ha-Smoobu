@@ -49,7 +49,7 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 
 - 📅 **Belegungskalender je Wohnung** mit vollem Gastnamen, Kanal, Personen, Preis und Kontaktdaten
 - 👤 **Sensoren für aktuelle und nächste Buchung:** Gastname, Vorname, Personenzahl, Anreise, Abreise
-- 🏠 **Binärsensoren:** belegt, Anreise heute, Abreise heute, Gästewechsel heute
+- 🏠 **Binärsensoren:** belegt, Anreise heute, Abreise heute, Gästewechsel heute, Hund beim aktuellen/nächsten Gast
 - 📊 **Statistik für 30 Tage:** Buchungen, Auslastung, Umsatz, offene Zahlungen
 - ⚡ **Echtzeit-Webhook:** Nabu Casa Cloudhook oder externe HTTPS-URL, wird automatisch bei Smoobu registriert
 - 🔔 **Event `smoobu_event`** bei neuer, geänderter oder stornierter Buchung und bei neuer Gastnachricht
@@ -126,6 +126,7 @@ Unter **Einstellungen → Geräte & Dienste → Smoobu → Konfigurieren**:
 | Echtzeit-Webhook verwenden | an | Webhook anlegen und bei Smoobu registrieren. Abschalten entfernt die Registrierung. |
 | Standard-Check-in | 16:00 | Gilt, wenn in der Buchung keine Ankunftszeit steht |
 | Standard-Check-out | 11:00 | Gilt, wenn in der Buchung keine Abreisezeit steht (Freigabezeit, ohne Puffer) |
+| Kanäle mit Zahlung über das Portal | Airbnb, Booking.com | Buchungen dieser Kanäle zählen nicht als offene Zahlung |
 | Puffer nach Smoobu-Abreisezeit | 0 min | Steht in der Buchung eine Abreisezeit, gilt die Wohnung erst nach dieser Zeit + Puffer als frei |
 | Rückblick | 30 Tage | Wie weit zurück Buchungen geladen werden |
 | Vorschau | 365 Tage | Wie weit voraus Buchungen geladen werden |
@@ -145,11 +146,13 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 
 | Entität | Beispiel-ID | Inhalt |
 |---|---|---|
-| Kalender | `calendar.smoobu_ferienwohnung_belegung` | Alle Buchungen. Titel = Gastname (blockierte Zeiträume: „Blockiert“). Beginn = Anreise + Check-in-Zeit, Ende = Abreise + Check-out-Zeit. |
+| Kalender | `calendar.smoobu_ferienwohnung_belegung` | Alle Buchungen. Titel = Gastname, mit 🐕 bei Hund (blockierte Zeiträume: „Blockiert“). Beginn = Anreise + Check-in-Zeit, Ende = Abreise + Check-out-Zeit. |
 | Belegt | `binary_sensor.smoobu_ferienwohnung_belegt` | An von der Check-in-Zeit bis zur Freigabe (Abreisezeit + Puffer bzw. Standard-Check-out) |
 | Anreise heute | `binary_sensor.smoobu_ferienwohnung_anreise_heute` | Heute reist ein Gast an |
 | Abreise heute | `binary_sensor.smoobu_ferienwohnung_abreise_heute` | Heute reist ein Gast ab |
 | Gästewechsel heute | `binary_sensor.smoobu_ferienwohnung_gastewechsel_heute` | Abreise und Anreise am selben Tag |
+| Hund aktueller Gast | `binary_sensor.smoobu_ferienwohnung_hund_aktueller_gast` | Laufende Buchung erwähnt einen Hund/ein Haustier (Zusatzleistung oder Notiz). Attribut `hund_hinweis` = Fundstelle |
+| Hund nächster Gast | `binary_sensor.smoobu_ferienwohnung_hund_naechster_gast` | Wie oben für die nächste Buchung |
 | Aktueller Gast | `sensor.smoobu_ferienwohnung_aktueller_gast` | Voller Name des aktuellen Gastes |
 | Aktueller Vorname | `sensor.smoobu_ferienwohnung_aktueller_vorname` | Vorname des aktuellen Gastes |
 | Aktuelle Personen | `sensor.smoobu_ferienwohnung_aktuelle_personen` | Erwachsene + Kinder, 0 wenn frei |
@@ -161,7 +164,7 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 | Buchungen 30 Tage | `sensor.smoobu_ferienwohnung_buchungen_30_tage` | Anzahl Anreisen in den nächsten 30 Tagen, Liste im Attribut `buchungen` |
 | Auslastung 30 Tage | `sensor.smoobu_ferienwohnung_auslastung_30_tage` | Belegte Nächte in % (inkl. Blockierungen) |
 | Umsatz 30 Tage | `sensor.smoobu_ferienwohnung_umsatz_30_tage` | Summe der Buchungspreise der Anreisen in den nächsten 30 Tagen |
-| Offene Zahlungen | `sensor.smoobu_ferienwohnung_offene_zahlungen` | Laufende/kommende Buchungen, die nicht als bezahlt markiert sind. Attribute: `buchungen`, `offener_betrag` |
+| Offene Zahlungen | `sensor.smoobu_ferienwohnung_offene_zahlungen` | Laufende/kommende Buchungen mit offenem Betrag (Preis − bezahlte Anzahlung). Portal-Kanäle aus den Optionen (Standard Airbnb, Booking.com) zählen nicht. Attribute: `buchungen` (mit `offen`), `offener_betrag` |
 
 #### Konto (Diagnose)
 
@@ -194,6 +197,7 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 | `gaeste_app` | Link zur Smoobu-Gäste-App |
 | `erstellt`, `geaendert` | Zeitstempel aus Smoobu |
 | `blockiert` | blockierter Zeitraum (keine Gästebuchung) |
+| `hund`, `hund_hinweis` | Hund/Haustier erwähnt (Preiselement oder Notiz) und Fundstelle |
 | `smoobu_rohdaten` | **alle** Felder der API-Antwort unverändert, inkl. `priceElements` |
 
 Zeitabhängige Entitäten werden jede Minute neu ausgewertet. „Belegt“ wechselt dadurch pünktlich zur Check-in-Zeit, auch ohne neue API-Abfrage. In die Historie schreibt Home Assistant nur echte Änderungen.
@@ -502,7 +506,7 @@ This integration handles the signing and exposes all data natively in Home Assis
 
 - 📅 **Occupancy calendar per apartment** with full guest name, channel, guests, price and contact details
 - 👤 **Sensors for the current and next booking:** guest name, first name, number of guests, arrival, departure
-- 🏠 **Binary sensors:** occupied, arrival today, departure today, changeover today
+- 🏠 **Binary sensors:** occupied, arrival today, departure today, changeover today, dog with current/next guest
 - 📊 **30-day statistics:** bookings, occupancy rate, revenue, unpaid bookings
 - ⚡ **Real-time webhook:** Nabu Casa cloudhook or external HTTPS URL, registered with Smoobu automatically
 - 🔔 **Event `smoobu_event`** for new, changed or cancelled bookings and new guest messages
@@ -579,6 +583,7 @@ Under **Settings → Devices & services → Smoobu → Configure**:
 | Use real-time webhook | on | Create the webhook and register it with Smoobu. Turning it off removes the registration. |
 | Default check-in | 16:00 | Used when the booking has no arrival time |
 | Default check-out | 11:00 | Used when the booking has no departure time (release time, no buffer) |
+| Channels paid via the portal | Airbnb, Booking.com | Bookings from these channels do not count as unpaid |
 | Buffer after Smoobu departure time | 0 min | If the booking has a departure time, the apartment counts as vacant only after that time + buffer |
 | Days back | 30 days | How far back bookings are loaded |
 | Days ahead | 365 days | How far ahead bookings are loaded |
@@ -598,11 +603,13 @@ Each Smoobu apartment becomes a device **"Smoobu &lt;apartment name&gt;"**, plus
 
 | Entity | Example ID | Content |
 |---|---|---|
-| Calendar | `calendar.smoobu_apartment_occupancy` | All bookings. Title = guest name (blocked periods: "Blockiert"). Start = arrival + check-in time, end = departure + check-out time. |
+| Calendar | `calendar.smoobu_apartment_occupancy` | All bookings. Title = guest name, with 🐕 for dogs (blocked periods: "Blockiert"). Start = arrival + check-in time, end = departure + check-out time. |
 | Occupied | `binary_sensor.smoobu_apartment_occupied` | On from check-in time until release (departure time + buffer, or default check-out) |
 | Arrival today | `binary_sensor.smoobu_apartment_arrival_today` | A guest arrives today |
 | Departure today | `binary_sensor.smoobu_apartment_departure_today` | A guest leaves today |
 | Changeover today | `binary_sensor.smoobu_apartment_changeover_today` | Departure and arrival on the same day |
+| Dog current guest | `binary_sensor.smoobu_apartment_dog_current_guest` | Current booking mentions a dog/pet (add-on or note). Attribute `hund_hinweis` = where it was found |
+| Dog next guest | `binary_sensor.smoobu_apartment_dog_next_guest` | Same for the next booking |
 | Current guest | `sensor.smoobu_apartment_current_guest` | Full name of the current guest |
 | Current first name | `sensor.smoobu_apartment_current_first_name` | First name of the current guest |
 | Current guests count | `sensor.smoobu_apartment_current_guests_count` | Adults + children, 0 if vacant |
@@ -614,7 +621,7 @@ Each Smoobu apartment becomes a device **"Smoobu &lt;apartment name&gt;"**, plus
 | Bookings 30 days | `sensor.smoobu_apartment_bookings_30_days` | Number of arrivals in the next 30 days, list in attribute `buchungen` |
 | Occupancy rate 30 days | `sensor.smoobu_apartment_occupancy_rate_30_days` | Booked nights in % (incl. blocked periods) |
 | Revenue 30 days | `sensor.smoobu_apartment_revenue_30_days` | Sum of booking prices of arrivals in the next 30 days |
-| Unpaid bookings | `sensor.smoobu_apartment_unpaid_bookings` | Current/upcoming bookings not marked as paid. Attributes: `buchungen`, `offener_betrag` |
+| Unpaid bookings | `sensor.smoobu_apartment_unpaid_bookings` | Current/upcoming bookings with an open amount (price − paid prepayment). Portal channels from the options (default Airbnb, Booking.com) are excluded. Attributes: `buchungen` (with `offen`), `offener_betrag` |
 
 #### Account (diagnostic)
 
@@ -647,6 +654,7 @@ Each Smoobu apartment becomes a device **"Smoobu &lt;apartment name&gt;"**, plus
 | `gaeste_app` | Link to the Smoobu guest app |
 | `erstellt`, `geaendert` | Created/modified timestamps from Smoobu |
 | `blockiert` | Blocked period (no guest booking) |
+| `hund`, `hund_hinweis` | Dog/pet mentioned (price element or note) and where |
 | `smoobu_rohdaten` | **all** fields of the API response unchanged, incl. `priceElements` |
 
 Time-dependent entities are re-evaluated every minute, so "Occupied" switches exactly at check-in time even without a new API poll. Home Assistant only writes real changes to the history.

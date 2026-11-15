@@ -24,6 +24,7 @@ from .const import (
     CONF_DEFAULT_CHECKOUT,
     CONF_CHECKOUT_BUFFER,
     CONF_ENRICH_COUNT,
+    CONF_PAYMENT_EXCLUDED_CHANNELS,
     CONF_SCAN_INTERVAL,
     DEFAULT_CHECKIN,
     DEFAULT_CHECKOUT,
@@ -31,6 +32,7 @@ from .const import (
     DEFAULT_DAYS_AHEAD,
     DEFAULT_DAYS_BACK,
     DEFAULT_ENRICH_COUNT,
+    DEFAULT_PAYMENT_EXCLUDED_CHANNELS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FALLBACK_CHECKIN,
@@ -97,6 +99,15 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
     def checkout_buffer(self) -> int:
         """Puffer (min) nach einer in Smoobu angegebenen Abreisezeit."""
         return int(self.config_entry.options.get(CONF_CHECKOUT_BUFFER, DEFAULT_CHECKOUT_BUFFER))
+
+    @property
+    def payment_excluded_channels(self) -> list[str]:
+        """Kanäle, deren Zahlung über das Portal läuft."""
+        return list(
+            self.config_entry.options.get(
+                CONF_PAYMENT_EXCLUDED_CHANNELS, DEFAULT_PAYMENT_EXCLUDED_CHANNELS
+            )
+        )
 
     def release(self, booking: dict[str, Any]):
         """Freigabezeit einer Buchung (Abreisezeit + Puffer bzw. Standard-Check-out)."""

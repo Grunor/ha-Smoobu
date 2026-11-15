@@ -30,8 +30,10 @@ BOOKINGS = [
     },
     {  # nächste, mit Check-in 20:00, unbezahlt
         "id": 2, "arrival": d(3), "departure": d(6), "apartment": {"id": 123, "name": "Ferienwohnung"},
-        "channel": {"id": 2, "name": "Booking.com"}, "guest-name": "Max Mustermann", "adults": 2,
+        "channel": {"id": 2, "name": "Direct booking"}, "guest-name": "Max Mustermann", "adults": 2,
         "children": 0, "check-in": "20:00", "check-out": "10:00", "price": 450.5, "price-paid": "No",
+        "prepayment": 100, "prepayment-paid": "Yes",
+        "priceElements": [{"id": 9, "type": "addon", "name": "Endreinigung 1 Hund", "amount": 15}],
         "is-blocked-booking": False, "modifiedAt": "2026-11-02 10:00",
     },
     {  # blockiert
@@ -79,7 +81,8 @@ async def test_entities(hass, setup, aioclient_mock):
         print(eid, "=", st.state if st else None)
 
     def s(suffix):
-        matches = [e for e in ents if e.endswith(suffix)]
+        # Sensoren zuerst (Binärsensor „Hund aktueller Gast“ endet ebenfalls auf aktueller_gast)
+        matches = sorted((e for e in ents if e.endswith(suffix)), key=lambda e: not e.startswith("sensor."))
         assert matches, suffix
         return hass.states.get(matches[0])
 
@@ -116,7 +119,7 @@ async def test_calendar_events(hass, setup):
         blocking=True, return_response=True)
     events = resp["calendar.smoobu_ferienwohnung_belegung"]["events"]
     print(events)
-    assert [e["summary"] for e in events] == ["Anna Beispiel", "Max Mustermann", "Blockiert"]
+    assert [e["summary"] for e in events] == ["Anna Beispiel", "Max Mustermann 🐕", "Blockiert"]
     assert events[1]["start"] == "2026-11-18T20:00:00+01:00"
 
 
@@ -204,3 +207,21 @@ async def test_checkout_buffer(hass, setup, freezer):
     attrs = hass.states.get("sensor.smoobu_ferienwohnung_nachster_gast").attributes
     assert attrs["freigabe"] == "2026-11-21T11:00:00+01:00", attrs["freigabe"]
     assert attrs["abreise"] == "2026-11-21T10:00:00+01:00"
+
+
+async def test_dog_and_payments(hass, setup):
+    """Hunde-Erkennung über Preiselement/Notiz, offene Zahlungen ohne Portal-Kanäle."""
+    assert hass.states.get("binary_sensor.smoobu_ferienwohnung_hund_nachster_gast").state == "on"
+    assert hass.states.get("binary_sensor.smoobu_ferienwohnung_hund_aktueller_gast").state == "off"
+    attrs = hass.states.get("binary_sensor.smoobu_ferienwohnung_hund_nachster_gast").attributes
+    assert attrs["hund_hinweis"] == "Zusatzleistung: Endreinigung 1 Hund"
+    st = hass.states.get("sensor.smoobu_ferienwohnung_offene_zahlungen")
+    assert st.state == "1"
+    assert st.attributes["offener_betrag"] == 350.5
+
+
+def test_pet_hint_notice():
+    from custom_components.smoobu.models import pet_hint
+    assert pet_hint({"notice": "Wir kommen mit unserem Hund (Cocker Spaniel)"}).startswith("Notiz:")
+    assert pet_hint({"notice": "Peter und Petra kommen"}) is None
+    assert pet_hint({"notice": "We bring our dog"}) is not None

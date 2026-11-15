@@ -38,7 +38,9 @@ from .models import (
     guest_name,
     is_blocked,
     is_yes,
+    open_amount,
     parse_date,
+    pet_hint,
     stay_overlap_nights,
     window,
 )
@@ -89,6 +91,7 @@ def _short(b: dict[str, Any]) -> dict[str, Any]:
         "kanal": (b.get("channel") or {}).get("name"),
         "preis": b.get("price"),
         "bezahlt": is_yes(b.get("price-paid")),
+        "hund": pet_hint(b) is not None,
     }
 
 
@@ -104,17 +107,29 @@ def _revenue(c: C, apt: int) -> float:
 
 
 def _unpaid(c: C, apt: int) -> list[dict[str, Any]]:
-    """Laufende/kommende Gästebuchungen, die noch nicht voll bezahlt sind."""
-    now_bookings = []
+    """Laufende/kommende Gästebuchungen mit offenem Betrag.
+
+    Offen = Preis − bezahlte Anzahlung, sofern nicht als bezahlt markiert.
+    Portal-Kanäle (Option, Standard Airbnb + Booking.com) zählen nicht,
+    weil dort das Portal kassiert und Smoobu trotzdem „unbezahlt“ meldet.
+    """
+    result = []
     for b in c.bookings_for(apt):
         if is_blocked(b):
             continue
         end = booking_end(b, c.default_checkout)
         if end is None or end < dt_util.now():
             continue
-        if not is_yes(b.get("price-paid")):
-            now_bookings.append(b)
-    return now_bookings
+        if open_amount(b, c.payment_excluded_channels) > 0:
+            result.append(b)
+    return result
+
+
+def _unpaid_short(c: C, apt: int) -> list[dict[str, Any]]:
+    return [
+        {**_short(b), "offen": open_amount(b, c.payment_excluded_channels)}
+        for b in _unpaid(c, apt)
+    ]
 
 
 def _currency(c: C, apt: int) -> str:
@@ -204,8 +219,9 @@ APARTMENT_SENSORS: tuple[SmoobuSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda c, a: len(_unpaid(c, a)),
         attrs_fn=lambda c, a: {
-            "buchungen": [_short(b) for b in _unpaid(c, a)],
-            "offener_betrag": round(sum(float(b.get("price") or 0) for b in _unpaid(c, a)), 2),
+            "buchungen": _unpaid_short(c, a),
+            "offener_betrag": round(sum(x["offen"] for x in _unpaid_short(c, a)), 2),
+            "ausgenommene_kanaele": c.payment_excluded_channels,
         },
     ),
 )

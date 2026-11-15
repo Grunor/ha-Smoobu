@@ -8,6 +8,7 @@ dieselbe Logik verwenden.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -103,6 +104,49 @@ def booking_release(
     return end
 
 
+# Hinweise auf mitreisende Hunde/Haustiere (Preiselemente, Notizen).
+# Wortgrenzen verhindern Treffer wie „Peter“ für „pet“.
+_PET_PATTERN = re.compile(
+    r"\b(hund|hunde|hündin|welpe|dog|dogs|puppy|haustier|haustiere|pet|pets|chien)\b",
+    re.IGNORECASE,
+)
+
+
+def pet_hint(booking: dict[str, Any] | None) -> str | None:
+    """Fundstelle, falls die Buchung einen Hund/ein Haustier erwähnt, sonst None.
+
+    Geprüft werden Preiselemente (z. B. Zusatzleistung „Endreinigung 1 Hund“)
+    und die Notizen des Gastes bzw. des Assistenten.
+    """
+    if not booking:
+        return None
+    for element in booking.get("priceElements") or []:
+        name = str(element.get("name") or "")
+        if _PET_PATTERN.search(name):
+            return f"Zusatzleistung: {name}"
+    for key, label in (("notice", "Notiz"), ("assistant-notice", "Assistent-Notiz")):
+        text = str(booking.get(key) or "")
+        match = _PET_PATTERN.search(text)
+        if match:
+            # Kurzer Ausschnitt rund um den Treffer für die Anzeige
+            start = max(match.start() - 40, 0)
+            snippet = text[start : match.end() + 40].replace("\n", " ").strip()
+            return f"{label}: …{snippet}…"
+    return None
+
+
+def open_amount(booking: dict[str, Any], excluded_channels: list[str]) -> float:
+    """Offener Betrag: Preis − bezahlte Anzahlung; 0 bei bezahlt oder Portal-Kanal."""
+    channel = str((booking.get("channel") or {}).get("name") or "")
+    if channel.lower() in {c.lower() for c in excluded_channels}:
+        return 0.0
+    if is_yes(booking.get("price-paid")):
+        return 0.0
+    price = float(booking.get("price") or 0)
+    paid = float(booking.get("prepayment") or 0) if is_yes(booking.get("prepayment-paid")) else 0.0
+    return round(max(price - paid, 0.0), 2)
+
+
 def is_blocked(booking: dict[str, Any]) -> bool:
     """Vom Gastgeber blockierter Zeitraum (keine echte Gästebuchung)."""
     return bool(booking.get("is-blocked-booking"))
@@ -170,6 +214,8 @@ def booking_attributes(
         "referenz_id": booking.get("reference-id"),
         "typ": booking.get("type"),
         "blockiert": is_blocked(booking),
+        "hund": pet_hint(booking) is not None,
+        "hund_hinweis": pet_hint(booking),
         "wohnung": apartment.get("name"),
         "wohnung_id": apartment.get("id"),
         "gastname": guest_name(booking),
