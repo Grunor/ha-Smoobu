@@ -103,6 +103,12 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_booking)
     websocket_api.async_register_command(hass, ws_rates)
     websocket_api.async_register_command(hass, ws_subscribe)
+    websocket_api.async_register_command(hass, ws_assistant_state)
+    websocket_api.async_register_command(hass, ws_assistant_knowledge)
+    websocket_api.async_register_command(hass, ws_assistant_delete)
+    websocket_api.async_register_command(hass, ws_assistant_suggest)
+    websocket_api.async_register_command(hass, ws_assistant_send)
+    websocket_api.async_register_command(hass, ws_assistant_job)
 
 
 _TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): vol.Coerce(int)}
@@ -295,6 +301,8 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
 
     for c in _coordinators(hass):
         removers.append(c.async_add_listener(changed))
+        if c.assistant is not None:  # Wissensdatenbank/Vorschläge geändert
+            removers.append(c.assistant.add_listener(changed))
 
     @callback
     def unsub() -> None:
@@ -303,3 +311,105 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
 
     connection.subscriptions[msg["id"]] = unsub
     connection.send_result(msg["id"])
+
+
+# ---------------------------------------------------------------------------
+# KI-Assistent (v1.10.0)
+# ---------------------------------------------------------------------------
+def _assistant(hass: HomeAssistant, msg: dict[str, Any]):
+    c, _apt = _resolve(hass, msg)
+    if c.assistant is None:
+        raise vol.Invalid("Assistent nicht geladen")
+    return c.assistant
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/assistant/state", **_TARGET})
+@callback
+def ws_assistant_state(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        connection.send_result(msg["id"], _assistant(hass, msg).state())
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smoobu/assistant/knowledge",
+        **_TARGET,
+        vol.Required("item"): {
+            vol.Optional("id"): str,
+            vol.Optional("thema"): str,
+            vol.Optional("text"): str,
+            vol.Optional("status"): vol.In(["aktiv", "vorschlag", "aus"]),
+            vol.Optional("vertraulich"): bool,
+        },
+    }
+)
+@callback
+def ws_assistant_knowledge(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        connection.send_result(msg["id"], _assistant(hass, msg).save_knowledge(msg["item"]))
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/assistant/delete", **_TARGET,
+     vol.Required("kind"): vol.In(["wissen", "beispiel"]), vol.Required("item_id"): str}
+)
+@callback
+def ws_assistant_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        a = _assistant(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    (a.delete_knowledge if msg["kind"] == "wissen" else a.delete_example)(msg["item_id"])
+    connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/assistant/suggest", **_TARGET, vol.Required("reservation_id"): vol.Coerce(int),
+     vol.Optional("anlass", default="antwort"): str, vol.Optional("text"): str}
+)
+@websocket_api.async_response
+async def ws_assistant_suggest(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        a = _assistant(hass, msg)
+        connection.send_result(msg["id"], await a.suggest(msg["reservation_id"], msg["anlass"], msg.get("text")))
+    except (vol.Invalid, SmoobuError) as err:
+        connection.send_error(msg["id"], "assistant_error", str(err))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/assistant/send", **_TARGET, vol.Required("reservation_id"): vol.Coerce(int),
+     vol.Required("text"): str}
+)
+@websocket_api.async_response
+async def ws_assistant_send(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        await _assistant(hass, msg).send(msg["reservation_id"], msg["text"])
+        connection.send_result(msg["id"])
+    except (vol.Invalid, SmoobuError) as err:
+        connection.send_error(msg["id"], "assistant_error", str(err))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/assistant/job", **_TARGET,
+     vol.Required("job"): vol.In(["import", "wissen", "luecke"]), vol.Optional("arg"): str}
+)
+@websocket_api.async_response
+async def ws_assistant_job(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        a = _assistant(hass, msg)
+        if msg["job"] == "import":
+            # Läuft länger (je Buchung eine Abfrage) → im Hintergrund, Fortschritt über state()
+            hass.async_create_background_task(a.import_history(), "smoobu_assistant_import")
+            connection.send_result(msg["id"], {"gestartet": True})
+        elif msg["job"] == "wissen":
+            connection.send_result(msg["id"], {"neu": await a.build_knowledge()})
+        else:
+            await a.apply_gap(msg.get("arg") or "")
+            connection.send_result(msg["id"])
+    except (vol.Invalid, SmoobuError) as err:
+        connection.send_error(msg["id"], "assistant_error", str(err))

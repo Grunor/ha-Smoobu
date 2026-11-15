@@ -108,6 +108,8 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         # Auswahl der Lovelace-Filter je Wohnung: {"kanal", "zeitraum", "vergleich"}
         # (gesetzt von den select-Entitäten, die ihren Stand selbst wiederherstellen)
         self.selection: dict[int, dict[str, str]] = {}
+        # KI-Assistent (assistant.py), gesetzt in __init__.async_setup_entry
+        self.assistant: Any = None
 
     # --- Optionen bequem lesbar ----------------------------------------
     @property
@@ -164,6 +166,12 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         if not self.data:
             return []
         return self.data.records.get(apartment_id, [])
+
+    def records_all(self) -> list[dict[str, Any]]:
+        """Datensätze aller Wohnungen des Kontos."""
+        if not self.data:
+            return []
+        return [r for items in self.data.records.values() for r in items]
 
     def release(self, booking: dict[str, Any]):
         """Freigabezeit einer Buchung (Abreisezeit + Puffer bzw. Standard-Check-out)."""

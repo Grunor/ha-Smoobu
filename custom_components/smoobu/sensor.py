@@ -34,6 +34,7 @@ from .coordinator import SmoobuCoordinator
 from .entity import SmoobuEntity
 from .sensor_analytics import (
     SELECTION_SENSORS,
+    SmoobuAssistantSensor,
     SmoobuForecastSensor,
     SmoobuSelectionSensor,
     channel_entity_adder,
@@ -855,6 +856,7 @@ async def async_setup_entry(
         SmoobuLastUpdateSensor(coordinator),
         SmoobuLastEventSensor(coordinator),
         SmoobuWebhookSensor(coordinator),
+        SmoobuAssistantSensor(coordinator),
     ]
     # v1.7.0: Auswertung nach Auswahl + Prognose je Wohnung
     entities += [

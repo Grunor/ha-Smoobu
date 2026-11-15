@@ -81,6 +81,27 @@
           "commission_custom": "Format: Kanal=Prozent; Kanal=Prozent (z. B. Expedia=18; HomeToGo=15). Kanalname wie in Smoobu.",
           "direct_channels": "Umsatz dieser Kanäle zählt als Direkt, alle anderen als Portal."
         }
+      },
+      "assistent": {
+        "title": "KI-Assistent",
+        "description": "Antwortvorschläge für Gästenachrichten mit Wissensdatenbank und Lernen aus euren Antworten. Nichts wird ohne Bestätigung an Gäste gesendet. Gästenachrichten und Buchungsdaten gehen an den gewählten KI-Anbieter.",
+        "data": {
+          "assistant": "Assistent aktivieren",
+          "ai_entity": "KI (KI-Aufgabe)",
+          "assist_recipients": "Pushes an (mobile App)",
+          "assist_status": "HA-Entitäten als Kontext",
+          "assist_path": "Dashboard-Seite für „Bearbeiten“",
+          "assist_briefing": "Tagesbriefing per Push",
+          "assist_briefing_time": "Uhrzeit Tagesbriefing",
+          "assist_gaps": "Nicht buchbare Lücken melden"
+        },
+        "data_description": {
+          "ai_entity": "z. B. Google Gemini. Wird über ai_task.generate_data aufgerufen.",
+          "assist_recipients": "Nur mobile_app-Dienste können Buttons (Senden, Ignorieren, Ankunftszeit übernehmen).",
+          "assist_status": "z. B. Heizung, Tür, Außentemperatur – hilft bei Problemmeldungen.",
+          "assist_path": "z. B. /dashboard-ferienwohnung/smoobu-nachrichten",
+          "assist_gaps": "Täglich 09:05: Lücken ≤ 30 Tage, die wegen Mindestaufenthalt nicht buchbar sind, mit Button zum Anpassen."
+        }
       }
     },
     "error": {
@@ -469,6 +490,9 @@
       },
       "auswertung_direktanteil": {
         "name": "Auswertung Direktanteil"
+      },
+      "assistent": {
+        "name": "Assistent offene Vorschläge"
       }
     },
     "select": {
@@ -710,6 +734,56 @@
         "notice": {
           "name": "Notiz",
           "description": "Neue Notiz (ersetzt die bisherige)."
+        }
+      }
+    },
+    "assistant_suggest": {
+      "name": "Assistent: Vorschlag",
+      "description": "Erzeugt einen Nachrichtenentwurf für eine Buchung.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konto",
+          "description": "Nur bei mehreren Konten."
+        },
+        "reservation_id": {
+          "name": "Buchungs-ID",
+          "description": "Buchung."
+        },
+        "anlass": {
+          "name": "Anlass",
+          "description": "antwort, willkommen, anreise, abreise, bewertung"
+        },
+        "message": {
+          "name": "Gästenachricht",
+          "description": "Optional; sonst die letzte Nachricht des Gastes."
+        },
+        "push": {
+          "name": "Push senden",
+          "description": "Vorschlag zusätzlich per Push mit Buttons schicken."
+        }
+      }
+    },
+    "assistant_import": {
+      "name": "Assistent: Verlauf importieren",
+      "description": "Lädt die Nachrichten der Gästebuchungen und speichert eure Antworten als Lernbeispiele.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konto",
+          "description": "Nur bei mehreren Konten."
+        },
+        "jahre": {
+          "name": "Jahre",
+          "description": "Wie weit zurück."
+        }
+      }
+    },
+    "assistant_build_knowledge": {
+      "name": "Assistent: Wissen erzeugen",
+      "description": "Erzeugt aus euren Vorlagen und Antworten Vorschläge für die Wissensdatenbank (zur Freigabe).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konto",
+          "description": "Nur bei mehreren Konten."
         }
       }
     }

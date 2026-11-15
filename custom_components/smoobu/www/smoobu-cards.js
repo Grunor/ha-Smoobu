@@ -21,7 +21,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.9.2";
+const SMOOBU_CARDS_VERSION = "1.10.0";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -346,7 +346,7 @@ function colorOf(apt, name, blocked = false) {
 }
 
 // Zitierten E-Mail-Verlauf in Gastantworten abschneiden (bleibt per Klick sichtbar)
-const QUOTE_RE = /(\n|^)\s*(-{3,}\s*(Ursprüngliche Nachricht|Original Message|Original-Nachricht)|Von meinem\/meiner|Sent from my|Am .{6,60} schrieb |On .{6,80} wrote:)/i;
+const QUOTE_RE = /(\n|^)\s*-{3,}\s*(Ursprüngliche Nachricht|Original Message|Original-Nachricht)|Von meinem(\/meiner)? [^\n]{0,40}gesendet|Sent from my|(\n|^)\s*(Am .{6,60} schrieb |On .{6,80} wrote:)/i;
 function msgHtml(text) {
   const s = String(text || "");
   const m = s.match(QUOTE_RE);
@@ -1136,7 +1136,8 @@ class SmoobuBookingDialog extends HTMLElement {
         const text = (v("msg") || "").trim();
         if (!text) return;
         if (!(await confirmDialog(`${t("Senden")} ${t("an den Gast")}?`))) return;
-        await this.store.service("send_message", { reservation_id: id, message: text });
+        await this.store.ws("smoobu/assistant/send", { ...this.target, reservation_id: id, text }, { cache: false });
+        this.store.invalidate();
         toast(t("Gesendet"));
         return this.load();
       } else if (a === "unblock") {
@@ -1163,12 +1164,15 @@ class SmoobuBookingDialog extends HTMLElement {
 // ===========================================================================
 class SmoobuInboxCard extends SmoobuCard {
   static defaults = { title: "", days_back: 14, days_ahead: 60, message_entity: "" };
-  static initialState = () => ({ sel: null, thread: null, loadingThread: false });
+  static initialState = () => ({ sel: null, thread: null, loadingThread: false, draft: "", sug: null, thinking: false, ai: false });
   static css = `
     .wrap { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; }
     @media (max-width: 700px) { .wrap { grid-template-columns: 1fr; } }
     .item { padding: 8px 10px; border-radius: 10px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
     .item:hover, .item.on { background: color-mix(in srgb, var(--sm-accent) 12%, transparent); }
+    .sugbox { margin-top: 8px; padding: 8px 12px; border-radius: 10px; font-size: .85rem;
+      background: color-mix(in srgb, var(--sm-accent) 10%, transparent); border-left: 4px solid var(--sm-accent); }
+    .sugbox.urgent { border-left-color: var(--sm-bad); background: color-mix(in srgb, var(--sm-bad) 12%, transparent); }
     .last { padding: 10px 12px; border-radius: 10px; border-left: 4px solid var(--sm-accent); margin-bottom: 12px;
       background: var(--secondary-background-color, rgba(127,127,127,.08)); cursor: pointer; white-space: pre-wrap; }
     ${DIALOG_CSS.replace(/\.back[^}]+}|\.dlg[^}]+}/g, "")}
@@ -1185,11 +1189,23 @@ class SmoobuInboxCard extends SmoobuCard {
     return { apt, guests };
   }
   async select(id) {
-    this.setState({ sel: id, thread: null, loadingThread: true });
+    this.setState({ sel: id, thread: null, loadingThread: true, draft: "", sug: null });
     try {
-      const d = await this.store.ws("smoobu/booking", { ...this.target, reservation_id: id }, { cache: false });
-      if (this._state.sel === id) this.setState({ thread: d, loadingThread: false });
+      const [d, a] = await Promise.all([
+        this.store.ws("smoobu/booking", { ...this.target, reservation_id: id }, { cache: false }),
+        this.store.ws("smoobu/assistant/state", this.target, { cache: false }).catch(() => null),
+      ]);
+      const sug = a?.vorschlaege?.find((v) => v.buchung_id === id && v.status === "offen") || null;
+      if (this._state.sel === id) this.setState({ thread: d, loadingThread: false, sug, draft: sug?.antwort || "", ai: !!a?.aktiv });
     } catch (e) { this.setState({ thread: { fehler: e.message || String(e), nachrichten: [] }, loadingThread: false }); }
+  }
+  async aiSuggest() {
+    const anlass = this.$('[data-k="anlass"]')?.value || "antwort";
+    this.setState({ thinking: true });
+    try {
+      const sug = await this.store.ws("smoobu/assistant/suggest", { ...this.target, reservation_id: this._state.sel, anlass }, { cache: false });
+      this.setState({ sug, draft: sug.antwort, thinking: false });
+    } catch (e) { this.setState({ thinking: false }); toast(`${t("Fehler")}: ${e.message || e}`); }
   }
   body({ apt, guests }) {
     const s = this._state;
@@ -1209,19 +1225,32 @@ class SmoobuInboxCard extends SmoobuCard {
       : `${th?.fehler ? `<div class="err">${esc(th.fehler)}</div>` : ""}
         <div class="row"><b class="grow">${esc(th?.buchung?.gast || "")}</b><button class="btn flat" data-act="detail">${t("Details")}</button></div>
         <div class="msgs">${msgs || `<div class="muted">${t("keine")}</div>`}</div>
-        <textarea data-k="msg" placeholder="${t("Antworten")} …" style="margin-top:8px"></textarea>
-        <div class="row"><span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>`;
+        ${s.sug ? `<div class="sugbox ${s.sug.dringend ? "urgent" : ""}"><b>✨ ${s.sug.dringend ? "DRINGEND · " : ""}${esc(s.sug.absicht)}</b>
+          ${s.sug.zusammenfassung ? ` · ${esc(s.sug.zusammenfassung)}` : ""}
+          ${s.sug.hinweis ? `<div>ℹ️ ${esc(s.sug.hinweis)}</div>` : ""}
+          ${s.sug.wissensluecke ? `<div>❓ Wissenslücke: ${esc(s.sug.wissensluecke)}</div>` : ""}
+          ${s.sug.offen ? `<div>✏️ Bitte die Stellen [OFFEN: …] ergänzen.</div>` : ""}</div>` : ""}
+        <textarea data-k="msg" placeholder="${t("Antworten")} …" style="margin-top:8px;min-height:140px">${esc(s.draft || "")}</textarea>
+        <div class="row">${s.ai ? `<select data-k="anlass">${["antwort", "willkommen", "anreise", "abreise", "bewertung"].map((a) => `<option value="${a}">${a}</option>`).join("")}</select>
+          <button class="btn flat" data-act="ai" ${s.thinking ? "disabled" : ""}>${s.thinking ? "⏳ KI denkt …" : "✨ Vorschlag"}</button>` : ""}
+          <span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>`;
     return `<div class="row"><h2 class="grow">${esc(this._config.title || t("Posteingang"))}</h2></div>${lastHtml}
       <div class="wrap"><div>${items || `<div class="empty">${t("Keine Daten")}</div>`}</div><div>${right}</div></div>`;
   }
   bind(root) {
     root.querySelectorAll("[data-rid]").forEach((el) => el.addEventListener("click", () => el.dataset.rid && this.select(Number(el.dataset.rid))));
     root.querySelector('[data-act="detail"]')?.addEventListener("click", () => this.openBooking(this._state.sel));
+    root.querySelector('[data-act="ai"]')?.addEventListener("click", () => this.aiSuggest());
+    root.querySelector('[data-k="msg"]')?.addEventListener("input", (e) => { this._state.draft = e.target.value; });
     root.querySelector('[data-act="send"]')?.addEventListener("click", async () => {
       const text = (this.$('[data-k="msg"]')?.value || "").trim();
-      if (!text || !(await confirmDialog(`${t("Senden")} ${t("an den Gast")}?`))) return;
+      if (!text) return;
+      if (/\[OFFEN/i.test(text)) { toast("Bitte zuerst die Stellen [OFFEN: …] ergänzen"); return; }
+      if (!(await confirmDialog(`${t("Senden")} ${t("an den Gast")}?`))) return;
       try {
-        await this.store.service("send_message", { reservation_id: this._state.sel, message: text });
+        // Über den Assistenten senden → Antwort wird als Lernbeispiel gespeichert
+        await this.store.ws("smoobu/assistant/send", { ...this.target, reservation_id: this._state.sel, text }, { cache: false });
+        this.store.invalidate();
         toast(t("Gesendet"));
         this.select(this._state.sel);
       } catch (e) { toast(`${t("Fehler")}: ${e.message || e}`); }
@@ -1236,6 +1265,141 @@ class SmoobuInboxCard extends SmoobuCard {
   }
 }
 
+
+// ===========================================================================
+// KI-Assistent: Wissensdatenbank, Lernbeispiele, offene Vorschläge
+// ===========================================================================
+const INTENT_LABEL = { frage: "Frage", spaete_anreise: "Späte Anreise", frueher_checkin: "Früher Check-in",
+  spaeter_checkout: "Später Check-out", problem_dringend: "Problem", dank: "Dank", buchungsanfrage: "Buchungsanfrage",
+  stornierung: "Stornierung", sonstiges: "Sonstiges" };
+class SmoobuAssistantCard extends SmoobuCard {
+  static defaults = { title: "" };
+  static initialState = () => ({ tab: "wissen", edit: null, filter: "" });
+  static css = `
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; }
+    .kn { border: 1px solid var(--sm-line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+    .kn.vorschlag { border-color: var(--sm-warn); background: color-mix(in srgb, var(--sm-warn) 8%, transparent); }
+    .kn.aus { opacity: .55; }
+    .kn .t { font-weight: 600; } .kn .x { white-space: pre-wrap; font-size: .88rem; margin-top: 4px; }
+    .kn input[data-f="thema"] { width: 100%; box-sizing: border-box; margin-bottom: 6px; }
+    .ex { border-bottom: 1px solid var(--sm-line); padding: 8px 0; font-size: .85rem; }
+    .ex .g { color: var(--sm-muted); white-space: pre-wrap; } .ex .a { white-space: pre-wrap; margin-top: 4px; }
+    .prog { height: 6px; border-radius: 3px; background: var(--sm-line); overflow: hidden; margin-top: 6px; }
+    .prog > div { height: 100%; background: var(--sm-accent); }
+  `;
+  async load() {
+    const st = await this.store.ws("smoobu/assistant/state", this.target, { cache: false });
+    // Import läuft im Hintergrund → Fortschritt alle 3 s nachladen
+    clearTimeout(this._poll);
+    if (st.import?.laeuft) this._poll = setTimeout(() => this._reload(), 3000);
+    return { st };
+  }
+  disconnectedCallback() { clearTimeout(this._poll); super.disconnectedCallback(); }
+  knowledge(st) {
+    const f = this._state.filter.toLowerCase();
+    const order = { vorschlag: 0, aktiv: 1, aus: 2 };
+    const items = st.wissen.filter((w) => !f || `${w.thema} ${w.text}`.toLowerCase().includes(f))
+      .sort((a, b) => order[a.status] - order[b.status] || a.thema.localeCompare(b.thema));
+    const ed = this._state.edit;
+    const row = (w) => ed === w.id ? `<div class="kn" data-id="${w.id}">
+        <input data-f="thema" value="${esc(w.thema)}" placeholder="Thema">
+        <textarea data-f="text" placeholder="Fakt / Antwortbaustein">${esc(w.text)}</textarea>
+        <div class="row"><label><input type="checkbox" data-f="vertraulich" ${w.vertraulich ? "checked" : ""}> vertraulich (nicht an die KI)</label>
+          <select data-f="status">${["aktiv", "vorschlag", "aus"].map((x) => `<option ${x === w.status ? "selected" : ""}>${x}</option>`).join("")}</select>
+          <span class="grow"></span><button class="btn flat" data-a="cancel">${t("Abbrechen")}</button><button class="btn" data-a="save">${t("Speichern")}</button></div></div>`
+      : `<div class="kn ${w.status}" data-id="${w.id}"><div class="row"><span class="t grow">${esc(w.thema)}${w.vertraulich ? " 🔒" : ""}</span>
+          ${w.status === "vorschlag" ? `<span class="badge warn">Vorschlag · ${esc(w.quelle)}</span><button class="btn" data-a="ok">✓ Freigeben</button>` : `<span class="badge">${w.status}</span>`}
+          <button class="btn flat" data-a="edit">✎</button><button class="btn flat" data-a="del">🗑</button></div>
+          <div class="x">${esc(w.text) || '<span class="muted">(noch kein Text – bitte ergänzen)</span>'}</div></div>`;
+    return `<div class="toolbar"><input type="search" data-k="filter" placeholder="${t("Suche")}" value="${esc(this._state.filter)}" style="flex:1">
+      <button class="btn" data-a="new">+ Eintrag</button></div>${ed === "neu" ? row({ id: "neu", thema: "", text: "", status: "aktiv" }) : ""}
+      ${items.map(row).join("") || `<div class="empty">${t("Keine Daten")}</div>`}`;
+  }
+  body({ st }) {
+    const tab = this._state.tab;
+    const imp = st.import || {};
+    const pct = imp.buchungen ? Math.round((imp.fertig / imp.buchungen) * 100) : 0;
+    const head = `<div class="row"><h2 class="grow">🤖 ${esc(this._config.title || "Assistent")}</h2>
+        <span class="badge ${st.aktiv ? "good" : "bad"}">${st.aktiv ? "aktiv" : "aus"}</span>
+        <span class="badge">${esc(st.ki || "keine KI")}</span></div>
+      ${st.fehler ? `<div class="err">Letzter Fehler: ${esc(st.fehler)}</div>` : ""}
+      <div class="grid" style="margin-top:8px">
+        ${tile("Offene Vorschläge", num(st.offen.length))}
+        ${tile("Wissen", num(st.wissen.filter((w) => w.status === "aktiv").length), `${st.wissen.filter((w) => w.status === "vorschlag").length} zur Freigabe`)}
+        ${tile("Lernbeispiele", num(st.beispiele_anzahl))}
+        ${tile("Nicht buchbare Lücken", num(st.luecken.length))}
+      </div>
+      <div class="tabs">${[["wissen", "📚 Wissen"], ["vorschlaege", "✨ Vorschläge"], ["beispiele", "🎓 Gelernt"], ["luecken", "📅 Lücken"], ["import", "⬇ Import"]]
+        .map(([k, l]) => `<button class="chip" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join("")}</div>`;
+    let body = "";
+    if (tab === "wissen") body = this.knowledge(st);
+    if (tab === "vorschlaege") body = st.vorschlaege.map((v) => `<div class="ex click" data-bid="${v.buchung_id}">
+        <div class="row"><b class="grow">${esc(v.gast || v.buchung_id)}</b>${v.dringend ? '<span class="badge bad">dringend</span>' : ""}
+        <span class="badge">${esc(INTENT_LABEL[v.absicht] || v.absicht)}</span><span class="badge ${v.status === "offen" ? "warn" : ""}">${esc(v.status)}</span>
+        <span class="sub">${fdate(v.erstellt, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></div>
+        ${v.gastnachricht ? `<div class="g">„${esc(v.gastnachricht.slice(0, 300))}“</div>` : ""}<div class="a">➜ ${esc(v.antwort)}</div></div>`).join("")
+      || `<div class="empty">${t("Keine Daten")}</div>`;
+    if (tab === "beispiele") body = st.beispiele.slice(0, 60).map((b) => `<div class="ex"><div class="row"><span class="badge">${esc(b.quelle)}</span>
+        <span class="sub grow">${esc(b.kanal || "")} · ${esc(b.sprache || "")}</span><button class="btn flat" data-del-ex="${b.id}">🗑</button></div>
+        ${b.gast ? `<div class="g">Gast: ${esc(b.gast.slice(0, 300))}</div>` : ""}<div class="a">Ihr: ${esc(b.antwort.slice(0, 500))}</div></div>`).join("")
+      || `<div class="empty">Noch nichts gelernt – Verlauf importieren oder Antworten senden.</div>`;
+    if (tab === "luecken") body = st.luecken.map((g) => `<div class="ex"><b>${fdow(g.von)} – ${fdow(g.bis)}</b> · ${g.naechte} N. frei,
+        Mindestaufenthalt ${g.mindestaufenthalt} → nicht buchbar${g.preis_vorschlag ? ` · Last-Minute-Vorschlag ${g.preis} → ${g.preis_vorschlag} €` : ""}
+        <div class="sub">Im Belegungsplan markieren und „Preis setzen“ (Mindestaufenthalt ${g.naechte}).</div></div>`).join("")
+      || `<div class="empty">Keine nicht buchbaren Lücken in den nächsten 30 Tagen.</div>`;
+    if (tab === "import") body = `<p class="sub">1. Verlauf importieren: lädt die Nachrichten eurer Gästebuchungen (2 Jahre) und speichert jede eurer Antworten
+        mit der Gästenachricht davor als Lernbeispiel. 2. Wissen erzeugen: die KI liest eure Vorlagen und Antworten und schlägt
+        Wissenseinträge vor (Status „Vorschlag“, ihr gebt sie frei). Zugangscodes werden dabei nicht übernommen.</p>
+      <div class="row"><button class="btn" data-a="import" ${imp.laeuft ? "disabled" : ""}>⬇ Verlauf importieren</button>
+        <button class="btn" data-a="wissen" ${this._state.busy ? "disabled" : ""}>${this._state.busy ? "⏳ KI arbeitet …" : "📚 Wissen erzeugen"}</button></div>
+      ${imp.buchungen ? `<div class="sub" style="margin-top:8px">${imp.laeuft ? "Läuft" : "Fertig"}: ${imp.fertig}/${imp.buchungen} Buchungen ·
+        ${imp.beispiele} neue Beispiele${imp.fehler ? ` · ${imp.fehler} Fehler` : ""}${st.vorlagen?.length ? ` · ${st.vorlagen.length} Vorlagen erkannt` : ""}</div>
+        <div class="prog"><div style="width:${pct}%"></div></div>` : ""}`;
+    return head + body;
+  }
+  bind(root) {
+    root.querySelectorAll("[data-tab]").forEach((el) => el.addEventListener("click", () => this.setState({ tab: el.dataset.tab, edit: null })));
+    const f = root.querySelector('[data-k="filter"]');
+    f?.addEventListener("input", () => { const p = f.selectionStart; this.setState({ filter: f.value }); const n = this.$('[data-k="filter"]'); n.focus(); n.setSelectionRange(p, p); });
+    root.querySelectorAll("[data-bid]").forEach((el) => el.addEventListener("click", () => this.openBooking(Number(el.dataset.bid))));
+    root.querySelectorAll("[data-del-ex]").forEach((el) => el.addEventListener("click", async () => {
+      await this.store.ws("smoobu/assistant/delete", { ...this.target, kind: "beispiel", item_id: el.dataset.delEx }, { cache: false });
+      this._reload();
+    }));
+    root.querySelectorAll("[data-a]").forEach((el) => el.addEventListener("click", () => this.act(el.dataset.a, el.closest("[data-id]"))));
+  }
+  async act(a, box) {
+    const id = box?.dataset.id;
+    const save = (item) => this.store.ws("smoobu/assistant/knowledge", { ...this.target, item }, { cache: false });
+    try {
+      if (a === "new") return this.setState({ edit: "neu" });
+      if (a === "edit") return this.setState({ edit: id });
+      if (a === "cancel") return this.setState({ edit: null });
+      if (a === "save") {
+        const v = (k) => box.querySelector(`[data-f="${k}"]`);
+        const item = { thema: v("thema").value.trim(), text: v("text").value.trim(), status: v("status").value, vertraulich: v("vertraulich").checked };
+        if (!item.thema) return toast("Thema fehlt");
+        await save(id === "neu" ? item : { ...item, id });
+        this._state.edit = null;
+      } else if (a === "ok") await save({ id, status: "aktiv" });
+      else if (a === "del") {
+        if (!(await confirmDialog("Eintrag löschen?"))) return;
+        await this.store.ws("smoobu/assistant/delete", { ...this.target, kind: "wissen", item_id: id }, { cache: false });
+      } else if (a === "import") {
+        await this.store.ws("smoobu/assistant/job", { ...this.target, job: "import" }, { cache: false });
+        toast("Import gestartet");
+      } else if (a === "wissen") {
+        this.setState({ busy: true });
+        const r = await this.store.ws("smoobu/assistant/job", { ...this.target, job: "wissen" }, { cache: false });
+        this._state.busy = false;
+        toast(`${r.neu} Wissensvorschläge erzeugt`);
+        this._state.tab = "wissen";
+      }
+      this._reload();
+    } catch (e) { this._state.busy = false; toast(`${t("Fehler")}: ${e.message || e}`); this.render(); }
+  }
+}
+
 // ===========================================================================
 // Registrierung
 // ===========================================================================
@@ -1245,6 +1409,7 @@ const CARDS = [
   ["smoobu-bookings-card", SmoobuBookingsCard, "Smoobu Buchungen", "Buchungsliste mit Suche, Filtern, Summen und CSV-Export"],
   ["smoobu-analytics-card", SmoobuAnalyticsCard, "Smoobu Finanzen", "Umsatz, Kosten und Kennzahlen je Kanal, frei filterbar mit Vergleich"],
   ["smoobu-inbox-card", SmoobuInboxCard, "Smoobu Posteingang", "Nachrichten der Gäste lesen und beantworten"],
+  ["smoobu-assistant-card", SmoobuAssistantCard, "Smoobu Assistent", "KI-Assistent: Wissensdatenbank, Lernbeispiele, Vorschläge"],
 ];
 for (const [tag, cls] of CARDS) if (!customElements.get(tag)) customElements.define(tag, cls);
 if (!customElements.get("smoobu-booking-dialog")) customElements.define("smoobu-booking-dialog", SmoobuBookingDialog);

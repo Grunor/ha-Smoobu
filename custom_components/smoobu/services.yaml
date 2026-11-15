@@ -179,3 +179,41 @@ update_reservation:
       selector:
         text:
           multiline: true
+
+# --- KI-Assistent (ab v1.10.0) -------------------------------------------------
+assistant_suggest:
+  fields:
+    config_entry_id: *entry
+    reservation_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 9999999999
+          mode: box
+    anlass:
+      default: antwort
+      selector:
+        select:
+          options: [antwort, willkommen, anreise, abreise, bewertung]
+    message:
+      selector:
+        text:
+          multiline: true
+    push:
+      default: false
+      selector:
+        boolean:
+assistant_import:
+  fields:
+    config_entry_id: *entry
+    jahre:
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 5
+          mode: box
+assistant_build_knowledge:
+  fields:
+    config_entry_id: *entry

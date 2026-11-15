@@ -81,6 +81,27 @@
           "commission_custom": "Format: Channel=percent; Channel=percent (e.g. Expedia=18; HomeToGo=15). Channel name as shown in Smoobu.",
           "direct_channels": "Revenue from these channels counts as direct; all others as portal."
         }
+      },
+      "assistent": {
+        "title": "AI assistant",
+        "description": "Reply suggestions for guest messages with a knowledge base and learning from your replies. Nothing is sent to guests without confirmation. Guest messages and booking data are sent to the chosen AI provider.",
+        "data": {
+          "assistant": "Enable assistant",
+          "ai_entity": "AI (AI task)",
+          "assist_recipients": "Push to (mobile app)",
+          "assist_status": "HA entities as context",
+          "assist_path": "Dashboard page for \"Edit\"",
+          "assist_briefing": "Daily briefing push",
+          "assist_briefing_time": "Briefing time",
+          "assist_gaps": "Report unbookable gaps"
+        },
+        "data_description": {
+          "ai_entity": "e.g. Google Gemini, called via ai_task.generate_data.",
+          "assist_recipients": "Only mobile_app services support buttons (send, ignore, apply arrival time).",
+          "assist_status": "e.g. heating, door, outdoor temperature – helps with problem reports.",
+          "assist_path": "e.g. /dashboard-apartment/smoobu-messages",
+          "assist_gaps": "Daily 09:05: gaps within 30 days not bookable due to minimum stay, with a button to adjust."
+        }
       }
     },
     "error": {
@@ -469,6 +490,9 @@
       },
       "auswertung_direktanteil": {
         "name": "Analysis direct share"
+      },
+      "assistent": {
+        "name": "Assistant open suggestions"
       }
     },
     "select": {
@@ -710,6 +734,56 @@
         "notice": {
           "name": "Note",
           "description": "New note (replaces the old one)."
+        }
+      }
+    },
+    "assistant_suggest": {
+      "name": "Assistant: suggestion",
+      "description": "Creates a message draft for a booking.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Only with several accounts."
+        },
+        "reservation_id": {
+          "name": "Reservation ID",
+          "description": "Booking."
+        },
+        "anlass": {
+          "name": "Occasion",
+          "description": "antwort, willkommen, anreise, abreise, bewertung"
+        },
+        "message": {
+          "name": "Guest message",
+          "description": "Optional; otherwise the guest's last message."
+        },
+        "push": {
+          "name": "Send push",
+          "description": "Also send the suggestion as push with buttons."
+        }
+      }
+    },
+    "assistant_import": {
+      "name": "Assistant: import history",
+      "description": "Loads the messages of guest bookings and stores your replies as learning examples.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Only with several accounts."
+        },
+        "jahre": {
+          "name": "Years",
+          "description": "How far back."
+        }
+      }
+    },
+    "assistant_build_knowledge": {
+      "name": "Assistant: build knowledge",
+      "description": "Creates knowledge base suggestions from your templates and replies (for approval).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Only with several accounts."
         }
       }
     }

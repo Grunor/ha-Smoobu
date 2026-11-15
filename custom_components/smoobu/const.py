@@ -78,6 +78,19 @@ CONF_COMMISSION_CUSTOM = "commission_custom"  # Freitext "Kanal=Prozent; Kanal=P
 CONF_HISTORY_YEARS = "history_years"
 DEFAULT_HISTORY_YEARS = 2
 
+# KI-Assistent (ab v1.10.0)
+CONF_ASSISTANT = "assistant"  # an/aus
+CONF_AI_ENTITY = "ai_entity"  # ai_task.* Entität
+CONF_ASSIST_RECIPIENTS = "assist_recipients"  # notify-Dienste (mobile_app_*), Pushes mit Buttons
+CONF_ASSIST_STATUS = "assist_status"  # HA-Entitäten als Kontext (Heizung, Tür …)
+CONF_ASSIST_PATH = "assist_path"  # Dashboard-Pfad für „Bearbeiten“
+CONF_ASSIST_BRIEFING = "assist_briefing"
+CONF_ASSIST_BRIEFING_TIME = "assist_briefing_time"
+CONF_ASSIST_GAPS = "assist_gaps"
+SERVICE_ASSIST_SUGGEST = "assistant_suggest"
+SERVICE_ASSIST_IMPORT = "assistant_import"
+SERVICE_ASSIST_KNOWLEDGE = "assistant_build_knowledge"
+
 FALLBACK_CHECKIN = time(16, 0)
 FALLBACK_CHECKOUT = time(11, 0)
 
