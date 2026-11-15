@@ -1,3 +1,5 @@
+<p align="center"><img src="custom_components/smoobu/brand/icon@2x.png" width="128" alt="Smoobu for Home Assistant"></p>
+
 # Smoobu für Home Assistant / Smoobu for Home Assistant
 
 **[🇩🇪 Deutsch](#deutsch) · [🇬🇧 English](#english)**
