@@ -336,3 +336,47 @@ class SmoobuForecastSensor(SmoobuEntity, SensorEntity):
             "vorjahr_gesamt": prev["brutto"],
             "veraenderung_vorjahr_prozent": change(d["prognose"], prev["brutto"]),
         }
+
+
+# ---------------------------------------------------------------------------
+# KI-Assistent
+# ---------------------------------------------------------------------------
+class SmoobuAssistantSensor(SmoobuEntity, SensorEntity):
+    """Offene Antwortvorschläge des KI-Assistenten (Zustand = Anzahl)."""
+
+    _attr_icon = "mdi:robot-happy"
+    _attr_state_class = None
+    _unrecorded_attributes = frozenset({"vorschlaege", "luecken"})
+
+    def __init__(self, coordinator: C) -> None:
+        super().__init__(coordinator, None, "assistent")
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if self.coordinator.assistant:
+            self.async_on_remove(self.coordinator.assistant.add_listener(self.async_write_ha_state))
+
+    @property
+    def native_value(self) -> int:
+        a = self.coordinator.assistant
+        return sum(1 for s in a.data["vorschlaege"].values() if s["status"] == "offen") if a else 0
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        a = self.coordinator.assistant
+        if not a:
+            return {}
+        st = a.state()
+        return {
+            "aktiv": st["aktiv"],
+            "ki": st["ki"],
+            "fehler": st["fehler"],
+            "wissen": len(st["wissen"]),
+            "wissen_vorschlaege": sum(1 for w in st["wissen"] if w["status"] == "vorschlag"),
+            "beispiele": st["beispiele_anzahl"],
+            "vorschlaege": [
+                {k: s.get(k) for k in ("buchung_id", "gast", "absicht", "dringend", "status", "erstellt", "zusammenfassung")}
+                for s in st["vorschlaege"][:10]
+            ],
+            "luecken": st["luecken"],
+        }

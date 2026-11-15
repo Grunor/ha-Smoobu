@@ -6,6 +6,22 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.10.0 – 2026-11-15
+
+**Deutsch**
+- KI-Assistent: Antwortvorschläge bei neuen Gästenachrichten per `ai_task` (Anbieter wählbar), Push mit Senden/Bearbeiten/Ignorieren und „Ankunft übernehmen“; keine Erfindungen ([OFFEN: …] + Wissenslücke)
+- Wissensdatenbank (aktiv/Vorschlag/aus, vertraulich), Lernen aus allen gesendeten Antworten, Import des Verlaufs, Wissensvorschläge aus Vorlagen
+- Dringende Probleme mit HA-Status, Tagesbriefing, nicht buchbare Lücken mit Button
+- Neuer Optionsschritt „KI-Assistent“, Sensor „Assistent offene Vorschläge“, Aktionen `assistant_suggest`, `assistant_import`, `assistant_build_knowledge`, Karte `smoobu-assistant-card`, ✨ Vorschlag im Posteingang
+- Senden aus Karten läuft über den Assistenten (Lernbeispiel); Signaturen „Von meinem … gesendet“ werden erkannt
+
+**English**
+- AI assistant: reply suggestions for new guest messages via `ai_task` (any provider), push with send/edit/ignore and "apply arrival"; no invention ([OFFEN: …] + knowledge gap)
+- Knowledge base (active/suggestion/off, confidential), learning from all sent replies, history import, knowledge suggestions from templates
+- Urgent problems with HA state, daily briefing, unbookable gaps with button
+- New options step "AI assistant", sensor "Assistant open suggestions", actions `assistant_suggest`, `assistant_import`, `assistant_build_knowledge`, card `smoobu-assistant-card`, ✨ suggestion in the inbox
+- Sending from cards goes through the assistant (learning example); "Sent from my …" signatures are detected
+
 ## 1.9.2 – 2026-11-15
 
 **Deutsch**

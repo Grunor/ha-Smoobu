@@ -65,6 +65,9 @@ from .const import (
     ATTR_PRICE,
     ATTR_START,
     SERVICE_BLOCK_PERIOD,
+    SERVICE_ASSIST_IMPORT,
+    SERVICE_ASSIST_KNOWLEDGE,
+    SERVICE_ASSIST_SUGGEST,
     SERVICE_DELETE_RESERVATION,
     SERVICE_SET_RATES,
     SERVICE_UPDATE_RESERVATION,
@@ -85,6 +88,7 @@ from .const import (
     SERVICE_SEND_MESSAGE,
 )
 from .analytics import block_channel_id
+from .assistant import SmoobuAssistant
 from .coordinator import SmoobuCoordinator
 from .frontend import async_register_frontend
 from .websocket_api import async_register as async_register_websocket
@@ -120,6 +124,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> bo
     # Erste Abfrage: Fehler hier → HA versucht die Einrichtung später erneut.
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+    # KI-Assistent (Wissensdatenbank, Beispiele, Push-Aktionen); ohne KI-Option inaktiv
+    coordinator.assistant = SmoobuAssistant(hass, coordinator)
+    await coordinator.assistant.async_setup()
 
     # Webhook vor den Plattformen, damit der Webhook-Sensor gleich den
     # richtigen Status zeigt.
@@ -136,6 +143,8 @@ async def _async_reload(hass: HomeAssistant, entry: SmoobuConfigEntry) -> None:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> bool:
+    if getattr(entry, "runtime_data", None) and entry.runtime_data.assistant:
+        await entry.runtime_data.assistant.async_unload()
     if webhook_id := entry.data.get(CONF_WEBHOOK_ID):
         webhook.async_unregister(hass, webhook_id)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
@@ -330,6 +339,9 @@ async def _handle_webhook(
         hass.async_create_task(
             coordinator.async_fetch_last_message(int(reservation_id), data.get("sender"))
         )
+        # Assistent: Gast schreibt → Vorschlag; Gastgeber schreibt → lernen
+        if coordinator.assistant:
+            hass.async_create_task(coordinator.assistant.on_new_message(int(reservation_id)))
     # Preisänderungen betreffen keine Buchungsdaten → kein Neuladen nötig.
     if action != "updateRates":
         # Buchung neu/geändert/storniert → auch Umsatzdaten sofort neu laden
@@ -405,7 +417,12 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def send_message(call: ServiceCall) -> None:
         coordinator = _get_coordinator(hass, call)
+        to_guest = call.data.get(ATTR_RECIPIENT, "guest") == "guest"
         try:
+            if to_guest and not call.data.get(ATTR_SUBJECT) and coordinator.assistant:
+                # Über den Assistenten: Antwort wird als Lernbeispiel gespeichert
+                await coordinator.assistant.send(call.data[ATTR_RESERVATION_ID], call.data[ATTR_MESSAGE])
+                return
             await coordinator.client.send_message(
                 call.data[ATTR_RESERVATION_ID],
                 call.data[ATTR_MESSAGE],
@@ -575,6 +592,45 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional(ATTR_NOTICE): cv.string,
             }
         ),
+    )
+
+    # --- KI-Assistent (v1.10.0) ---------------------------------------
+    async def assistant_suggest(call: ServiceCall) -> ServiceResponse:
+        coordinator = _get_coordinator(hass, call)
+        try:
+            return await coordinator.assistant.suggest(
+                call.data[ATTR_RESERVATION_ID], call.data.get("anlass", "antwort"),
+                call.data.get(ATTR_MESSAGE), notify=call.data.get("push", False))
+        except SmoobuError as err:
+            raise HomeAssistantError(str(err)) from err
+
+    async def assistant_import(call: ServiceCall) -> ServiceResponse:
+        coordinator = _get_coordinator(hass, call)
+        state = await coordinator.assistant.import_history(call.data.get("jahre", 2))
+        return {k: v for k, v in state.items() if k != "vorlagen"}
+
+    async def assistant_knowledge(call: ServiceCall) -> ServiceResponse:
+        coordinator = _get_coordinator(hass, call)
+        try:
+            return {"neu": await coordinator.assistant.build_knowledge()}
+        except SmoobuError as err:
+            raise HomeAssistantError(str(err)) from err
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_ASSIST_SUGGEST, assistant_suggest,
+        vol.Schema({**entry_field, vol.Required(ATTR_RESERVATION_ID): vol.Coerce(int),
+                    vol.Optional("anlass", default="antwort"): vol.In(["antwort", "willkommen", "anreise", "abreise", "bewertung"]),
+                    vol.Optional(ATTR_MESSAGE): cv.string, vol.Optional("push", default=False): cv.boolean}),
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ASSIST_IMPORT, assistant_import,
+        vol.Schema({**entry_field, vol.Optional("jahre", default=2): vol.All(vol.Coerce(int), vol.Range(min=1, max=5))}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ASSIST_KNOWLEDGE, assistant_knowledge, vol.Schema({**entry_field}),
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
     hass.services.async_register(DOMAIN, SERVICE_REFRESH, refresh, vol.Schema({}))

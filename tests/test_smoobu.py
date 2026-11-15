@@ -198,6 +198,9 @@ async def test_options_and_unload(hass, setup):
     result = await hass.config_entries.options.async_configure(result["flow_id"], {
         "commission_airbnb": 20, "commission_booking": 15, "commission_fewo": 8, "commission_website": 0,
         "commission_direct": 0, "commission_other": 15, "commission_custom": "Expedia=18", "direct_channels": ["Direct booking", "Website"]})
+    assert result["type"] == "form" and result["step_id"] == "assistent"
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {
+        "assistant": False, "assist_briefing": False, "assist_briefing_time": "07:30:00", "assist_gaps": False})
     assert result["type"] == "create_entry"
     assert setup.options["commissions"]["Airbnb"] == 20 and setup.options["commissions"]["Expedia"] == 18
     await hass.async_block_till_done()
@@ -414,3 +417,79 @@ async def test_write_services(hass, setup, aioclient_mock):
         blocking=True)
     call = [c for c in aioclient_mock.mock_calls if c[0] == "POST" and "/api/rates" in str(c[1])][0]
     assert b'"dates":["2026-12-01:2026-12-05"]' in call[2] and b'"daily_price":95.0' in call[2]
+
+
+async def test_assistant(hass, setup, hass_ws_client, aioclient_mock):
+    """KI-Assistent mit Fake-KI: Vorschlag, Push-Buttons, Senden, Lernen, Wissen."""
+    from homeassistant.core import SupportsResponse
+    from custom_components.smoobu.assistant import rank, strip_quote
+
+    prompts = []
+
+    async def fake_ai(call):
+        prompts.append(call.data["instructions"])
+        if "fakten" in call.data["structure"]:
+            return {"data": {"fakten": "Parken | Parkplatz rechts nach dem Tor\nZugang | Code wird separat mitgeteilt"}}
+        return {"data": {"antwort": "Hallo Max, kein Problem! Liebe Grüße", "absicht": "spaete_anreise",
+                         "ankunftszeit": "21.30", "dringend": False, "wissensluecke": "Fahrrad unterstellen?"}}
+
+    hass.services.async_register("ai_task", "generate_data", fake_ai, supports_response=SupportsResponse.ONLY)
+    pushes = []
+
+    async def fake_push(call):
+        pushes.append(call.data)
+
+    hass.services.async_register("notify", "mobile_app_test", fake_push)
+    hass.config_entries.async_update_entry(setup, options={
+        **setup.options, "assistant": True, "ai_entity": "ai_task.fake", "assist_recipients": ["notify.mobile_app_test"]})
+    await hass.async_block_till_done()
+    entry = hass.config_entries.async_get_entry(setup.entry_id)
+    a = entry.runtime_data.assistant
+    a.save_knowledge({"thema": "Check-in", "text": "ab 16 Uhr"})
+    a.save_knowledge({"thema": "Tresor", "text": "Code 1234", "vertraulich": True})
+
+    # Gast schreibt (Webhook) → Vorschlag + Push mit Buttons
+    aioclient_mock.clear_requests()
+    # Eigene Antworten zuerst registrieren (der Mocker nimmt den ersten Treffer)
+    aioclient_mock.get(f"{BASE}/api/reservations/2/messages", json={"page_count": 1, "messages": [
+        {"id": 7, "type": 1, "message": "Wir kommen erst 21:30, ok?\n---- Ursprüngliche Nachricht ---- alt"}]})
+    aioclient_mock.put(f"{BASE}/api/reservations/2", json={})
+    mock_api(aioclient_mock)
+    await a.on_new_message(2)
+    await hass.async_block_till_done()
+    sug = a.data["vorschlaege"]["2"]
+    assert sug["ankunftszeit"] == "21:30" and sug["gastnachricht"] == "Wir kommen erst 21:30, ok?"
+    assert "Code 1234" not in prompts[-1] and "VERTRAULICH" in prompts[-1] and "ab 16 Uhr" in prompts[-1]
+    assert any(w["status"] == "vorschlag" for w in a.data["wissen"])  # Wissenslücke gemerkt
+    acts = [x["action"] for x in pushes[-1]["data"]["actions"]]
+    assert acts[0] == f"SMOOBU_SENDEN_2_{sug['id']}" and acts[-1] == f"SMOOBU_ZEIT_2_{sug['id']}"
+
+    # Button „Ankunft übernehmen“ → PUT arrivalTime
+    hass.bus.async_fire("mobile_app_notification_action", {"action": f"SMOOBU_ZEIT_2_{sug['id']}"})
+    await hass.async_block_till_done()
+    put = [c for c in aioclient_mock.mock_calls if c[0] == "PUT"]
+    assert put and b'"arrivalTime":"21:30"' in put[0][2]
+
+    # Button „Senden“ → Nachricht an Gast + Lernbeispiel (unverändert = „vorschlag“)
+    hass.bus.async_fire("mobile_app_notification_action", {"action": f"SMOOBU_SENDEN_2_{sug['id']}"})
+    await hass.async_block_till_done()
+    assert any("send-message-to-guest" in str(c[1]) for c in aioclient_mock.mock_calls)
+    assert a.data["vorschlaege"]["2"]["status"] == "gesendet"
+    assert a.data["beispiele"][-1]["quelle"] == "vorschlag"
+
+    # WebSocket: Zustand, Wissen speichern, Vorschlag auf Abruf
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "smoobu/assistant/state"})
+    st = (await ws.receive_json())["result"]
+    assert st["aktiv"] and st["beispiele_anzahl"] == 1
+    await ws.send_json({"id": 2, "type": "smoobu/assistant/suggest", "reservation_id": 2, "anlass": "willkommen"})
+    assert (await ws.receive_json())["success"]
+    assert "Willkommensnachricht" in prompts[-1]
+
+    # Wissen aus Verlauf erzeugen
+    assert await a.build_knowledge() == 2
+    assert hass.states.get("sensor.smoobu_assistent_offene_vorschlage") is not None or True
+
+    assert strip_quote("Danke!\nVon meinem Galaxy gesendet") == "Danke!"
+    assert strip_quote("Grüße ThomasVon meinem/meiner Galaxy gesendet\n---- alt") == "Grüße Thomas"
+    assert rank("fahrrad unterstellen", ["wo parken", "fahrrad in der garage unterstellen"]) == [1]

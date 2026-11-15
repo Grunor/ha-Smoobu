@@ -13,6 +13,8 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -27,6 +29,14 @@ from homeassistant.helpers.selector import (
 
 from .api import SmoobuAuthError, SmoobuClient, SmoobuError
 from .const import (
+    CONF_AI_ENTITY,
+    CONF_ASSISTANT,
+    CONF_ASSIST_BRIEFING,
+    CONF_ASSIST_BRIEFING_TIME,
+    CONF_ASSIST_GAPS,
+    CONF_ASSIST_PATH,
+    CONF_ASSIST_RECIPIENTS,
+    CONF_ASSIST_STATUS,
     CONF_API_KEY,
     CONF_API_SECRET,
     CONF_CHECKOUT_BUFFER,
@@ -273,14 +283,13 @@ class SmoobuOptionsFlow(OptionsFlow):
                     errors[CONF_COMMISSION_CUSTOM] = "invalid_custom"
                     break
             if not errors:
-                data = {
-                    **opts,
-                    **self._general,
+                self._prov = {
                     CONF_COMMISSIONS: new,
                     CONF_COMMISSION_OTHER: float(user_input[CONF_COMMISSION_OTHER]),
                     CONF_DIRECT_CHANNELS: list(user_input[CONF_DIRECT_CHANNELS]),
                 }
-                return self.async_create_entry(data=data)
+                # Weiter zum Schritt „Assistent“; alle Schritte werden zusammen gespeichert.
+                return await self.async_step_assistent()
 
         def pct(field: str) -> vol.Required:
             channel = COMMISSION_FIELDS[field]
@@ -315,3 +324,37 @@ class SmoobuOptionsFlow(OptionsFlow):
             }
         )
         return self.async_show_form(step_id="provisionen", data_schema=schema, errors=errors)
+
+    async def async_step_assistent(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """KI-Assistent: KI-Entität, Push-Empfänger, Kontext-Entitäten, Zusatzaufgaben."""
+        opts = self.config_entry.options
+        if user_input is not None:
+            user_input[CONF_ASSIST_BRIEFING_TIME] = str(user_input.get(CONF_ASSIST_BRIEFING_TIME) or "07:30")[:5]
+            return self.async_create_entry(data={**opts, **self._general, **self._prov, **user_input})
+        # Push-Empfänger: nur mobile_app-Dienste können Buttons (Senden/Ignorieren)
+        notify = sorted(
+            f"notify.{svc}" for svc in self.hass.services.async_services().get("notify", {})
+            if svc.startswith("mobile_app_")
+        )
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_ASSISTANT, default=opts.get(CONF_ASSISTANT, False)): BooleanSelector(),
+                vol.Optional(CONF_AI_ENTITY, description={"suggested_value": opts.get(CONF_AI_ENTITY)}): EntitySelector(
+                    EntitySelectorConfig(domain="ai_task")
+                ),
+                vol.Optional(CONF_ASSIST_RECIPIENTS, default=opts.get(CONF_ASSIST_RECIPIENTS, [])): SelectSelector(
+                    SelectSelectorConfig(options=notify, multiple=True, custom_value=True, mode=SelectSelectorMode.DROPDOWN)
+                ),
+                vol.Optional(CONF_ASSIST_STATUS, default=opts.get(CONF_ASSIST_STATUS, [])): EntitySelector(
+                    EntitySelectorConfig(multiple=True)
+                ),
+                vol.Optional(CONF_ASSIST_PATH, default=opts.get(CONF_ASSIST_PATH, "/lovelace")): TextSelector(),
+                vol.Required(CONF_ASSIST_BRIEFING, default=opts.get(CONF_ASSIST_BRIEFING, False)): BooleanSelector(),
+                vol.Required(
+                    CONF_ASSIST_BRIEFING_TIME, default=_time_default(opts.get(CONF_ASSIST_BRIEFING_TIME, "07:30"))
+                ): TimeSelector(),
+                vol.Required(CONF_ASSIST_GAPS, default=opts.get(CONF_ASSIST_GAPS, False)): BooleanSelector(),
+            }
+        )
+        return self.async_show_form(step_id="assistent", data_schema=schema)
+

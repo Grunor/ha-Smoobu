@@ -342,7 +342,8 @@ Die Integration bringt eigene Karten mit. Sie werden automatisch geladen (keine 
 | `custom:smoobu-timeline-card` | Belegungsplan je Monat mit Kanalfarben, Sperrzeiten, Tagespreis, Mindestaufenthalt, nicht buchbaren Lücken. Tage markieren → **sperren** oder **Preis/Mindestaufenthalt setzen** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
 | `custom:smoobu-bookings-card` | Buchungsliste: Suche, Zeitraum, Kanal- und Statusfilter (inkl. Stornos, Sperrzeiten), Sortierung, Summen, CSV-Export | `title`, `period`, `status`, `apartment_id` |
 | `custom:smoobu-analytics-card` | Finanzen: Zeitraum frei (auch benutzerdefiniert), Kanäle mehrfach wählbar, Vergleich Vorjahr/Vorperiode. Kennzahlen mit Veränderung, gestapeltes Diagramm je Kanal mit Vergleichslinie, Anteile, Erkenntnisse, Kanaltabelle | `title`, `period`, `compare`, `apartment_id` |
-| `custom:smoobu-inbox-card` | Posteingang: laufende, kommende und kürzliche Buchungen, Nachrichtenverlauf, antworten | `title`, `days_back`, `days_ahead`, `message_entity` |
+| `custom:smoobu-inbox-card` | Posteingang: laufende, kommende und kürzliche Buchungen, Nachrichtenverlauf, antworten, ✨ KI-Vorschlag | `title`, `days_back`, `days_ahead`, `message_entity` |
+| `custom:smoobu-assistant-card` | KI-Assistent: Wissensdatenbank (freigeben, bearbeiten, vertraulich), Vorschläge, Gelerntes, Lücken, Import | `title` |
 
 ```yaml
 # Beispiel: eigene Seite „Smoobu“ mit Übersicht und Belegungsplan
@@ -355,6 +356,21 @@ months: 4
 ```
 
 Datenquelle der Karten sind WebSocket-Befehle (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/subscribe`). Sie aktualisieren sich bei jedem neuen Datenstand von selbst. Alle Texte aus Smoobu werden vor der Anzeige maskiert.
+
+---
+
+### KI-Assistent (ab 1.10.0)
+
+Antwortvorschläge für Gästenachrichten auf Basis einer Wissensdatenbank, die aus euren eigenen Antworten lernt. **Nichts wird ohne Bestätigung an Gäste gesendet.**
+
+- **Ablauf:** Neue Gästenachricht (Webhook) → Entwurf per `ai_task.generate_data` (Anbieter frei wählbar, z. B. Google Gemini) → Push an die gewählten Handys mit **Senden / Bearbeiten / Ignorieren**; erkennt der Assistent eine neue Ankunftszeit, gibt es zusätzlich **„Ankunft HH:MM übernehmen“**.
+- **Keine Erfindungen:** Die Anweisung erlaubt nur Fakten aus Wissen, Buchung, Belegung und HA-Status. Unbekanntes wird als `[OFFEN: …]` markiert, als Wissenslücke gemeldet und blockiert das Senden per Push.
+- **Wissensdatenbank** (in HA gespeichert, Karte `custom:smoobu-assistant-card`): Einträge Thema + Text, Status aktiv/Vorschlag/aus, **vertraulich** = geht nie an die KI.
+- **Lernen:** Jede gesendete Antwort (Karte, Push, direkt in Smoobu) wird mit der Gästenachricht davor gespeichert; neue Vorschläge orientieren sich an den ähnlichsten Beispielen (lokale BM25-Suche). Aktion `smoobu.assistant_import` übernimmt den bisherigen Verlauf, `smoobu.assistant_build_knowledge` schlägt daraus Wissenseinträge vor.
+- **Kontext:** Buchung, Belegung davor/danach (früher Check-in / später Check-out), frei wählbare HA-Entitäten (z. B. Heizung, Tür, Außentemperatur) – bei Problemen („kalt“, „kein Wasser“) Push als **dringend** mit Hinweis.
+- **Zusatzaufgaben (Optionen):** Tagesbriefing per Push, tägliche Meldung nicht buchbarer Lücken (Mindestaufenthalt) mit Button zum Anpassen.
+- **Entitäten/Aktionen:** `sensor.smoobu_assistent_offene_vorschlage`, `smoobu.assistant_suggest` (Anlass: antwort, willkommen, anreise, abreise, bewertung), WebSocket `smoobu/assistant/*`.
+- **Datenschutz:** Gästenachrichten und Buchungsdaten gehen an den gewählten KI-Anbieter.
 
 ---
 
@@ -908,9 +924,25 @@ The integration ships its own cards. They are loaded automatically (no resource 
 | `custom:smoobu-timeline-card` | Occupancy plan per month with channel colours, blocks, daily price, minimum stay, unbookable gaps. Mark days → **block** or **set price/minimum stay** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
 | `custom:smoobu-bookings-card` | Booking list: search, period, channel and status filters (incl. cancellations, blocks), sorting, totals, CSV export | `title`, `period`, `status`, `apartment_id` |
 | `custom:smoobu-analytics-card` | Finance: free period (also custom), multiple channels, comparison previous year/period. Key figures with change, stacked chart per channel with comparison line, shares, insights, channel table | `title`, `period`, `compare`, `apartment_id` |
-| `custom:smoobu-inbox-card` | Inbox: current, upcoming and recent bookings, message thread, reply | `title`, `days_back`, `days_ahead`, `message_entity` |
+| `custom:smoobu-inbox-card` | Inbox: current, upcoming and recent bookings, message thread, reply, ✨ AI suggestion | `title`, `days_back`, `days_ahead`, `message_entity` |
+| `custom:smoobu-assistant-card` | AI assistant: knowledge base (approve, edit, confidential), suggestions, learned examples, gaps, import | `title` |
 
 The cards read data through WebSocket commands (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/subscribe`) and refresh themselves on every data update. All texts from Smoobu are escaped before display.
+
+---
+
+### AI assistant (since 1.10.0)
+
+Reply suggestions for guest messages based on a knowledge base that learns from your own replies. **Nothing is sent to guests without confirmation.**
+
+- **Flow:** new guest message (webhook) → draft via `ai_task.generate_data` (any provider, e.g. Google Gemini) → push to the chosen phones with **Send / Edit / Ignore**; if a new arrival time is detected, also **"Apply arrival HH:MM"**.
+- **No invention:** only facts from knowledge, booking, occupancy and HA state are allowed. Unknown items are marked `[OFFEN: …]`, reported as knowledge gaps and block sending via push.
+- **Knowledge base** (stored in HA, card `custom:smoobu-assistant-card`): topic + text, status active/suggestion/off, **confidential** = never sent to the AI.
+- **Learning:** every sent reply (card, push, directly in Smoobu) is stored with the guest message before it; new suggestions follow the most similar examples (local BM25 search). `smoobu.assistant_import` imports the history, `smoobu.assistant_build_knowledge` suggests knowledge entries from it.
+- **Context:** booking, occupancy before/after (early check-in / late check-out), selectable HA entities (heating, door, outdoor temperature) – problem reports are pushed as **urgent** with a hint.
+- **Extra tasks (options):** daily briefing push, daily report of unbookable gaps (minimum stay) with a button to adjust.
+- **Entities/actions:** `sensor.smoobu_assistant_open_suggestions`, `smoobu.assistant_suggest`, WebSocket `smoobu/assistant/*`.
+- **Privacy:** guest messages and booking data are sent to the chosen AI provider.
 
 ---
 

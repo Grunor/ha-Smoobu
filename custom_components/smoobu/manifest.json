@@ -3,7 +3,8 @@
   "name": "Smoobu",
   "after_dependencies": [
     "cloud",
-    "frontend"
+    "frontend",
+    "ai_task"
   ],
   "codeowners": [
     "@Grunor"
@@ -19,5 +20,5 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/Grunor/ha-Smoobu/issues",
   "requirements": [],
-  "version": "1.9.2"
+  "version": "1.10.0"
 }
