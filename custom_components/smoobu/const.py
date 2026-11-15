@@ -51,6 +51,29 @@ DEFAULT_ENRICH_COUNT = 3
 DEFAULT_CHECKOUT_BUFFER = 0
 DEFAULT_PAYMENT_EXCLUDED_CHANNELS = ["Airbnb", "Booking.com"]
 
+# Provisionen (nur genutzt, wenn Smoobu keine Provision zur Buchung liefert)
+CONF_COMMISSIONS = "commissions"  # {Kanalname: Prozent}
+CONF_COMMISSION_OTHER = "commission_other"  # % für Portale ohne eigenen Eintrag
+CONF_DIRECT_CHANNELS = "direct_channels"  # Kanäle, die als Direktvermarktung zählen
+DEFAULT_COMMISSIONS = {
+    "Airbnb": 15.5,
+    "Booking.com": 15.0,
+    "FeWo-direkt": 8.0,
+    "Website": 0.0,
+    "Direct booking": 0.0,
+}
+DEFAULT_COMMISSION_OTHER = 15.0
+DEFAULT_DIRECT_CHANNELS = ["Direct booking", "Website"]
+# Feldnamen im Optionsformular → Kanalname in Smoobu
+COMMISSION_FIELDS = {
+    "commission_airbnb": "Airbnb",
+    "commission_booking": "Booking.com",
+    "commission_fewo": "FeWo-direkt",
+    "commission_website": "Website",
+    "commission_direct": "Direct booking",
+}
+CONF_COMMISSION_CUSTOM = "commission_custom"  # Freitext "Kanal=Prozent; Kanal=Prozent"
+
 FALLBACK_CHECKIN = time(16, 0)
 FALLBACK_CHECKOUT = time(11, 0)
 

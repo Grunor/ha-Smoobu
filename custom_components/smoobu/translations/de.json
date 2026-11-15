@@ -60,7 +60,29 @@
           "checkout_buffer": "Steht in der Buchung eine Abreisezeit, gilt die Wohnung erst nach dieser Zeit + Puffer als frei. Ohne Abreisezeit gilt der Standard-Check-out.",
           "payment_excluded_channels": "Buchungen dieser Kanäle zählen nicht als offene Zahlung (das Portal kassiert, Smoobu meldet trotzdem „unbezahlt“)."
         }
+      },
+      "provisionen": {
+        "title": "Provisionen & Direktkanäle",
+        "description": "Für Nettoumsatz und Direkt vs. Portale. Die %-Werte gelten nur, wenn Smoobu zur Buchung keine Provision liefert (Airbnb und Booking.com liefern sie meist). Die Booking.com-Zahlungsgebühr wird aus der Buchung gelesen.",
+        "data": {
+          "commission_airbnb": "Airbnb",
+          "commission_booking": "Booking.com",
+          "commission_fewo": "FeWo-direkt / Vrbo",
+          "commission_website": "Website (Smoobu-Buchungsseite)",
+          "commission_direct": "Direktbuchung (manuell)",
+          "commission_other": "Sonstige Portale",
+          "commission_custom": "Weitere Kanäle",
+          "direct_channels": "Kanäle der Direktvermarktung"
+        },
+        "data_description": {
+          "commission_other": "Für Portale ohne eigenen Eintrag.",
+          "commission_custom": "Format: Kanal=Prozent; Kanal=Prozent (z. B. Expedia=18; HomeToGo=15). Kanalname wie in Smoobu.",
+          "direct_channels": "Umsatz dieser Kanäle zählt als Direkt, alle anderen als Portal."
+        }
       }
+    },
+    "error": {
+      "invalid_custom": "Format: Kanal=Prozent; Kanal=Prozent"
     }
   },
   "entity": {
@@ -364,6 +386,42 @@
       },
       "letzte_gastnachricht": {
         "name": "Letzte Gästenachricht"
+      },
+      "netto_umsatz_monat": {
+        "name": "Nettoumsatz Monat"
+      },
+      "netto_umsatz_jahr": {
+        "name": "Nettoumsatz Jahr"
+      },
+      "provision_jahr": {
+        "name": "Provision & Gebühren Jahr"
+      },
+      "umsatz_direkt_jahr": {
+        "name": "Umsatz Direkt Jahr"
+      },
+      "umsatz_portale_jahr": {
+        "name": "Umsatz Portale Jahr"
+      },
+      "direktanteil_jahr": {
+        "name": "Direktanteil Jahr"
+      },
+      "aktueller_gast_kanal_gruppe": {
+        "name": "Aktueller Gast Kanalgruppe"
+      },
+      "naechster_gast_kanal_gruppe": {
+        "name": "Nächster Gast Kanalgruppe"
+      },
+      "aktueller_gast_provision": {
+        "name": "Aktueller Gast Provision"
+      },
+      "naechster_gast_provision": {
+        "name": "Nächster Gast Provision"
+      },
+      "aktueller_gast_netto_preis": {
+        "name": "Aktueller Gast Nettopreis"
+      },
+      "naechster_gast_netto_preis": {
+        "name": "Nächster Gast Nettopreis"
       }
     }
   },

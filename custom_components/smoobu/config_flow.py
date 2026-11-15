@@ -30,6 +30,14 @@ from .const import (
     CONF_API_KEY,
     CONF_API_SECRET,
     CONF_CHECKOUT_BUFFER,
+    CONF_COMMISSION_CUSTOM,
+    CONF_COMMISSION_OTHER,
+    CONF_COMMISSIONS,
+    CONF_DIRECT_CHANNELS,
+    COMMISSION_FIELDS,
+    DEFAULT_COMMISSION_OTHER,
+    DEFAULT_COMMISSIONS,
+    DEFAULT_DIRECT_CHANNELS,
     CONF_DAYS_AHEAD,
     CONF_DAYS_BACK,
     CONF_DEFAULT_CHECKIN,
@@ -167,7 +175,9 @@ class SmoobuOptionsFlow(OptionsFlow):
                 CONF_CHECKOUT_BUFFER,
             ):
                 user_input[key] = int(user_input[key])
-            return self.async_create_entry(data=user_input)
+            # Weiter zum Schritt „Provisionen“; beide Schritte werden zusammen gespeichert.
+            self._general = user_input
+            return await self.async_step_provisionen()
 
         opts = self.config_entry.options
         schema = vol.Schema(
@@ -227,3 +237,72 @@ class SmoobuOptionsFlow(OptionsFlow):
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
+
+    async def async_step_provisionen(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Provision je Kanal und Direktkanäle (für Nettoumsatz / Direkt vs. Portale).
+
+        Die %-Werte gelten nur für Buchungen, zu denen Smoobu keine Provision liefert.
+        """
+        opts = self.config_entry.options
+        commissions: dict[str, float] = dict(opts.get(CONF_COMMISSIONS, DEFAULT_COMMISSIONS))
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            new: dict[str, float] = {
+                channel: float(user_input[field]) for field, channel in COMMISSION_FIELDS.items()
+            }
+            # Freitext „Expedia=18; HomeToGo=15“ für weitere Kanäle
+            custom = str(user_input.get(CONF_COMMISSION_CUSTOM) or "")
+            for part in filter(None, (p.strip() for p in custom.replace("\n", ";").split(";"))):
+                name, sep, value = part.partition("=")
+                try:
+                    if not sep or not name.strip():
+                        raise ValueError
+                    new[name.strip()] = float(value.strip().replace(",", "."))
+                except ValueError:
+                    errors[CONF_COMMISSION_CUSTOM] = "invalid_custom"
+                    break
+            if not errors:
+                data = {
+                    **opts,
+                    **self._general,
+                    CONF_COMMISSIONS: new,
+                    CONF_COMMISSION_OTHER: float(user_input[CONF_COMMISSION_OTHER]),
+                    CONF_DIRECT_CHANNELS: list(user_input[CONF_DIRECT_CHANNELS]),
+                }
+                return self.async_create_entry(data=data)
+
+        def pct(field: str) -> vol.Required:
+            channel = COMMISSION_FIELDS[field]
+            return vol.Required(field, default=commissions.get(channel, DEFAULT_COMMISSIONS[channel]))
+
+        known = set(COMMISSION_FIELDS.values())
+        custom_default = "; ".join(
+            f"{k}={v:g}" for k, v in commissions.items() if k not in known
+        )
+        percent = NumberSelector(
+            NumberSelectorConfig(min=0, max=50, step=0.1, unit_of_measurement="%", mode=NumberSelectorMode.BOX)
+        )
+        schema = vol.Schema(
+            {
+                **{pct(field): percent for field in COMMISSION_FIELDS},
+                vol.Required(
+                    CONF_COMMISSION_OTHER,
+                    default=opts.get(CONF_COMMISSION_OTHER, DEFAULT_COMMISSION_OTHER),
+                ): percent,
+                vol.Optional(CONF_COMMISSION_CUSTOM, default=custom_default): TextSelector(),
+                vol.Required(
+                    CONF_DIRECT_CHANNELS,
+                    default=opts.get(CONF_DIRECT_CHANNELS, DEFAULT_DIRECT_CHANNELS),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=["Direct booking", "Website", "Airbnb", "Booking.com", "FeWo-direkt"],
+                        multiple=True,
+                        custom_value=True,
+                        mode=SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(step_id="provisionen", data_schema=schema, errors=errors)

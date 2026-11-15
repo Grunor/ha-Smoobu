@@ -189,7 +189,17 @@ async def test_options_and_unload(hass, setup):
     result = await hass.config_entries.options.async_configure(result["flow_id"], {
         "scan_interval": 5, "use_webhook": True, "default_checkin": "15:00:00", "default_checkout": "11:00:00",
         "days_back": 30, "days_ahead": 365, "enrich_count": 3})
+    # Zweiter Schritt: Provisionen
+    assert result["type"] == "form" and result["step_id"] == "provisionen"
+    bad = await hass.config_entries.options.async_configure(result["flow_id"], {
+        "commission_airbnb": 15.5, "commission_booking": 15, "commission_fewo": 8, "commission_website": 0,
+        "commission_direct": 0, "commission_other": 15, "commission_custom": "Expedia", "direct_channels": ["Direct booking"]})
+    assert bad["errors"] == {"commission_custom": "invalid_custom"}
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {
+        "commission_airbnb": 20, "commission_booking": 15, "commission_fewo": 8, "commission_website": 0,
+        "commission_direct": 0, "commission_other": 15, "commission_custom": "Expedia=18", "direct_channels": ["Direct booking", "Website"]})
     assert result["type"] == "create_entry"
+    assert setup.options["commissions"]["Airbnb"] == 20 and setup.options["commissions"]["Expedia"] == 18
     await hass.async_block_till_done()
     assert setup.options["default_checkin"] == "15:00"
     assert await hass.config_entries.async_unload(setup.entry_id)
@@ -302,3 +312,38 @@ async def test_rates_gaps_fields_message(hass, setup, hass_client_no_auth, aiocl
     msg = hass.states.get("sensor.smoobu_letzte_gastenachricht")
     assert msg.state == "Wo ist der Schlüssel? Danke", msg.state
     assert msg.attributes["gast"] == "Max Mustermann"
+
+
+def test_booking_costs():
+    from custom_components.smoobu.channels import booking_costs
+    comm = {"Airbnb": 15.5, "Booking.com": 15, "FeWo-direkt": 8}
+    direct = ["Direct booking", "Website"]
+    # Smoobu-Provision + Booking-Zahlungsgebühr aus der Notiz
+    b = {"price": 148.6, "commission-included": 22.29, "channel": {"name": "Booking.com"},
+         "notice": "BOOKING NOTE : Payment charge is EUR 2.08 Anzahlung"}
+    c = booking_costs(b, comm, 15, direct)
+    assert c["provision_quelle"] == "smoobu" and c["zahlungsgebuehr"] == 2.08
+    assert c["netto"] == round(148.6 - 22.29 - 2.08, 2) and c["kanal_gruppe"] == "Portal"
+    # Ohne Smoobu-Provision → Konfiguration
+    c = booking_costs({"price": 200, "channel": {"name": "fewo-direkt"}}, comm, 15, direct)
+    assert c["provision"] == 16.0 and c["provision_quelle"] == "konfiguration"
+    # Direktkanal ohne Eintrag → 0 %, unbekanntes Portal → Standard
+    assert booking_costs({"price": 100, "channel": {"name": "Website"}}, comm, 15, direct)["netto"] == 100
+    assert booking_costs({"price": 100, "channel": {"name": "Expedia"}}, comm, 15, direct)["provision"] == 15
+
+
+async def test_direct_vs_portal(hass, setup):
+    # Airbnb 300 € (15,5 % laut Standard), Direkt 450,50 € → Direktanteil 60,0 %
+    share = hass.states.get("sensor.smoobu_ferienwohnung_direktanteil_jahr")
+    assert float(share.state) == 60.0, share.state
+    assert share.attributes["kanaele"]["Airbnb"]["provision"] == 46.5
+    assert share.attributes["ersparnis_direkt"] == round(450.5 * 0.155, 2)
+    net = hass.states.get("sensor.smoobu_ferienwohnung_nettoumsatz_jahr")
+    assert float(net.state) == 704.0
+    assert float(hass.states.get("sensor.smoobu_ferienwohnung_umsatz_direkt_jahr").state) == 450.5
+    assert float(hass.states.get("sensor.smoobu_ferienwohnung_umsatz_portale_jahr").state) == 300.0
+    assert float(hass.states.get("sensor.smoobu_ferienwohnung_provision_gebuhren_jahr").state) == 46.5
+    assert hass.states.get("sensor.smoobu_ferienwohnung_aktueller_gast_kanalgruppe").state == "Portal"
+    assert float(hass.states.get("sensor.smoobu_ferienwohnung_aktueller_gast_nettopreis").state) == 253.5
+    p = hass.states.get("sensor.smoobu_ferienwohnung_preis_aktueller_gast")
+    assert p.attributes["kanal_gruppe"] == "Portal" and p.attributes["netto"] == 253.5

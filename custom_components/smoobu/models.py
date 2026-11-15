@@ -32,6 +32,8 @@ class SmoobuData:
     revenue: dict[int, dict[str, float]] = field(default_factory=dict)
     # Wohnungs-ID → {"YYYY-MM": Umsatz} nur bereits vergangener Nächte (bis gestern)
     revenue_earned: dict[int, dict[str, float]] = field(default_factory=dict)
+    # Je Gastnacht (Datum, ID, Kanal, direkt, Brutto, Provision, Gebühr) – siehe channels.py
+    night_rows: dict[int, list] = field(default_factory=dict)
     # Wohnungs-ID → {"YYYY-MM": Gäste-Nächte} bzw. blockierte Nächte
     guest_nights: dict[int, dict[str, int]] = field(default_factory=dict)
     blocked_nights: dict[int, dict[str, int]] = field(default_factory=dict)

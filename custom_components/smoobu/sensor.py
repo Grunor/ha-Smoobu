@@ -27,6 +27,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from . import SmoobuConfigEntry
+from .channels import monthly, summarize
 from .booking_fields import FIELDS, SCOPES, BookingField, is_enabled
 from .const import CONF_CLOUDHOOK_URL, CONF_SMOOBU_WEBHOOK_ID, STATS_DAYS
 from .coordinator import SmoobuCoordinator
@@ -390,6 +391,175 @@ def _price_today_attrs(c: C, apt: int) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Direktvermarktung vs. Portale (Basis: channels.night_rows)
+# ---------------------------------------------------------------------------
+def _rows(c: C, apt: int) -> list:
+    return (c.data.night_rows.get(apt, []) if c.data else []) or []
+
+
+def _year_range(year: int) -> tuple[date, date]:
+    return date(year, 1, 1), date(year + 1, 1, 1)
+
+
+def _prev_year_day(day: date) -> date:
+    """Gleicher Tag im Vorjahr (29.02. → 28.02.)."""
+    try:
+        return day.replace(year=day.year - 1)
+    except ValueError:
+        return day.replace(year=day.year - 1, day=28)
+
+
+def _ch(c: C, apt: int) -> dict[str, Any]:
+    """Jahr, Jahr bis heute, Vorjahr, Vorjahr bis heute – einmal berechnet."""
+    today = dt_util.now().date()
+    y = today.year
+    rows = _rows(c, apt)
+    return {
+        "jahr": summarize(rows, *_year_range(y)),
+        "bis_heute": summarize(rows, date(y, 1, 1), today),
+        "vorjahr": summarize(rows, *_year_range(y - 1)),
+        "vorjahr_bis_heute": summarize(rows, date(y - 1, 1, 1), _prev_year_day(today)),
+    }
+
+
+def _month_start(key: str) -> date:
+    return date(int(key[:4]), int(key[5:7]), 1)
+
+
+def _ch_month(c: C, apt: int, offset: int = 0, years_back: int = 0) -> dict[str, Any]:
+    """Summen eines Monats relativ zum laufenden (offset) bzw. im Vorjahr (years_back)."""
+    today = dt_util.now().date()
+    key = _shift_month(f"{today.year:04d}-{today.month:02d}", offset - 12 * years_back)
+    return summarize(_rows(c, apt), _month_start(key), _month_start(_shift_month(key, 1)))
+
+
+def _group_attrs(c: C, apt: int, group: str) -> dict[str, Any]:
+    """Attribute für Umsatz Direkt/Portale: Netto, Vorjahr, bis heute, Monate."""
+    d = _ch(c, apt)
+    y = dt_util.now().year
+    cur, ytd = d["jahr"][group], d["bis_heute"][group]
+    prev, prev_ytd = d["vorjahr"][group], d["vorjahr_bis_heute"][group]
+    return {
+        "netto": cur["netto"],
+        "kosten": cur["kosten"],
+        "kostenquote_prozent": cur["kostenquote_prozent"],
+        "buchungen": cur["buchungen"],
+        "naechte": cur["naechte"],
+        "netto_pro_nacht": cur["netto_pro_nacht"],
+        "anteil_prozent": (
+            round(cur["brutto"] / d["jahr"]["gesamt"]["brutto"] * 100, 1)
+            if d["jahr"]["gesamt"]["brutto"] else None
+        ),
+        "bis_heute": ytd["brutto"],
+        "bis_heute_netto": ytd["netto"],
+        "vorjahr": prev["brutto"],
+        "vorjahr_netto": prev["netto"],
+        "vorjahr_bis_heute": prev_ytd["brutto"],
+        "vorjahr_bis_heute_netto": prev_ytd["netto"],
+        "veraenderung_vorjahr_bis_heute_prozent": _pct_change(ytd["brutto"], prev_ytd["brutto"]),
+        "veraenderung_vorjahr_prozent": _pct_change(cur["brutto"], prev["brutto"]),
+        "monate": monthly(_rows(c, apt), y, group, "brutto"),
+        "monate_vorjahr": monthly(_rows(c, apt), y - 1, group, "brutto"),
+        "monate_netto": monthly(_rows(c, apt), y, group, "netto"),
+    }
+
+
+def _savings(stats: dict[str, Any]) -> float | None:
+    """Gesparte Kosten der Direktbuchungen, gerechnet mit der Kostenquote der Portale."""
+    quote = stats["portale"]["kostenquote_prozent"]
+    return round(stats["direkt"]["brutto"] * quote / 100, 2) if quote else None
+
+
+def _share_attrs(c: C, apt: int) -> dict[str, Any]:
+    d = _ch(c, apt)
+    cur, prev = d["jahr"], d["vorjahr"]
+    ytd, prev_ytd = d["bis_heute"], d["vorjahr_bis_heute"]
+    share = cur["direktanteil_prozent"]
+    return {
+        "anteil_naechte_prozent": cur["direktanteil_naechte_prozent"],
+        "bis_heute_prozent": ytd["direktanteil_prozent"],
+        "vorjahr_prozent": prev["direktanteil_prozent"],
+        "vorjahr_bis_heute_prozent": prev_ytd["direktanteil_prozent"],
+        "veraenderung_prozentpunkte": (
+            round(share - prev["direktanteil_prozent"], 1)
+            if share is not None and prev["direktanteil_prozent"] is not None else None
+        ),
+        "ersparnis_direkt": _savings(cur),
+        "ersparnis_direkt_vorjahr": _savings(prev),
+        "kanaele": cur["kanaele"],
+        "kanaele_bis_heute": ytd["kanaele"],
+        "kanaele_vorjahr": prev["kanaele"],
+        "kanaele_vorjahr_bis_heute": prev_ytd["kanaele"],
+        "berechnung": "Anteil am Bruttoumsatz (anteilig nach Nächten); Direktkanäle laut Optionen",
+    }
+
+
+def _net_year_attrs(c: C, apt: int) -> dict[str, Any]:
+    d = _ch(c, apt)
+    y = dt_util.now().year
+    cur, ytd = d["jahr"]["gesamt"], d["bis_heute"]["gesamt"]
+    prev, prev_ytd = d["vorjahr"]["gesamt"], d["vorjahr_bis_heute"]["gesamt"]
+    return {
+        "brutto": cur["brutto"],
+        "provision": cur["provision"],
+        "zahlungsgebuehren": cur["zahlungsgebuehren"],
+        "kostenquote_prozent": cur["kostenquote_prozent"],
+        "davon_bis_heute": ytd["netto"],
+        "vorjahr_gesamt": prev["netto"],
+        "vorjahr_bis_heute": prev_ytd["netto"],
+        "veraenderung_vorjahr_bis_heute_prozent": _pct_change(ytd["netto"], prev_ytd["netto"]),
+        "veraenderung_vorjahr_prozent": _pct_change(cur["netto"], prev["netto"]),
+        "monate": monthly(_rows(c, apt), y),
+        "monate_vorjahr": monthly(_rows(c, apt), y - 1),
+    }
+
+
+def _net_month_attrs(c: C, apt: int) -> dict[str, Any]:
+    cur = _ch_month(c, apt)["gesamt"]
+    prev_year = _ch_month(c, apt, years_back=1)["gesamt"]
+    return {
+        "brutto": cur["brutto"],
+        "provision": cur["provision"],
+        "zahlungsgebuehren": cur["zahlungsgebuehren"],
+        "kostenquote_prozent": cur["kostenquote_prozent"],
+        "vormonat": _ch_month(c, apt, -1)["gesamt"]["netto"],
+        "folgemonat": _ch_month(c, apt, 1)["gesamt"]["netto"],
+        "vorjahresmonat": prev_year["netto"],
+        "veraenderung_vorjahr_prozent": _pct_change(cur["netto"], prev_year["netto"]),
+        "kanaele": _ch_month(c, apt)["kanaele"],
+    }
+
+
+def _costs_attrs(c: C, apt: int) -> dict[str, Any]:
+    d = _ch(c, apt)
+    cur, prev = d["jahr"], d["vorjahr"]
+    return {
+        "provision": cur["gesamt"]["provision"],
+        "zahlungsgebuehren": cur["gesamt"]["zahlungsgebuehren"],
+        "kostenquote_prozent": cur["gesamt"]["kostenquote_prozent"],
+        "bis_heute": d["bis_heute"]["gesamt"]["kosten"],
+        "vorjahr": prev["gesamt"]["kosten"],
+        "vorjahr_bis_heute": d["vorjahr_bis_heute"]["gesamt"]["kosten"],
+        "vorjahr_kostenquote_prozent": prev["gesamt"]["kostenquote_prozent"],
+        "je_kanal": {k: v["kosten"] for k, v in cur["kanaele"].items()},
+        "je_kanal_vorjahr": {k: v["kosten"] for k, v in prev["kanaele"].items()},
+        "provisionen_konfiguration": c.commissions,
+        "provision_sonstige_portale": c.commission_other,
+        "direktkanaele": c.direct_channels,
+    }
+
+
+def _price_costs(c: C, b: dict[str, Any] | None) -> dict[str, Any]:
+    """Kanalgruppe/Provision/Netto für Preis-Sensoren aktueller/nächster Gast."""
+    if not b:
+        return {}
+    costs = c.costs(b)
+    costs.pop("brutto", None)
+    costs.pop("kanal", None)
+    return costs
+
+
+# ---------------------------------------------------------------------------
 # Beschreibungen
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True, kw_only=True)
@@ -474,7 +644,7 @@ APARTMENT_SENSORS: tuple[SmoobuSensorDescription, ...] = (
         device_class=SensorDeviceClass.MONETARY,
         suggested_display_precision=2,
         value_fn=lambda c, a: _price(_current(c, a)),
-        attrs_fn=lambda c, a: _price_attrs(c, _current(c, a)),
+        attrs_fn=lambda c, a: {**_price_attrs(c, _current(c, a)), **_price_costs(c, _current(c, a))},
     ),
     SmoobuSensorDescription(
         key="preis_naechster_gast",
@@ -482,7 +652,7 @@ APARTMENT_SENSORS: tuple[SmoobuSensorDescription, ...] = (
         device_class=SensorDeviceClass.MONETARY,
         suggested_display_precision=2,
         value_fn=lambda c, a: _price(_next(c, a)),
-        attrs_fn=lambda c, a: _price_attrs(c, _next(c, a)),
+        attrs_fn=lambda c, a: {**_price_attrs(c, _next(c, a)), **_price_costs(c, _next(c, a))},
     ),
     SmoobuSensorDescription(
         key="umsatz_monat",
@@ -535,6 +705,64 @@ APARTMENT_SENSORS: tuple[SmoobuSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda c, a: _blocked(c, a, _month_key(dt_util.now())),
         attrs_fn=_blocked_month_attrs,
+    ),
+    SmoobuSensorDescription(
+        key="netto_umsatz_monat",
+        icon="mdi:cash-check",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=2,
+        reset="month",
+        time_dependent=False,
+        value_fn=lambda c, a: _ch_month(c, a)["gesamt"]["netto"],
+        attrs_fn=_net_month_attrs,
+    ),
+    SmoobuSensorDescription(
+        key="netto_umsatz_jahr",
+        icon="mdi:cash-multiple",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=2,
+        reset="year",
+        time_dependent=False,
+        value_fn=lambda c, a: _ch(c, a)["jahr"]["gesamt"]["netto"],
+        attrs_fn=_net_year_attrs,
+    ),
+    SmoobuSensorDescription(
+        key="provision_jahr",
+        icon="mdi:hand-coin",
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        time_dependent=False,
+        value_fn=lambda c, a: _ch(c, a)["jahr"]["gesamt"]["kosten"],
+        attrs_fn=_costs_attrs,
+    ),
+    SmoobuSensorDescription(
+        key="umsatz_direkt_jahr",
+        icon="mdi:home-heart",
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        time_dependent=False,
+        value_fn=lambda c, a: _ch(c, a)["jahr"]["direkt"]["brutto"],
+        attrs_fn=lambda c, a: _group_attrs(c, a, "direkt"),
+    ),
+    SmoobuSensorDescription(
+        key="umsatz_portale_jahr",
+        icon="mdi:web",
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        time_dependent=False,
+        value_fn=lambda c, a: _ch(c, a)["jahr"]["portale"]["brutto"],
+        attrs_fn=lambda c, a: _group_attrs(c, a, "portale"),
+    ),
+    SmoobuSensorDescription(
+        key="direktanteil_jahr",
+        icon="mdi:chart-donut",
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=1,
+        time_dependent=False,
+        value_fn=lambda c, a: _ch(c, a)["jahr"]["direktanteil_prozent"],
+        attrs_fn=_share_attrs,
     ),
     SmoobuSensorDescription(
         key="preis_heute",
