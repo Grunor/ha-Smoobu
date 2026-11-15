@@ -21,7 +21,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.15.1";
+const SMOOBU_CARDS_VERSION = "1.15.2";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -576,17 +576,23 @@ const plural = (n, one, many) => `${num(n)} ${n === 1 ? one : many}`;
 const daysWord = (n) => (n === 0 ? t("heute") : n === 1 ? t("morgen") : `in ${n} ${t("Tagen")}`);
 
 // Verlauf als kleine Linie (12 Werte); leer bei zu wenig Daten
-function sparkline(values) {
-  const v = (values || []).map((x) => (x === null || x === undefined || isNaN(x) ? null : Number(x)));
-  const pts = v.map((x, i) => [i, x]).filter(([, x]) => x !== null);
-  if (pts.length < 2) return `<div class="spark"></div>`;
+// Verlauf als kleine Linie (v1.15.2: optional mit blasser Vergleichslinie, z. B. Vorjahr).
+// Beide Linien teilen sich Skala und Zeitachse (Länge = längere Reihe), damit die Lage vergleichbar ist.
+function sparkline(values, compare = null) {
+  const clean = (a) => (a || []).map((x) => (x === null || x === undefined || isNaN(x) ? null : Number(x)));
+  const v = clean(values), c = clean(compare);
+  const n = Math.max(v.length, c.length);
+  const all = [...v, ...c].filter((x) => x !== null);
+  if (v.filter((x) => x !== null).length < 2 || n < 2) return `<div class="spark"></div>`;
   const W = 120, H = 30;
-  const lo = Math.min(...pts.map((p) => p[1])), hi = Math.max(...pts.map((p) => p[1]));
-  const xy = pts.map(([i, x]) => [(i / (v.length - 1)) * W, H - 3 - ((x - lo) / (hi - lo || 1)) * (H - 6)]);
-  const [lx, ly] = xy[xy.length - 1];
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-    <polyline points="${xy.map((p) => p.map((n) => n.toFixed(1)).join(",")).join(" ")}"/>
-    <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="2.6"/></svg>`;
+  const lo = Math.min(...all), hi = Math.max(...all);
+  const pt = (x, i) => [(i / (n - 1)) * W, H - 3 - ((x - lo) / (hi - lo || 1)) * (H - 6)];
+  const line = (a) => a.map((x, i) => (x === null ? null : pt(x, i))).filter(Boolean).map((p) => p.map((q) => q.toFixed(1)).join(",")).join(" ");
+  const last = v.map((x, i) => [x, i]).filter(([x]) => x !== null).pop();
+  const [lx, ly] = pt(last[0], last[1]);
+  const cmp = c.filter((x) => x !== null).length >= 2 ? `<polyline class="cmp" points="${line(c)}"/>` : "";
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${cmp}
+    <polyline points="${line(v)}"/><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="2.6"/></svg>`;
 }
 
 // Status einer Wohnung heute → kurze, präzise Sätze für den Kopf
@@ -713,6 +719,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     .spark { width: 100%; height: 28px; margin-top: 8px; display: block; }
     .spark polyline { fill: none; stroke: var(--sm-accent); stroke-width: 1.7; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
     .spark circle { fill: var(--sm-accent); }
+    .spark polyline.cmp { stroke: var(--sm-muted); stroke-opacity: .45; stroke-width: 1.4; stroke-dasharray: 3 2; }
     .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sm-gap); }
     @media (max-width: 1100px) { .three { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 700px) { .three { grid-template-columns: 1fr; } }
@@ -745,7 +752,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     const [month, ytd, last12, prevYear, list, ...rates] = await Promise.all([
       this.store.ws("smoobu/analytics", { ...tg, period: "monat", compare: "vorjahr_stand" }),
       this.store.ws("smoobu/analytics", { ...tg, period: "jahr_bis_heute", compare: "vorjahr" }),
-      this.store.ws("smoobu/analytics", { ...tg, start: iso(addMonths(m0, -11)), end: iso(addMonths(m0, 1)), compare: "kein" }),
+      this.store.ws("smoobu/analytics", { ...tg, start: iso(addMonths(m0, -11)), end: iso(addMonths(m0, 1)), compare: "vorjahr" }),
       this.store.ws("smoobu/analytics", { ...tg, period: "vorjahr", compare: "kein" }).catch(() => null),
       this.store.ws("smoobu/bookings", { ...tg, start: iso(addDays(D(today), -1)), end: iso(addDays(D(today), 180)) }),
       ...apts.map((w) => this.store.ws("smoobu/rates", { ...tg, apartment_id: w.apartment_id, start: today, end: rateEnd })
@@ -896,20 +903,29 @@ class SmoobuOverviewCard extends SmoobuCard {
   kpis({ apt, apts, today, month, ytd, last12, prevYear }) {
     const cur = apt.currency;
     const units = apts.length;
-    const r = last12.reihe || { labels: [], brutto: [], netto: [], naechte: [], kanaele: {} };
+    const empty = { labels: [], brutto: [], netto: [], naechte: [], kanaele: {} };
     const dim = (lab) => { const [y, m] = lab.split("-").map(Number); return new Date(y, m, 0).getDate(); };
-    const occ = r.labels.map((lab, i) => (r.naechte[i] / (dim(lab) * units)) * 100);
-    const npn = r.labels.map((_, i) => (r.naechte[i] ? r.netto[i] / r.naechte[i] : null));
-    const groups = Object.fromEntries(Object.entries(last12.kanaele || {}).map(([k, v]) => [k, v.gruppe]));
-    const direct = r.labels.map((_, i) => {
-      const tot = r.brutto[i];
-      if (!tot) return null;
-      const dsum = Object.entries(r.kanaele).reduce((a, [k, vals]) => a + (groups[k] === "Direkt" ? vals[i] || 0 : 0), 0);
-      return (dsum / tot) * 100;
+    const groups = Object.fromEntries([...Object.entries(last12.vergleich?.kanaele || {}), ...Object.entries(last12.kanaele || {})]
+      .map(([k, v]) => [k, v.gruppe]));
+    // Monatsreihe → Auslastung, Netto je Nacht, Direktanteil (gleiche Rechnung für Ist und Vorjahr)
+    const derive = (r) => ({
+      brutto: r.brutto,
+      occ: r.labels.map((lab, i) => (r.naechte[i] / (dim(lab) * units)) * 100),
+      npn: r.labels.map((_, i) => (r.naechte[i] ? r.netto[i] / r.naechte[i] : null)),
+      direct: r.labels.map((_, i) => {
+        const tot = r.brutto[i];
+        if (!tot) return null;
+        return (Object.entries(r.kanaele).reduce((a, [k, vals]) => a + (groups[k] === "Direkt" ? vals[i] || 0 : 0), 0) / tot) * 100;
+      }),
     });
-    const yr = ytd.reihe || { brutto: [] };
-    let acc = 0;
-    const cum = yr.brutto.map((v) => (acc += v));
+    const cumul = (a) => { let s = 0; return (a || []).map((v) => (s += v || 0)); };
+    const now = derive(last12.reihe || empty);
+    const prev = derive(last12.vergleich?.reihe || empty);
+    // Jahr bis heute: kumuliert ggü. gleichem Zeitraum Vorjahr; Prognose: ggü. ganzem Vorjahr (wohin es lief)
+    const cum = cumul(ytd.reihe?.brutto);
+    const cumPrev = cumul(ytd.vergleich?.reihe?.brutto);
+    const cumPrevYear = cumul(prevYear?.reihe?.brutto);
+    const monthly = (ytd.reihe?.einheit || "monat") === "monat";
     const chans = Object.values(ytd.kanaele || {});
     const portals = chans.filter((v) => v.gruppe === "Portal");
     const pb = portals.reduce((a, v) => a + v.brutto, 0), pk = portals.reduce((a, v) => a + v.kosten, 0);
@@ -919,18 +935,18 @@ class SmoobuOverviewCard extends SmoobuCard {
     const pyTotal = prevYear?.brutto;
     const progDelta = pyTotal ? ((prog.prognose - pyTotal) / pyTotal) * 100 : null;
     const year = today.slice(0, 4);
-    const k = (l, v, dlt, s, sp) => `<div class="kpi"><div class="kl">${l}</div><div class="kv">${v}${dlt}</div><div class="ks">${s}</div>${sparkline(sp)}</div>`;
+    const k = (l, v, dlt, s, sp, cmp) => `<div class="kpi"><div class="kl">${l}</div><div class="kv">${v}${dlt}</div><div class="ks">${s}</div>${sparkline(sp, cmp)}</div>`;
     return `<section class="kpis">
       ${k(`${monthName(today)} ${t("brutto")}`, money(month.brutto, cur), delta(month.veraenderung_prozent?.brutto),
-        `${t("ggü. Buchungsstand")} ${fdate(month.stichtag_vergleich, { day: "2-digit", month: "2-digit", year: "numeric" })}`, r.brutto)}
+        `${t("ggü. Buchungsstand")} ${fdate(month.stichtag_vergleich, { day: "2-digit", month: "2-digit", year: "numeric" })}`, now.brutto, prev.brutto)}
       ${k(`${t("Auslastung")} ${monthName(today)}`, pct(month.auslastung_prozent, 0), delta(month.veraenderung_punkte?.auslastung_prozent, "pp"),
-        `${num(month.naechte)} von ${num((month.tage || 30) * units)} ${t("Nächten")}`, occ)}
-      ${k(t("Jahr bis heute"), money(ytd.brutto, cur), delta(ytd.veraenderung_prozent?.brutto), `${t("netto")} ${money(ytd.netto, cur)}`, cum)}
-      ${k(`${t("Prognose")} ${year}`, money(prog.prognose, cur), delta(progDelta), `${money(prog.gebucht, cur)} ${t("schon gebucht")}`, cum)}
+        `${num(month.naechte)} von ${num((month.tage || 30) * units)} ${t("Nächten")}`, now.occ, prev.occ)}
+      ${k(t("Jahr bis heute"), money(ytd.brutto, cur), delta(ytd.veraenderung_prozent?.brutto), `${t("netto")} ${money(ytd.netto, cur)}`, cum, cumPrev)}
+      ${k(`${t("Prognose")} ${year}`, money(prog.prognose, cur), delta(progDelta), `${money(prog.gebucht, cur)} ${t("schon gebucht")}`, cum, monthly ? cumPrevYear : null)}
       ${k(t("Netto je Nacht"), money(ytd.netto_pro_nacht, cur), delta(ytd.veraenderung_prozent?.netto_pro_nacht),
-        `${t("Vorjahr")} ${money(ytd.vergleich?.netto_pro_nacht, cur)}`, npn)}
+        `${t("Vorjahr")} ${money(ytd.vergleich?.netto_pro_nacht, cur)}`, now.npn, prev.npn)}
       ${k(t("Direktanteil"), pct(ytd.direktanteil_prozent, 0), delta(ytd.veraenderung_punkte?.direktanteil_prozent, "pp"),
-        saved ? `${t("spart rund")} ${money(saved, cur)} ${t("Provision")}` : t("Anteil am Umsatz"), direct)}
+        saved ? `${t("spart rund")} ${money(saved, cur)} ${t("Provision")}` : t("Anteil am Umsatz"), now.direct, prev.direct)}
     </section>`;
   }
 
@@ -988,7 +1004,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     return `${this.multi ? this.heroMulti(d) : this.heroSingle(d)}${this.band(d)}${this.kpis(d)}${this.lists(d)}
       <p class="foot">${t("Vergleich")}: ${monthName(today)} ${t("ggü. Buchungsstand am")} ${fdate(month.stichtag_vergleich)},
         ${t("Jahr ggü.")} ${fdate(ytd.vergleich?.von)}–${fdate(iso(addDays(D(ytd.vergleich?.bis || today), -1)))}. ${t("PP = Prozentpunkte")}.
-        ${t("Prognose")} = ${t("gebucht + Nachbuchungen wie im Vorjahr")}.</p>`;
+        ${t("Prognose")} = ${t("gebucht + Nachbuchungen wie im Vorjahr")}. ${t("Verläufe: kräftige Linie = letzte 12 Monate bzw. dieses Jahr, blasse Linie = Vorjahr.")}</p>`;
   }
   bind(root) {
     root.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); this.openBooking(Number(el.dataset.id)); }));

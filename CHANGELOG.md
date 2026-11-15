@@ -6,6 +6,14 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.15.2 – 2026-11-15
+
+**Deutsch**
+- Übersicht: Jede Kennzahl-Grafik zeigt zusätzlich eine **blasse Vergleichslinie** (Vorjahr): Monat brutto, Auslastung, Netto je Nacht und Direktanteil je Monat der letzten 12 Monate gegen dieselben Monate im Vorjahr; „Jahr bis heute“ kumuliert gegen den gleichen Zeitraum im Vorjahr; „Prognose“ gegen den kumulierten Verlauf des ganzen Vorjahres. Gemeinsame Skala, Erklärung in der Fußzeile
+
+**English**
+- Overview: every key-figure chart now shows a **faint comparison line** (previous year) on a shared scale; "year to date" against the same period last year, "forecast" against the whole previous year
+
 ## 1.15.1 – 2026-11-15
 
 **Deutsch**
