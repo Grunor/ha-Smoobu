@@ -26,6 +26,7 @@ from .api import SmoobuAuthError, SmoobuClient, SmoobuError
 from .const import (
     CONF_API_KEY,
     CONF_API_SECRET,
+    CONF_CHECKOUT_BUFFER,
     CONF_DAYS_AHEAD,
     CONF_DAYS_BACK,
     CONF_DEFAULT_CHECKIN,
@@ -36,6 +37,7 @@ from .const import (
     CONF_USER_ID,
     DEFAULT_CHECKIN,
     DEFAULT_CHECKOUT,
+    DEFAULT_CHECKOUT_BUFFER,
     DEFAULT_DAYS_AHEAD,
     DEFAULT_DAYS_BACK,
     DEFAULT_ENRICH_COUNT,
@@ -152,7 +154,13 @@ class SmoobuOptionsFlow(OptionsFlow):
             # TimeSelector liefert HH:MM:SS → auf HH:MM kürzen.
             for key in (CONF_DEFAULT_CHECKIN, CONF_DEFAULT_CHECKOUT):
                 user_input[key] = str(user_input[key])[:5]
-            for key in (CONF_SCAN_INTERVAL, CONF_DAYS_BACK, CONF_DAYS_AHEAD, CONF_ENRICH_COUNT):
+            for key in (
+                CONF_SCAN_INTERVAL,
+                CONF_DAYS_BACK,
+                CONF_DAYS_AHEAD,
+                CONF_ENRICH_COUNT,
+                CONF_CHECKOUT_BUFFER,
+            ):
                 user_input[key] = int(user_input[key])
             return self.async_create_entry(data=user_input)
 
@@ -175,6 +183,12 @@ class SmoobuOptionsFlow(OptionsFlow):
                     CONF_DEFAULT_CHECKOUT,
                     default=_time_default(opts.get(CONF_DEFAULT_CHECKOUT, DEFAULT_CHECKOUT)),
                 ): TimeSelector(),
+                vol.Required(
+                    CONF_CHECKOUT_BUFFER,
+                    default=opts.get(CONF_CHECKOUT_BUFFER, DEFAULT_CHECKOUT_BUFFER),
+                ): NumberSelector(
+                    NumberSelectorConfig(min=0, max=240, step=5, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
+                ),
                 vol.Required(
                     CONF_DAYS_BACK, default=opts.get(CONF_DAYS_BACK, DEFAULT_DAYS_BACK)
                 ): NumberSelector(

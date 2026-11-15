@@ -22,10 +22,12 @@ from .const import (
     CONF_DAYS_BACK,
     CONF_DEFAULT_CHECKIN,
     CONF_DEFAULT_CHECKOUT,
+    CONF_CHECKOUT_BUFFER,
     CONF_ENRICH_COUNT,
     CONF_SCAN_INTERVAL,
     DEFAULT_CHECKIN,
     DEFAULT_CHECKOUT,
+    DEFAULT_CHECKOUT_BUFFER,
     DEFAULT_DAYS_AHEAD,
     DEFAULT_DAYS_BACK,
     DEFAULT_ENRICH_COUNT,
@@ -34,7 +36,15 @@ from .const import (
     FALLBACK_CHECKIN,
     FALLBACK_CHECKOUT,
 )
-from .models import SmoobuData, booking_end, booking_start, guest_name, is_blocked, parse_time
+from .models import (
+    SmoobuData,
+    booking_end,
+    booking_release,
+    booking_start,
+    guest_name,
+    is_blocked,
+    parse_time,
+)
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -82,6 +92,15 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             self.config_entry.options.get(CONF_DEFAULT_CHECKOUT, DEFAULT_CHECKOUT),
             FALLBACK_CHECKOUT,
         )
+
+    @property
+    def checkout_buffer(self) -> int:
+        """Puffer (min) nach einer in Smoobu angegebenen Abreisezeit."""
+        return int(self.config_entry.options.get(CONF_CHECKOUT_BUFFER, DEFAULT_CHECKOUT_BUFFER))
+
+    def release(self, booking: dict[str, Any]):
+        """Freigabezeit einer Buchung (Abreisezeit + Puffer bzw. Standard-Check-out)."""
+        return booking_release(booking, self.default_checkout, self.checkout_buffer)
 
     # ------------------------------------------------------------------
     async def _async_update_data(self) -> SmoobuData:
@@ -224,13 +243,13 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         return self.data.bookings.get(apartment_id, [])
 
     def current_booking(self, apartment_id: int, guests_only: bool = True) -> dict[str, Any] | None:
-        """Buchung, deren Zeitraum (Check-in bis Check-out) gerade läuft."""
+        """Buchung, deren Zeitraum (Check-in bis Freigabe) gerade läuft."""
         now = dt_util.now()
         for booking in self.bookings_for(apartment_id):
             if guests_only and is_blocked(booking):
                 continue
             start = booking_start(booking, self.default_checkin)
-            end = booking_end(booking, self.default_checkout)
+            end = self.release(booking)
             if start and end and start <= now < end:
                 return booking
         return None

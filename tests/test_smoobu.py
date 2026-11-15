@@ -189,3 +189,18 @@ async def test_diagnostics(hass, setup):
     from custom_components.smoobu.diagnostics import async_get_config_entry_diagnostics
     diag = await async_get_config_entry_diagnostics(hass, setup)
     assert "Anna" not in str(diag)
+
+
+async def test_checkout_buffer(hass, setup, freezer):
+    """Abreisezeit aus Smoobu + Puffer, ohne Zeit Standard-Check-out."""
+    hass.config_entries.async_update_entry(setup, options={
+        "scan_interval": 10, "use_webhook": True, "default_checkin": "16:00", "default_checkout": "11:30",
+        "days_back": 30, "days_ahead": 365, "enrich_count": 3, "checkout_buffer": 60})
+    await hass.async_block_till_done()
+    # Buchung 1 ohne Abreisezeit → frei ab 11:30 am 16.11.
+    st = hass.states.get("sensor.smoobu_ferienwohnung_nachste_abreise")
+    assert st.state == "2026-11-16T10:30:00+00:00", st.state
+    # Buchung 2 hat check-out 10:00 → Freigabe 11:00 (lokal) am 21.11.
+    attrs = hass.states.get("sensor.smoobu_ferienwohnung_nachster_gast").attributes
+    assert attrs["freigabe"] == "2026-11-21T11:00:00+01:00", attrs["freigabe"]
+    assert attrs["abreise"] == "2026-11-21T10:00:00+01:00"
