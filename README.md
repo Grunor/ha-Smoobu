@@ -70,10 +70,17 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 ### Smoobu-API-Schlüssel erstellen
 
 1. In Smoobu anmelden.
-2. **Einstellungen → Erweitert → API-Schlüssel** öffnen.
-3. **API-Schlüssel erstellen** und eine Bezeichnung vergeben, z. B. „Home Assistant“.
-4. Die Option **„Guest Data (PII)“ aktivieren**. Ohne diese Berechtigung liefert Smoobu Namen, E-Mail und Telefon als leere Felder.
-5. **Generate Secret** klicken und **Schlüssel und Secret sofort kopieren**. Das Secret wird nur einmal angezeigt.
+2. **Erweitert → API-Schlüssel** öffnen und oben rechts **Neu erstellen** klicken.
+3. Optional ein **Label** vergeben (nur ein Name zum Wiedererkennen, z. B. „Home Assistant“) und bestätigen.
+4. Im folgenden Fenster das **Secret** kopieren (in der deutschen Oberfläche teils als „Verschlüsselung“ beschriftet). **Es wird nur einmal angezeigt.**
+5. Den **API-Schlüssel** aus der Spalte **„Schlüssel“ (Key)** in der Liste kopieren. Das Label ist **nicht** der Schlüssel.
+
+| Feld in Home Assistant | Wert aus Smoobu |
+|---|---|
+| API-Schlüssel | Spalte „Schlüssel“ (Key) in der Liste |
+| Secret | Secret aus dem Fenster nach dem Erstellen |
+
+> Für Gastnamen, E-Mail und Telefon muss der Schlüssel Zugriff auf Gästedaten haben. Bietet Smoobu beim Schlüssel eine Option für Gästedaten („Guest Data (PII)“) an, diese aktivieren. Zeigt `binary_sensor.smoobu_gastdaten_fehlen` „an“, fehlt diese Berechtigung.
 
 ---
 
@@ -514,10 +521,17 @@ This integration handles the signing and exposes all data natively in Home Assis
 ### Create a Smoobu API key
 
 1. Log in to Smoobu.
-2. Open **Settings → Advanced → API Keys**.
-3. Click **Create API Key** and give it a label, e.g. "Home Assistant".
-4. **Enable the "Guest Data (PII)" option.** Without it, Smoobu returns names, email and phone as empty fields.
-5. Click **Generate Secret** and **copy the key and the secret right away**. The secret is shown only once.
+2. Open **Advanced → API Keys** and click **Create New** in the top-right corner.
+3. Optionally enter a **Label** (just a name to recognise the key, e.g. "Home Assistant") and submit.
+4. In the following window copy the **Secret**. **It is shown only once.**
+5. Copy the **API key** from the **Key** column in the list. The label is **not** the key.
+
+| Field in Home Assistant | Value from Smoobu |
+|---|---|
+| API key | "Key" column in the list |
+| Secret | Secret from the window after creating the key |
+
+> For guest names, email and phone the key needs access to guest data. If Smoobu offers a guest data option ("Guest Data (PII)") for the key, enable it. If `binary_sensor.smoobu_guest_data_missing` is on, this permission is missing.
 
 ---
 
