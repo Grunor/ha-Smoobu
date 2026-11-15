@@ -6,6 +6,16 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.9.1 – 2026-11-15
+
+**Deutsch**
+- Stornierte Sperrzeiten zählen nicht mehr als gesperrte Nächte in der Auswertung
+- Karten: Datumsangaben aus Smoobu auch in Safari/iOS lesbar; zitierter E-Mail-Verlauf in Gastantworten wird eingeklappt
+
+**English**
+- Cancelled blocks no longer count as blocked nights in the analysis
+- Cards: Smoobu timestamps readable in Safari/iOS; quoted e-mail history in guest replies is collapsed
+
 ## 1.9.0 – 2026-11-15
 
 Enthält / includes 1.7.0 (Daten), 1.8.0 (Karten), 1.9.0 (Aktionen).
