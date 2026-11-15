@@ -6,6 +6,14 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.12.1 – 2026-11-15
+
+**Deutsch**
+- Nachrichtenverlauf (Posteingang und Buchungsdetails) zeigt die neueste Nachricht jetzt oben
+
+**English**
+- Message history (inbox and booking details) now shows the newest message on top
+
 ## 1.12.0 – 2026-11-15
 
 **Deutsch**
