@@ -30,13 +30,13 @@ from .models import booking_attributes, guest_name, is_blocked, parse_date, pet_
 C = SmoobuCoordinator
 
 
-def _guest_bookings_on(c: C, apt: int, field: str) -> list[dict[str, Any]]:
-    """Gästebuchungen, deren arrival bzw. departure heute ist."""
-    today = dt_util.now().date()
+def _guest_bookings_on(c: C, apt: int, field: str, days: int = 0) -> list[dict[str, Any]]:
+    """Gästebuchungen, deren arrival bzw. departure heute (days=0) bzw. in `days` Tagen ist."""
+    day = dt_util.now().date() + timedelta(days=days)
     return [
         b
         for b in c.bookings_for(apt)
-        if not is_blocked(b) and parse_date(b.get(field)) == today
+        if not is_blocked(b) and parse_date(b.get(field)) == day
     ]
 
 
@@ -74,6 +74,18 @@ APARTMENT_BINARY: tuple[SmoobuBinaryDescription, ...] = (
         value_fn=lambda c, a: bool(_guest_bookings_on(c, a, "arrival")),
         attrs_fn=lambda c, a: booking_attributes(
             next(iter(_guest_bookings_on(c, a, "arrival")), None),
+            c.default_checkin,
+            c.default_checkout,
+            c.checkout_buffer,
+        ),
+    ),
+    SmoobuBinaryDescription(
+        # Morgen reist ein Gast an (Vorbereitung am Vorabend: Hund, Vorheizen, Reinigung)
+        key="anreise_morgen",
+        icon="mdi:calendar-arrow-right",
+        value_fn=lambda c, a: bool(_guest_bookings_on(c, a, "arrival", 1)),
+        attrs_fn=lambda c, a: booking_attributes(
+            next(iter(_guest_bookings_on(c, a, "arrival", 1)), None),
             c.default_checkin,
             c.default_checkout,
             c.checkout_buffer,

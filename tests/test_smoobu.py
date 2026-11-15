@@ -138,6 +138,14 @@ async def test_time_passes(hass, setup, freezer):
     await hass.async_block_till_done()
     assert hass.states.get("binary_sensor.smoobu_ferienwohnung_belegt").state == "off"
     assert hass.states.get("binary_sensor.smoobu_ferienwohnung_abreise_heute").state == "on"
+    assert hass.states.get("binary_sensor.smoobu_ferienwohnung_anreise_morgen").state == "off"
+    # Vorabend: Max reist am 18.11. mit Hund an
+    freezer.move_to("2026-11-17T17:00:00+00:00")
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    morgen = hass.states.get("binary_sensor.smoobu_ferienwohnung_anreise_morgen")
+    assert morgen.state == "on" and morgen.attributes["gastname"] == "Max Mustermann"
+    assert morgen.attributes["hund"] is True
 
 
 async def test_webhook(hass, setup, hass_client_no_auth, aioclient_mock):

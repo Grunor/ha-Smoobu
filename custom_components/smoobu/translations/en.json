@@ -121,6 +121,9 @@
       "anreise_heute": {
         "name": "Arrival today"
       },
+      "anreise_morgen": {
+        "name": "Arrival tomorrow"
+      },
       "abreise_heute": {
         "name": "Departure today"
       },
