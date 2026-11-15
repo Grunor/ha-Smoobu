@@ -517,6 +517,7 @@
         "name": "Analysis comparison",
         "state": {
           "vorjahr": "Previous year (same period)",
+          "vorjahr_stand": "Previous year booking status (same date)",
           "vorperiode": "Previous period",
           "kein": "No comparison"
         }
