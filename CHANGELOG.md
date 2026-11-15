@@ -6,6 +6,14 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.0.1 – 2026-11-15
+
+**Deutsch**
+- Eigenes Integrations-Symbol (`brand/icon.png`, `brand/icon@2x.png`), wird ab Home Assistant 2026.3 in der Oberfläche angezeigt
+
+**English**
+- Own integration icon (`brand/icon.png`, `brand/icon@2x.png`), shown in the UI from Home Assistant 2026.3
+
 ## 1.0.0 – 2026-11-15
 
 **Deutsch**
