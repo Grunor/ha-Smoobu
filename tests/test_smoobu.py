@@ -314,7 +314,7 @@ async def test_rates_gaps_fields_message(hass, setup, hass_client_no_auth, aiocl
     # Mock neu aufbauen: Nachrichten-Antwort zuerst registrieren (erster Treffer gewinnt)
     aioclient_mock.clear_requests()
     aioclient_mock.get(f"{BASE}/api/reservations/2/messages", json={"page_count": 1, "messages": [
-        {"id": 5, "subject": "Hi", "message": "alt"}, {"id": 9, "subject": "Frage", "message": "Wo ist der <b>Schlüssel</b>?<br>Danke"}]})
+        {"id": 5, "type": 1, "subject": "Hi", "message": "alt"}, {"id": 9, "type": 1, "subject": "Frage", "message": "Wo ist der <b>Schlüssel</b>?<br>Danke"}]})
     mock_api(aioclient_mock)
     client = await hass_client_no_auth()
     r = await client.post(f"/api/webhook/{setup.data['webhook_id']}", json={"action": "newMessage", "user": 999, "data": {"id": 9, "sender": "guest", "booking": {"id": 2}}})
@@ -521,3 +521,113 @@ async def test_assistant(hass, setup, hass_ws_client, aioclient_mock):
     assert st["beispiele"] == 1 and ex[0]["gast"] == "Darf der Hund mit?"
     assert ex[0]["antwort"] == "Gerne, 15 € Reinigung. Code ist [CODE]"
     assert a.data["vorlagen_betreff"] == ["Willkommen"]
+
+
+async def test_ai_lock(hass, setup, hass_ws_client, aioclient_mock):
+    """v1.14.0: „KI-Funktionen erlauben“ aus → kein einziger ai_task-Aufruf, klare Fehlermeldung."""
+    from homeassistant.core import SupportsResponse
+    from custom_components.smoobu.api import SmoobuError
+    from custom_components.smoobu.const import ai_allowed
+
+    calls = []
+
+    async def fake_ai(call):
+        calls.append(call.data)
+        return {"data": {"antwort": "Hallo", "absicht": "frage"}}
+
+    hass.services.async_register("ai_task", "generate_data", fake_ai, supports_response=SupportsResponse.ONLY)
+    # Alte Installation ohne Schalter: KI-Entität gewählt = erlaubt (keine Verhaltensänderung)
+    assert ai_allowed({"ai_entity": "ai_task.fake"}) is True
+    assert ai_allowed({"ai_entity": "ai_task.fake", "ai_enabled": False}) is False
+    assert ai_allowed({"ai_enabled": True}) is False  # ohne KI-Entität nie erlaubt
+
+    hass.config_entries.async_update_entry(setup, options={
+        **setup.options, "assistant": True, "ai_entity": "ai_task.fake", "ai_enabled": False})
+    await hass.async_block_till_done()
+    a = hass.config_entries.async_get_entry(setup.entry_id).runtime_data.assistant
+    assert not a.ai_allowed and not a.enabled
+    with pytest.raises(SmoobuError, match="deaktiviert"):
+        await a.suggest(2, "willkommen")
+    with pytest.raises(SmoobuError, match="deaktiviert"):
+        await a.build_knowledge()
+    await a.on_new_message(2)  # Webhook: Gast schreibt → kein Vorschlag
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "smoobu/assistant/suggest", "reservation_id": 2, "anlass": "antwort"})
+    res = await ws.receive_json()
+    assert not res["success"] and "deaktiviert" in res["error"]["message"]
+    await ws.send_json({"id": 2, "type": "smoobu/assistant/state"})
+    st = (await ws.receive_json())["result"]
+    assert st["ki_erlaubt"] is False and st["ki_sperre"]
+    assert calls == []  # KI wurde nie aufgerufen
+
+    # Wieder erlauben → Aufruf geht durch
+    hass.config_entries.async_update_entry(setup, options={**setup.options, "ai_enabled": True})
+    await hass.async_block_till_done()
+    a = hass.config_entries.async_get_entry(setup.entry_id).runtime_data.assistant
+    await a.suggest(2, "willkommen")
+    assert len(calls) == 1
+
+
+async def test_options_ai_switch(hass, setup):
+    """Optionsfluss: KI erlauben ohne KI-Entität → Fehler am Feld; aus ist speicherbar."""
+    result = await hass.config_entries.options.async_init(setup.entry_id)
+    while result["step_id"] != "assistent":
+        result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={})
+    assert "ai_enabled" in {str(k) for k in result["data_schema"].schema}
+    base = {"ai_enabled": True, "assistant": False, "assist_briefing": False, "assist_briefing_time": "07:30:00",
+            "assist_gaps": False}
+    result = await hass.config_entries.options.async_configure(result["flow_id"], user_input=base)
+    assert result["errors"] == {"ai_entity": "ai_entity_required"}
+    result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={**base, "ai_enabled": False})
+    assert result["type"] == "create_entry" and result["data"]["ai_enabled"] is False
+
+
+async def test_no_reply_and_guest_message(hass, setup, hass_ws_client, aioclient_mock):
+    """v1.14.0: offen nur bei Nachricht VOM Gast; „Keine Antwort nötig“; Sensor nur Gästenachrichten."""
+    entry = hass.config_entries.async_get_entry(setup.entry_id)
+    c = entry.runtime_data
+    msgs = {"messages": [{"id": 10, "type": 1, "message": "Kommen wir um 18 Uhr rein?"}]}
+
+    async def fake_get(rid, only_guest=True):
+        assert only_guest is False  # alle Nachrichten laden (inkl. automatischer an den Gast)
+        return list(msgs["messages"])
+
+    c.client.get_messages = fake_get
+    ws = await hass_ws_client(hass)
+
+    async def status():
+        await ws.send_json({"id": status.n, "type": "smoobu/message_status", "reservation_ids": [2]})
+        status.n += 1
+        res = await ws.receive_json()
+        assert res.get("success"), res
+        return res["result"]["status"]["2"]
+    status.n = 1
+
+    assert (await status())["offen"] is True
+    # Automatische Nachricht AN den Gast danach → nicht mehr offen
+    msgs["messages"].append({"id": 11, "type": 2, "subject": "Willkommen", "message": "Danke für die Buchung"})
+    c.invalidate_message_status(2)
+    assert (await status())["offen"] is False
+    # Gast schreibt „Danke“ → offen → als „keine Antwort nötig“ markieren
+    msgs["messages"].append({"id": 12, "type": 1, "message": "Danke!"})
+    c.invalidate_message_status(2)
+    assert (await status())["offen"] is True
+    await ws.send_json({"id": 100, "type": "smoobu/message_done", "reservation_id": 2})
+    res = (await ws.receive_json())["result"]["status"]
+    assert res["offen"] is False and res["ohne_antwort"] is True and res["erledigt_id"] == 12
+    status.n = 101
+    # Neue Gastnachricht → wieder offen
+    msgs["messages"].append({"id": 13, "type": "1", "message": "Noch eine Frage"})
+    c.invalidate_message_status(2)
+    assert (await status())["offen"] is True
+    # Rückgängig
+    await ws.send_json({"id": 200, "type": "smoobu/message_done", "reservation_id": 2, "done": False})
+    assert (await ws.receive_json())["result"]["status"]["erledigt_id"] is None
+
+    # Sensor „Letzte Gästenachricht“: eigene Nachricht ändert ihn nicht
+    await c.async_fetch_last_message(2, "guest")
+    assert c.data.last_message["nachricht_id"] == 13 and c.data.last_message["absender"] == "guest"
+    msgs["messages"].append({"id": 14, "type": 2, "message": "Gerne, bis morgen"})
+    await c.async_fetch_last_message(2, "host")
+    await c.async_fetch_last_message(2, None)
+    assert c.data.last_message["nachricht_id"] == 13

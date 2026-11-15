@@ -79,8 +79,12 @@ CONF_HISTORY_YEARS = "history_years"
 DEFAULT_HISTORY_YEARS = 2
 
 # KI-Assistent (ab v1.10.0)
-CONF_ASSISTANT = "assistant"  # an/aus
+CONF_ASSISTANT = "assistant"  # automatische Antwortvorschläge an/aus (wirkt nur mit erlaubter KI)
 CONF_AI_ENTITY = "ai_entity"  # ai_task.* Entität
+# Hauptschalter KI (ab v1.14.0): aus = keinerlei Aufruf von ai_task, keine Daten an KI-Anbieter.
+# Fehlt der Schlüssel (Installation vor 1.14.0), gilt: erlaubt, wenn eine KI-Entität gewählt ist –
+# so ändert sich für bestehende Installationen nichts. Neue Installationen starten ohne KI.
+CONF_AI_ENABLED = "ai_enabled"
 CONF_ASSIST_RECIPIENTS = "assist_recipients"  # notify-Dienste (mobile_app_*), Pushes mit Buttons
 CONF_ASSIST_STATUS = "assist_status"  # HA-Entitäten als Kontext (Heizung, Tür …)
 CONF_ASSIST_PATH = "assist_path"  # Dashboard-Pfad für „Bearbeiten“
@@ -159,3 +163,14 @@ REDACT_KEYS = {
     "assistent_notiz",
     "hund_hinweis",
 }
+
+
+def ai_allowed(options: dict) -> bool:
+    """KI-Hauptschalter auswerten (ab v1.14.0).
+
+    Erlaubt nur, wenn der Schalter an ist UND eine KI-Entität gewählt ist.
+    Ohne gespeicherten Schalter (alte Installation) zählt die gewählte KI-Entität.
+    """
+    if not options.get(CONF_AI_ENTITY):
+        return False
+    return bool(options.get(CONF_AI_ENABLED, True))

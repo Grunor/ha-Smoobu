@@ -62,6 +62,10 @@ const EN = {
   "Neu laden": "Reload", "morgen": "tomorrow", "Heute abgereist": "Departed today", "Heute": "Today", "Ankunft": "Check-in", "Abfahrt": "Check-out", "Gäste": "Guests",
   "Details": "Details", "In Smoobu öffnen": "Open in Smoobu", "Grund (optional)": "Reason (optional)",
   "Tage markieren: erst ersten, dann letzten Tag antippen": "Mark days: tap first day, then last day",
+  // v1.14.0
+  "Keine Antwort nötig": "No reply needed", "Ohne Antwort erledigt": "Done without reply", "Rückgängig": "Undo",
+  "KI gesperrt": "AI locked", "KI in den Integrationsoptionen deaktiviert": "AI disabled in the integration options",
+  "Vorschlag": "Suggestion", "Vom Gast": "From guest", "An den Gast": "To guest", "KI denkt …": "AI thinking …",
 };
 let LANG = "de";
 const t = (s) => (LANG === "de" ? s : EN[s] || s);
@@ -319,6 +323,11 @@ class SmoobuCard extends HTMLElement {
 }
 
 // Kleine Bausteine
+// Richtung einer Nachricht eindeutig beschriften (v1.14.0): typ 1 = vom Gast, 2 = an den Gast
+function dirLabel(m) {
+  const typ = Number(m.typ);
+  return typ === 1 ? `← ${t("Vom Gast")}` : typ === 2 ? `→ ${t("An den Gast")}` : "•";
+}
 function tile(label, value, sub = "", extra = "") {
   return `<div class="tile">${extra}<div class="l">${esc(label)}</div><div class="v">${value}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>`;
 }
@@ -1079,7 +1088,7 @@ class SmoobuBookingDialog extends HTMLElement {
     const color = colorOf(this.apt, b.kanal, b.blockiert);
     const kv = (rows) => `<dl class="kv">${rows.filter(Boolean).map(([k, v]) => `<dt>${t(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
     const positions = (b.positionen || []).map((p) => `<div class="row"><span class="grow">${esc(p.name)}</span><span>${money(p.betrag, cur, 2)}</span></div>`).join("");
-    const msgs = newestFirst(d.nachrichten).map((m) => `<div class="msg ${m.typ === 2 ? "out" : ""}"><div class="h">${m.typ === 2 ? "→ " + t("Gast") : "← " + t("Gast")}${m.zeit ? " · " + esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""}${m.betreff ? " · " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("");
+    const msgs = newestFirst(d.nachrichten).map((m) => `<div class="msg ${Number(m.typ) === 2 ? "out" : ""}"><div class="h">${dirLabel(m)}${m.zeit ? " · " + esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""}${m.betreff ? " · " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("");
     const canCancel = !b.blockiert && b.gruppe === "Direkt" && !b.storniert && b.status !== "vergangen";
     return `
       <div class="row" style="margin-bottom:12px"><span class="badge"><span class="dot" style="background:${color}"></span> ${esc(b.kanal)}</span>
@@ -1179,7 +1188,9 @@ class SmoobuBookingDialog extends HTMLElement {
 // ===========================================================================
 class SmoobuInboxCard extends SmoobuCard {
   static defaults = { title: "", days_back: 14, days_ahead: 60, message_entity: "" };
-  static initialState = () => ({ sel: null, thread: null, loadingThread: false, draft: "", sug: null, thinking: false, ai: false });
+  // ai = Assistent vorhanden (✨ anzeigen), aiAllowed = KI erlaubt (sonst ausgegraut), aiReason = Tooltip (v1.14.0)
+  static initialState = () => ({ sel: null, thread: null, loadingThread: false, draft: "", sug: null, thinking: false,
+    ai: false, aiAllowed: false, aiReason: "" });
   static css = `
     .wrap { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; }
     @media (max-width: 700px) { .wrap { grid-template-columns: 1fr; } }
@@ -1192,6 +1203,12 @@ class SmoobuInboxCard extends SmoobuCard {
     .item.open b { color: var(--sm-bad); }
     .pending { display: inline-block; margin-top: 2px; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600;
       background: var(--sm-bad); color: #fff; }
+    /* v1.14.0: „Keine Antwort nötig“ – klein in der Liste, normal im Verlauf */
+    .btn.mini { padding: 2px 8px; font-size: .75rem; min-height: 0; margin: 2px 0 0 6px; }
+    .done { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600;
+      background: color-mix(in srgb, var(--sm-good) 18%, transparent); color: var(--sm-good); }
+    .noreply { display: flex; gap: 8px; align-items: center; margin: 4px 0 8px; }
+    .btn[disabled].locked { opacity: .45; cursor: not-allowed; }
     .opencount { padding: 2px 10px; border-radius: 999px; font-size: .85rem; font-weight: 600; background: var(--sm-bad); color: #fff; }
     .sugbox { margin-top: 8px; padding: 8px 12px; border-radius: 10px; font-size: .85rem;
       background: color-mix(in srgb, var(--sm-accent) 10%, transparent); border-left: 4px solid var(--sm-accent); }
@@ -1227,13 +1244,31 @@ class SmoobuInboxCard extends SmoobuCard {
         this.store.ws("smoobu/assistant/state", this.target, { cache: false }).catch(() => null),
       ]);
       const sug = a?.vorschlaege?.find((v) => v.buchung_id === id && v.status === "offen") || null;
-      // Status aus dem frischen Verlauf übernehmen (neueste sichtbare Nachricht vom Gast = offen)
-      const last = newestFirst((d.nachrichten || []).filter((m) => !m.intern))[0];
-      if (this._data?.status) this._data.status[id] = { ...(this._data.status[id] || {}), offen: !!last && last.typ === 1, letzte_zeit: last?.zeit };
-      if (this._state.sel === id) this.setState({ thread: d, loadingThread: false, sug, draft: sug?.antwort || "", ai: !!a?.aktiv });
+      // Status aus dem frischen Verlauf übernehmen: offen nur, wenn die neueste sichtbare Nachricht
+      // VOM Gast ist (typ 1) und nicht als „keine Antwort nötig“ markiert wurde (erledigt_id, v1.14.0)
+      if (this._data?.status) this._data.status[id] = this.threadStatus(d, this._data.status[id]);
+      if (this._state.sel === id) this.setState({ thread: d, loadingThread: false, sug, draft: sug?.antwort || "",
+        ai: !!a, aiAllowed: !!a?.ki_erlaubt, aiReason: a?.ki_sperre || "" });
     } catch (e) { this.setState({ thread: { fehler: e.message || String(e), nachrichten: [] }, loadingThread: false }); }
   }
+  threadStatus(d, prev = {}) {
+    const last = newestFirst((d.nachrichten || []).filter((m) => !m.intern))[0];
+    const guest = !!last && Number(last.typ) === 1;
+    const doneId = prev.erledigt_id;
+    const dismissed = guest && doneId != null && Number(last.id) <= Number(doneId);
+    return { ...prev, offen: guest && !dismissed, ohne_antwort: dismissed, letzte_zeit: last?.zeit };
+  }
+  async noReply(id, done = true) {
+    try {
+      const r = await this.store.ws("smoobu/message_done", { ...this.target, reservation_id: id, done }, { cache: false });
+      if (this._data?.status) this._data.status[id] = r.status;
+      if (this._state.sel === id && done) this.setState({ sug: null });
+      toast(t(done ? "Ohne Antwort erledigt" : "Gespeichert"));
+      this.render();
+    } catch (e) { toast(`${t("Fehler")}: ${e.message || e}`); }
+  }
   async aiSuggest() {
+    if (!this._state.aiAllowed) { toast(this._state.aiReason || t("KI in den Integrationsoptionen deaktiviert")); return; }
     const anlass = this.$('[data-k="anlass"]')?.value || "antwort";
     this.setState({ thinking: true });
     try {
@@ -1246,7 +1281,8 @@ class SmoobuInboxCard extends SmoobuCard {
     const entityId = this._config.message_entity || Object.keys(this._hass.states).find((e) => e.startsWith("sensor.") && e.endsWith("letzte_gastenachricht"));
     const last = entityId ? this._hass.states[entityId] : null;
     // Ohne Leerraum zwischen den Tags: .last nutzt white-space: pre-wrap
-    const lastHtml = last && last.attributes.text ? `<div class="last" data-rid="${esc(last.attributes.buchungs_id || "")}">` +
+    // Nur echte Gästenachrichten zeigen (alte Stände mit absender „host“ ausblenden, v1.14.0)
+    const lastHtml = last && last.attributes.text && last.attributes.absender !== "host" ? `<div class="last" data-rid="${esc(last.attributes.buchungs_id || "")}">` +
       `<div class="sub">${t("Nachrichten")} · ${esc(last.attributes.gast || "")} · ${fdate(last.attributes.empfangen, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>` +
       `${msgHtml(String(last.attributes.text).slice(0, 2000))}</div>` : "";
     const openCount = guests.filter((b) => status[b.id]?.offen).length;
@@ -1254,13 +1290,17 @@ class SmoobuInboxCard extends SmoobuCard {
       return `<div class="item ${s.sel === b.id ? "on" : ""} ${op ? "open" : ""}" data-rid="${b.id}">
       <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span><div class="grow"><b>${esc(b.gast)}</b>${b.hund ? " 🐕" : ""}
       <div class="sub">${fdate(b.anreise)} – ${fdate(b.abreise)} · ${t(b.status)}</div>
-      ${op ? `<span class="pending">💬 ${t("Antwort offen")}</span>` : ""}</div></div>`; }).join("");
+      ${op ? `<span class="pending">💬 ${t("Antwort offen")}</span><button class="btn flat mini" data-noreply="${b.id}" title="${t("Keine Antwort nötig")}">✓ ${t("Keine Antwort nötig")}</button>` : ""}</div></div>`; }).join("");
     const th = s.thread;
-    const msgs = th ? newestFirst(th.nachrichten).map((m) => `<div class="msg ${m.typ === 2 ? "out" : ""}"><div class="h">${m.typ === 2 ? "→" : "←"} ${m.zeit ? esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""} ${m.betreff ? "· " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("") : "";
+    const msgs = th ? newestFirst(th.nachrichten).map((m) => `<div class="msg ${Number(m.typ) === 2 ? "out" : ""}"><div class="h">${dirLabel(m)} ${m.zeit ? esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""} ${m.betreff ? "· " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("") : "";
     const right = !s.sel ? `<div class="empty">← ${t("Gast")}</div>`
       : s.loadingThread ? `<div class="empty">${t("Laden …")}</div>`
       : `${th?.fehler ? `<div class="err">${esc(th.fehler)}</div>` : ""}
         <div class="row"><b class="grow">${esc(th?.buchung?.gast || "")}</b><button class="btn flat" data-act="detail">${t("Details")}</button></div>
+        ${status[s.sel]?.offen ? `<div class="noreply"><span class="pending">💬 ${t("Antwort offen")}</span>
+          <button class="btn flat" data-noreply="${s.sel}">✓ ${t("Keine Antwort nötig")}</button></div>`
+          : status[s.sel]?.ohne_antwort ? `<div class="noreply"><span class="done">✓ ${t("Ohne Antwort erledigt")}</span>
+          <button class="btn flat" data-undo="${s.sel}">↶ ${t("Rückgängig")}</button></div>` : ""}
         <div class="msgs">${msgs || `<div class="muted">${t("keine")}</div>`}</div>
         ${s.sug ? `<div class="sugbox ${s.sug.dringend ? "urgent" : ""}"><b>✨ ${s.sug.dringend ? "DRINGEND · " : ""}${esc(s.sug.absicht)}</b>
           ${s.sug.zusammenfassung ? ` · ${esc(s.sug.zusammenfassung)}` : ""}
@@ -1268,14 +1308,22 @@ class SmoobuInboxCard extends SmoobuCard {
           ${s.sug.wissensluecke ? `<div>❓ Wissenslücke: ${esc(s.sug.wissensluecke)}</div>` : ""}
           ${s.sug.offen ? `<div>✏️ Bitte die Stellen [OFFEN: …] ergänzen.</div>` : ""}</div>` : ""}
         <textarea data-k="msg" placeholder="${t("Antworten")} …" style="margin-top:8px;min-height:140px">${esc(s.draft || "")}</textarea>
-        <div class="row">${s.ai ? `<select data-k="anlass">${["antwort", "willkommen", "anreise", "abreise", "bewertung"].map((a) => `<option value="${a}">${a}</option>`).join("")}</select>
-          <button class="btn flat" data-act="ai" ${s.thinking ? "disabled" : ""}>${s.thinking ? "⏳ KI denkt …" : "✨ Vorschlag"}</button>` : ""}
+        <div class="row">${s.ai ? (() => {
+          // KI gesperrt (Option „KI-Funktionen erlauben“ aus): Bedienelemente ausgegraut + Tooltip;
+          // die eigentliche Sperre liegt im Backend, das hier ist nur die Anzeige.
+          const lock = !s.aiAllowed;
+          const tip = esc(s.aiReason || t("KI in den Integrationsoptionen deaktiviert"));
+          return `<select data-k="anlass" ${lock ? `disabled title="${tip}"` : ""}>${["antwort", "willkommen", "anreise", "abreise", "bewertung"].map((a) => `<option value="${a}">${a}</option>`).join("")}</select>
+          <button class="btn flat ${lock ? "locked" : ""}" data-act="ai" ${s.thinking || lock ? "disabled" : ""} ${lock ? `title="${tip}"` : ""}>${lock ? `🔒 ${t("KI gesperrt")}` : s.thinking ? `⏳ ${t("KI denkt …")}` : `✨ ${t("Vorschlag")}`}</button>`; })() : ""}
           <span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>`;
     return `<div class="row"><h2 class="grow">${esc(this._config.title || t("Posteingang"))}</h2>${openCount ? `<span class="opencount">💬 ${openCount} ${t("warten auf Antwort")}</span>` : ""}</div>${lastHtml}
       <div class="wrap"><div>${items || `<div class="empty">${t("Keine Daten")}</div>`}</div><div>${right}</div></div>`;
   }
   bind(root) {
     root.querySelectorAll("[data-rid]").forEach((el) => el.addEventListener("click", () => el.dataset.rid && this.select(Number(el.dataset.rid))));
+    // „Keine Antwort nötig“ / Rückgängig – stopPropagation, damit der Klick nicht zusätzlich den Gast auswählt
+    root.querySelectorAll("[data-noreply]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); this.noReply(Number(el.dataset.noreply), true); }));
+    root.querySelectorAll("[data-undo]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); this.noReply(Number(el.dataset.undo), false); }));
     root.querySelector('[data-act="detail"]')?.addEventListener("click", () => this.openBooking(this._state.sel));
     root.querySelector('[data-act="ai"]')?.addEventListener("click", () => this.aiSuggest());
     root.querySelector('[data-k="msg"]')?.addEventListener("input", (e) => { this._state.draft = e.target.value; });
@@ -1323,6 +1371,9 @@ class SmoobuAssistantCard extends SmoobuCard {
     .ex .g { color: var(--sm-muted); white-space: pre-wrap; } .ex .a { white-space: pre-wrap; margin-top: 4px; }
     .prog { height: 6px; border-radius: 3px; background: var(--sm-line); overflow: hidden; margin-top: 6px; }
     .prog > div { height: 100%; background: var(--sm-accent); }
+    .btn[disabled].locked { opacity: .45; cursor: not-allowed; }
+    .lockinfo { margin-top: 8px; padding: 8px 12px; border-radius: 10px; font-size: .85rem;
+      background: var(--secondary-background-color, rgba(127,127,127,.08)); border-left: 4px solid var(--sm-muted); }
   `;
   async load() {
     const st = await this.store.ws("smoobu/assistant/state", this.target, { cache: false });
@@ -1357,9 +1408,12 @@ class SmoobuAssistantCard extends SmoobuCard {
     const imp = st.import || {};
     const pct = imp.buchungen ? Math.round((imp.fertig / imp.buchungen) * 100) : 0;
     const head = `<div class="row"><h2 class="grow">🤖 ${esc(this._config.title || "Assistent")}</h2>
-        <span class="badge ${st.aktiv ? "good" : "bad"}">${st.aktiv ? "aktiv" : "aus"}</span>
+        ${st.ki_erlaubt === false ? `<span class="badge bad" title="${esc(st.ki_sperre || "")}">🔒 ${t("KI gesperrt")}</span>`
+          : `<span class="badge ${st.aktiv ? "good" : "bad"}" title="Automatische Antwortvorschläge">${st.aktiv ? "aktiv" : "aus"}</span>`}
         <span class="badge">${esc(st.ki || "keine KI")}</span></div>
-      ${st.fehler ? `<div class="err">Letzter Fehler: ${esc(st.fehler)}</div>` : ""}
+      ${st.ki_erlaubt === false ? `<div class="lockinfo">🔒 ${esc(st.ki_sperre || t("KI in den Integrationsoptionen deaktiviert"))}.
+        Wissensdatenbank, Lernen, Import, Tagesbriefing und Lücken funktionieren weiter – es gehen keine Daten an einen KI-Anbieter.</div>` : ""}
+      ${st.fehler && st.ki_erlaubt !== false ? `<div class="err">Letzter Fehler: ${esc(st.fehler)}</div>` : ""}
       <div class="grid" style="margin-top:8px">
         ${tile("Offene Vorschläge", num(st.offen.length))}
         ${tile("Wissen", num(st.wissen.filter((w) => w.status === "aktiv").length), `${st.wissen.filter((w) => w.status === "vorschlag").length} zur Freigabe`)}
@@ -1388,7 +1442,9 @@ class SmoobuAssistantCard extends SmoobuCard {
         mit der Gästenachricht davor als Lernbeispiel. 2. Wissen erzeugen: die KI liest eure Vorlagen und Antworten und schlägt
         Wissenseinträge vor (Status „Vorschlag“, ihr gebt sie frei). Zugangscodes werden dabei nicht übernommen.</p>
       <div class="row"><button class="btn" data-a="import" ${imp.laeuft ? "disabled" : ""}>⬇ Verlauf importieren</button>
-        <button class="btn" data-a="wissen" ${this._state.busy ? "disabled" : ""}>${this._state.busy ? "⏳ KI arbeitet …" : "📚 Wissen erzeugen"}</button></div>
+        ${st.ki_erlaubt === false
+          ? `<button class="btn locked" disabled title="${esc(st.ki_sperre || t("KI in den Integrationsoptionen deaktiviert"))}">🔒 📚 Wissen erzeugen</button>`
+          : `<button class="btn" data-a="wissen" ${this._state.busy ? "disabled" : ""}>${this._state.busy ? "⏳ KI arbeitet …" : "📚 Wissen erzeugen"}</button>`}</div>
       ${imp.buchungen ? `<div class="sub" style="margin-top:8px">${imp.laeuft ? "Läuft" : "Fertig"}: ${imp.fertig}/${imp.buchungen} Buchungen ·
         ${imp.beispiele} neue Beispiele${imp.fehler ? ` · ${imp.fehler} Fehler` : ""}${st.vorlagen?.length ? ` · ${st.vorlagen.length} Vorlagen erkannt` : ""}</div>
         <div class="prog"><div style="width:${pct}%"></div></div>` : ""}`;

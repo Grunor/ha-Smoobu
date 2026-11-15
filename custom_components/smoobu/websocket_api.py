@@ -10,6 +10,7 @@ Befehle (alle nur für angemeldete HA-Benutzer):
 - smoobu/bookings          Buchungsliste mit Filtern (Zeitraum, Kanal, Status, Suche)
 - smoobu/booking           Einzelbuchung frisch von Smoobu inkl. Nachrichtenverlauf
 - smoobu/message_status   Antwortstatus je Buchung (letzte Nachricht vom Gast = offen, v1.13.0)
+- smoobu/message_done     „Keine Antwort erforderlich“ setzen/aufheben (v1.14.0)
 - smoobu/rates             Tagespreise, Mindestaufenthalt, Verfügbarkeit für einen Zeitraum
 - smoobu/subscribe         Meldung bei jedem neuen Datenstand (Karten laden dann neu)
 """
@@ -104,6 +105,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_booking)
     websocket_api.async_register_command(hass, ws_rates)
     websocket_api.async_register_command(hass, ws_message_status)
+    websocket_api.async_register_command(hass, ws_message_done)
     websocket_api.async_register_command(hass, ws_subscribe)
     websocket_api.async_register_command(hass, ws_assistant_state)
     websocket_api.async_register_command(hass, ws_assistant_knowledge)
@@ -283,6 +285,30 @@ async def ws_message_status(hass: HomeAssistant, connection: websocket_api.Activ
         return
     status = await c.async_message_status(msg["reservation_ids"])
     connection.send_result(msg["id"], {"status": {str(k): v for k, v in status.items()}})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smoobu/message_done",
+        **_TARGET,
+        vol.Required("reservation_id"): vol.Coerce(int),
+        # True = keine Antwort nötig (neueste Gastnachricht gilt als erledigt), False = wieder offen
+        vol.Optional("done", default=True): bool,
+    }
+)
+@websocket_api.async_response
+async def ws_message_done(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Posteingang: Gastnachricht bewusst ohne Antwort abhaken (Status der Buchung zurück)."""
+    try:
+        c, _apt = _resolve(hass, msg)
+        status = await c.async_set_no_reply(msg["reservation_id"], msg["done"])
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    except SmoobuError as err:
+        connection.send_error(msg["id"], "smoobu_error", str(err))
+        return
+    connection.send_result(msg["id"], {"status": status})
 
 
 @websocket_api.websocket_command(

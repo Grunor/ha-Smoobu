@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Smoobu-Karten – Screenshot-Harness</title>
+<!--
+  Zweck: Die echten Smoobu-Karten (www/smoobu-cards.js) außerhalb des HA-Frontends rendern,
+  verbunden per WebSocket mit einer Test-Instanz voller Demodaten (render_screenshots.py).
+  Ersetzt nur, was die Karten vom Frontend brauchen: hass.callWS, hass.callService,
+  hass.connection.subscribeMessage, hass.states, Sprache und das Element <ha-card>.
+  Farben = HA-Standardthema (hell), damit die Bilder wie im Dashboard aussehen.
+-->
+<style>
+  :root {
+    --primary-color: #009ac7; --accent-color: #ff9800;
+    --primary-text-color: #141414; --secondary-text-color: #5e5e5e; --disabled-text-color: #bdbdbd;
+    --primary-background-color: #f2f4f9; --secondary-background-color: #e6e9f0;
+    --card-background-color: #ffffff; --divider-color: rgba(0, 0, 0, .12);
+    --success-color: #2e9e5b; --error-color: #db4437; --warning-color: #e08a00; --info-color: #039be5;
+    --ha-card-border-radius: 12px;
+    font-family: Roboto, "Noto Sans", "DejaVu Sans", Arial, sans-serif;
+    color: var(--primary-text-color);
+  }
+  body { margin: 0; background: var(--primary-background-color); }
+  #stage { width: var(--stage-width, 1180px); padding: 16px; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+// <ha-card> wie im HA-Frontend: weiße Karte mit Rundung und leichtem Schatten
+customElements.define("ha-card", class extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" }).innerHTML = `<style>:host { display: block; background: var(--card-background-color);
+      border-radius: var(--ha-card-border-radius); box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.06);
+      color: var(--primary-text-color); }</style><slot></slot>`;
+  }
+});
+
+// Minimaler HA-WebSocket-Client (Authentifizierung, Befehle, Abos)
+function connect(url, token) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+    let id = 0;
+    const pending = new Map();
+    const subs = new Map();
+    const conn = {
+      send(msg) {
+        const mid = ++id;
+        ws.send(JSON.stringify({ ...msg, id: mid }));
+        return new Promise((res, rej) => pending.set(mid, { res, rej }));
+      },
+      subscribeMessage(cb, msg) {
+        const mid = ++id;
+        subs.set(mid, cb);
+        ws.send(JSON.stringify({ ...msg, id: mid }));
+        return Promise.resolve(() => subs.delete(mid));
+      },
+    };
+    ws.onmessage = (ev) => {
+      const m = JSON.parse(ev.data);
+      if (m.type === "auth_required") ws.send(JSON.stringify({ type: "auth", access_token: token }));
+      else if (m.type === "auth_ok") resolve(conn);
+      else if (m.type === "auth_invalid") reject(new Error(m.message));
+      else if (m.type === "event" && subs.has(m.id)) subs.get(m.id)(m.event);
+      else if (m.type === "result" && pending.has(m.id)) {
+        const p = pending.get(m.id);
+        pending.delete(m.id);
+        m.success ? p.res(m.result) : p.rej(new Error(m.error?.message || "Fehler"));
+      }
+    };
+    ws.onerror = () => reject(new Error("WebSocket-Fehler"));
+  });
+}
+
+// Vom Render-Skript aufgerufen: hass-Objekt bauen und Karten-Skript laden
+window.setup = async (base, token, lang = "de") => {
+  const conn = await connect(base.replace("http", "ws") + "/api/websocket", token);
+  const states = {};
+  for (const s of await conn.send({ type: "get_states" })) states[s.entity_id] = s;
+  window.hass = {
+    connection: conn,
+    states,
+    language: lang,
+    locale: { language: lang },
+    callWS: (msg) => conn.send(msg),
+    callService: (domain, service, data, target, notify, returnResponse) =>
+      conn.send({ type: "call_service", domain, service, service_data: data || {}, return_response: !!returnResponse }),
+    formatEntityState: (st) => {
+      const unit = st.attributes?.unit_of_measurement;
+      if (st.entity_id.startsWith("climate.")) return `${st.attributes.current_temperature} °C`;
+      return unit ? `${st.state} ${unit}` : st.state;
+    },
+  };
+  await new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = base + "/smoobu_static/smoobu-cards.js?v=demo";
+    s.onload = res;
+    s.onerror = () => rej(new Error("Karten-Skript nicht ladbar"));
+    document.head.appendChild(s);
+  });
+};
+
+// Eine Karte in die Bühne setzen (vorherige wird entfernt)
+window.showCard = (type, config = {}, width = 1180) => {
+  document.documentElement.style.setProperty("--stage-width", width + "px");
+  document.querySelectorAll("smoobu-booking-dialog").forEach((d) => d.remove());
+  const stage = document.getElementById("stage");
+  stage.innerHTML = "";
+  const el = document.createElement(type);
+  el.setConfig({ type: "custom:" + type, ...config });
+  stage.appendChild(el);
+  el.hass = window.hass;
+  return true;
+};
+</script>
+</body>
+</html>
