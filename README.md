@@ -215,6 +215,21 @@ Jedes Feld der laufenden bzw. nächsten Buchung gibt es zusätzlich als eigene E
 |---|---|---|
 | Letzte Gästenachricht | `sensor.smoobu_letzte_gastenachricht` | Text der letzten Nachricht (per Webhook `newMessage` geladen, übersteht Neustarts). Attribute: `text`, `betreff`, `absender`, `gast`, `buchungs_id`, `empfangen` |
 
+#### Direktvermarktung vs. Portale, Nettoumsatz
+
+Brutto = Buchungspreis laut Smoobu. Provision = Wert, den Smoobu zur Buchung liefert (`commission-included`, bei Airbnb und Booking.com meist vorhanden), sonst der in den Optionen eingestellte %-Satz des Kanals. Die Booking.com-Zahlungsgebühr („Payment charge“) wird aus der Buchung gelesen. Netto = Brutto − Provision − Zahlungsgebühr, anteilig nach Nächten.
+
+| Entität | Beispiel-ID | Inhalt |
+|---|---|---|
+| Nettoumsatz Monat / Jahr | `sensor.smoobu_ferienwohnung_nettoumsatz_monat` / `…_jahr` | Netto; Attribute `brutto`, `provision`, `zahlungsgebuehren`, `kostenquote_prozent`, `davon_bis_heute`, `vorjahr_gesamt`, `vorjahr_bis_heute`, `veraenderung_vorjahr_bis_heute_prozent`, `monate`, `monate_vorjahr`, `kanaele` |
+| Provision & Gebühren Jahr | `sensor.smoobu_ferienwohnung_provision_gebuhren_jahr` | Summe Provision + Zahlungsgebühren; `je_kanal`, `vorjahr`, `vorjahr_bis_heute`, Kostenquote |
+| Umsatz Direkt / Portale Jahr | `sensor.smoobu_ferienwohnung_umsatz_direkt_jahr` / `…_umsatz_portale_jahr` | Brutto der Gruppe; `netto`, `buchungen`, `naechte`, `netto_pro_nacht`, `anteil_prozent`, `bis_heute`, `vorjahr`, `vorjahr_bis_heute`, Veränderung, `monate`, `monate_vorjahr` |
+| Direktanteil Jahr | `sensor.smoobu_ferienwohnung_direktanteil_jahr` | % am Bruttoumsatz; `anteil_naechte_prozent`, `vorjahr_prozent`, `veraenderung_prozentpunkte`, `ersparnis_direkt` (Direktumsatz × Kostenquote der Portale), `kanaele` / `kanaele_vorjahr` / `…_bis_heute` je Kanal (Brutto, Netto, Kosten, Buchungen, Nächte, Netto/Nacht, Anteil) |
+
+Je Gast zusätzlich: `…_aktueller_gast_kanalgruppe` (Direkt/Portal), `…_provision`, `…_nettopreis`; die Preis-Sensoren haben die Attribute `kanal_gruppe`, `provision`, `provision_quelle`, `zahlungsgebuehr`, `netto`, `kostenquote_prozent`.
+
+**Optionen → Schritt „Provisionen“:** % je Kanal (Standard Airbnb 15,5 · Booking.com 15 · FeWo-direkt 8 · Website 0 · Direktbuchung 0), sonstige Portale (15), weitere Kanäle als `Kanal=Prozent; …`, Direktkanäle (Standard: Direct booking, Website).
+
 #### Attribute der Buchungs-Entitäten
 
 `Aktueller Gast`, `Nächster Gast`, `Belegt`, `Anreise heute` und `Abreise heute` tragen die komplette Buchung als Attribute:
@@ -711,6 +726,21 @@ Every field of the current/next booking is also available as its own entity, e.g
 | Entity | Example ID | Content |
 |---|---|---|
 | Last guest message | `sensor.smoobu_last_guest_message` | Text of the latest message (loaded via webhook `newMessage`, survives restarts). Attributes: `text`, `betreff`, `absender`, `gast`, `buchungs_id`, `empfangen` |
+
+#### Direct marketing vs. portals, net revenue
+
+Gross = booking price from Smoobu. Commission = the value Smoobu sends with the booking (`commission-included`, usually present for Airbnb and Booking.com), otherwise the channel percentage from the options. Booking.com payment charges are read from the booking. Net = gross − commission − payment charge, prorated by nights.
+
+| Entity | Example ID | Content |
+|---|---|---|
+| Net revenue month / year | `sensor.smoobu_apartment_net_revenue_month` / `…_year` | Net; attributes `brutto`, `provision`, `zahlungsgebuehren`, `kostenquote_prozent`, `davon_bis_heute`, `vorjahr_gesamt`, `vorjahr_bis_heute`, change, `monate`, `monate_vorjahr`, `kanaele` |
+| Commission & fees year | `sensor.smoobu_apartment_commission_fees_year` | Commission + payment fees; `je_kanal`, previous year, cost ratio |
+| Direct / portal revenue year | `sensor.smoobu_apartment_direct_revenue_year` / `…_portal_revenue_year` | Gross of the group; net, bookings, nights, net per night, share, year-to-date, previous year, monthly values |
+| Direct share year | `sensor.smoobu_apartment_direct_share_year` | % of gross revenue; share of nights, previous year, change in points, `ersparnis_direkt` (direct revenue × portal cost ratio), per-channel tables |
+
+Per guest additionally: channel group (direct/portal), commission and net price; price sensors carry `kanal_gruppe`, `provision`, `provision_quelle`, `zahlungsgebuehr`, `netto`.
+
+**Options → step "Commissions":** % per channel (defaults Airbnb 15.5 · Booking.com 15 · FeWo-direkt 8 · Website 0 · Direct booking 0), other portals (15), further channels as `Channel=percent; …`, direct channels (default: Direct booking, Website).
 
 #### Attributes of the booking entities
 

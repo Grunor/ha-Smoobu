@@ -60,7 +60,29 @@
           "checkout_buffer": "If the booking has a departure time, the apartment counts as vacant only after that time + buffer. Without a departure time the default check-out applies.",
           "payment_excluded_channels": "Bookings from these channels do not count as unpaid (the portal collects payment, Smoobu still reports \"unpaid\")."
         }
+      },
+      "provisionen": {
+        "title": "Commissions & direct channels",
+        "description": "Used for net revenue and direct vs. portal. Percentages only apply when Smoobu sends no commission with the booking (Airbnb and Booking.com usually do). Booking.com payment charges are read from the booking.",
+        "data": {
+          "commission_airbnb": "Airbnb",
+          "commission_booking": "Booking.com",
+          "commission_fewo": "FeWo-direkt / Vrbo",
+          "commission_website": "Website (Smoobu booking engine)",
+          "commission_direct": "Direct booking (manual)",
+          "commission_other": "Other portals",
+          "commission_custom": "Further channels",
+          "direct_channels": "Channels counted as direct marketing"
+        },
+        "data_description": {
+          "commission_other": "For portals without their own entry.",
+          "commission_custom": "Format: Channel=percent; Channel=percent (e.g. Expedia=18; HomeToGo=15). Channel name as shown in Smoobu.",
+          "direct_channels": "Revenue from these channels counts as direct; all others as portal."
+        }
       }
+    },
+    "error": {
+      "invalid_custom": "Format: Channel=percent; Channel=percent"
     }
   },
   "entity": {
@@ -364,6 +386,42 @@
       },
       "letzte_gastnachricht": {
         "name": "Last guest message"
+      },
+      "netto_umsatz_monat": {
+        "name": "Net revenue month"
+      },
+      "netto_umsatz_jahr": {
+        "name": "Net revenue year"
+      },
+      "provision_jahr": {
+        "name": "Commission & fees year"
+      },
+      "umsatz_direkt_jahr": {
+        "name": "Direct revenue year"
+      },
+      "umsatz_portale_jahr": {
+        "name": "Portal revenue year"
+      },
+      "direktanteil_jahr": {
+        "name": "Direct share year"
+      },
+      "aktueller_gast_kanal_gruppe": {
+        "name": "Current guest Channel group"
+      },
+      "naechster_gast_kanal_gruppe": {
+        "name": "Next guest Channel group"
+      },
+      "aktueller_gast_provision": {
+        "name": "Current guest Commission"
+      },
+      "naechster_gast_provision": {
+        "name": "Next guest Commission"
+      },
+      "aktueller_gast_netto_preis": {
+        "name": "Current guest Net price"
+      },
+      "naechster_gast_netto_preis": {
+        "name": "Next guest Net price"
       }
     }
   },

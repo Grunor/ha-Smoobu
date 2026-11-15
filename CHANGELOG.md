@@ -6,6 +6,20 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.6.0 – 2026-11-15
+
+**Deutsch**
+- Direktvermarktung vs. Portale: Umsatz Direkt/Portale Jahr, Direktanteil (inkl. Ersparnis), Vergleich Vorjahr gesamt und bis heute, Aufschlüsselung je Kanal
+- Nettoumsatz Monat/Jahr und „Provision & Gebühren Jahr“: echte Provision aus Smoobu, sonst konfigurierter %-Satz; Booking.com-Zahlungsgebühr wird aus der Buchung gelesen
+- Neuer Optionsschritt „Provisionen“ mit Standardwerten je Kanal und Direktkanälen
+- Je Gast: Kanalgruppe, Provision, Nettopreis
+
+**English**
+- Direct marketing vs. portals: direct/portal revenue, direct share (incl. savings), comparison with previous year (total and year-to-date), per-channel breakdown
+- Net revenue month/year and "Commission & fees year": actual commission from Smoobu, otherwise configured percentage; Booking.com payment charge read from the booking
+- New options step "Commissions" with defaults per channel and direct channels
+- Per guest: channel group, commission, net price
+
 ## 1.5.0 – 2026-11-15
 
 **Deutsch**

@@ -24,8 +24,14 @@ from .const import (
     CONF_DEFAULT_CHECKOUT,
     CONF_CHECKOUT_BUFFER,
     CONF_ENRICH_COUNT,
+    CONF_COMMISSION_OTHER,
+    CONF_COMMISSIONS,
+    CONF_DIRECT_CHANNELS,
     CONF_PAYMENT_EXCLUDED_CHANNELS,
     CONF_SCAN_INTERVAL,
+    DEFAULT_COMMISSION_OTHER,
+    DEFAULT_COMMISSIONS,
+    DEFAULT_DIRECT_CHANNELS,
     DEFAULT_CHECKIN,
     DEFAULT_CHECKOUT,
     DEFAULT_CHECKOUT_BUFFER,
@@ -38,6 +44,7 @@ from .const import (
     FALLBACK_CHECKIN,
     FALLBACK_CHECKOUT,
 )
+from .channels import booking_costs, night_rows
 from .models import (
     SmoobuData,
     nights_by_month,
@@ -124,6 +131,23 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             )
         )
 
+    @property
+    def commissions(self) -> dict[str, float]:
+        """Provision in % je Kanal (Fallback, wenn Smoobu keine liefert)."""
+        return dict(self.config_entry.options.get(CONF_COMMISSIONS, DEFAULT_COMMISSIONS))
+
+    @property
+    def commission_other(self) -> float:
+        return float(self.config_entry.options.get(CONF_COMMISSION_OTHER, DEFAULT_COMMISSION_OTHER))
+
+    @property
+    def direct_channels(self) -> list[str]:
+        return list(self.config_entry.options.get(CONF_DIRECT_CHANNELS, DEFAULT_DIRECT_CHANNELS))
+
+    def costs(self, booking: dict[str, Any]) -> dict[str, Any]:
+        """Kanalgruppe, Provision, Zahlungsgebühr und Netto einer Buchung."""
+        return booking_costs(booking, self.commissions, self.commission_other, self.direct_channels)
+
     def release(self, booking: dict[str, Any]):
         """Freigabezeit einer Buchung (Abreisezeit + Puffer bzw. Standard-Check-out)."""
         return booking_release(booking, self.default_checkout, self.checkout_buffer)
@@ -174,6 +198,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         earned: dict[int, dict[str, float]] = {}
         g_nights: dict[int, dict[str, int]] = {}
         b_nights: dict[int, dict[str, int]] = {}
+        rows: dict[int, list] = {}
         for apt_id in apartments:
             items = [
                 b for b in revenue_bookings if (b.get("apartment") or {}).get("id") == apt_id
@@ -182,6 +207,10 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             earned[apt_id] = revenue_by_month(items, until=today)
             g_nights[apt_id] = nights_by_month(items)
             b_nights[apt_id] = nights_by_month(items, blocked=True)
+            # Je Gastnacht Brutto/Provision/Gebühr für Direkt-vs-Portal-Auswertung
+            rows[apt_id] = night_rows(
+                items, self.commissions, self.commission_other, self.direct_channels
+            )
 
         return SmoobuData(
             apartments=apartments,
@@ -195,6 +224,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             blocked_nights=b_nights,
             rates=rates,
             last_message=previous.last_message,
+            night_rows=rows,
         )
 
     async def _async_load_rates(
