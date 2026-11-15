@@ -96,7 +96,8 @@ _QUOTE_RE = re.compile(
     r"(\n|^)\s*-{3,}\s*(Ursprüngliche Nachricht|Original Message|Original-Nachricht)"
     r"|Von meinem(/meiner)? [^\n]{0,40}gesendet|Sent from my|Gesendet von Outlook|Gesendet mit der"
     r"|(\n|^)\s*(Von|From):\s|(\n|^)\s*>"
-    r"|(\n|^)[^\n]{0,80}(schrieb am|schrieb |wrote:|ha scritto:)",
+    r"|(\n|^)[^\n]{0,80}(schrieb am|schrieb |wrote:|ha scritto:)"
+    r"|(\n|^)\s*Reply to:\s|(\n|^)\s*Gesendet:\s",
     re.IGNORECASE,
 )
 
@@ -136,6 +137,32 @@ def clean(text: str) -> str:
 
 def _norm_prefix(text: str) -> str:
     return re.sub(r"[^a-zäöüß]+", "", clean(text).casefold())[:60]
+
+
+# Anrede-Zeile („Hallo Henrika,“) – wird für die Vorlagenerkennung übersprungen
+_GREETING_RE = re.compile(
+    r"^\s*(hallo|hi|hey|hello|dear|liebe[rs]?|guten (morgen|tag|abend)|good (morning|evening|afternoon)"
+    r"|moin|servus|bonjour|buongiorno|ciao|hola|beste|merhaba)\b[^\n]{0,40}\n",
+    re.IGNORECASE,
+)
+
+# Automatische Antworten der Portale (Booking-Anfragen u. ä.) – keine echten Antworten
+PLATFORM_AUTO = {"request approved", "request declined", "confirm for free", "anfrage angenommen",
+                 "anfrage abgelehnt"}
+
+
+def body_key(text: str) -> str:
+    """Schlüssel des Nachrichtenkerns ohne Anrede – gleiche Vorlage trotz anderem Gastnamen."""
+    t = clean(text)
+    t = _GREETING_RE.sub("", t, count=1)
+    # Anrede ohne Zeilenumbruch („Hallo Saskia,falls du …“)
+    t = re.sub(r"^\s*(hallo|hi|hello|dear|bonjour)\s+[^,\n]{1,30},", "", t, flags=re.IGNORECASE)
+    return re.sub(r"[^a-zäöüß]+", "", t.casefold())[:80]
+
+
+def norm_subject(subj: str) -> str:
+    """Betreff ohne Nummern/Daten („Rechnung RE2026-045 …“ → „Rechnung RE# …“)."""
+    return re.sub(r"[\d][\d.\-/:]*", "#", (subj or "").strip())
 
 
 def rank(query: str, docs: list[str], k: int = 4) -> list[int]:
@@ -503,10 +530,14 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
     # --- Vorlagen (automatische Smoobu-Nachrichten) ---------------------------
     def is_template(self, m: dict[str, Any]) -> bool:
         """Automatische Nachricht (Willkommen, Check-in-Info …) – keine Antwort auf den Gast."""
-        subj = (m.get("subject") or "").strip()
+        subj = norm_subject(m.get("subject") or "")
         if subj and subj in set(self.data.get("vorlagen_betreff") or []):
             return True
-        return _norm_prefix(self._text(m)) in set(self.data.get("vorlagen_anfang") or [])
+        text = clean(self._text(m))
+        if text.casefold().strip(" .!") in PLATFORM_AUTO:
+            return True
+        key = body_key(text)
+        return len(key) >= 40 and key in set(self.data.get("vorlagen_anfang") or [])
 
     # --- Webhook: neue Nachricht -------------------------------------------
     async def on_new_message(self, rid: int) -> None:
@@ -727,21 +758,33 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
             if state["fertig"] % 10 == 0:
                 self._changed()
             await asyncio.sleep(self.throttle)  # Smoobu schonen
-        # Vorlagen erkennen
-        subjects = Counter(
-            (m.get("subject") or "").strip()
-            for _r, msgs in loaded for m in msgs
-            if int(m.get("type") or 0) == 2 and (m.get("subject") or "").strip()
-        )
-        tmpl_subjects = sorted(k for k, n in subjects.items() if n >= 3)
+        # Vorlagen erkennen: gleicher Betreff (ohne Nummern) oder gleicher Text ohne Anrede
+        # ≥ 3-mal in ≥ 2 Buchungen = automatische Nachricht
+        subj_books: dict[str, list[int]] = {}
+        body_books: dict[str, list[int]] = {}
+        for r, msgs in loaded:
+            for m in msgs:
+                if int(m.get("type") or 0) != 2:
+                    continue
+                subj = norm_subject(m.get("subject") or "")
+                if subj:
+                    subj_books.setdefault(subj, []).append(r["id"])
+                key = body_key(self._text(m))
+                if len(key) >= 40:
+                    body_books.setdefault(key, []).append(r["id"])
+        def _is_tmpl(books: list[int]) -> bool:
+            # ≥ 3 Nachrichten in ≥ 2 verschiedenen Buchungen
+            return len(books) >= 3 and len(set(books)) >= 2
+
+        self.data["vorlagen_betreff"] = sorted(k for k, v in subj_books.items() if _is_tmpl(v))
+        self.data["vorlagen_anfang"] = sorted(k for k, v in body_books.items() if _is_tmpl(v))
+        # Vorlagentexte (neueste Fassung je Betreff) – Quelle für die Wissensdatenbank
         templates: dict[str, str] = {}
         for _r, msgs in loaded:
             for m in msgs:
-                subj = (m.get("subject") or "").strip()
-                if int(m.get("type") or 0) == 2 and subj in tmpl_subjects:
-                    templates[subj] = clean(self._text(m))  # neueste Fassung je Betreff
-        self.data["vorlagen_betreff"] = tmpl_subjects
-        self.data["vorlagen_anfang"] = sorted({_norm_prefix(t) for t in templates.values() if t})
+                subj = norm_subject(m.get("subject") or "")
+                if int(m.get("type") or 0) == 2 and subj in self.data["vorlagen_betreff"]:
+                    templates[subj] = clean(self._text(m))
         # Paare bilden (frühere Import-Beispiele ersetzen)
         self.data["beispiele"] = [b for b in self.data["beispiele"] if b.get("quelle") != "verlauf"]
         for r, msgs in loaded:

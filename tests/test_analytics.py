@@ -102,3 +102,14 @@ def test_assistant_clean_redact():
     assert clean("Kein Problem\n\n schrieb am Do., 31. Juli 2025:\n> Hallo") == "Kein Problem"
     assert "[LINK]" in clean("Mappe: https://guest.smoobu.com/?t=abc&b=1")
     assert clean("Ankunft 21:30, 3 Nächte, 2025 war schön") == "Ankunft 21:30, 3 Nächte, 2025 war schön"
+
+
+def test_assistant_template_keys():
+    from custom_components.smoobu.assistant import body_key, clean, norm_subject
+    a = "Hallo Henrika,\nWir hoffen, Du hattest eine wundervolle Zeit und hast dich bei uns wohl gefühlt!"
+    b = "Hallo Leon,\nWir hoffen, Du hattest eine wundervolle Zeit und hast dich bei uns wohl gefühlt!"
+    assert body_key(a) == body_key(b) and len(body_key(a)) >= 40
+    assert body_key("Hallo Saskia,falls du es noch nicht getan hast, lass uns bitte wissen wann") == \
+        body_key("Hallo Robin,falls du es noch nicht getan hast, lass uns bitte wissen wann")
+    assert norm_subject("Rechnung RE2026-045 Ferienwohnung") == norm_subject("Rechnung RE2026-051 Ferienwohnung")
+    assert clean("Gerne!\n\nReply to: Is 12 Uhr just as well?") == "Gerne!"
