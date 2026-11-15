@@ -7,6 +7,7 @@ Der Webhook stößt zusätzlich sofort eine Aktualisierung an.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
@@ -108,6 +109,11 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         # Auswahl der Lovelace-Filter je Wohnung: {"kanal", "zeitraum", "vergleich"}
         # (gesetzt von den select-Entitäten, die ihren Stand selbst wiederherstellen)
         self.selection: dict[int, dict[str, str]] = {}
+        # Antwortstatus je Buchung (v1.13.0): {reservation_id: (geladen_um, status)}.
+        # Smoobu meldet „unbeantwortet“ nicht selbst → aus dem Verlauf abgeleitet und
+        # 10 min gecacht; Webhook „newMessage“ und eigenes Senden verwerfen den Eintrag.
+        self._msg_status: dict[int, tuple[Any, dict[str, Any]]] = {}
+        client.on_message_sent = self.invalidate_message_status
         # KI-Assistent (assistant.py), gesetzt in __init__.async_setup_entry
         self.assistant: Any = None
 
@@ -294,8 +300,50 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         self._rates_loaded = now
         return rates
 
+    def invalidate_message_status(self, reservation_id: int) -> None:
+        """Antwortstatus einer Buchung neu laden lassen (neue/gesendete Nachricht)."""
+        self._msg_status.pop(int(reservation_id), None)
+
+    async def async_message_status(self, reservation_ids: list[int]) -> dict[int, dict[str, Any]]:
+        """Je Buchung: Ist die letzte Nachricht vom Gast und noch unbeantwortet?
+
+        „offen“ = die neueste nicht interne Nachricht hat type 1 (Gast → Gastgeber).
+        Interne Notizen zählen nicht als Antwort. Abruf parallel (max. 4 gleichzeitig),
+        Fehler einzelner Buchungen liefern {"fehler": …} statt den ganzen Befehl abzubrechen.
+        """
+        now = dt_util.utcnow()
+        ttl = timedelta(minutes=10)
+        sem = asyncio.Semaphore(4)
+        out: dict[int, dict[str, Any]] = {}
+
+        async def one(rid: int) -> None:
+            cached = self._msg_status.get(rid)
+            if cached and now - cached[0] < ttl:
+                out[rid] = cached[1]
+                return
+            async with sem:
+                try:
+                    messages = await self.client.get_messages(rid, True)
+                except SmoobuError as err:
+                    out[rid] = {"offen": False, "fehler": str(err)}
+                    return
+            visible = [m for m in messages if not (m.get("internal") or m.get("isInternal"))]
+            last = max(visible, key=lambda m: int(m.get("id") or 0)) if visible else None
+            status = {
+                "offen": bool(last) and last.get("type") == 1,
+                "anzahl": len(visible),
+                "letzte_zeit": (last or {}).get("createdAt") or (last or {}).get("created_at"),
+                "letzte_typ": (last or {}).get("type"),
+            }
+            self._msg_status[rid] = (now, status)
+            out[rid] = status
+
+        await asyncio.gather(*(one(int(r)) for r in reservation_ids))
+        return out
+
     async def async_fetch_last_message(self, reservation_id: int, sender: str | None) -> None:
         """Neueste Nachricht einer Buchung laden (nach Webhook „newMessage“)."""
+        self.invalidate_message_status(reservation_id)
         try:
             messages = await self.client.get_messages(reservation_id, True)
         except SmoobuError as err:

@@ -117,6 +117,9 @@ class SmoobuClient:
         self._api_key = api_key.strip()
         self._api_secret = api_secret.strip()
         self._base_url = base_url.rstrip("/")
+        # Rückruf nach erfolgreich gesendeter Nachricht (v1.13.0): der Coordinator
+        # verwirft damit den Antwortstatus-Cache der Buchung („offen“ → beantwortet).
+        self.on_message_sent: Any = None
 
     # ------------------------------------------------------------------
     # Kern: signierte Anfrage
@@ -270,6 +273,8 @@ class SmoobuClient:
         else:
             path = f"/api/reservations/{reservation_id}/messages/send-message-to-guest"
         await self.request("POST", path, body=body)
+        if self.on_message_sent:
+            self.on_message_sent(int(reservation_id))
 
     async def get_rates(
         self, apartment_id: int, start_date: str, end_date: str

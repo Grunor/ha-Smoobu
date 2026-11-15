@@ -6,6 +6,16 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.13.0 – 2026-11-15
+
+**Deutsch**
+- Posteingang: Gäste mit **offener Nachricht** (neueste Nachricht vom Gast, noch nicht beantwortet) werden deutlich markiert – roter Rand, rote Tönung, Badge „💬 Antwort offen“ – und stehen oben in der Liste; in der Kopfzeile steht die Anzahl
+- Neuer WebSocket-Befehl `smoobu/message_status` (Antwortstatus je Buchung, 10 min Cache; neue Nachricht per Webhook und eigenes Senden aktualisieren sofort). Interne Notizen zählen nicht als Antwort
+
+**English**
+- Inbox: guests with an **open message** (latest message from the guest, not yet answered) are clearly highlighted – red edge, red tint, "💬 Reply pending" badge – and listed first; the header shows the count
+- New WebSocket command `smoobu/message_status` (reply status per booking, 10 min cache; new messages via webhook and own replies refresh immediately). Internal notes do not count as a reply
+
 ## 1.12.1 – 2026-11-15
 
 **Deutsch**
