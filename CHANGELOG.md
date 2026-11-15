@@ -6,6 +6,18 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.11.0 – 2026-11-15
+
+**Deutsch**
+- Option „Puffer nach Smoobu-Abreisezeit“ heißt jetzt „Wartezeit nach Check-out“ und gilt **immer**: Freigabe (tatsächlicher Check-out, „Belegt“ aus, Sensor „Nächste Abreise“, Attribut `freigabe`) = Abreisezeit aus Smoobu bzw. Standard-Check-out + Wartezeit, z. B. 11:00 + 30 min = 11:30
+- Standard-Check-out ist damit die offizielle Check-out-Zeit für Gäste (Attribut `abreise`, Kalender, Assistent)
+- Achtung: Wer bisher einen Puffer > 0 und einen späteren Standard-Check-out eingestellt hatte, sollte den Standard-Check-out auf die echte Gästezeit zurücksetzen
+
+**English**
+- Option "Buffer after Smoobu departure time" is now "Waiting time after check-out" and **always** applies: release (actual check-out, "Occupied" off, "Next departure" sensor, `freigabe` attribute) = departure time from Smoobu or default check-out + waiting time, e.g. 11:00 + 30 min = 11:30
+- The default check-out is now the official guest check-out time (attribute `abreise`, calendar, assistant)
+- Note: if you used a buffer > 0 with a later default check-out, set the default check-out back to the real guest time
+
 ## 1.10.3 – 2026-11-15
 
 **Deutsch**
