@@ -22,6 +22,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from . import SmoobuConfigEntry
+from .booking_fields import FIELDS, SCOPES, BookingField, is_enabled
 from .coordinator import SmoobuCoordinator
 from .entity import SmoobuEntity
 from .models import booking_attributes, guest_name, is_blocked, parse_date, pet_hint
@@ -124,6 +125,13 @@ async def async_setup_entry(
         for apt_id in coordinator.data.apartments
         for desc in APARTMENT_BINARY
     ]
+    entities += [
+        SmoobuBookingFieldBinary(coordinator, apt_id, scope, field)
+        for apt_id in coordinator.data.apartments
+        for scope in SCOPES
+        for field in FIELDS
+        if field.binary
+    ]
     entities.append(SmoobuPiiBinary(coordinator))
     async_add_entities(entities)
 
@@ -170,3 +178,29 @@ class SmoobuPiiBinary(SmoobuEntity, BinarySensorEntity):
     def is_on(self) -> bool | None:
         pii = self.coordinator.data.pii_available if self.coordinator.data else None
         return None if pii is None else not pii
+
+
+class SmoobuBookingFieldBinary(SmoobuEntity, BinarySensorEntity):
+    """Zahlungsstatus der laufenden bzw. nächsten Buchung."""
+
+    def __init__(self, coordinator: C, apartment_id: int, scope: str, field: BookingField) -> None:
+        super().__init__(coordinator, apartment_id, f"{scope}_{field.key}")
+        self._scope = scope
+        self._field = field
+        self._attr_icon = field.icon
+        self._attr_entity_registry_enabled_default = is_enabled(field, scope)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_track_time_interval(self.hass, self._tick, timedelta(minutes=1))
+        )
+
+    @callback
+    def _tick(self, _now: datetime) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def is_on(self) -> bool | None:
+        booking = getattr(self.coordinator, SCOPES[self._scope][2])(self.apartment_id)
+        return self._field.value(self.coordinator, booking) if booking else None

@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
@@ -26,6 +27,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from . import SmoobuConfigEntry
+from .booking_fields import FIELDS, SCOPES, BookingField, is_enabled
 from .const import CONF_CLOUDHOOK_URL, CONF_SMOOBU_WEBHOOK_ID, STATS_DAYS
 from .coordinator import SmoobuCoordinator
 from .entity import SmoobuEntity
@@ -42,6 +44,7 @@ from .models import (
     open_amount,
     parse_date,
     days_in_month,
+    free_gaps,
     pet_hint,
     price_breakdown,
     stay_overlap_nights,
@@ -310,6 +313,82 @@ def _revenue_prev_year(c: C, apt: int) -> float:
     return _sum_year(_rev(c, apt), dt_util.now().year - 1)
 
 
+def _rates(c: C, apt: int) -> dict[str, dict[str, Any]]:
+    return (c.data.rates.get(apt, {}) if c.data else {}) or {}
+
+
+def _rate_on(c: C, apt: int, offset: int) -> dict[str, Any]:
+    day = (dt_util.now().date() + timedelta(days=offset)).isoformat()
+    return _rates(c, apt).get(day) or {}
+
+
+def _rate_price(c: C, apt: int, offset: int) -> float | None:
+    price = _rate_on(c, apt, offset).get("price")
+    return round(float(price), 2) if price is not None else None
+
+
+def _is_available(entry: dict[str, Any]) -> bool:
+    return str(entry.get("available")) in ("1", "True", "true")
+
+
+def _next_free_day(c: C, apt: int):
+    """Erster Tag ab heute, der laut Smoobu buchbar ist."""
+    for day, entry in sorted(_rates(c, apt).items()):
+        if day >= dt_util.now().date().isoformat() and _is_available(entry):
+            return date_from_iso(day)
+    return None
+
+
+def date_from_iso(value: str) -> date:
+    return date.fromisoformat(value)
+
+
+def _free_nights_30(c: C, apt: int) -> int:
+    today = dt_util.now().date()
+    days = {(today + timedelta(days=i)).isoformat() for i in range(STATS_DAYS)}
+    return sum(1 for d, e in _rates(c, apt).items() if d in days and _is_available(e))
+
+
+def _gaps(c: C, apt: int) -> list[dict[str, Any]]:
+    gaps = free_gaps(c.bookings_for(apt), dt_util.now().date(), 60)
+    for gap in gaps:
+        entry = _rates(c, apt).get(gap["von"]) or {}
+        min_stay = entry.get("min_length_of_stay")
+        gap["mindestaufenthalt"] = min_stay
+        gap["buchbar"] = min_stay is None or gap["naechte"] >= int(min_stay)
+    return gaps
+
+
+def _next_gap(c: C, apt: int):
+    gaps = _gaps(c, apt)
+    return date_from_iso(gaps[0]["von"]) if gaps else None
+
+
+def _next_gap_attrs(c: C, apt: int) -> dict[str, Any]:
+    gaps = _gaps(c, apt)
+    first = gaps[0] if gaps else {}
+    return {
+        "bis": first.get("bis"),
+        "naechte": first.get("naechte"),
+        "mindestaufenthalt": first.get("mindestaufenthalt"),
+        "buchbar": first.get("buchbar"),
+        "alle_luecken_60_tage": gaps,
+        "berechnung": "Freie Nächte zwischen zwei Belegungen (Gäste oder Sperrzeit)",
+    }
+
+
+def _price_today_attrs(c: C, apt: int) -> dict[str, Any]:
+    today = _rate_on(c, apt, 0)
+    return {
+        "mindestaufenthalt": today.get("min_length_of_stay"),
+        "verfuegbar": _is_available(today) if today else None,
+        "preise_60_tage": {d: e.get("price") for d, e in sorted(_rates(c, apt).items())},
+        "mindestaufenthalt_60_tage": {
+            d: e.get("min_length_of_stay") for d, e in sorted(_rates(c, apt).items())
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # Beschreibungen
 # ---------------------------------------------------------------------------
@@ -458,6 +537,47 @@ APARTMENT_SENSORS: tuple[SmoobuSensorDescription, ...] = (
         attrs_fn=_blocked_month_attrs,
     ),
     SmoobuSensorDescription(
+        key="preis_heute",
+        icon="mdi:tag",
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=lambda c, a: _rate_price(c, a, 0),
+        attrs_fn=_price_today_attrs,
+    ),
+    SmoobuSensorDescription(
+        key="preis_morgen",
+        icon="mdi:tag-arrow-right",
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=lambda c, a: _rate_price(c, a, 1),
+    ),
+    SmoobuSensorDescription(
+        key="mindestaufenthalt_heute",
+        icon="mdi:calendar-range",
+        native_unit_of_measurement="Nächte",
+        value_fn=lambda c, a: _rate_on(c, a, 0).get("min_length_of_stay"),
+    ),
+    SmoobuSensorDescription(
+        key="naechster_freier_tag",
+        icon="mdi:calendar-check",
+        device_class=SensorDeviceClass.DATE,
+        value_fn=_next_free_day,
+    ),
+    SmoobuSensorDescription(
+        key="freie_naechte_30_tage",
+        icon="mdi:calendar-blank",
+        native_unit_of_measurement="Nächte",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_free_nights_30,
+    ),
+    SmoobuSensorDescription(
+        key="naechste_luecke",
+        icon="mdi:calendar-expand-horizontal",
+        device_class=SensorDeviceClass.DATE,
+        value_fn=_next_gap,
+        attrs_fn=_next_gap_attrs,
+    ),
+    SmoobuSensorDescription(
         key="umsatz_vorjahr",
         icon="mdi:calendar-clock",
         device_class=SensorDeviceClass.MONETARY,
@@ -490,6 +610,14 @@ async def async_setup_entry(
         for desc in APARTMENT_SENSORS
     ]
     entities += [
+        SmoobuBookingFieldSensor(coordinator, apt_id, scope, field)
+        for apt_id in coordinator.data.apartments
+        for scope in SCOPES
+        for field in FIELDS
+        if not field.binary
+    ]
+    entities += [
+        SmoobuLastMessageSensor(coordinator),
         SmoobuLastUpdateSensor(coordinator),
         SmoobuLastEventSensor(coordinator),
         SmoobuWebhookSensor(coordinator),
@@ -607,3 +735,89 @@ class SmoobuWebhookSensor(SmoobuEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         # URL wird gebraucht, falls sie in Smoobu manuell eingetragen werden muss.
         return {"url": self.coordinator.config_entry.data.get(CONF_CLOUDHOOK_URL)}
+
+
+# ---------------------------------------------------------------------------
+# Einzelne Buchungsfelder (aktueller / nächster Gast)
+# ---------------------------------------------------------------------------
+class SmoobuBookingFieldSensor(SmoobuEntity, SensorEntity):
+    """Ein Feld der laufenden bzw. nächsten Buchung als eigene Entität."""
+
+    def __init__(self, coordinator: C, apartment_id: int, scope: str, field: BookingField) -> None:
+        super().__init__(coordinator, apartment_id, f"{scope}_{field.key}")
+        self._scope = scope
+        self._field = field
+        self._attr_icon = field.icon
+        self._attr_entity_registry_enabled_default = is_enabled(field, scope)
+        if field.monetary:
+            self._attr_device_class = SensorDeviceClass.MONETARY
+            self._attr_native_unit_of_measurement = _currency(coordinator, apartment_id)
+            self._attr_suggested_display_precision = 2
+        elif field.device_class:
+            self._attr_device_class = field.device_class
+        if field.unit:
+            self._attr_native_unit_of_measurement = field.unit
+
+    def _booking(self) -> dict[str, Any] | None:
+        method = SCOPES[self._scope][2]
+        return getattr(self.coordinator, method)(self.apartment_id)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # Wechsel aktueller/nächster Gast hängt an der Uhrzeit → minütlich prüfen
+        self.async_on_remove(
+            async_track_time_interval(self.hass, self._tick, timedelta(minutes=1))
+        )
+
+    @callback
+    def _tick(self, _now: datetime) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> Any:
+        booking = self._booking()
+        return self._field.value(self.coordinator, booking) if booking else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        # Lange Texte: Zustand ist auf 255 Zeichen gekürzt, voller Text im Attribut
+        if self._field.key in ("notiz", "assistent_notiz"):
+            booking = self._booking() or {}
+            raw = booking.get("notice" if self._field.key == "notiz" else "assistant-notice")
+            return {"text": raw} if raw else None
+        return None
+
+
+class SmoobuLastMessageSensor(SmoobuEntity, RestoreSensor):
+    """Letzte Gästenachricht (per Webhook „newMessage“), übersteht Neustarts."""
+
+    _attr_icon = "mdi:message-text"
+
+    def __init__(self, coordinator: C) -> None:
+        super().__init__(coordinator, None, "letzte_gastnachricht")
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # Nach Neustart letzten Stand wiederherstellen (Smoobu wird nicht abgefragt)
+        if self.coordinator.data and self.coordinator.data.last_message is None:
+            last = await self.async_get_last_state()
+            if last is not None and last.attributes.get("text"):
+                self.coordinator.data.last_message = {
+                    k: v for k, v in last.attributes.items() if k not in ("icon", "friendly_name")
+                }
+
+    @property
+    def _msg(self) -> dict[str, Any]:
+        return (self.coordinator.data.last_message if self.coordinator.data else None) or {}
+
+    @property
+    def native_value(self) -> str | None:
+        text = self._msg.get("text")
+        if not text:
+            return None
+        text = " ".join(str(text).split())
+        return text if len(text) <= 255 else text[:252] + "…"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        return dict(self._msg) or None

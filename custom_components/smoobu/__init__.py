@@ -308,6 +308,11 @@ async def _handle_webhook(
 
     coordinator: SmoobuCoordinator = entry.runtime_data
     coordinator.set_last_event({**event_data, "received": dt_util.now().isoformat()})
+    # Neue Gästenachricht → Text nachladen (Webhook enthält nur IDs)
+    if action == "newMessage" and reservation_id:
+        hass.async_create_task(
+            coordinator.async_fetch_last_message(int(reservation_id), data.get("sender"))
+        )
     # Preisänderungen betreffen keine Buchungsdaten → kein Neuladen nötig.
     if action != "updateRates":
         # Buchung neu/geändert/storniert → auch Umsatzdaten sofort neu laden

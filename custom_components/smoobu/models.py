@@ -35,6 +35,10 @@ class SmoobuData:
     # Wohnungs-ID → {"YYYY-MM": Gäste-Nächte} bzw. blockierte Nächte
     guest_nights: dict[int, dict[str, int]] = field(default_factory=dict)
     blocked_nights: dict[int, dict[str, int]] = field(default_factory=dict)
+    # Wohnungs-ID → {"YYYY-MM-DD": {price, min_length_of_stay, available}} (60 Tage)
+    rates: dict[int, dict[str, dict[str, Any]]] = field(default_factory=dict)
+    # Letzte Gästenachricht (per Webhook „newMessage“ geladen)
+    last_message: dict[str, Any] | None = None
 
 
 def parse_time(value: Any, fallback: time | None) -> time | None:
@@ -209,6 +213,55 @@ def nights_by_month(bookings: list[dict[str, Any]], blocked: bool = False) -> di
             result[key] = result.get(key, 0) + 1
             day += timedelta(days=1)
     return dict(sorted(result.items()))
+
+
+def occupied_nights(bookings: list[dict[str, Any]]) -> set[date]:
+    """Alle belegten Nächte (Gäste + Sperrzeiten) als Datumsmenge."""
+    result: set[date] = set()
+    for b in bookings:
+        arrival = parse_date(b.get("arrival"))
+        departure = parse_date(b.get("departure"))
+        if arrival is None or departure is None:
+            continue
+        day = arrival
+        while day < departure:
+            result.add(day)
+            day += timedelta(days=1)
+    return result
+
+
+def free_gaps(bookings: list[dict[str, Any]], start: date, days: int) -> list[dict[str, Any]]:
+    """Freie Zeiträume zwischen zwei Belegungen (beidseitig begrenzt) ab start.
+
+    Eine Lücke ist eine Folge freier Nächte, vor der eine belegte Nacht
+    liegt (oder die heute beginnt, während die Wohnung gerade belegt endet)
+    und nach der wieder eine belegte Nacht folgt.
+    """
+    occupied = occupied_nights(bookings)
+    gaps: list[dict[str, Any]] = []
+    day = start
+    end = start + timedelta(days=days)
+    while day < end:
+        if day in occupied:
+            day += timedelta(days=1)
+            continue
+        gap_start = day
+        while day < end and day not in occupied:
+            day += timedelta(days=1)
+        bounded_before = (gap_start - timedelta(days=1)) in occupied
+        bounded_after = day in occupied
+        if bounded_before and bounded_after:
+            gaps.append(
+                {"von": gap_start.isoformat(), "bis": day.isoformat(), "naechte": (day - gap_start).days}
+            )
+    return gaps
+
+
+def strip_html(text: str) -> str:
+    """Einfaches Entfernen von HTML-Tags für Nachrichtentexte."""
+    text = re.sub(r"<br\s*/?>", "\n", text or "", flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
 def days_in_month(key: str) -> int:

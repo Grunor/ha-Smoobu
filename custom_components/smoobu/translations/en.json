@@ -90,6 +90,24 @@
       },
       "hund_naechster_gast": {
         "name": "Dog next guest"
+      },
+      "aktueller_gast_preis_bezahlt": {
+        "name": "Current guest Price paid"
+      },
+      "naechster_gast_preis_bezahlt": {
+        "name": "Next guest Price paid"
+      },
+      "aktueller_gast_anzahlung_bezahlt": {
+        "name": "Current guest Prepayment paid"
+      },
+      "naechster_gast_anzahlung_bezahlt": {
+        "name": "Next guest Prepayment paid"
+      },
+      "aktueller_gast_kaution_bezahlt": {
+        "name": "Current guest Deposit paid"
+      },
+      "naechster_gast_kaution_bezahlt": {
+        "name": "Next guest Deposit paid"
       }
     },
     "sensor": {
@@ -169,6 +187,183 @@
       },
       "gesperrte_naechte_monat": {
         "name": "Blocked nights month"
+      },
+      "aktueller_gast_buchungs_id": {
+        "name": "Current guest Booking ID"
+      },
+      "naechster_gast_buchungs_id": {
+        "name": "Next guest Booking ID"
+      },
+      "aktueller_gast_referenz_id": {
+        "name": "Current guest Reference ID"
+      },
+      "naechster_gast_referenz_id": {
+        "name": "Next guest Reference ID"
+      },
+      "aktueller_gast_gast_id": {
+        "name": "Current guest Guest ID"
+      },
+      "naechster_gast_gast_id": {
+        "name": "Next guest Guest ID"
+      },
+      "aktueller_gast_typ": {
+        "name": "Current guest Booking type"
+      },
+      "naechster_gast_typ": {
+        "name": "Next guest Booking type"
+      },
+      "aktueller_gast_kanal": {
+        "name": "Current guest Channel"
+      },
+      "naechster_gast_kanal": {
+        "name": "Next guest Channel"
+      },
+      "aktueller_gast_sprache": {
+        "name": "Current guest Language"
+      },
+      "naechster_gast_sprache": {
+        "name": "Next guest Language"
+      },
+      "aktueller_gast_email": {
+        "name": "Current guest Email"
+      },
+      "naechster_gast_email": {
+        "name": "Next guest Email"
+      },
+      "aktueller_gast_telefon": {
+        "name": "Current guest Phone"
+      },
+      "naechster_gast_telefon": {
+        "name": "Next guest Phone"
+      },
+      "aktueller_gast_erwachsene": {
+        "name": "Current guest Adults"
+      },
+      "naechster_gast_erwachsene": {
+        "name": "Next guest Adults"
+      },
+      "aktueller_gast_kinder": {
+        "name": "Current guest Children"
+      },
+      "naechster_gast_kinder": {
+        "name": "Next guest Children"
+      },
+      "aktueller_gast_personen": {
+        "name": "Current guest Guests"
+      },
+      "naechster_gast_personen": {
+        "name": "Next guest Guests"
+      },
+      "aktueller_gast_naechte": {
+        "name": "Current guest Nights"
+      },
+      "naechster_gast_naechte": {
+        "name": "Next guest Nights"
+      },
+      "aktueller_gast_check_in_zeit": {
+        "name": "Current guest Check-in time"
+      },
+      "naechster_gast_check_in_zeit": {
+        "name": "Next guest Check-in time"
+      },
+      "aktueller_gast_check_out_zeit": {
+        "name": "Current guest Check-out time"
+      },
+      "naechster_gast_check_out_zeit": {
+        "name": "Next guest Check-out time"
+      },
+      "aktueller_gast_anreise": {
+        "name": "Current guest Arrival"
+      },
+      "naechster_gast_anreise": {
+        "name": "Next guest Arrival"
+      },
+      "aktueller_gast_abreise": {
+        "name": "Current guest Departure"
+      },
+      "naechster_gast_abreise": {
+        "name": "Next guest Departure"
+      },
+      "aktueller_gast_freigabe": {
+        "name": "Current guest Release"
+      },
+      "naechster_gast_freigabe": {
+        "name": "Next guest Release"
+      },
+      "aktueller_gast_anzahlung": {
+        "name": "Current guest Prepayment"
+      },
+      "naechster_gast_anzahlung": {
+        "name": "Next guest Prepayment"
+      },
+      "aktueller_gast_kaution": {
+        "name": "Current guest Deposit"
+      },
+      "naechster_gast_kaution": {
+        "name": "Next guest Deposit"
+      },
+      "aktueller_gast_kurtaxe": {
+        "name": "Current guest City tax"
+      },
+      "naechster_gast_kurtaxe": {
+        "name": "Next guest City tax"
+      },
+      "aktueller_gast_offener_betrag": {
+        "name": "Current guest Open amount"
+      },
+      "naechster_gast_offener_betrag": {
+        "name": "Next guest Open amount"
+      },
+      "aktueller_gast_notiz": {
+        "name": "Current guest Note"
+      },
+      "naechster_gast_notiz": {
+        "name": "Next guest Note"
+      },
+      "aktueller_gast_assistent_notiz": {
+        "name": "Current guest Assistant note"
+      },
+      "naechster_gast_assistent_notiz": {
+        "name": "Next guest Assistant note"
+      },
+      "aktueller_gast_gaeste_app": {
+        "name": "Current guest Guest app"
+      },
+      "naechster_gast_gaeste_app": {
+        "name": "Next guest Guest app"
+      },
+      "aktueller_gast_erstellt": {
+        "name": "Current guest Created"
+      },
+      "naechster_gast_erstellt": {
+        "name": "Next guest Created"
+      },
+      "aktueller_gast_geaendert": {
+        "name": "Current guest Modified"
+      },
+      "naechster_gast_geaendert": {
+        "name": "Next guest Modified"
+      },
+      "preis_heute": {
+        "name": "Price today"
+      },
+      "preis_morgen": {
+        "name": "Price tomorrow"
+      },
+      "mindestaufenthalt_heute": {
+        "name": "Minimum stay today"
+      },
+      "naechster_freier_tag": {
+        "name": "Next free day"
+      },
+      "freie_naechte_30_tage": {
+        "name": "Free nights 30 days"
+      },
+      "naechste_luecke": {
+        "name": "Next gap"
+      },
+      "letzte_gastnachricht": {
+        "name": "Last guest message"
       }
     }
   },
