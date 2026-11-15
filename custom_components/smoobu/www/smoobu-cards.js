@@ -21,7 +21,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.15.0";
+const SMOOBU_CARDS_VERSION = "1.15.1";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -279,6 +279,8 @@ class SmoobuStore {
 // Gemeinsames Aussehen
 // ---------------------------------------------------------------------------
 const BASE_CSS = `
+  :host([panel]) { padding-left: clamp(8px, 2vw, 28px); padding-right: clamp(8px, 2vw, 28px); }
+  :host([panel]:last-child) { padding-bottom: 24px; }
   :host { display: block; --sm-gap: 14px; --sm-r: 14px; --sm-rs: 10px; color: var(--sm-ink);
     font-family: ${FONT}; font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
   * { box-sizing: border-box; }
@@ -454,10 +456,22 @@ class SmoobuCard extends HTMLElement {
     const scroll = this.shadowRoot.querySelector(".scroll")?.scrollLeft;
     DARK = Theme.dark(this._hass);
     this.toggleAttribute("dark", DARK);
+    this.toggleAttribute("panel", this.inPanelView());
     const vars = `:host { ${CSS_VARS(PAL[DARK ? "dark" : "light"])} --sm-scheme: ${DARK ? "dark" : "light"}; }`;
     this.shadowRoot.innerHTML = `<style>${vars}${BASE_CSS}${this.constructor.css || ""}</style><ha-card>${body}</ha-card>`;
     if (scroll) { const s = this.shadowRoot.querySelector(".scroll"); if (s) s.scrollLeft = scroll; }
     this.bind?.(this.shadowRoot);
+  }
+  // v1.15.1: In Panel-Ansichten liegen die Karten ohne Rand am Fensterrand → Seitenabstand selbst setzen
+  inPanelView() {
+    if (this._panel !== undefined) return this._panel;
+    let n = this;
+    for (let i = 0; i < 40 && n; i++) {
+      n = n.parentNode || n.host;
+      if (n?.localName === "hui-panel-view") return (this._panel = true);
+      if (n?.localName === "hui-sections-view" || n?.localName === "hui-masonry-view") return (this._panel = false);
+    }
+    return false; // noch nicht eingehängt: beim nächsten Rendern erneut prüfen
   }
   $(sel) { return this.shadowRoot.querySelector(sel); }
   $$(sel) { return [...this.shadowRoot.querySelectorAll(sel)]; }

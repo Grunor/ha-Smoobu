@@ -6,6 +6,14 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.15.1 – 2026-11-15
+
+**Deutsch**
+- Karten in Panel-Ansichten bekommen einen eigenen Seitenrand (vorher lagen Text und Rahmen direkt am Fensterrand)
+
+**English**
+- Cards in panel views get their own side margin (text and borders previously touched the window edge)
+
 ## 1.15.0 – 2026-11-15
 
 **Deutsch**
