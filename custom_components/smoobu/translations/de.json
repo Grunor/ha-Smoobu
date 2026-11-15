@@ -1,0 +1,253 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Smoobu",
+        "description": "HMAC-API-Schlüssel und Secret aus Smoobu eingeben.",
+        "data": {
+          "api_key": "API-Schlüssel",
+          "api_secret": "Secret"
+        },
+        "data_description": {
+          "api_key": "In Smoobu unter Einstellungen → Erweitert → API-Schlüssel erstellen. Für Gastnamen die Option „Guest Data (PII)“ aktivieren.",
+          "api_secret": "Wird in Smoobu nur einmal angezeigt (Generate Secret)."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Smoobu neu anmelden",
+        "description": "Der Schlüssel wurde abgelehnt. Bitte neuen API-Schlüssel und Secret eingeben.",
+        "data": {
+          "api_key": "API-Schlüssel",
+          "api_secret": "Secret"
+        },
+        "data_description": {
+          "api_key": "In Smoobu unter Einstellungen → Erweitert → API-Schlüssel erstellen. Für Gastnamen die Option „Guest Data (PII)“ aktivieren.",
+          "api_secret": "Wird in Smoobu nur einmal angezeigt (Generate Secret)."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Schlüssel oder Secret ungültig bzw. ohne Berechtigung.",
+      "cannot_connect": "Smoobu nicht erreichbar.",
+      "unknown": "Unerwarteter Fehler, siehe Protokoll."
+    },
+    "abort": {
+      "already_configured": "Dieses Smoobu-Konto ist bereits eingerichtet.",
+      "reauth_successful": "Neu-Anmeldung erfolgreich."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Smoobu-Optionen",
+        "data": {
+          "scan_interval": "Abfrageintervall",
+          "use_webhook": "Echtzeit-Webhook verwenden",
+          "default_checkin": "Standard-Check-in",
+          "default_checkout": "Standard-Check-out",
+          "days_back": "Rückblick (Tage)",
+          "days_ahead": "Vorschau (Tage)",
+          "enrich_count": "Detaildaten für die nächsten n Buchungen"
+        },
+        "data_description": {
+          "scan_interval": "Rückfall-Abfrage zusätzlich zum Webhook.",
+          "use_webhook": "Smoobu meldet Buchungsänderungen sofort über Nabu Casa.",
+          "default_checkin": "Gilt, wenn in der Buchung keine Ankunftszeit steht.",
+          "default_checkout": "Gilt, wenn in der Buchung keine Abreisezeit steht.",
+          "enrich_count": "Laufende + nächste n Buchungen je Wohnung mit Vor-/Nachname, Kurtaxe usw. ergänzen."
+        }
+      }
+    }
+  },
+  "entity": {
+    "calendar": {
+      "belegung": {
+        "name": "Belegung"
+      }
+    },
+    "binary_sensor": {
+      "belegt": {
+        "name": "Belegt"
+      },
+      "anreise_heute": {
+        "name": "Anreise heute"
+      },
+      "abreise_heute": {
+        "name": "Abreise heute"
+      },
+      "gaestewechsel_heute": {
+        "name": "Gästewechsel heute"
+      },
+      "gastdaten_fehlen": {
+        "name": "Gastdaten fehlen"
+      }
+    },
+    "sensor": {
+      "aktueller_gast": {
+        "name": "Aktueller Gast"
+      },
+      "aktueller_vorname": {
+        "name": "Aktueller Vorname"
+      },
+      "aktuelle_personen": {
+        "name": "Aktuelle Personen"
+      },
+      "naechster_gast": {
+        "name": "Nächster Gast"
+      },
+      "naechster_vorname": {
+        "name": "Nächster Vorname"
+      },
+      "naechste_personen": {
+        "name": "Nächste Personen"
+      },
+      "naechste_anreise": {
+        "name": "Nächste Anreise"
+      },
+      "naechste_abreise": {
+        "name": "Nächste Abreise"
+      },
+      "buchungen_30_tage": {
+        "name": "Buchungen 30 Tage"
+      },
+      "auslastung_30_tage": {
+        "name": "Auslastung 30 Tage"
+      },
+      "umsatz_30_tage": {
+        "name": "Umsatz 30 Tage"
+      },
+      "offene_zahlungen": {
+        "name": "Offene Zahlungen"
+      },
+      "letzte_aktualisierung": {
+        "name": "Letzte Aktualisierung"
+      },
+      "letztes_ereignis": {
+        "name": "Letztes Ereignis"
+      },
+      "webhook": {
+        "name": "Webhook",
+        "state": {
+          "registriert": "Registriert",
+          "manuell": "Manuell eintragen",
+          "aus": "Aus"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "no_entry": {
+      "message": "Keine geladene Smoobu-Integration gefunden."
+    }
+  },
+  "selector": {
+    "recipient": {
+      "options": {
+        "guest": "Gast",
+        "host": "Gastgeber (Notiz)"
+      }
+    }
+  },
+  "services": {
+    "refresh": {
+      "name": "Aktualisieren",
+      "description": "Daten sofort von Smoobu abrufen."
+    },
+    "get_reservations": {
+      "name": "Buchungen abrufen",
+      "description": "Buchungen nach Filter abrufen (Antwortdaten).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Smoobu-Konto",
+          "description": "Optional, Standard: das einzige Konto."
+        },
+        "arrival_from": {
+          "name": "Anreise ab",
+          "description": ""
+        },
+        "arrival_to": {
+          "name": "Anreise bis",
+          "description": ""
+        },
+        "departure_from": {
+          "name": "Abreise ab",
+          "description": ""
+        },
+        "departure_to": {
+          "name": "Abreise bis",
+          "description": ""
+        },
+        "apartment_id": {
+          "name": "Wohnungs-ID",
+          "description": ""
+        },
+        "show_cancellation": {
+          "name": "Stornos anzeigen",
+          "description": ""
+        }
+      }
+    },
+    "get_reservation": {
+      "name": "Buchung abrufen",
+      "description": "Eine Buchung mit allen Details.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Smoobu-Konto",
+          "description": ""
+        },
+        "reservation_id": {
+          "name": "Buchungs-ID",
+          "description": ""
+        }
+      }
+    },
+    "get_messages": {
+      "name": "Nachrichten abrufen",
+      "description": "Nachrichten einer Buchung.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Smoobu-Konto",
+          "description": ""
+        },
+        "reservation_id": {
+          "name": "Buchungs-ID",
+          "description": ""
+        },
+        "only_related_to_guest": {
+          "name": "Nur Gastnachrichten",
+          "description": ""
+        }
+      }
+    },
+    "send_message": {
+      "name": "Nachricht senden",
+      "description": "Nachricht an den Gast oder als Gastgeber-Notiz senden.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Smoobu-Konto",
+          "description": ""
+        },
+        "reservation_id": {
+          "name": "Buchungs-ID",
+          "description": ""
+        },
+        "recipient": {
+          "name": "Empfänger",
+          "description": ""
+        },
+        "subject": {
+          "name": "Betreff",
+          "description": ""
+        },
+        "message": {
+          "name": "Nachricht",
+          "description": "Text oder HTML."
+        },
+        "internal": {
+          "name": "Intern",
+          "description": "Nur bei Gastgeber: vor dem Gast verbergen."
+        }
+      }
+    }
+  }
+}

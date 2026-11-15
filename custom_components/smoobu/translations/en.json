@@ -1,0 +1,253 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Smoobu",
+        "description": "Enter the HMAC API key and secret from Smoobu.",
+        "data": {
+          "api_key": "API key",
+          "api_secret": "Secret"
+        },
+        "data_description": {
+          "api_key": "Create in Smoobu under Settings → Advanced → API Keys. Enable 'Guest Data (PII)' for guest names.",
+          "api_secret": "Shown only once in Smoobu (Generate Secret)."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Smoobu",
+        "description": "The key was rejected. Enter a new API key and secret.",
+        "data": {
+          "api_key": "API key",
+          "api_secret": "Secret"
+        },
+        "data_description": {
+          "api_key": "Create in Smoobu under Settings → Advanced → API Keys. Enable 'Guest Data (PII)' for guest names.",
+          "api_secret": "Shown only once in Smoobu (Generate Secret)."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid key/secret or missing permission.",
+      "cannot_connect": "Cannot connect to Smoobu.",
+      "unknown": "Unexpected error, see log."
+    },
+    "abort": {
+      "already_configured": "This Smoobu account is already configured.",
+      "reauth_successful": "Re-authentication successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Smoobu options",
+        "data": {
+          "scan_interval": "Polling interval",
+          "use_webhook": "Use real-time webhook",
+          "default_checkin": "Default check-in",
+          "default_checkout": "Default check-out",
+          "days_back": "Days back",
+          "days_ahead": "Days ahead",
+          "enrich_count": "Fetch details for next n bookings"
+        },
+        "data_description": {
+          "scan_interval": "Fallback polling in addition to the webhook.",
+          "use_webhook": "Smoobu pushes booking changes instantly via Nabu Casa.",
+          "default_checkin": "Used when the booking has no arrival time.",
+          "default_checkout": "Used when the booking has no departure time.",
+          "enrich_count": "Enrich current + next n bookings per apartment with first/last name, city tax etc."
+        }
+      }
+    }
+  },
+  "entity": {
+    "calendar": {
+      "belegung": {
+        "name": "Occupancy"
+      }
+    },
+    "binary_sensor": {
+      "belegt": {
+        "name": "Occupied"
+      },
+      "anreise_heute": {
+        "name": "Arrival today"
+      },
+      "abreise_heute": {
+        "name": "Departure today"
+      },
+      "gaestewechsel_heute": {
+        "name": "Changeover today"
+      },
+      "gastdaten_fehlen": {
+        "name": "Guest data missing"
+      }
+    },
+    "sensor": {
+      "aktueller_gast": {
+        "name": "Current guest"
+      },
+      "aktueller_vorname": {
+        "name": "Current first name"
+      },
+      "aktuelle_personen": {
+        "name": "Current guests count"
+      },
+      "naechster_gast": {
+        "name": "Next guest"
+      },
+      "naechster_vorname": {
+        "name": "Next first name"
+      },
+      "naechste_personen": {
+        "name": "Next guests count"
+      },
+      "naechste_anreise": {
+        "name": "Next arrival"
+      },
+      "naechste_abreise": {
+        "name": "Next departure"
+      },
+      "buchungen_30_tage": {
+        "name": "Bookings 30 days"
+      },
+      "auslastung_30_tage": {
+        "name": "Occupancy rate 30 days"
+      },
+      "umsatz_30_tage": {
+        "name": "Revenue 30 days"
+      },
+      "offene_zahlungen": {
+        "name": "Unpaid bookings"
+      },
+      "letzte_aktualisierung": {
+        "name": "Last update"
+      },
+      "letztes_ereignis": {
+        "name": "Last event"
+      },
+      "webhook": {
+        "name": "Webhook",
+        "state": {
+          "registriert": "Registered",
+          "manuell": "Manual",
+          "aus": "Off"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "no_entry": {
+      "message": "No loaded Smoobu integration found."
+    }
+  },
+  "selector": {
+    "recipient": {
+      "options": {
+        "guest": "Guest",
+        "host": "Host (note)"
+      }
+    }
+  },
+  "services": {
+    "refresh": {
+      "name": "Refresh",
+      "description": "Fetch data from Smoobu now."
+    },
+    "get_reservations": {
+      "name": "Get reservations",
+      "description": "Fetch reservations by filter (response data).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Smoobu account",
+          "description": "Optional, default: the only account."
+        },
+        "arrival_from": {
+          "name": "Arrival from",
+          "description": ""
+        },
+        "arrival_to": {
+          "name": "Arrival to",
+          "description": ""
+        },
+        "departure_from": {
+          "name": "Departure from",
+          "description": ""
+        },
+        "departure_to": {
+          "name": "Departure to",
+          "description": ""
+        },
+        "apartment_id": {
+          "name": "Apartment ID",
+          "description": ""
+        },
+        "show_cancellation": {
+          "name": "Show cancellations",
+          "description": ""
+        }
+      }
+    },
+    "get_reservation": {
+      "name": "Get reservation",
+      "description": "One reservation with all details.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Smoobu account",
+          "description": ""
+        },
+        "reservation_id": {
+          "name": "Reservation ID",
+          "description": ""
+        }
+      }
+    },
+    "get_messages": {
+      "name": "Get messages",
+      "description": "Messages of a reservation.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Smoobu account",
+          "description": ""
+        },
+        "reservation_id": {
+          "name": "Reservation ID",
+          "description": ""
+        },
+        "only_related_to_guest": {
+          "name": "Only guest messages",
+          "description": ""
+        }
+      }
+    },
+    "send_message": {
+      "name": "Send message",
+      "description": "Send a message to the guest or as host note.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Smoobu account",
+          "description": ""
+        },
+        "reservation_id": {
+          "name": "Reservation ID",
+          "description": ""
+        },
+        "recipient": {
+          "name": "Recipient",
+          "description": ""
+        },
+        "subject": {
+          "name": "Subject",
+          "description": ""
+        },
+        "message": {
+          "name": "Message",
+          "description": "Text or HTML."
+        },
+        "internal": {
+          "name": "Internal",
+          "description": "Host only: hide from guest."
+        }
+      }
+    }
+  }
+}

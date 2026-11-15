@@ -1,0 +1,20 @@
+{
+  "domain": "smoobu",
+  "name": "Smoobu",
+  "after_dependencies": [
+    "cloud"
+  ],
+  "codeowners": [
+    "@Grunor"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "webhook"
+  ],
+  "documentation": "https://github.com/Grunor/ha-Smoobu",
+  "integration_type": "service",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/Grunor/ha-Smoobu/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

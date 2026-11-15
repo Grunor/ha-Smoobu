@@ -1,0 +1,96 @@
+refresh:
+
+get_reservations:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: smoobu
+    arrival_from:
+      selector:
+        date:
+    arrival_to:
+      selector:
+        date:
+    departure_from:
+      selector:
+        date:
+    departure_to:
+      selector:
+        date:
+    apartment_id:
+      selector:
+        number:
+          min: 1
+          max: 999999999
+          mode: box
+    show_cancellation:
+      default: false
+      selector:
+        boolean:
+
+get_reservation:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: smoobu
+    reservation_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 9999999999
+          mode: box
+
+get_messages:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: smoobu
+    reservation_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 9999999999
+          mode: box
+    only_related_to_guest:
+      default: false
+      selector:
+        boolean:
+
+send_message:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: smoobu
+    reservation_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 9999999999
+          mode: box
+    recipient:
+      default: guest
+      selector:
+        select:
+          translation_key: recipient
+          options:
+            - guest
+            - host
+    subject:
+      selector:
+        text:
+    message:
+      required: true
+      selector:
+        text:
+          multiline: true
+    internal:
+      default: false
+      selector:
+        boolean:
