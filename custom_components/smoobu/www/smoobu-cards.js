@@ -21,7 +21,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.12.1";
+const SMOOBU_CARDS_VERSION = "1.13.0";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -52,7 +52,7 @@ const EN = {
   "Kein Vergleich": "No comparison", "Laufender Monat": "Current month", "Vormonat": "Previous month",
   "Folgemonat": "Next month", "Laufendes Jahr": "Current year", "Letzte 12 Monate": "Last 12 months",
   "Nächste 12 Monate": "Next 12 months", "Gesamter Zeitraum": "All data", "Benutzerdefiniert": "Custom",
-  "von": "from", "bis": "to", "Hund": "Dog", "Posteingang": "Inbox", "Finanzen": "Finance",
+  "von": "from", "bis": "to", "Hund": "Dog", "Posteingang": "Inbox", "Antwort offen": "Reply pending", "warten auf Antwort": "awaiting reply", "Finanzen": "Finance",
   "Erkenntnisse": "Insights", "Anteil": "Share", "nicht buchbar": "not bookable", "Mindestaufenthalt zu hoch": "minimum stay too long",
   "Vorlauf": "Lead time", "Erstellt": "Created", "Sprache": "Language", "Telefon": "Phone", "E-Mail": "Email",
   "Gespeichert": "Saved", "Fehler": "Error", "Wirklich?": "Are you sure?", "Ja": "Yes", "Nein": "No",
@@ -1185,6 +1185,14 @@ class SmoobuInboxCard extends SmoobuCard {
     @media (max-width: 700px) { .wrap { grid-template-columns: 1fr; } }
     .item { padding: 8px 10px; border-radius: 10px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
     .item:hover, .item.on { background: color-mix(in srgb, var(--sm-accent) 12%, transparent); }
+    /* v1.13.0: Gast wartet auf Antwort → roter Rand links, rote Tönung, Badge */
+    .item.open { border-left: 4px solid var(--sm-bad); padding-left: 6px;
+      background: color-mix(in srgb, var(--sm-bad) 10%, transparent); }
+    .item.open.on, .item.open:hover { background: color-mix(in srgb, var(--sm-bad) 18%, transparent); }
+    .item.open b { color: var(--sm-bad); }
+    .pending { display: inline-block; margin-top: 2px; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600;
+      background: var(--sm-bad); color: #fff; }
+    .opencount { padding: 2px 10px; border-radius: 999px; font-size: .85rem; font-weight: 600; background: var(--sm-bad); color: #fff; }
     .sugbox { margin-top: 8px; padding: 8px 12px; border-radius: 10px; font-size: .85rem;
       background: color-mix(in srgb, var(--sm-accent) 10%, transparent); border-left: 4px solid var(--sm-accent); }
     .sugbox.urgent { border-left-color: var(--sm-bad); background: color-mix(in srgb, var(--sm-bad) 12%, transparent); }
@@ -1201,7 +1209,15 @@ class SmoobuInboxCard extends SmoobuCard {
     // Laufende zuerst, dann kommende, dann vergangene
     const order = { laufend: 0, kommend: 1, vergangen: 2 };
     guests.sort((a, b) => order[a.status] - order[b.status] || (a.status === "vergangen" ? b.anreise.localeCompare(a.anreise) : a.anreise.localeCompare(b.anreise)));
-    return { apt, guests };
+    // v1.13.0: Antwortstatus je Gast (Backend cacht 10 min). Schlägt der Abruf fehl,
+    // bleibt die Liste ohne Markierung nutzbar.
+    let status = {};
+    try {
+      status = (await this.store.ws("smoobu/message_status", { ...this.target, reservation_ids: guests.slice(0, 60).map((b) => b.id) }, { cache: false })).status || {};
+    } catch (e) { status = {}; }
+    // Offene Gäste nach oben (stabil: innerhalb bleibt die Reihenfolge laufend/kommend/vergangen)
+    guests.sort((a, b) => (status[b.id]?.offen ? 1 : 0) - (status[a.id]?.offen ? 1 : 0));
+    return { apt, guests, status };
   }
   async select(id) {
     this.setState({ sel: id, thread: null, loadingThread: true, draft: "", sug: null });
@@ -1211,6 +1227,9 @@ class SmoobuInboxCard extends SmoobuCard {
         this.store.ws("smoobu/assistant/state", this.target, { cache: false }).catch(() => null),
       ]);
       const sug = a?.vorschlaege?.find((v) => v.buchung_id === id && v.status === "offen") || null;
+      // Status aus dem frischen Verlauf übernehmen (neueste sichtbare Nachricht vom Gast = offen)
+      const last = newestFirst((d.nachrichten || []).filter((m) => !m.intern))[0];
+      if (this._data?.status) this._data.status[id] = { ...(this._data.status[id] || {}), offen: !!last && last.typ === 1, letzte_zeit: last?.zeit };
       if (this._state.sel === id) this.setState({ thread: d, loadingThread: false, sug, draft: sug?.antwort || "", ai: !!a?.aktiv });
     } catch (e) { this.setState({ thread: { fehler: e.message || String(e), nachrichten: [] }, loadingThread: false }); }
   }
@@ -1222,7 +1241,7 @@ class SmoobuInboxCard extends SmoobuCard {
       this.setState({ sug, draft: sug.antwort, thinking: false });
     } catch (e) { this.setState({ thinking: false }); toast(`${t("Fehler")}: ${e.message || e}`); }
   }
-  body({ apt, guests }) {
+  body({ apt, guests, status = {} }) {
     const s = this._state;
     const entityId = this._config.message_entity || Object.keys(this._hass.states).find((e) => e.startsWith("sensor.") && e.endsWith("letzte_gastenachricht"));
     const last = entityId ? this._hass.states[entityId] : null;
@@ -1230,9 +1249,12 @@ class SmoobuInboxCard extends SmoobuCard {
     const lastHtml = last && last.attributes.text ? `<div class="last" data-rid="${esc(last.attributes.buchungs_id || "")}">` +
       `<div class="sub">${t("Nachrichten")} · ${esc(last.attributes.gast || "")} · ${fdate(last.attributes.empfangen, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>` +
       `${msgHtml(String(last.attributes.text).slice(0, 2000))}</div>` : "";
-    const items = guests.map((b) => `<div class="item ${s.sel === b.id ? "on" : ""}" data-rid="${b.id}">
+    const openCount = guests.filter((b) => status[b.id]?.offen).length;
+    const items = guests.map((b) => { const op = !!status[b.id]?.offen;
+      return `<div class="item ${s.sel === b.id ? "on" : ""} ${op ? "open" : ""}" data-rid="${b.id}">
       <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span><div class="grow"><b>${esc(b.gast)}</b>${b.hund ? " 🐕" : ""}
-      <div class="sub">${fdate(b.anreise)} – ${fdate(b.abreise)} · ${t(b.status)}</div></div></div>`).join("");
+      <div class="sub">${fdate(b.anreise)} – ${fdate(b.abreise)} · ${t(b.status)}</div>
+      ${op ? `<span class="pending">💬 ${t("Antwort offen")}</span>` : ""}</div></div>`; }).join("");
     const th = s.thread;
     const msgs = th ? newestFirst(th.nachrichten).map((m) => `<div class="msg ${m.typ === 2 ? "out" : ""}"><div class="h">${m.typ === 2 ? "→" : "←"} ${m.zeit ? esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""} ${m.betreff ? "· " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("") : "";
     const right = !s.sel ? `<div class="empty">← ${t("Gast")}</div>`
@@ -1249,7 +1271,7 @@ class SmoobuInboxCard extends SmoobuCard {
         <div class="row">${s.ai ? `<select data-k="anlass">${["antwort", "willkommen", "anreise", "abreise", "bewertung"].map((a) => `<option value="${a}">${a}</option>`).join("")}</select>
           <button class="btn flat" data-act="ai" ${s.thinking ? "disabled" : ""}>${s.thinking ? "⏳ KI denkt …" : "✨ Vorschlag"}</button>` : ""}
           <span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>`;
-    return `<div class="row"><h2 class="grow">${esc(this._config.title || t("Posteingang"))}</h2></div>${lastHtml}
+    return `<div class="row"><h2 class="grow">${esc(this._config.title || t("Posteingang"))}</h2>${openCount ? `<span class="opencount">💬 ${openCount} ${t("warten auf Antwort")}</span>` : ""}</div>${lastHtml}
       <div class="wrap"><div>${items || `<div class="empty">${t("Keine Daten")}</div>`}</div><div>${right}</div></div>`;
   }
   bind(root) {

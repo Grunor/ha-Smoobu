@@ -9,6 +9,7 @@ Befehle (alle nur für angemeldete HA-Benutzer):
 - smoobu/analytics         Kennzahlen + Reihe + Vergleich + Prognose für Zeitraum/Kanäle
 - smoobu/bookings          Buchungsliste mit Filtern (Zeitraum, Kanal, Status, Suche)
 - smoobu/booking           Einzelbuchung frisch von Smoobu inkl. Nachrichtenverlauf
+- smoobu/message_status   Antwortstatus je Buchung (letzte Nachricht vom Gast = offen, v1.13.0)
 - smoobu/rates             Tagespreise, Mindestaufenthalt, Verfügbarkeit für einen Zeitraum
 - smoobu/subscribe         Meldung bei jedem neuen Datenstand (Karten laden dann neu)
 """
@@ -102,6 +103,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_bookings)
     websocket_api.async_register_command(hass, ws_booking)
     websocket_api.async_register_command(hass, ws_rates)
+    websocket_api.async_register_command(hass, ws_message_status)
     websocket_api.async_register_command(hass, ws_subscribe)
     websocket_api.async_register_command(hass, ws_assistant_state)
     websocket_api.async_register_command(hass, ws_assistant_knowledge)
@@ -261,6 +263,26 @@ async def ws_booking(hass: HomeAssistant, connection: websocket_api.ActiveConnec
         for m in sorted(messages, key=lambda m: int(m.get("id") or 0))
     ]
     connection.send_result(msg["id"], {"buchung": record, "smoobu": raw, "nachrichten": msgs, "fehler": error})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smoobu/message_status",
+        **_TARGET,
+        # Begrenzung schützt vor zu vielen Smoobu-Abrufen auf einmal
+        vol.Required("reservation_ids"): vol.All([vol.Coerce(int)], vol.Length(max=60)),
+    }
+)
+@websocket_api.async_response
+async def ws_message_status(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Posteingang: welche Gäste warten auf eine Antwort? (Schlüssel = Buchungs-ID als Text)"""
+    try:
+        c, _apt = _resolve(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    status = await c.async_message_status(msg["reservation_ids"])
+    connection.send_result(msg["id"], {"status": {str(k): v for k, v in status.items()}})
 
 
 @websocket_api.websocket_command(
