@@ -102,6 +102,25 @@ window.setup = async (base, token, lang = "de") => {
   });
 };
 
+// Ganze Seite: mehrere Karten untereinander, Hintergrund wie die Kopfleiste ihn setzen würde (v1.15.0)
+window.showPage = (cards, width = 1440, theme = "hell", apt = null) => {
+  localStorage.setItem("smoobu-theme", theme);
+  if (apt !== null) localStorage.setItem("smoobu-wohnung", String(apt)); else localStorage.removeItem("smoobu-wohnung");
+  document.documentElement.style.setProperty("--stage-width", width + "px");
+  document.querySelectorAll("smoobu-booking-dialog").forEach((d) => d.remove());
+  const stage = document.getElementById("stage");
+  stage.innerHTML = "";
+  stage.style.display = "flex"; stage.style.flexDirection = "column"; stage.style.gap = "12px"; stage.style.padding = "8px 24px 24px";
+  document.body.style.background = theme === "dunkel" ? "#0F1513" : "#EEF1EF";
+  for (const [type, config] of cards) {
+    const el = document.createElement(type);
+    el.setConfig({ type: "custom:" + type, ...(config || {}) });
+    stage.appendChild(el);
+    el.hass = window.hass;
+  }
+  return true;
+};
+
 // Eine Karte in die Bühne setzen (vorherige wird entfernt)
 window.showCard = (type, config = {}, width = 1180) => {
   document.documentElement.style.setProperty("--stage-width", width + "px");

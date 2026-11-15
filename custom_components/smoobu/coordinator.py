@@ -391,6 +391,8 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
                 "anzahl": len(visible),
                 "letzte_zeit": (last or {}).get("createdAt") or (last or {}).get("created_at"),
                 "letzte_typ": (last or {}).get("type"),
+                # v1.15.0: Anfang der offenen Gastnachricht für „Wartet auf dich“ in der Übersicht
+                "letzte_text": _snippet(last) if waiting else None,
             }
             self._msg_status[rid] = (now, status)
             out[rid] = status
@@ -593,3 +595,18 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         if self.data is not None:
             self.data.last_event = event
             self.async_update_listeners()
+
+
+def _snippet(message: dict[str, Any] | None, limit: int = 220) -> str | None:
+    """Erste Zeilen einer Nachricht ohne HTML und ohne zitierten E-Mail-Verlauf (v1.15.0)."""
+    if not message:
+        return None
+    from .models import strip_html  # spät importiert: models importiert nichts aus dem Coordinator
+
+    text = strip_html(message.get("message") or message.get("messageHtml") or message.get("htmlMessage") or "")
+    for marker in ("-----", "Am ", "On ", "Von meinem", "Sent from"):
+        cut = text.find("\n" + marker)
+        if cut > 20:
+            text = text[:cut]
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1].rsplit(" ", 1)[0] + " …"

@@ -1,23 +1,22 @@
-# Smoobu – Dashboard-Vorlage (ab v1.14.0)
+# Smoobu – Dashboard-Vorlage (ab v1.15.0)
 # =============================================================================
-# Zweck: Komplettes Smoobu-Dashboard mit 6 Seiten (Übersicht, Belegungsplan,
-# Buchungen, Finanzen, Nachrichten, Assistent) und einer Navigationsleiste oben.
-# So sehen die Seiten aus: docs/screenshots/
+# Zweck: Komplettes Smoobu-Dashboard mit 6 Seiten (Übersicht, Belegung,
+# Buchungen, Finanzen, Nachrichten, Assistent). So sehen die Seiten aus: docs/screenshots/
 #
 # Einrichtung
 # 1. Einstellungen → Dashboards → „Dashboard hinzufügen“ → „Neues Dashboard von Grund auf“,
 #    Titel z. B. „Ferienwohnung“, URL „dashboard-ferienwohnung“.
 # 2. Dashboard öffnen → ✎ → ⋮ → „Raw-Konfigurationseditor“ → diesen Inhalt einfügen → Speichern.
-# 3. Andere URL gewählt? Alle „/dashboard-ferienwohnung/“ durch die eigene URL ersetzen.
+# 3. Andere URL gewählt? „back_path: /dashboard-ferienwohnung/…“ anpassen (nur der Zurück-Pfeil;
+#    die Navigation der Kopfleiste findet die Seiten selbst).
 # 4. Übersicht: unter „entities“ eigene Entitäten eintragen (Heizung, Tür …) oder die Zeilen löschen.
 # 5. Optionen der Integration → KI-Assistent → „Dashboard-Seite für Bearbeiten“:
-#    /dashboard-ferienwohnung/smoobu-nachrichten
+#    /<eure-dashboard-url>/smoobu-nachrichten
 #
 # Aufbau: Jede Seite ist eine „panel“-Ansicht (volle Breite) mit einem vertical-stack:
-#   1. Leerzeile (markdown) – Abstand zur HA-Kopfzeile
-#   2. heading mit Buttons – Navigation zwischen den Seiten (einmal definiert, per YAML-Anker
-#      auf allen Seiten gleich; wer die aktive Seite farbig will, ersetzt *nav durch eine Kopie)
-#   3. die Smoobu-Karte(n)
+#   1. custom:smoobu-header-card – Seiten-Navigation, Wohnungsauswahl (ab 2 Wohnungen) und
+#      Hell/Dunkel/System. Die Seitenpfade sind relativ zum Dashboard → die URL ist frei wählbar.
+#   2. die Smoobu-Karte(n)
 # Die Unterseiten sind „subview“ (kein eigener Tab, Zurück-Pfeil zur Übersicht).
 # Die Karten werden von der Integration automatisch geladen – keine Ressource nötig.
 #
@@ -36,57 +35,16 @@ views:
     cards:
       - type: vertical-stack
         cards:
-          - type: markdown
-            text_only: true
-            content: "&nbsp;"
-          - &nav  # Navigationsleiste – wird unten je Seite wiederverwendet (YAML-Anker)
-            type: heading
-            heading: Smoobu
-            heading_style: title
-            icon: mdi:home-city
-            badges:
-              - type: button
-                text: Übersicht
-                icon: mdi:home-city
-                color: primary
-                tap_action: {action: navigate, navigation_path: /dashboard-ferienwohnung/smoobu}
-              - type: button
-                text: Belegungsplan
-                icon: mdi:calendar-month
-                color: grey
-                tap_action: {action: navigate, navigation_path: /dashboard-ferienwohnung/smoobu-belegung}
-              - type: button
-                text: Buchungen
-                icon: mdi:book-open-variant
-                color: grey
-                tap_action: {action: navigate, navigation_path: /dashboard-ferienwohnung/smoobu-buchungen}
-              - type: button
-                text: Finanzen
-                icon: mdi:finance
-                color: grey
-                tap_action: {action: navigate, navigation_path: /dashboard-ferienwohnung/smoobu-finanzen}
-              - type: button
-                text: Nachrichten
-                icon: mdi:message-text
-                color: grey
-                tap_action: {action: navigate, navigation_path: /dashboard-ferienwohnung/smoobu-nachrichten}
-              - type: button
-                text: Assistent
-                icon: mdi:robot-happy
-                color: grey
-                tap_action: {action: navigate, navigation_path: /dashboard-ferienwohnung/smoobu-assistent}
-          # Status, Gäste, Kennzahlen, Lücken, offene Zahlungen
+          - type: custom:smoobu-header-card
+          # Status heute, Gäste, Belegung 6 Wochen, Kennzahlen, Anreisen, Lücken, Offenes
           - type: custom:smoobu-overview-card
             # Eigene HA-Entitäten als Chips (Beispiele – anpassen oder löschen):
             entities:
               - climate.ferienwohnung
               - binary_sensor.ferienwohnung_eingangstuer
-          # Belegungsplan der nächsten 3 Monate
-          - type: custom:smoobu-timeline-card
-            months: 3
 
-  # --- Seite 2: Belegungsplan (12 Monate mit Preisen, sperren, Preise setzen) --
-  - title: Belegungsplan
+  # --- Seite 2: Belegung (Monate mit Preisen, sperren, Preise setzen) -----------
+  - title: Belegung
     path: smoobu-belegung
     icon: mdi:calendar-month
     type: panel
@@ -95,10 +53,7 @@ views:
     cards:
       - type: vertical-stack
         cards:
-          - type: markdown
-            text_only: true
-            content: "&nbsp;"
-          - *nav
+          - type: custom:smoobu-header-card
           - type: custom:smoobu-timeline-card
             months: 12
             show_prices: true
@@ -113,10 +68,7 @@ views:
     cards:
       - type: vertical-stack
         cards:
-          - type: markdown
-            text_only: true
-            content: "&nbsp;"
-          - *nav
+          - type: custom:smoobu-header-card
           - type: custom:smoobu-bookings-card
 
   # --- Seite 4: Finanzen (Kanäle, Vergleich, Diagramm, Erkenntnisse) -----------
@@ -129,10 +81,7 @@ views:
     cards:
       - type: vertical-stack
         cards:
-          - type: markdown
-            text_only: true
-            content: "&nbsp;"
-          - *nav
+          - type: custom:smoobu-header-card
           - type: custom:smoobu-analytics-card
 
   # --- Seite 5: Posteingang (Antwort offen, keine Antwort nötig, KI-Vorschlag) --
@@ -145,10 +94,7 @@ views:
     cards:
       - type: vertical-stack
         cards:
-          - type: markdown
-            text_only: true
-            content: "&nbsp;"
-          - *nav
+          - type: custom:smoobu-header-card
           - type: custom:smoobu-inbox-card
 
   # --- Seite 6: KI-Assistent (Wissensdatenbank, Vorschläge, Gelerntes) ----------
@@ -162,8 +108,5 @@ views:
     cards:
       - type: vertical-stack
         cards:
-          - type: markdown
-            text_only: true
-            content: "&nbsp;"
-          - *nav
+          - type: custom:smoobu-header-card
           - type: custom:smoobu-assistant-card

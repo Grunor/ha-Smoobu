@@ -46,11 +46,20 @@ def _season_price(d: date) -> int:
     return 79
 
 
-def build(today: date) -> list[dict[str, Any]]:
-    """Alle Buchungen (inkl. Stornos und Sperrzeiten) im Smoobu-API-Format."""
-    rnd = random.Random(2026)
+# Weitere erfundene Wohnungen für Screenshots der Ansicht „Alle Wohnungen“ (v1.15.0)
+EXTRA_APTS = [{"id": 4712, "name": "Altmühlblick"}, {"id": 4713, "name": "Gartenzimmer"}]
+
+
+def build(today: date, apt: dict[str, Any] | None = None, seed: int = 2026, rid0: int = 900000,
+          scenario: bool = True) -> list[dict[str, Any]]:
+    """Alle Buchungen (inkl. Stornos und Sperrzeiten) im Smoobu-API-Format.
+
+    scenario=False: nur Zufallsbuchungen (für weitere Demo-Wohnungen).
+    """
+    APT = apt or globals()["APT"]  # noqa: N806 – bewusst wie die Modulkonstante benannt
+    rnd = random.Random(seed)
     out: list[dict[str, Any]] = []
-    rid = 900000
+    rid = rid0
 
     def booking(arr: date, nights: int, channel: str, *, name: tuple[str, str] | None = None,
                 cancelled: bool = False, dog: bool | None = None, created: date | None = None,
@@ -122,8 +131,8 @@ def build(today: date) -> list[dict[str, Any]]:
     weights = [("Airbnb", 30), ("Booking.com", 22), ("Direct booking", 20), ("Website", 18), ("FeWo-direkt", 10)]
     names = [c for c, w in weights for _ in range(w)]
     # Fester Rahmen um heute: Abreise heute + Anreise heute (Gästewechsel), dann kommende Buchungen
-    fixed_start = today - timedelta(days=4)
-    fixed_end = today + timedelta(days=75)
+    fixed_start = today - timedelta(days=4) if scenario else today + timedelta(days=9999)
+    fixed_end = today + timedelta(days=75) if scenario else today + timedelta(days=9999)
     start, end = date(today.year - 2, 1, 3), date(today.year + 1, 4, 30)
     d = start
     while d < end:
@@ -144,6 +153,8 @@ def build(today: date) -> list[dict[str, Any]]:
             booking(d, nights, rnd.choice(names), cancelled=rnd.random() < 0.06)
         d += timedelta(days=nights)
 
+    if not scenario:
+        return out
     # Szenario rund um heute (für Übersicht, Posteingang und Assistent)
     booking(today - timedelta(days=3), 3, "Website", name=("Jana", "Winter"), dog=True, check_in="18:00")
     booking(today, 4, "Airbnb", name=("Lukas", "Berg"), dog=False, check_in="20:30", adults=2)
@@ -196,9 +207,12 @@ def messages(bookings: list[dict[str, Any]], today: date) -> dict[int, list[dict
 class DemoClient:
     """Ersetzt SmoobuClient: liefert die Demodaten, Schreibaktionen werden nur protokolliert."""
 
-    def __init__(self, today: date) -> None:
+    def __init__(self, today: date, extra_apartments: int = 0) -> None:
         self.today = today
+        self.apartments = [dict(APT), *[dict(a) for a in EXTRA_APTS[:extra_apartments]]]
         self.bookings = build(today)
+        for i, apt in enumerate(self.apartments[1:], start=1):
+            self.bookings += build(today, apt, seed=2026 + i * 17, rid0=900000 + i * 100000, scenario=False)
         self.msgs = messages(self.bookings, today)
         self.on_message_sent = None
         self.sent: list[Any] = []
@@ -207,10 +221,11 @@ class DemoClient:
         return {"id": 1000, "firstName": "Demo", "lastName": "Gastgeber", "email": "host@example.com"}
 
     async def get_apartments(self) -> list[dict[str, Any]]:
-        return [dict(APT)]
+        return [dict(a) for a in self.apartments]
 
     async def get_apartment(self, apartment_id: int) -> dict[str, Any]:
-        return {**APT, "currency": "EUR", "rooms": {"maxOccupancy": 4}}
+        apt = next((a for a in self.apartments if a["id"] == int(apartment_id)), APT)
+        return {**apt, "currency": "EUR", "rooms": {"maxOccupancy": 4}}
 
     async def get_reservations(self, **f: Any) -> list[dict[str, Any]]:
         res = []
@@ -239,7 +254,7 @@ class DemoClient:
         d, end = date.fromisoformat(start_date), date.fromisoformat(end_date)
         busy = set()
         for b in self.bookings:
-            if b["type"] == "cancellation":
+            if b["type"] == "cancellation" or b["apartment"]["id"] != int(apartment_id):
                 continue
             x = date.fromisoformat(b["arrival"])
             while x < date.fromisoformat(b["departure"]):

@@ -21,7 +21,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.13.0";
+const SMOOBU_CARDS_VERSION = "1.15.0";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -66,6 +66,20 @@ const EN = {
   "Keine Antwort nötig": "No reply needed", "Ohne Antwort erledigt": "Done without reply", "Rückgängig": "Undo",
   "KI gesperrt": "AI locked", "KI in den Integrationsoptionen deaktiviert": "AI disabled in the integration options",
   "Vorschlag": "Suggestion", "Vom Gast": "From guest", "An den Gast": "To guest", "KI denkt …": "AI thinking …",
+  // v1.15.0
+  "Alle Wohnungen": "All properties", "Wohnung": "Property", "Gästewechsel": "Changeover", "Abreise heute": "Departure today",
+  "Belegt bis": "Occupied until", "Frei bis": "Vacant until", "Abreise bis": "Check-out by", "Bezahlt über": "Paid via",
+  "Hund dabei": "Dog included", "Person": "guest", "Tagen": "days", "Die nächsten": "Next", "Wochen": "weeks", "brutto": "gross",
+  "ggü. Buchungsstand": "vs. booking status", "Nächten": "nights", "netto": "net", "Prognose": "Forecast", "schon gebucht": "already booked",
+  "Netto je Nacht": "Net per night", "spart rund": "saves about", "Anteil am Umsatz": "Share of revenue", "Freie Zeiträume": "Free periods",
+  "nächste": "next", "Wartet auf dich": "Waiting for you", "wartet auf Antwort": "awaits reply", "Zahlung offen": "Payment open",
+  "Buchung öffnen": "Open booking", "Alles erledigt.": "All done.", "Keine Anreisen geplant.": "No arrivals planned.", "Keine Lücken.": "No gaps.",
+  "Reinigung": "Cleaning", "ab": "from", "Heute keine An- oder Abreise": "No arrival or departure today", "Nachricht": "message",
+  "unbeantwortet": "unanswered", "gerade eben": "just now", "Reist heute ab": "Leaves today", "Wohnungen im Vergleich": "Properties compared",
+  "Darstellung": "Appearance", "Hell": "Light", "Dunkel": "Dark", "System": "System", "Belegung": "Occupancy", "Assistent": "Assistant",
+  "Zurück": "Back", "Weiter": "Next", "Zahl unten = Preis/Nacht": "Number below = price/night",
+  "Keine Buchung in den nächsten 6 Monaten.": "No booking in the next 6 months.", "Danach keine Buchung in den nächsten 6 Monaten.": "No booking afterwards in the next 6 months.",
+  "gebucht + Nachbuchungen wie im Vorjahr": "booked + pickup like last year", "Nachrichten": "Messages",
 };
 let LANG = "de";
 const t = (s) => (LANG === "de" ? s : EN[s] || s);
@@ -113,6 +127,95 @@ const PERIOD_LABEL = {
 const COMPARE_LABEL = { vorjahr: "Vorjahr", vorjahr_stand: "Buchungsstand Vorjahr", vorperiode: "Vorperiode", kein: "Kein Vergleich" };
 const STATUS_ICON = { kommend: "mdi:calendar-arrow-right", laufend: "mdi:home-account", vergangen: "mdi:check",
   storniert: "mdi:cancel", blockiert: "mdi:lock" };
+
+// ---------------------------------------------------------------------------
+// Design-System „Moos & Schiefer“ (v1.15.0)
+// ---------------------------------------------------------------------------
+// Farben sind fest je Modus (hell/dunkel) statt aus dem HA-Theme, damit Kanäle,
+// Zustände und Flächen in beiden Modi gleich gut lesbar sind. Der Modus gilt je
+// Gerät (localStorage): „hell“, „dunkel“ oder „system“ (= Dunkelmodus von HA).
+const THEME_KEY = "smoobu-theme";
+const APT_KEY = "smoobu-wohnung";
+const ALL = "alle";
+const PAL = {
+  light: { bg: "#EEF1EF", surf: "#FFFFFF", surf2: "#F5F7F6", ink: "#17211D", mut: "#5B6964", line: "#DCE3E0",
+    acc: "#2F6B4F", accInk: "#FFFFFF", good: "#2F7D52", bad: "#C2413B", warn: "#B7791F", block: "#9AA6A1" },
+  dark: { bg: "#0F1513", surf: "#18201D", surf2: "#1F2925", ink: "#E5ECE8", mut: "#8E9D97", line: "#2A3530",
+    acc: "#74C69D", accInk: "#0F1513", good: "#74C69D", bad: "#F08A80", warn: "#E9B65A", block: "#56625D" },
+};
+// Kanalfarben: an die Marken angelehnt, aber auf die Palette abgestimmt [hell, dunkel]
+const CH_COLORS = {
+  "booking.com": ["#2D64B3", "#6E9CE6"], airbnb: ["#E05A5F", "#F07F83"], "direct booking": ["#2F6B4F", "#74C69D"],
+  direkt: ["#2F6B4F", "#74C69D"], "fewo-direkt": ["#D69A2D", "#E9B65A"], vrbo: ["#D69A2D", "#E9B65A"],
+  website: ["#7A5CC8", "#A58CF0"], hometogo: ["#C8643B", "#E79A73"], "hundeurlaub.de": ["#3F8F86", "#7CCBBE"],
+  expedia: ["#8A4FB0", "#C08CE0"],
+};
+const CH_FALLBACK = [["#3F8F86", "#7CCBBE"], ["#A0527A", "#E58AC0"], ["#6B7A2E", "#B9C66A"], ["#4A62A8", "#8FA5EC"],
+  ["#8C6A3F", "#D2AE7E"], ["#2E7D8F", "#73C0D2"]];
+const CSS_VARS = (p) => `--sm-bg:${p.bg};--sm-surf:${p.surf};--sm-surf2:${p.surf2};--sm-ink:${p.ink};--sm-muted:${p.mut};
+  --sm-line:${p.line};--sm-accent:${p.acc};--sm-acc-ink:${p.accInk};--sm-good:${p.good};--sm-bad:${p.bad};--sm-warn:${p.warn};
+  --sm-block:${p.block};`;
+
+function lsGet(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* privates Fenster o. Ä. */ } }
+
+const Theme = {
+  listeners: new Set(),
+  get mode() { const m = lsGet(THEME_KEY, "system"); return ["hell", "dunkel", "system"].includes(m) ? m : "system"; },
+  set mode(m) { lsSet(THEME_KEY, m); this.listeners.forEach((l) => l()); },
+  dark(hass) {
+    const m = this.mode;
+    if (m === "dunkel") return true;
+    if (m === "hell") return false;
+    if (hass?.themes && typeof hass.themes.darkMode === "boolean") return hass.themes.darkMode;
+    return !!window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+  },
+  pal(hass) { return PAL[this.dark(hass) ? "dark" : "light"]; },
+};
+let DARK = false; // aktueller Modus für Farbfunktionen (wird bei jedem Rendern gesetzt)
+
+function chColor(name, i = 0) {
+  const key = String(name || "").toLowerCase();
+  const pair = CH_COLORS[key] || CH_FALLBACK[Math.abs([...key].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) + i) % CH_FALLBACK.length];
+  return pair[DARK ? 1 : 0];
+}
+function colorOf(apt, name, blocked = false) {
+  if (blocked) return PAL[DARK ? "dark" : "light"].block;
+  return chColor(name);
+}
+
+// Schrift lokal (Schibsted Grotesk, SIL OFL 1.1) – @font-face muss im Dokument stehen, nicht im Shadow DOM
+(function loadFont() {
+  if (document.getElementById("smoobu-font")) return;
+  const st = document.createElement("style");
+  st.id = "smoobu-font";
+  // Pfad aus dem eigenen <script> ableiten (Standard: /smoobu_static/, siehe frontend.py)
+  const own = [...document.querySelectorAll("script[src]")].find((x) => x.src.includes("smoobu-cards.js"));
+  const base = own ? own.src.replace(/smoobu-cards\.js.*$/, "") : "/smoobu_static/";
+  st.textContent = `@font-face { font-family: "Smoobu Schibsted"; font-weight: 400 900; font-display: swap;
+    src: url("${base}fonts/schibsted-grotesk.woff2") format("woff2"); }`;
+  document.head.appendChild(st);
+})();
+const FONT = `"Smoobu Schibsted", var(--ha-font-family-body, Roboto), system-ui, sans-serif`;
+
+// Gewählte Wohnung je Gerät: „alle“ oder apartment_id (nur relevant ab 2 Wohnungen)
+const AptSel = {
+  listeners: new Set(),
+  get value() { const v = lsGet(APT_KEY, ALL); return v === ALL ? ALL : Number(v) || ALL; },
+  set value(v) { lsSet(APT_KEY, String(v)); this.listeners.forEach((l) => l()); },
+};
+
+// Virtuelle „Wohnung“ für die Gesamtansicht: Kanäle aller Wohnungen, Währung der ersten
+function allApartment(info) {
+  const ws = info.wohnungen;
+  const seen = new Map();
+  for (const w of ws) for (const k of w.kanaele) if (!seen.has(k.name)) seen.set(k.name, k);
+  return { apartment_id: ALL, name: t("Alle Wohnungen"), kuerzel: "", currency: ws[0]?.currency || "EUR",
+    kanaele: [...seen.values()], direktkanaele: ws[0]?.direktkanaele, check_in: ws[0]?.check_in, check_out: ws[0]?.check_out,
+    erster_tag: ws.map((w) => w.erster_tag).filter(Boolean).sort()[0] || null, alle: true };
+}
+const aptCode = (info, id) => info?.wohnungen.find((w) => w.apartment_id === id)?.kuerzel || "";
+const codeTag = (code) => (code ? `<em class="ak">${esc(code)}</em>` : "");
 
 // ---------------------------------------------------------------------------
 // Gemeinsamer Datenspeicher: eine Verbindung, ein Abo für alle Karten
@@ -176,65 +279,83 @@ class SmoobuStore {
 // Gemeinsames Aussehen
 // ---------------------------------------------------------------------------
 const BASE_CSS = `
-  :host { display: block; --sm-gap: 12px; --sm-radius: var(--ha-card-border-radius, 12px);
-    --sm-muted: var(--secondary-text-color); --sm-line: var(--divider-color, rgba(127,127,127,.2));
-    --sm-good: var(--success-color, #2e9e5b); --sm-bad: var(--error-color, #db4437);
-    --sm-warn: var(--warning-color, #f2a900); --sm-accent: var(--primary-color); }
-  ha-card { padding: 16px; overflow: hidden; }
-  h2 { margin: 0 0 4px; font-size: 1.25rem; font-weight: 500; display: flex; align-items: center; gap: 8px; }
-  h3 { margin: 16px 0 8px; font-size: .95rem; font-weight: 600; color: var(--sm-muted); text-transform: uppercase; letter-spacing: .04em; }
-  .sub { color: var(--sm-muted); font-size: .85rem; }
-  .row { display: flex; gap: var(--sm-gap); flex-wrap: wrap; align-items: center; }
-  .grow { flex: 1 1 auto; }
-  .grid { display: grid; gap: var(--sm-gap); grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-  .tile { background: var(--secondary-background-color, rgba(127,127,127,.08)); border-radius: 10px; padding: 10px 12px; min-width: 0; }
-  .tile .l { font-size: .78rem; color: var(--sm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tile .v { font-size: 1.35rem; font-weight: 600; margin-top: 2px; white-space: nowrap; }
-  .tile .s { font-size: .78rem; color: var(--sm-muted); margin-top: 2px; }
-  .delta { font-size: .75rem; font-weight: 600; padding: 1px 5px; border-radius: 6px; white-space: nowrap; }
+  :host { display: block; --sm-gap: 14px; --sm-r: 14px; --sm-rs: 10px; color: var(--sm-ink);
+    font-family: ${FONT}; font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  ha-card { padding: 18px 20px; overflow: hidden; background: var(--sm-surf); color: var(--sm-ink);
+    border: 1px solid var(--sm-line); border-radius: var(--sm-r); box-shadow: none; font-family: ${FONT}; }
+  h2 { margin: 0; font-size: 1.05rem; font-weight: 650; display: flex; align-items: center; gap: 8px; letter-spacing: -.005em; }
+  h3 { margin: 18px 0 8px; font-size: .95rem; font-weight: 650; color: var(--sm-ink); }
+  .sub { color: var(--sm-muted); font-size: .84rem; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1 1 auto; min-width: 0; }
+  .head { display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; margin-bottom: 12px; }
+  .head h2 { flex: 1 1 auto; }
+  .grid { display: grid; gap: 0; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    border: 1px solid var(--sm-line); border-radius: var(--sm-r); overflow: hidden; }
+  .tile { padding: 12px 16px; min-width: 0; border-right: 1px solid var(--sm-line); border-bottom: 1px solid var(--sm-line); margin: 0 -1px -1px 0; }
+  .tile .l { font-size: .82rem; color: var(--sm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .v { font-size: 1.45rem; font-weight: 650; margin-top: 2px; white-space: nowrap; letter-spacing: -.02em;
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tile .s { font-size: .8rem; color: var(--sm-muted); margin-top: 2px; }
+  .delta { font-size: .74rem; font-weight: 650; padding: 1px 6px; border-radius: 6px; white-space: nowrap; letter-spacing: 0; }
   .delta.up { color: var(--sm-good); background: color-mix(in srgb, var(--sm-good) 14%, transparent); }
   .delta.down { color: var(--sm-bad); background: color-mix(in srgb, var(--sm-bad) 14%, transparent); }
   .delta.flat { color: var(--sm-muted); }
-  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 16px; font-size: .82rem;
-    border: 1px solid var(--sm-line); background: none; color: var(--primary-text-color); cursor: pointer; font: inherit; font-size: .82rem; }
-  .chip[aria-pressed="true"] { background: color-mix(in srgb, var(--sm-accent) 18%, transparent); border-color: var(--sm-accent); }
-  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
-  .badge { display: inline-flex; align-items: center; gap: 4px; font-size: .75rem; padding: 2px 8px; border-radius: 10px;
-    background: var(--secondary-background-color, rgba(127,127,127,.12)); }
-  .badge.good { background: color-mix(in srgb, var(--sm-good) 18%, transparent); color: var(--sm-good); }
-  .badge.bad { background: color-mix(in srgb, var(--sm-bad) 18%, transparent); color: var(--sm-bad); }
-  .badge.warn { background: color-mix(in srgb, var(--sm-warn) 22%, transparent); }
-  select, input, textarea { font: inherit; color: var(--primary-text-color); background: var(--card-background-color);
-    border: 1px solid var(--sm-line); border-radius: 8px; padding: 6px 8px; }
-  textarea { width: 100%; box-sizing: border-box; min-height: 70px; resize: vertical; }
-  button.btn { font: inherit; border: none; border-radius: 8px; padding: 7px 14px; cursor: pointer;
-    background: var(--sm-accent); color: var(--text-primary-color, #fff); }
-  button.btn.flat { background: none; color: var(--sm-accent); border: 1px solid var(--sm-line); }
-  button.btn.danger { background: var(--sm-bad); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
+    border: 1px solid var(--sm-line); background: var(--sm-surf); color: var(--sm-ink); cursor: pointer; font: inherit; font-size: .84rem; }
+  .chip:hover { border-color: color-mix(in srgb, var(--sm-ink) 30%, transparent); }
+  .chip[aria-pressed="true"] { background: var(--sm-ink); border-color: var(--sm-ink); color: var(--sm-surf); }
+  .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+    background: var(--sm-surf2); border: 1px solid var(--sm-line); white-space: nowrap; }
+  .badge.good { background: color-mix(in srgb, var(--sm-good) 13%, transparent); color: var(--sm-good); border-color: transparent; }
+  .badge.bad { background: color-mix(in srgb, var(--sm-bad) 13%, transparent); color: var(--sm-bad); border-color: transparent; }
+  .badge.warn { background: color-mix(in srgb, var(--sm-warn) 16%, transparent); color: var(--sm-warn); border-color: transparent; }
+  .ak { display: inline-grid; place-items: center; min-width: 26px; height: 19px; padding: 0 5px; border-radius: 5px; font-size: .68rem;
+    font-weight: 700; font-style: normal; background: var(--sm-surf2); border: 1px solid var(--sm-line); color: var(--sm-ink);
+    letter-spacing: .02em; margin-left: 7px; vertical-align: 1px; }
+  select, input, textarea { font: inherit; font-size: .9rem; color: var(--sm-ink); background: var(--sm-surf);
+    border: 1px solid var(--sm-line); border-radius: var(--sm-rs); padding: 7px 10px; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--sm-accent) 45%, transparent); outline-offset: 0; }
+  input[type=date], input[type=time] { color-scheme: var(--sm-scheme); }
+  textarea { width: 100%; min-height: 76px; resize: vertical; line-height: 1.45; }
+  button.btn, a.btn { font: inherit; font-size: .86rem; font-weight: 600; border: 1px solid transparent; border-radius: 999px; padding: 7px 15px;
+    cursor: pointer; background: var(--sm-accent); color: var(--sm-acc-ink); display: inline-flex; align-items: center; gap: 6px; }
+  button.btn.flat, a.btn.flat { background: none; color: var(--sm-accent); border-color: var(--sm-line); }
+  button.btn.flat:hover, a.btn.flat:hover { border-color: var(--sm-accent); }
+  button.btn.danger { background: var(--sm-bad); color: #fff; }
   button.btn:disabled { opacity: .5; cursor: default; }
-  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-  th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--sm-line); white-space: nowrap; }
-  th { font-weight: 600; color: var(--sm-muted); font-size: .75rem; text-transform: uppercase; cursor: pointer; user-select: none; }
-  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
-  tr.click { cursor: pointer; } tr.click:hover td { background: var(--secondary-background-color, rgba(127,127,127,.06)); }
-  tfoot td { font-weight: 600; border-bottom: none; }
+  button:focus-visible, .chip:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--sm-line); white-space: nowrap; }
+  th { font-weight: 600; color: var(--sm-muted); font-size: .78rem; cursor: pointer; user-select: none; background: var(--sm-surf2); }
+  th:first-child { border-top-left-radius: var(--sm-rs); } th:last-child { border-top-right-radius: var(--sm-rs); }
+  td.n, th.n { text-align: right; } /* Schibsted: Tabellenziffern hätten breite Satzzeichen */
+  tr.click { cursor: pointer; } tr.click:hover td { background: var(--sm-surf2); }
+  tfoot td { font-weight: 650; border-bottom: none; border-top: 2px solid var(--sm-line); }
   .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .empty { color: var(--sm-muted); padding: 16px 0; text-align: center; }
+  .empty { color: var(--sm-muted); padding: 18px 0; text-align: center; }
   .err { color: var(--sm-bad); padding: 8px 0; }
-  .list > div { padding: 8px 0; border-bottom: 1px solid var(--sm-line); display: flex; gap: 10px; align-items: center; }
+  .list > div { padding: 10px 0; border-bottom: 1px solid var(--sm-line); display: flex; gap: 12px; align-items: center; }
   .list > div:last-child { border-bottom: none; }
-  .list .click { cursor: pointer; }
+  .list .click { cursor: pointer; } .list .click:hover b { color: var(--sm-accent); }
   .muted { color: var(--sm-muted); }
+  a { color: var(--sm-accent); }
   ha-icon { --mdc-icon-size: 18px; }
-  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
-  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--primary-text-color);
-    color: var(--card-background-color); padding: 8px 16px; border-radius: 8px; z-index: 10001; font-size: .9rem; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--sm-line); border-radius: 999px; padding: 3px; background: var(--sm-surf); }
+  .seg button { border: none; background: none; padding: 5px 12px; font: inherit; font-size: .84rem; cursor: pointer; color: var(--sm-muted); border-radius: 999px; }
+  .seg button[aria-pressed="true"] { background: var(--sm-ink); color: var(--sm-surf); font-weight: 600; }
+  .lnk { color: var(--sm-accent); font-size: .86rem; font-weight: 500; cursor: pointer; background: none; border: 0; font-family: inherit; padding: 0; }
+  .lnk:hover { text-decoration: underline; }
 `;
 
 function toast(msg) {
   const el = document.createElement("div");
-  el.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#323232;color:#fff;" +
-    "padding:10px 18px;border-radius:8px;z-index:10001;font:14px Roboto,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.3)";
+  const p = PAL[DARK ? "dark" : "light"];
+  el.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:${p.ink};color:${p.surf};` +
+    `padding:10px 18px;border-radius:999px;z-index:10003;font:500 14px ${FONT};box-shadow:0 6px 24px rgba(0,0,0,.25)`;
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3500);
@@ -263,27 +384,47 @@ class SmoobuCard extends HTMLElement {
     LANG = (hass.locale?.language || hass.language || "de").startsWith("de") ? "de" : "en";
     this.store = SmoobuStore.get(hass);
     if (first) {
-      this._unsub = this.store.subscribe(() => this._reload());
+      this._listen();
       this._reload();
-    } else if (this.onHass) {
-      this.onHass();
+    } else {
+      // „System“: HA-Dunkelmodus hat gewechselt → neu zeichnen
+      if (this._data && Theme.dark(hass) !== this.hasAttribute("dark")) this.render();
+      this.onHass?.();
     }
   }
   get hass() { return this._hass; }
+  // Daten, Hell/Dunkel und Wohnungsauswahl abonnieren (v1.15.0: Modus + Wohnung je Gerät)
+  _listen() {
+    const offData = this.store.subscribe(() => this._reload());
+    const onTheme = () => this.render();
+    const onApt = () => { if (!this._config?.apartment_id) { this._data = null; this._reload(); } };
+    Theme.listeners.add(onTheme);
+    AptSel.listeners.add(onApt);
+    this._unsub = () => { offData(); Theme.listeners.delete(onTheme); AptSel.listeners.delete(onApt); };
+  }
   disconnectedCallback() { this._unsub?.(); this._unsub = null; this._hass && (this._rebind = true); }
   connectedCallback() {
-    if (this._rebind && this._hass) { this._rebind = false; this._unsub = this.store.subscribe(() => this._reload()); this._reload(); }
+    if (this._rebind && this._hass) { this._rebind = false; this._listen(); this._reload(); }
   }
+  // Ziel der Abfragen: feste Wohnung aus der Kartenkonfig, sonst (ab 2 Wohnungen) die Auswahl
+  // im Kopf („alle“ oder eine Wohnung), sonst die erste Wohnung (Verhalten bis v1.14).
   get target() {
     const t = {};
     if (this._config?.entry_id) t.entry_id = this._config.entry_id;
-    if (this._config?.apartment_id) t.apartment_id = Number(this._config.apartment_id);
+    if (this._config?.apartment_id) { t.apartment_id = Number(this._config.apartment_id); return t; }
+    const ws = this.store?.info?.wohnungen || [];
+    if (ws.length > 1) {
+      const v = AptSel.value;
+      t.apartment_id = v === ALL || !ws.some((w) => w.apartment_id === v) ? ALL : v;
+    }
     return t;
   }
+  get multi() { return this.target.apartment_id === ALL; }
   async apartment() {
     const info = await this.store.getInfo();
-    const id = this._config?.apartment_id ? Number(this._config.apartment_id) : null;
-    return info.wohnungen.find((w) => id === null || w.apartment_id === id) || info.wohnungen[0];
+    const id = this.target.apartment_id;
+    if (id === ALL) return allApartment(info);
+    return info.wohnungen.find((w) => id === undefined || w.apartment_id === id) || info.wohnungen[0];
   }
   async _reload() {
     if (!this._hass || !this._config) return;
@@ -311,13 +452,18 @@ class SmoobuCard extends HTMLElement {
       ? `<div class="err">${t("Fehler")}: ${esc(this._error)}</div>`
       : this._data ? this.body(this._data) : `<div class="empty">${t("Laden …")}</div>`;
     const scroll = this.shadowRoot.querySelector(".scroll")?.scrollLeft;
-    this.shadowRoot.innerHTML = `<style>${BASE_CSS}${this.constructor.css || ""}</style><ha-card>${body}</ha-card>`;
+    DARK = Theme.dark(this._hass);
+    this.toggleAttribute("dark", DARK);
+    const vars = `:host { ${CSS_VARS(PAL[DARK ? "dark" : "light"])} --sm-scheme: ${DARK ? "dark" : "light"}; }`;
+    this.shadowRoot.innerHTML = `<style>${vars}${BASE_CSS}${this.constructor.css || ""}</style><ha-card>${body}</ha-card>`;
     if (scroll) { const s = this.shadowRoot.querySelector(".scroll"); if (s) s.scrollLeft = scroll; }
     this.bind?.(this.shadowRoot);
   }
   $(sel) { return this.shadowRoot.querySelector(sel); }
   $$(sel) { return [...this.shadowRoot.querySelectorAll(sel)]; }
   openBooking(id) { SmoobuBookingDialog.open(this._hass, id, this.target); }
+  // Wohnungskürzel nur in der Gesamtansicht zeigen
+  code(b) { return this.multi ? codeTag(aptCode(this.store.info, b.wohnung_id)) : ""; }
   getCardSize() { return 6; }
   getGridOptions() { return { columns: 12, min_columns: 6 }; }
 }
@@ -342,7 +488,7 @@ function channelChips(apt, selected, colors = {}) {
     `<button class="chip" data-ch="Direkt" aria-pressed="${sel.has("Direkt")}">${t("Direkt")}</button>`,
     `<button class="chip" data-ch="Portale" aria-pressed="${sel.has("Portale")}">${t("Portale")}</button>`];
   for (const ch of apt.kanaele) {
-    chips.push(`<button class="chip" data-ch="${esc(ch.name)}" aria-pressed="${sel.has(ch.name)}"><span class="dot" style="background:${colors[ch.name] || ch.farbe}"></span>${esc(ch.name)}</button>`);
+    chips.push(`<button class="chip" data-ch="${esc(ch.name)}" aria-pressed="${sel.has(ch.name)}"><span class="dot" style="background:${chColor(ch.name)}"></span>${esc(ch.name)}</button>`);
   }
   return chips.join("");
 }
@@ -351,10 +497,6 @@ function toggleChannel(list, ch) {
   const s = new Set(list || []);
   s.has(ch) ? s.delete(ch) : s.add(ch);
   return [...s];
-}
-function colorOf(apt, name, blocked = false) {
-  if (blocked) return "#9E9E9E";
-  return apt?.kanaele.find((c) => c.name === name)?.farbe || "#00A6A6";
 }
 
 // Zitierten E-Mail-Verlauf in Gastantworten abschneiden (bleibt per Klick sichtbar)
@@ -400,111 +542,443 @@ function findGaps(bookings, rates, startIso, days, maxLen = 21) {
   return gaps;
 }
 
+// Uhrzeit „16:00“ → „16 Uhr“, „16:30“ → „16:30 Uhr“
+function uhr(s) {
+  if (!s) return "";
+  const [h, m] = String(s).slice(0, 5).split(":");
+  if (LANG !== "de") return `${Number(h)}:${m || "00"}`;
+  return m && m !== "00" ? `${Number(h)}:${m} Uhr` : `${Number(h)} Uhr`;
+}
+// „Sa, 21.11.“ – deutsche Wochentage ohne Punkt (toLocaleDateString liefert „Sa.,“)
+const WD_DE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+const fdowLong = (s) => {
+  if (!s) return "–";
+  const d = D(String(s).slice(0, 10));
+  return LANG === "de" ? `${WD_DE[d.getDay()]}, ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.`
+    : fdate(s, { weekday: "short", day: "2-digit", month: "2-digit" });
+};
+const monthName = (iso10) => D(iso10).toLocaleDateString(locale(), { month: "long" });
+const plural = (n, one, many) => `${num(n)} ${n === 1 ? one : many}`;
+const daysWord = (n) => (n === 0 ? t("heute") : n === 1 ? t("morgen") : `in ${n} ${t("Tagen")}`);
+
+// Verlauf als kleine Linie (12 Werte); leer bei zu wenig Daten
+function sparkline(values) {
+  const v = (values || []).map((x) => (x === null || x === undefined || isNaN(x) ? null : Number(x)));
+  const pts = v.map((x, i) => [i, x]).filter(([, x]) => x !== null);
+  if (pts.length < 2) return `<div class="spark"></div>`;
+  const W = 120, H = 30;
+  const lo = Math.min(...pts.map((p) => p[1])), hi = Math.max(...pts.map((p) => p[1]));
+  const xy = pts.map(([i, x]) => [(i / (v.length - 1)) * W, H - 3 - ((x - lo) / (hi - lo || 1)) * (H - 6)]);
+  const [lx, ly] = xy[xy.length - 1];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <polyline points="${xy.map((p) => p.map((n) => n.toFixed(1)).join(",")).join(" ")}"/>
+    <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="2.6"/></svg>`;
+}
+
+// Status einer Wohnung heute → kurze, präzise Sätze für den Kopf
+function stayStatus(apt, bookings, today) {
+  const guests = bookings.filter((b) => !b.blockiert && !b.storniert).sort((a, b) => a.anreise.localeCompare(b.anreise));
+  const staying = guests.find((b) => b.anreise < today && b.abreise > today);
+  const arr = guests.find((b) => b.anreise === today);
+  const dep = guests.find((b) => b.abreise === today);
+  const next = guests.find((b) => b.anreise > today);
+  const co = (b) => uhr(b?.check_out || apt.check_out || "11:00");
+  const ci = (b) => uhr(b?.check_in || apt.check_in || "16:00");
+  const gap = (from, b) => (b ? nightsBetween(from, b.anreise) : null);
+  const after = (from, b) => {
+    if (!b) return t("Danach keine Buchung in den nächsten 6 Monaten.");
+    const n = gap(from, b);
+    return n === 0 ? `Direkt danach kommt ${esc(b.gast)}.`
+      : `Danach ${plural(n, "Nacht", "Nächte")} frei, nächste Anreise ${fdowLong(b.anreise)} (${esc(b.gast)}).`;
+  };
+  if (arr && dep) return { key: "chg", pill: t("Gästewechsel"), title: t("Gästewechsel heute"), current: dep, next: arr,
+    text: `${esc(dep.gast)} reist bis ${co(dep)} ab, ${esc(arr.gast)}${arr.hund ? " 🐕" : ""} kommt um ${ci(arr)}. Reinigung dazwischen.` };
+  if (dep) return { key: "dep", pill: t("Abreise"), title: t("Abreise heute"), current: dep, next,
+    text: `${esc(dep.gast)} reist bis ${co(dep)} ab. ${after(today, next)}` };
+  if (arr) return { key: "arr", pill: t("Anreise"), title: t("Anreise heute"), current: null, next: arr,
+    text: `${esc(arr.gast)}${arr.hund ? " 🐕" : ""} kommt um ${ci(arr)}, ${plural(arr.naechte, "Nacht", "Nächte")} bis ${fdowLong(arr.abreise)}.` };
+  if (staying) return { key: "occ", pill: t("Belegt"), title: `${t("Belegt bis")} ${fdowLong(staying.abreise)}`, current: staying, next,
+    text: `${esc(staying.gast)} reist am ${fdowLong(staying.abreise)} bis ${co(staying)} ab. ${after(staying.abreise, next)}` };
+  if (next) return { key: "free", pill: t("Frei"), title: `${t("Frei bis")} ${fdowLong(next.anreise)}`, current: null, next,
+    text: `${esc(next.gast)}${next.hund ? " 🐕" : ""} kommt ${daysWord(nightsBetween(today, next.anreise))} um ${ci(next)}, ${plural(next.naechte, "Nacht", "Nächte")}. Bis dahin ${plural(gap(today, next), "Nacht", "Nächte")} frei.` };
+  return { key: "free", pill: t("Frei"), title: t("Frei"), current: null, next: null, text: t("Keine Buchung in den nächsten 6 Monaten.") };
+}
+
 // ===========================================================================
-// Übersicht
+// Übersicht (v1.15.0 neu gestaltet)
 // ===========================================================================
 class SmoobuOverviewCard extends SmoobuCard {
-  static defaults = { title: "", entities: [], upcoming: 5, gap_days: 60 };
+  static defaults = { title: "", entities: [], upcoming: 5, gap_days: 60, band_days: 42 };
   static css = `
-    .hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--sm-gap); margin: 12px 0; }
-    .guest { border-radius: 12px; padding: 12px 14px; border-left: 5px solid var(--c, var(--sm-accent));
-      background: var(--secondary-background-color, rgba(127,127,127,.08)); cursor: pointer; }
-    .guest .n { font-size: 1.2rem; font-weight: 600; } .guest .m { color: var(--sm-muted); font-size: .85rem; margin-top: 4px; }
-    .status { font-size: .9rem; padding: 4px 12px; border-radius: 14px; font-weight: 600; }
-    .status.on { background: color-mix(in srgb, var(--sm-warn) 25%, transparent); }
-    .status.off { background: color-mix(in srgb, var(--sm-good) 20%, transparent); color: var(--sm-good); }
-    .today { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-    .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 4px 24px; }
-    /* v1.10.2: Abstand nach oben – in Panel-Ansichten klebt die Karte sonst an der Kopfzeile */
-    :host { padding-top: 8px; }
-    .cmpnote { font-size: .72rem; color: var(--sm-muted); margin-top: 6px; }
-    .ent { display: inline-flex; gap: 6px; align-items: center; font-size: .82rem; padding: 4px 10px; border-radius: 14px;
-      background: var(--secondary-background-color, rgba(127,127,127,.1)); cursor: pointer; }
+    :host { padding-top: 4px; }
+    ha-card { background: none; border: 0; padding: 0; overflow: visible; }
+    .panel { background: var(--sm-surf); border: 1px solid var(--sm-line); border-radius: var(--sm-r); padding: 18px 20px; min-width: 0; }
+    .ph { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    /* Kopf: Aussage links, Gäste bzw. Wohnungen rechts */
+    .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 26px; margin-bottom: var(--sm-gap); }
+    @media (max-width: 1000px) { .hero { grid-template-columns: 1fr; } }
+    .h-state { display: flex; gap: 12px; align-items: center; color: var(--sm-muted); font-size: .92rem; margin-bottom: 8px; }
+    .pill { font-weight: 650; font-size: .8rem; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+    .pill.occ, .pill.dep { background: color-mix(in srgb, var(--sm-warn) 17%, transparent); color: var(--sm-warn); }
+    .pill.chg, .pill.arr { background: color-mix(in srgb, var(--sm-bad) 14%, transparent); color: var(--sm-bad); }
+    .pill.free { background: color-mix(in srgb, var(--sm-good) 14%, transparent); color: var(--sm-good); }
+    .hero h1 { margin: 0; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.06; font-weight: 650; letter-spacing: -.025em; }
+    .lead { margin: 12px 0 0; font-size: 1.12rem; line-height: 1.45; max-width: 46ch; }
+    .lead2 { margin: 6px 0 0; font-size: .98rem; color: var(--sm-muted); max-width: 52ch; }
+    .events { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+    .ev { display: inline-flex; gap: 6px; align-items: center; font-size: .84rem; padding: 5px 12px; border-radius: 999px;
+      background: var(--sm-surf); border: 1px solid var(--sm-line); cursor: default; }
+    .ev.click { cursor: pointer; } .ev.click:hover { border-color: var(--sm-accent); }
+    .ev.bad { border-color: color-mix(in srgb, var(--sm-bad) 45%, transparent); color: var(--sm-bad); font-weight: 650; }
+    .ev ha-icon { --mdc-icon-size: 16px; color: var(--sm-muted); }
+    .guests { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sm-gap); }
+    @media (max-width: 640px) { .guests { grid-template-columns: 1fr; } }
+    .guest { background: var(--sm-surf); border: 1px solid var(--sm-line); border-radius: var(--sm-r); padding: 16px 18px 14px;
+      display: flex; flex-direction: column; position: relative; overflow: hidden; cursor: pointer; min-width: 0; }
+    .guest::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c); }
+    .guest:hover { border-color: color-mix(in srgb, var(--c) 60%, var(--sm-line)); }
+    .guest.none { cursor: default; color: var(--sm-muted); justify-content: center; }
+    .guest.none::before { background: var(--sm-line); }
+    .gl { font-size: .8rem; color: var(--sm-muted); }
+    .gn { font-size: 1.25rem; font-weight: 650; margin: 3px 0 6px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gm { font-size: .86rem; color: var(--sm-muted); flex: 1; }
+    .note { font-size: .82rem; margin-top: 8px; }
+    .note.bad { color: var(--sm-bad); font-weight: 600; }
+    .gf { display: flex; align-items: center; gap: 8px; font-size: .84rem; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--sm-line); }
+    .gf b { margin-left: auto; font-size: .98rem; }
+    .apts { padding: 4px 18px; }
+    .aptrow { display: flex; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--sm-line); cursor: pointer; }
+    .aptrow:last-child { border-bottom: 0; }
+    .aptrow:hover b { color: var(--sm-accent); }
+    .aptrow .ak { margin: 0; height: 24px; min-width: 32px; font-size: .74rem; }
+    .aptrow .an { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .aptrow .an span { font-size: .84rem; color: var(--sm-muted); }
+    /* Belegungsband: Balken von Tagesmitte (Anreise) bis Tagesmitte (Abreise) */
+    .band { margin-bottom: var(--sm-gap); }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .8rem; color: var(--sm-muted); }
+    .legend span { display: inline-flex; gap: 6px; align-items: center; }
+    .hatch { background: repeating-linear-gradient(135deg, var(--sm-block) 0 2px, transparent 2px 5px); outline: 1px solid var(--sm-block); }
+    .rib { min-width: 760px; }
+    .rrow { display: grid; grid-template-columns: var(--lab, 0px) minmax(0, 1fr); align-items: center; }
+    .rlab { display: flex; gap: 8px; align-items: center; font-size: .86rem; font-weight: 600; padding-right: 10px; white-space: nowrap; overflow: hidden; }
+    .rlab .ak { margin: 0; }
+    .rlab .nm { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .cols { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
+    .bars { display: grid; grid-template-columns: repeat(calc(var(--n) * 2), minmax(0, 1fr)); height: 52px; align-items: center; position: relative;
+      background: repeating-linear-gradient(90deg, transparent 0 calc(100% / var(--n) - 1px), color-mix(in srgb, var(--sm-line) 75%, transparent) calc(100% / var(--n) - 1px) calc(100% / var(--n))); }
+    .multi .bars { height: 44px; border-bottom: 1px solid var(--sm-line); }
+    .mon { font-size: .76rem; font-weight: 650; color: var(--sm-muted); border-left: 1px solid var(--sm-line); padding-left: 5px; white-space: nowrap; height: 18px; }
+    .day { text-align: center; padding: 4px 0 6px; display: flex; flex-direction: column; font-size: .74rem; line-height: 1.2; border-bottom: 1px solid var(--sm-line); }
+    .day .w { color: var(--sm-muted); font-size: .66rem; }
+    .day.we { background: var(--sm-surf2); }
+    .day.today { color: var(--sm-accent); font-weight: 700; }
+    .now { grid-row: 1; grid-column: 2 / 3; width: 2px; height: 100%; background: var(--sm-accent); z-index: 2; justify-self: start; margin-left: -1px; }
+    .bar { grid-row: 1; height: 38px; margin: 0 1px; border-radius: var(--sm-rs); background: color-mix(in srgb, var(--c) 15%, var(--sm-surf));
+      border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-left: 4px solid var(--c); padding: 2px 8px; display: flex;
+      flex-direction: column; justify-content: center; overflow: hidden; min-width: 0; cursor: pointer; }
+    .multi .bar { height: 32px; }
+    .bar:hover { background: color-mix(in srgb, var(--c) 26%, var(--sm-surf)); }
+    .bar.cut { border-left-style: dashed; border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; padding-left: 12px; }
+    .bar.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
+    .bar.blk { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--sm-block) 35%, transparent) 0 3px, transparent 3px 8px);
+      border-color: var(--sm-block); align-items: center; }
+    .bn { font-size: .8rem; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bs { font-size: .7rem; color: var(--sm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pr { font-size: .68rem; color: var(--sm-muted); text-align: center; padding-top: 4px; min-height: 18px; }
+    .pr.bad { color: var(--sm-bad); }
+    /* Kennzahlen als eine Leiste */
+    .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--sm-surf); border: 1px solid var(--sm-line);
+      border-radius: var(--sm-r); padding: 6px 0; margin-bottom: var(--sm-gap); }
+    @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .kpi:nth-child(4) { border-left: 0; } }
+    @media (max-width: 640px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi:nth-child(odd) { border-left: 0; } .kpi:nth-child(4) { border-left: 1px solid var(--sm-line); } }
+    .kpi { padding: 12px 20px; border-left: 1px solid var(--sm-line); min-width: 0; }
+    .kpi:first-child { border-left: 0; }
+    .kl { font-size: .84rem; color: var(--sm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kv { font-size: 1.65rem; font-weight: 650; letter-spacing: -.025em; margin: 3px 0 2px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .ks { font-size: .8rem; color: var(--sm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .spark { width: 100%; height: 28px; margin-top: 8px; display: block; }
+    .spark polyline { fill: none; stroke: var(--sm-accent); stroke-width: 1.7; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+    .spark circle { fill: var(--sm-accent); }
+    .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sm-gap); }
+    @media (max-width: 1100px) { .three { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 700px) { .three { grid-template-columns: 1fr; } }
+    .li { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--sm-line); }
+    .li:last-child { border-bottom: 0; }
+    .li.click { cursor: pointer; } .li.click:hover b { color: var(--sm-accent); }
+    .li .st { width: 4px; height: 34px; border-radius: 2px; background: var(--c); flex: none; }
+    .li .m { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .li .m span, .li .r span { font-size: .82rem; color: var(--sm-muted); }
+    .li .m span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .li .r { text-align: right; display: flex; flex-direction: column; white-space: nowrap; }
+    .todo { border-radius: var(--sm-rs); padding: 13px 14px; margin-bottom: 10px; background: var(--sm-surf2); }
+    .todo.msg { background: color-mix(in srgb, var(--sm-bad) 7%, var(--sm-surf)); border: 1px solid color-mix(in srgb, var(--sm-bad) 30%, transparent); }
+    .todo .tt { font-weight: 650; font-size: .92rem; display: flex; align-items: center; }
+    .todo p { margin: 4px 0 10px; font-size: .9rem; color: var(--sm-muted); }
+    .todo .ta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .todo .ago { margin-left: auto; font-size: .78rem; color: var(--sm-muted); }
+    .todo .amt { font-size: 1.15rem; font-weight: 650; margin-right: auto; }
+    .done { color: var(--sm-muted); padding: 14px 0; }
+    .foot { font-size: .76rem; color: var(--sm-muted); margin: 10px 2px 0; }
   `;
   async load() {
     const apt = await this.apartment();
     const info = await this.store.getInfo();
     const today = info.heute;
     const tg = this.target;
-    const [month, ytd, list, rates] = await Promise.all([
+    const m0 = D(today.slice(0, 8) + "01");
+    const apts = this.multi ? info.wohnungen.filter((w) => !tg.entry_id || w.entry_id === tg.entry_id) : [apt];
+    const rateEnd = iso(addDays(D(today), Math.max(this._config.gap_days, this._config.band_days) + 21));
+    const [month, ytd, last12, prevYear, list, ...rates] = await Promise.all([
       this.store.ws("smoobu/analytics", { ...tg, period: "monat", compare: "vorjahr_stand" }),
       this.store.ws("smoobu/analytics", { ...tg, period: "jahr_bis_heute", compare: "vorjahr" }),
+      this.store.ws("smoobu/analytics", { ...tg, start: iso(addMonths(m0, -11)), end: iso(addMonths(m0, 1)), compare: "kein" }),
+      this.store.ws("smoobu/analytics", { ...tg, period: "vorjahr", compare: "kein" }).catch(() => null),
       this.store.ws("smoobu/bookings", { ...tg, start: iso(addDays(D(today), -1)), end: iso(addDays(D(today), 180)) }),
-      this.store.ws("smoobu/rates", { ...tg, start: today, end: iso(addDays(D(today), this._config.gap_days + 21)) }).catch(() => ({ preise: {} })),
+      ...apts.map((w) => this.store.ws("smoobu/rates", { ...tg, apartment_id: w.apartment_id, start: today, end: rateEnd })
+        .then((r) => r.preise).catch(() => ({}))),
     ]);
-    return { apt, today, month, ytd, bookings: list.buchungen, rates: rates.preise };
+    const bookings = list.buchungen.filter((b) => !(b.storniert));
+    // Wer wartet auf eine Antwort? (laufende + kommende Gäste, Backend cacht 10 min)
+    const ids = bookings.filter((b) => !b.blockiert && (b.status === "laufend" || b.status === "kommend")).slice(0, 60).map((b) => b.id);
+    let status = {};
+    if (ids.length) {
+      try { status = (await this.store.ws("smoobu/message_status", { ...tg, reservation_ids: ids }, { cache: false })).status || {}; }
+      catch (e) { status = {}; }
+    }
+    const ratesBy = Object.fromEntries(apts.map((w, i) => [w.apartment_id, rates[i] || {}]));
+    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy };
   }
-  body({ apt, today, month, ytd, bookings, rates }) {
+
+  // ---- Kopf ----------------------------------------------------------------
+  heroSingle(d) {
+    const { apt, today, bookings, month, status } = d;
     const cur = apt.currency;
-    const guests = bookings.filter((b) => !b.blockiert && !b.storniert);
-    const staying = guests.find((b) => b.anreise <= today && b.abreise > today);
-    // Nach der Freigabe am Abreisetag: abgereisten Gast noch zeigen, aber so benennen
-    const current = staying || guests.find((b) => b.abreise === today);
-    const arrivals = guests.filter((b) => b.anreise === today);
-    const departures = guests.filter((b) => b.abreise === today);
-    const next = guests.filter((b) => b.anreise > today).slice(0, this._config.upcoming);
-    const occupied = guests.some((b) => b.anreise <= today && b.abreise > today);
-    const nextGuest = guests.find((b) => b.anreise > today);
-    const freeFrom = current ? current.abreise : null;
-    const gaps = findGaps(bookings, rates, today, this._config.gap_days);
-    const unpaid = guests.filter((b) => b.offen > 0 && b.status !== "vergangen");
-    const days = (b) => nightsBetween(today, b.anreise);
-    const guestCard = (b, label) => b ? `<div class="guest" data-id="${b.id}" style="--c:${colorOf(apt, b.kanal)}">
-        <div class="sub">${t(label)}</div><div class="n">${esc(b.gast || "–")}${b.hund ? " 🐕" : ""}</div>
-        <div class="m">${fdow(b.anreise)} → ${fdow(b.abreise)} · ${b.naechte} ${t("Nächte")} · ${b.personen} ${t("Personen")}</div>
-        <div class="m"><span class="dot" style="background:${colorOf(apt, b.kanal)}"></span> ${esc(b.kanal)} · ${money(b.brutto, cur)}
-          ${b.check_in ? ` · ${t("Ankunft")} ${esc(b.check_in)}` : ""}${label === "Nächster Gast" ? ` · ${days(b) === 1 ? t("morgen") : `in ${days(b)} ${t("Tage")}`}` : ""}</div>
-      </div>` : "";
-    const ents = (this._config.entities || []).map((e) => {
+    const s = stayStatus(apt, bookings, today);
+    const open = bookings.filter((b) => status[b.id]?.offen);
+    const dm = month.veraenderung_prozent?.brutto;
+    const lead2 = `${monthName(today)}: ${money(month.brutto, cur)} gebucht${dm !== null && dm !== undefined ? `, ${dm >= 0 ? "+" : "−"}${num(Math.abs(dm), 0)} % ggü. dem Buchungsstand des Vorjahres` : ""}. Auslastung ${pct(month.auslastung_prozent, 0)}.`;
+    const guestCard = (b, label) => {
+      if (!b) return `<div class="guest none"><div class="gl">${t(label)}</div><div class="gm">${t("keine")}</div></div>`;
+      const portal = b.gruppe === "Portal";
+      const note = b.hund ? `<div class="note">🐕 ${esc(b.hund_hinweis || t("Hund dabei"))}</div>`
+        : b.offen > 0 && !portal ? `<div class="note bad">${t("Offen")} ${money(b.offen, cur, 2)}</div>`
+        : portal ? `<div class="note">${t("Bezahlt über")} ${esc(b.kanal)}</div>` : "";
+      const isNext = label === "Nächster Gast";
+      const when = isNext ? `, ${daysWord(nightsBetween(today, b.anreise))}` : "";
+      return `<div class="guest" data-id="${b.id}" style="--c:${colorOf(apt, b.kanal)}">
+        <div class="gl">${t(label)}${when}</div><div class="gn">${esc(b.gast || "–")}${b.hund ? " 🐕" : ""}</div>
+        <div class="gm">${fdowLong(b.anreise)} bis ${fdowLong(b.abreise)}<br>${plural(b.naechte, t("Nacht"), t("Nächte"))}, ${plural(b.personen, t("Person"), t("Personen"))}<br>
+          ${isNext ? `${t("Ankunft")} ${uhr(b.check_in || apt.check_in) || "–"}` : `${t("Abreise bis")} ${uhr(b.check_out || apt.check_out || "11:00")}`}</div>${note}
+        <div class="gf"><span class="dot" style="background:${colorOf(apt, b.kanal)}"></span>${esc(b.kanal)}<b>${money(b.brutto, cur)}</b></div></div>`;
+    };
+    const curLabel = s.current && s.current.abreise === today ? "Reist heute ab" : "Aktueller Gast";
+    return `<section class="hero">
+      <div><div class="h-state"><span class="pill ${s.key}">${s.pill}</span><span>${fdate(today, { weekday: "long", day: "numeric", month: "long" })}</span></div>
+        <h1>${s.title}</h1><p class="lead">${s.text}</p><p class="lead2">${lead2}</p>
+        <div class="events">${this.events(d, open)}</div></div>
+      <div class="guests">${guestCard(s.current, curLabel)}${guestCard(s.next, "Nächster Gast")}</div></section>`;
+  }
+  heroMulti(d) {
+    const { apts, today, bookings, status } = d;
+    const per = apts.map((w) => ({ w, s: stayStatus(w, bookings.filter((b) => b.wohnung_id === w.apartment_id), today) }));
+    // „belegt“ = für die kommende Nacht ist ein Gast da (bleibt, reist an oder Wechsel)
+    const busy = per.filter((p) => ["occ", "arr", "chg"].includes(p.s.key)).length;
+    const arrN = bookings.filter((b) => !b.blockiert && b.anreise === today).length;
+    const depN = bookings.filter((b) => !b.blockiert && b.abreise === today).length;
+    const open = bookings.filter((b) => status[b.id]?.offen);
+    const parts = [];
+    if (arrN) parts.push(plural(arrN, "Anreise", "Anreisen"));
+    if (depN) parts.push(plural(depN, "Abreise", "Abreisen"));
+    const lead = `${parts.length ? `Heute ${parts.join(" und ")}.` : "Heute keine An- oder Abreise."}${open.length ? ` ${plural(open.length, "Nachricht", "Nachrichten")} unbeantwortet.` : ""}`;
+    const short = (p) => {
+      const s = p.s, c = s.current, n = s.next;
+      if (s.key === "chg") return `${esc(c.gast)} reist ab, ${esc(n.gast)} kommt um ${uhr(n.check_in || p.w.check_in || "16:00")}`;
+      if (s.key === "dep") return `${esc(c.gast)} reist heute ab${n ? `, nächste Anreise ${fdowLong(n.anreise)}` : ""}`;
+      if (s.key === "arr") return `${esc(n.gast)} kommt um ${uhr(n.check_in || p.w.check_in || "16:00")}`;
+      if (s.key === "occ") return `${esc(c.gast)} bis ${fdowLong(c.abreise)}`;
+      return n ? `Frei bis ${fdowLong(n.anreise)}, dann ${esc(n.gast)}` : t("Keine Buchung in den nächsten 6 Monaten.");
+    };
+    return `<section class="hero">
+      <div><div class="h-state"><span>${fdate(today, { weekday: "long", day: "numeric", month: "long" })}</span></div>
+        <h1>${busy} von ${apts.length} belegt</h1><p class="lead">${lead}</p>
+        <div class="events">${this.events(d, open)}</div></div>
+      <div class="panel apts">${per.map((p) => `<div class="aptrow" data-apt="${p.w.apartment_id}"><span class="ak">${esc(p.w.kuerzel)}</span>
+        <div class="an"><b>${esc(p.w.name)}</b><span>${short(p)}</span></div><span class="pill ${p.s.key}">${p.s.pill}</span></div>`).join("")}</div></section>`;
+  }
+  events({ apt, today, bookings }, open) {
+    const guests = bookings.filter((b) => !b.blockiert);
+    const arr = guests.filter((b) => b.anreise === today), dep = guests.filter((b) => b.abreise === today);
+    const out = [];
+    for (const b of dep) out.push(`<span class="ev click" data-id="${b.id}"><ha-icon icon="mdi:airplane-takeoff"></ha-icon>${t("Abreise")} ${esc(b.gast)} ${t("bis")} ${uhr(b.check_out || apt.check_out || "11:00")}${this.code(b)}</span>`);
+    for (const b of arr) out.push(`<span class="ev click" data-id="${b.id}"><ha-icon icon="mdi:airplane-landing"></ha-icon>${t("Anreise")} ${esc(b.gast)}${b.hund ? " 🐕" : ""} ${uhr(b.check_in || apt.check_in || "16:00")}${this.code(b)}</span>`);
+    if (!this.multi) {
+      const nextDep = guests.find((b) => b.abreise > today);
+      if (!dep.length && nextDep) out.push(`<span class="ev"><ha-icon icon="mdi:broom"></ha-icon>${t("Reinigung")} ${fdowLong(nextDep.abreise)} ${t("ab")} ${uhr(nextDep.check_out || apt.check_out || "11:00")}</span>`);
+    }
+    if (!arr.length && !dep.length) out.unshift(`<span class="ev muted">${t("Heute keine An- oder Abreise")}</span>`);
+    if (open.length) out.push(`<span class="ev bad click" data-id="${open[0].id}">💬 ${plural(open.length, t("Nachricht"), t("Nachrichten"))} ${t("unbeantwortet")}</span>`);
+    for (const e of this._config.entities || []) {
       const id = typeof e === "string" ? e : e.entity;
       const st = this._hass.states[id];
-      if (!st) return "";
+      if (!st) continue;
       const name = (typeof e === "object" && e.name) || st.attributes.friendly_name || id;
       const val = this._hass.formatEntityState ? this._hass.formatEntityState(st) : st.state;
-      return `<span class="ent" data-entity="${esc(id)}"><ha-icon icon="${esc(st.attributes.icon || "mdi:information-outline")}"></ha-icon><b>${esc(name)}</b> ${esc(val)}</span>`;
+      out.push(`<span class="ev click" data-entity="${esc(id)}"><ha-icon icon="${esc(st.attributes.icon || "mdi:information-outline")}"></ha-icon>${esc(name)}: <b>${esc(val)}</b></span>`);
+    }
+    return out.join("");
+  }
+
+  // ---- Belegungsband -------------------------------------------------------
+  band(d) {
+    const { apts, today, bookings, ratesBy } = d;
+    const n = Number(this._config.band_days) || 42;
+    const start = D(today);
+    const end = addDays(start, n);
+    let months = "", days = "";
+    for (let i = 0; i < n; i++) {
+      const day = addDays(start, i);
+      if (i === 0 || day.getDate() === 1) months += `<div class="mon" style="grid-column:${i + 1} / span ${Math.min(6, n - i)}">${day.toLocaleDateString(locale(), { month: "short", year: "numeric" })}</div>`;
+      days += `<div class="day ${day.getDay() % 6 === 0 ? "we" : ""} ${i === 0 ? "today" : ""}" style="grid-column:${i + 1}"><span>${day.getDate()}</span>
+        <span class="w">${day.toLocaleDateString(locale(), { weekday: "narrow" })}</span></div>`;
+    }
+    const barsFor = (apt, list) => list.filter((b) => b.abreise > today && D(b.anreise) < end).map((b) => {
+      const s = Math.max(nightsBetween(today, b.anreise), 0), e = Math.min(nightsBetween(today, b.abreise), n);
+      const cut = b.anreise < today, cr = D(b.abreise) > end;
+      const cs = cut ? 1 : 2 * s + 2, ce = cr ? 2 * n + 1 : 2 * e + 2;
+      if (b.blockiert) return `<div class="bar blk ${cut ? "cut" : ""} ${cr ? "cr" : ""}" data-id="${b.id}" style="grid-column:${cs} / ${ce}" title="${esc(b.notiz || t("Gesperrt"))}"><span class="bn">🔒</span></div>`;
+      const sub = this.multi ? "" : `<span class="bs">${plural(b.naechte, t("Nacht"), t("Nächte"))}, ${money(b.brutto, apt.currency)}</span>`;
+      return `<div class="bar ${cut ? "cut" : ""} ${cr ? "cr" : ""}" data-id="${b.id}" style="grid-column:${cs} / ${ce};--c:${colorOf(apt, b.kanal)}"
+        title="${esc(`${b.gast} · ${b.kanal} · ${fdate(b.anreise)} – ${fdate(b.abreise)}`)}"><span class="bn">${esc(b.gast)}${b.hund ? " 🐕" : ""}</span>${sub}</div>`;
     }).join("");
-    const m = month, y = ytd;
-    return `
-      <div class="row"><h2 class="grow">${esc(this._config.title || apt.name)}</h2>
-        <span class="status ${occupied ? "on" : "off"}">${occupied ? `${t("Belegt")} · ${t("frei ab")} ${fdate(freeFrom)}` : t("Frei")}</span></div>
-      <div class="today">
-        ${/* v1.10.2: nur noch Ereignisse von heute (Anreise, Abreise, Reinigung); Hund als 🐕 am Namen */ ""}
-        ${arrivals.length ? `<span class="badge warn">🛬 ${t("Anreise heute")}: ${arrivals.map((b) => esc(b.gast) + (b.hund ? " 🐕" : "") + (b.check_in ? ` ${esc(b.check_in)}` : "")).join(", ")}</span>` : ""}
-        ${departures.length ? `<span class="badge warn">🛫 ${t("Abreise heute")}: ${departures.map((b) => esc(b.gast)).join(", ")}</span>` : ""}
-        ${departures.length ? `<span class="badge ${arrivals.length ? "bad" : ""}">🧹 ${t("Reinigung heute")}${arrivals.length && arrivals[0].check_in ? ` ${t("bis")} ${esc(arrivals[0].check_in)}` : ""}</span>` : ""}
-        ${arrivals.length && departures.length ? `<span class="badge bad">🔄 ${t("Gästewechsel heute")}</span>` : ""}
-        ${ents}
-      </div>
-      <div class="hero">${guestCard(current, staying ? "Aktueller Gast" : "Heute abgereist")}${guestCard(nextGuest, "Nächster Gast")}</div>
-      <div class="grid">
-        ${tile(`${t("Monat")} ${t("Brutto")}`, money(m.brutto, cur), `${t("Netto")} ${money(m.netto, cur)} ${delta(m.veraenderung_prozent?.brutto)}`)}
-        ${tile(t("Auslastung"), pct(m.auslastung_prozent, 0), `${m.naechte} ${t("Nächte")} ${delta(m.veraenderung_punkte?.auslastung_prozent, "pp")}`)}
-        ${tile(t("Jahr bis heute"), money(y.brutto, cur), `${t("Netto")} ${money(y.netto, cur)} ${delta(y.veraenderung_prozent?.brutto)}`)}
-        ${tile(t("Prognose Jahr"), money(y.prognose?.prognose, cur), `${t("gebucht")} ${money(y.prognose?.gebucht, cur)}`)}
-        ${tile(t("Netto/Nacht"), money(y.netto_pro_nacht, cur), `${t("Vorjahr")} ${money(y.vergleich?.netto_pro_nacht, cur)}`)}
-        ${tile(t("Direktanteil"), pct(y.direktanteil_prozent, 0), delta(y.veraenderung_punkte?.direktanteil_prozent, "pp"))}
-      </div>
-      <div class="cmpnote">${t("Vergleich")}: ${t("Monat ggü. Buchungsstand am")} ${fdate(m.stichtag_vergleich)} ·
-        ${t("Jahr ggü.")} ${fdate(y.vergleich?.von)} – ${fdate(iso(addDays(D(y.vergleich?.bis || today), -1)))} · ${t("PP = Prozentpunkte")}</div>
-      <div class="cols">
-        <div><h3>${t("Nächste Anreisen")}</h3><div class="list">
-          ${next.map((b) => `<div class="click" data-id="${b.id}"><span class="dot" style="background:${colorOf(apt, b.kanal)}"></span>
-            <div class="grow"><b>${esc(b.gast)}</b>${b.hund ? " 🐕" : ""}<div class="sub">${fdow(b.anreise)} – ${fdow(b.abreise)} · ${b.naechte} N · ${b.personen} P · ${esc(b.kanal)}</div></div>
-            <div class="n">${money(b.brutto, cur)}</div></div>`).join("") || `<div class="muted">${t("keine")}</div>`}
-        </div></div>
-        <div><h3>${t("Lücken")} (${this._config.gap_days} ${t("Tage")})</h3><div class="list">
-          ${gaps.map((g) => `<div><ha-icon icon="mdi:calendar-blank-outline"></ha-icon><div class="grow"><b>${fdow(g.von)} – ${fdow(g.bis)}</b>
-            <div class="sub">${g.naechte} ${t("Nächte")}${g.preis ? ` · ${money(g.preis, cur)}/${t("Nacht")}` : ""}${g.min ? ` · min. ${g.min}` : ""}</div></div>
-            ${g.buchbar ? `<span class="badge good">✓</span>` : `<span class="badge bad">${t("nicht buchbar")}</span>`}</div>`).join("") || `<div class="muted">${t("keine")}</div>`}
-          </div>
-          <h3>${t("Offene Zahlungen")}</h3><div class="list">
-          ${unpaid.map((b) => `<div class="click" data-id="${b.id}"><ha-icon icon="mdi:cash-clock"></ha-icon><div class="grow"><b>${esc(b.gast)}</b>
-            <div class="sub">${fdate(b.anreise)} · ${esc(b.kanal)}</div></div><span class="badge bad">${money(b.offen, cur, 2)}</span></div>`).join("") || `<div class="muted">${t("keine")}</div>`}
-        </div></div>
-      </div>`;
+    const prices = (apt, list) => {
+      const occ = new Set();
+      for (const b of list) for (let x = D(b.anreise); x < D(b.abreise); x = addDays(x, 1)) occ.add(iso(x));
+      let out = "";
+      for (let i = 0; i < n; i++) {
+        const ds = iso(addDays(start, i));
+        const r = ratesBy[apt.apartment_id]?.[ds];
+        if (occ.has(ds) || !r?.price) continue;
+        out += `<div class="pr ${r.available === 0 ? "bad" : ""}" style="grid-column:${i + 1}" title="${esc(`${fdate(ds)}: ${money(r.price, apt.currency)}${r.min_length_of_stay > 1 ? ` · min. ${r.min_length_of_stay}` : ""}`)}">${num(r.price)}</div>`;
+      }
+      return out;
+    };
+    const legend = (this.multi ? d.info.wohnungen.flatMap((w) => w.kanaele) : apts[0].kanaele)
+      .filter((c, i, a) => a.findIndex((x) => x.name === c.name) === i)
+      .map((c) => `<span><i class="dot" style="background:${chColor(c.name)}"></i>${esc(c.name)}</span>`).join("")
+      + `<span><i class="dot hatch"></i>${t("Gesperrt")}</span>`;
+    const rows = apts.map((w) => {
+      const list = bookings.filter((b) => !this.multi || b.wohnung_id === w.apartment_id);
+      return `<div class="rrow"><div class="rlab" title="${esc(w.name)}">${this.multi ? `<span class="ak">${esc(w.kuerzel)}</span><span class="nm">${esc(w.name)}</span>` : ""}</div>
+        <div class="bars" style="--n:${n}"><div class="now"></div>${barsFor(w, list)}</div></div>
+        ${this.multi ? "" : `<div class="rrow"><div></div><div class="cols" style="--n:${n}">${prices(w, list)}</div></div>`}`;
+    }).join("");
+    return `<section class="panel band"><div class="ph"><h2>${t("Die nächsten")} ${Math.round(n / 7)} ${t("Wochen")}</h2><div class="legend">${legend}</div></div>
+      <div class="scroll"><div class="rib ${this.multi ? "multi" : ""}" style="--lab:${this.multi ? "170px" : "0px"}">
+        <div class="rrow"><div></div><div class="cols" style="--n:${n}">${months}</div></div>
+        <div class="rrow"><div></div><div class="cols" style="--n:${n}">${days}</div></div>${rows}</div></div></section>`;
+  }
+
+  // ---- Kennzahlen ----------------------------------------------------------
+  kpis({ apt, apts, today, month, ytd, last12, prevYear }) {
+    const cur = apt.currency;
+    const units = apts.length;
+    const r = last12.reihe || { labels: [], brutto: [], netto: [], naechte: [], kanaele: {} };
+    const dim = (lab) => { const [y, m] = lab.split("-").map(Number); return new Date(y, m, 0).getDate(); };
+    const occ = r.labels.map((lab, i) => (r.naechte[i] / (dim(lab) * units)) * 100);
+    const npn = r.labels.map((_, i) => (r.naechte[i] ? r.netto[i] / r.naechte[i] : null));
+    const groups = Object.fromEntries(Object.entries(last12.kanaele || {}).map(([k, v]) => [k, v.gruppe]));
+    const direct = r.labels.map((_, i) => {
+      const tot = r.brutto[i];
+      if (!tot) return null;
+      const dsum = Object.entries(r.kanaele).reduce((a, [k, vals]) => a + (groups[k] === "Direkt" ? vals[i] || 0 : 0), 0);
+      return (dsum / tot) * 100;
+    });
+    const yr = ytd.reihe || { brutto: [] };
+    let acc = 0;
+    const cum = yr.brutto.map((v) => (acc += v));
+    const chans = Object.values(ytd.kanaele || {});
+    const portals = chans.filter((v) => v.gruppe === "Portal");
+    const pb = portals.reduce((a, v) => a + v.brutto, 0), pk = portals.reduce((a, v) => a + v.kosten, 0);
+    const db = chans.filter((v) => v.gruppe === "Direkt").reduce((a, v) => a + v.brutto, 0);
+    const saved = pb ? (db * pk) / pb : null;
+    const prog = ytd.prognose || {};
+    const pyTotal = prevYear?.brutto;
+    const progDelta = pyTotal ? ((prog.prognose - pyTotal) / pyTotal) * 100 : null;
+    const year = today.slice(0, 4);
+    const k = (l, v, dlt, s, sp) => `<div class="kpi"><div class="kl">${l}</div><div class="kv">${v}${dlt}</div><div class="ks">${s}</div>${sparkline(sp)}</div>`;
+    return `<section class="kpis">
+      ${k(`${monthName(today)} ${t("brutto")}`, money(month.brutto, cur), delta(month.veraenderung_prozent?.brutto),
+        `${t("ggü. Buchungsstand")} ${fdate(month.stichtag_vergleich, { day: "2-digit", month: "2-digit", year: "numeric" })}`, r.brutto)}
+      ${k(`${t("Auslastung")} ${monthName(today)}`, pct(month.auslastung_prozent, 0), delta(month.veraenderung_punkte?.auslastung_prozent, "pp"),
+        `${num(month.naechte)} von ${num((month.tage || 30) * units)} ${t("Nächten")}`, occ)}
+      ${k(t("Jahr bis heute"), money(ytd.brutto, cur), delta(ytd.veraenderung_prozent?.brutto), `${t("netto")} ${money(ytd.netto, cur)}`, cum)}
+      ${k(`${t("Prognose")} ${year}`, money(prog.prognose, cur), delta(progDelta), `${money(prog.gebucht, cur)} ${t("schon gebucht")}`, cum)}
+      ${k(t("Netto je Nacht"), money(ytd.netto_pro_nacht, cur), delta(ytd.veraenderung_prozent?.netto_pro_nacht),
+        `${t("Vorjahr")} ${money(ytd.vergleich?.netto_pro_nacht, cur)}`, npn)}
+      ${k(t("Direktanteil"), pct(ytd.direktanteil_prozent, 0), delta(ytd.veraenderung_punkte?.direktanteil_prozent, "pp"),
+        saved ? `${t("spart rund")} ${money(saved, cur)} ${t("Provision")}` : t("Anteil am Umsatz"), direct)}
+    </section>`;
+  }
+
+  // ---- Listen --------------------------------------------------------------
+  lists(d) {
+    const { apt, apts, today, bookings, status, ratesBy } = d;
+    const cur = apt.currency;
+    const guests = bookings.filter((b) => !b.blockiert);
+    const next = guests.filter((b) => b.anreise >= today && b.anreise > (this.multi ? "" : today)).slice(0, this._config.upcoming);
+    const arrivals = next.map((b) => `<div class="li click" data-id="${b.id}" style="--c:${colorOf(apt, b.kanal)}"><span class="st"></span>
+      <div class="m"><b>${esc(b.gast)}${b.hund ? " 🐕" : ""}${this.code(b)}</b><span>${fdowLong(b.anreise)} bis ${fdowLong(b.abreise)}, ${plural(b.naechte, t("Nacht"), t("Nächte"))}, ${plural(b.personen, t("Person"), t("Personen"))}</span></div>
+      <div class="r"><b>${money(b.brutto, cur)}</b><span>${daysWord(nightsBetween(today, b.anreise))}</span></div></div>`).join("");
+    const gaps = apts.flatMap((w) => findGaps(bookings.filter((b) => !this.multi || b.wohnung_id === w.apartment_id), ratesBy[w.apartment_id], today, this._config.gap_days)
+      .map((g) => ({ ...g, w })))
+      .sort((a, b) => a.von.localeCompare(b.von)).slice(0, 6);
+    const gapRows = gaps.map((g) => {
+      const prices = [];
+      for (let x = D(g.von); x < D(g.bis); x = addDays(x, 1)) { const p = ratesBy[g.w.apartment_id]?.[iso(x)]?.price; if (p) prices.push(p); }
+      const lo = Math.min(...prices), hi = Math.max(...prices);
+      const pr = prices.length ? (lo === hi ? money(lo, cur) : `${num(lo)}–${money(hi, cur)}`) : "";
+      return `<div class="li"><div class="m"><b>${fdowLong(g.von)} bis ${fdowLong(g.bis)}${this.multi ? codeTag(g.w.kuerzel) : ""}</b>
+        <span>${plural(g.naechte, t("Nacht"), t("Nächte"))} frei${g.buchbar ? (pr ? `, ${pr}` : "") : `, ${t("Mindestaufenthalt")} ${g.min}`}</span></div>
+        <span class="badge ${g.buchbar ? "good" : "bad"}">${t(g.buchbar ? "buchbar" : "nicht buchbar")}</span></div>`;
+    }).join("");
+    const open = guests.filter((b) => status[b.id]?.offen);
+    // Offene Zahlungen: laufende und Anreisen der nächsten 30 Tage zuerst (max. 3), Rest als Summe
+    const unpaidAll = guests.filter((b) => b.offen > 0 && b.gruppe !== "Portal" && b.status !== "vergangen");
+    const soon = iso(addDays(D(today), 30));
+    const unpaid = unpaidAll.filter((b) => b.anreise <= soon).slice(0, 3);
+    const later = unpaidAll.filter((b) => !unpaid.includes(b));
+    const ago = (s) => {
+      if (!s) return "";
+      const ms = Date.now() - new Date(String(s).replace(" ", "T")).getTime();
+      if (isNaN(ms)) return "";
+      if (ms < 0) return fdowLong(s);
+      const h = Math.round(ms / 3600000);
+      return h < 1 ? t("gerade eben") : h < 24 ? `vor ${h} Std.` : `vor ${Math.round(h / 24)} ${Math.round(h / 24) === 1 ? "Tag" : "Tagen"}`;
+    };
+    const todo = [
+      ...open.map((b) => `<div class="todo msg"><div class="tt">${esc(b.gast)} ${t("wartet auf Antwort")}${this.code(b)}</div>
+        ${status[b.id].letzte_text ? `<p>„${esc(status[b.id].letzte_text)}“</p>` : "<p></p>"}
+        <div class="ta"><button class="btn" data-id="${b.id}">${t("Antworten")}</button><span class="ago">${ago(status[b.id].letzte_zeit)}</span></div></div>`),
+      ...unpaid.map((b) => `<div class="todo"><div class="tt">${t("Zahlung offen")}${this.code(b)}</div><p>${esc(b.gast)}, ${t("Anreise")} ${fdowLong(b.anreise)}</p>
+        <div class="ta"><span class="amt">${money(b.offen, cur, 2)}</span><button class="btn flat" data-id="${b.id}">${t("Buchung öffnen")}</button></div></div>`),
+      later.length ? `<div class="sub" style="padding:4px 2px">${t("Später fällig")}: ${plural(later.length, t("Buchung"), t("Buchungen"))}, ${money(later.reduce((a, b) => a + b.offen, 0), cur, 2)}</div>` : "",
+    ].join("");
+    return `<section class="three">
+      <div class="panel"><div class="ph"><h2>${t("Nächste Anreisen")}</h2></div>${arrivals || `<div class="done">${t("Keine Anreisen geplant.")}</div>`}</div>
+      <div class="panel"><div class="ph"><h2>${t("Freie Zeiträume")}</h2><span class="sub">${t("nächste")} ${this._config.gap_days} ${t("Tage")}</span></div>${gapRows || `<div class="done">${t("Keine Lücken.")}</div>`}</div>
+      <div class="panel"><div class="ph"><h2>${t("Wartet auf dich")}</h2></div>${todo || `<div class="done">✓ ${t("Alles erledigt.")}</div>`}</div></section>`;
+  }
+
+  body(d) {
+    const { month, ytd, today } = d;
+    return `${this.multi ? this.heroMulti(d) : this.heroSingle(d)}${this.band(d)}${this.kpis(d)}${this.lists(d)}
+      <p class="foot">${t("Vergleich")}: ${monthName(today)} ${t("ggü. Buchungsstand am")} ${fdate(month.stichtag_vergleich)},
+        ${t("Jahr ggü.")} ${fdate(ytd.vergleich?.von)}–${fdate(iso(addDays(D(ytd.vergleich?.bis || today), -1)))}. ${t("PP = Prozentpunkte")}.
+        ${t("Prognose")} = ${t("gebucht + Nachbuchungen wie im Vorjahr")}.</p>`;
   }
   bind(root) {
-    root.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", () => this.openBooking(Number(el.dataset.id))));
+    root.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); this.openBooking(Number(el.dataset.id)); }));
+    root.querySelectorAll("[data-apt]").forEach((el) => el.addEventListener("click", () => { AptSel.value = Number(el.dataset.apt); }));
     root.querySelectorAll("[data-entity]").forEach((el) => el.addEventListener("click", () => {
       this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.entity }, bubbles: true, composed: true }));
     }));
@@ -517,32 +991,43 @@ class SmoobuOverviewCard extends SmoobuCard {
 const MONTH_FMT = { month: "short", year: "2-digit" };
 class SmoobuTimelineCard extends SmoobuCard {
   static defaults = { title: "", months: 3, show_prices: true, actions: true };
-  static initialState = () => ({ offset: 0, selStart: null, selEnd: null, panel: null });
+  static initialState = () => ({ offset: 0, selStart: null, selEnd: null, selApt: null, panel: null });
   static css = `
-    .months { min-width: 900px; }
-    .month { display: grid; grid-template-columns: 64px 1fr; align-items: stretch; border-bottom: 1px solid var(--sm-line); }
-    .ml { font-weight: 600; font-size: .85rem; padding-top: 6px; text-transform: capitalize; }
+    .months { min-width: 920px; }
+    .month { display: grid; grid-template-columns: 78px 1fr; align-items: stretch; border-bottom: 1px solid var(--sm-line); }
+    .month:last-child { border-bottom: 0; }
+    .ml { font-weight: 650; font-size: .86rem; padding: 8px 8px 0 0; text-transform: capitalize; display: flex; flex-direction: column; gap: 4px; }
+    .ml .ak { margin: 0; align-self: flex-start; }
+    .arow { display: grid; grid-template-columns: 78px 1fr; }
+    .arow + .arow { border-top: 1px dashed var(--sm-line); }
     .days { position: relative; display: grid; grid-template-columns: repeat(31, 1fr); }
-    .c { height: 64px; border-left: 1px solid var(--sm-line); font-size: .68rem; padding: 2px 2px 0; box-sizing: border-box;
-      cursor: pointer; position: relative; color: var(--sm-muted); user-select: none; }
-    .c.we { background: color-mix(in srgb, var(--sm-muted) 7%, transparent); }
-    .c.today { box-shadow: inset 0 0 0 2px var(--sm-accent); }
-    .c.past { opacity: .55; }
+    .c { height: 66px; border-left: 1px solid var(--sm-line); font-size: .7rem; padding: 3px 3px 0; cursor: pointer; position: relative;
+      color: var(--sm-muted); user-select: none; }
+    .multi .c { height: 54px; }
+    .c.we { background: var(--sm-surf2); }
+    .c.today { box-shadow: inset 0 0 0 2px var(--sm-accent); border-radius: 4px; }
+    .c.today .d { color: var(--sm-accent); }
+    .c.past { opacity: .5; }
     .c.sel { background: color-mix(in srgb, var(--sm-accent) 22%, transparent); }
-    .c.badgap { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--sm-bad) 16%, transparent) 0 4px, transparent 4px 8px); }
+    .c.badgap { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--sm-bad) 14%, transparent) 0 4px, transparent 4px 8px); }
     .c.none { cursor: default; background: none; border-left-color: transparent; }
-    .c .d { font-weight: 600; color: var(--primary-text-color); }
-    .c .p { position: absolute; bottom: 2px; left: 2px; right: 2px; text-align: center; font-variant-numeric: tabular-nums; }
-    .c .ms { position: absolute; bottom: 14px; left: 2px; right: 2px; text-align: center; font-size: .6rem; }
-    .bar { position: absolute; top: 22px; height: 20px; border-radius: 10px; color: #fff; font-size: .72rem; line-height: 20px;
-      padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; box-sizing: border-box;
-      box-shadow: 0 1px 2px rgba(0,0,0,.25); }
-    .bar.cl { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .c .d { font-weight: 650; color: var(--sm-ink); }
+    .c .p { position: absolute; bottom: 3px; left: 2px; right: 2px; text-align: center; }
+    .c .ms { position: absolute; bottom: 16px; left: 2px; right: 2px; text-align: center; font-size: .62rem; }
+    .bar { position: absolute; top: 22px; height: 24px; border-radius: 7px; font-size: .74rem; font-weight: 650; line-height: 22px;
+      padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; color: var(--sm-ink);
+      background: color-mix(in srgb, var(--c) 18%, var(--sm-surf)); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-left: 4px solid var(--c); }
+    .multi .bar { top: 18px; height: 22px; line-height: 20px; }
+    .bar:hover { background: color-mix(in srgb, var(--c) 30%, var(--sm-surf)); }
+    .bar.cl { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-style: dashed; }
     .bar.cr { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-    .bar.blocked { background: repeating-linear-gradient(45deg, #9e9e9e 0 6px, #8a8a8a 6px 12px) !important; }
-    .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: .78rem; color: var(--sm-muted); margin-top: 10px; }
-    .panel { margin-top: 12px; padding: 12px; border-radius: 10px; border: 1px solid var(--sm-accent);
-      display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .bar.blocked { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--sm-block) 35%, transparent) 0 3px, transparent 3px 8px);
+      border-color: var(--sm-block); color: var(--sm-muted); }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .8rem; color: var(--sm-muted); margin-top: 12px; }
+    .legend span { display: inline-flex; gap: 6px; align-items: center; }
+    .hatch { background: repeating-linear-gradient(135deg, var(--sm-block) 0 2px, transparent 2px 5px); outline: 1px solid var(--sm-block); }
+    .panel { margin-top: 14px; padding: 12px 14px; border-radius: var(--sm-rs); border: 1px solid var(--sm-accent);
+      background: color-mix(in srgb, var(--sm-accent) 6%, var(--sm-surf)); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .panel input { width: 110px; }
   `;
   async load() {
@@ -553,59 +1038,72 @@ class SmoobuTimelineCard extends SmoobuCard {
     const end = addMonths(start, Number(this._config.months) || 3);
     const tg = this.target;
     const rs = D(today) > start ? D(today) : start;
-    const [list, rates] = await Promise.all([
+    const apts = this.multi ? info.wohnungen.filter((w) => !tg.entry_id || w.entry_id === tg.entry_id) : [apt];
+    const [list, ...rates] = await Promise.all([
       this.store.ws("smoobu/bookings", { ...tg, start: iso(start), end: iso(end) }),
-      this._config.show_prices && rs < end
-        ? this.store.ws("smoobu/rates", { ...tg, start: iso(rs), end: iso(addDays(end, 21)) }).catch(() => ({ preise: {} }))
-        : Promise.resolve({ preise: {} }),
+      ...apts.map((w) => this._config.show_prices && rs < end
+        ? this.store.ws("smoobu/rates", { ...tg, apartment_id: w.apartment_id, start: iso(rs), end: iso(addDays(end, 21)) }).then((r) => r.preise).catch(() => ({}))
+        : Promise.resolve({})),
     ]);
-    return { apt, today, start, end, bookings: list.buchungen.filter((b) => !b.storniert), rates: rates.preise };
+    return { apt, apts, today, start, end, bookings: list.buchungen.filter((b) => !b.storniert),
+      ratesBy: Object.fromEntries(apts.map((w, i) => [w.apartment_id, rates[i] || {}])) };
   }
-  body({ apt, today, start, end, bookings, rates }) {
+  body({ apt, apts, today, start, end, bookings, ratesBy }) {
     const cur = apt.currency;
-    const { selStart, selEnd } = this._state;
+    const { selStart, selEnd, selApt } = this._state;
     const lo = selStart && selEnd ? (selStart < selEnd ? selStart : selEnd) : selStart;
     const hi = selStart && selEnd ? (selStart < selEnd ? selEnd : selStart) : selStart;
-    // Nächte in Lücken, die wegen Mindestaufenthalt nicht buchbar sind
-    const bad = new Set();
-    for (const g of findGaps(bookings, rates, iso(D(today) > start ? D(today) : start), Math.max(nightsBetween(iso(start), iso(end)), 1))) {
-      if (!g.buchbar) for (let d = D(g.von); d < D(g.bis); d = addDays(d, 1)) bad.add(iso(d));
+    const own = (w) => bookings.filter((b) => !this.multi || b.wohnung_id === w.apartment_id);
+    // Nächte in Lücken, die wegen Mindestaufenthalt nicht buchbar sind (je Wohnung)
+    const bad = {};
+    for (const w of apts) {
+      bad[w.apartment_id] = new Set();
+      for (const g of findGaps(own(w), ratesBy[w.apartment_id], iso(D(today) > start ? D(today) : start), Math.max(nightsBetween(iso(start), iso(end)), 1))) {
+        if (!g.buchbar) for (let d = D(g.von); d < D(g.bis); d = addDays(d, 1)) bad[w.apartment_id].add(iso(d));
+      }
     }
     const rows = [];
     for (let m = new Date(start); m < end; m = addMonths(m, 1)) {
       const dim = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
       const mStart = iso(m), mEnd = iso(addMonths(m, 1));
-      let cells = "";
-      for (let i = 1; i <= 31; i++) {
-        if (i > dim) { cells += `<div class="c none"></div>`; continue; }
-        const day = new Date(m.getFullYear(), m.getMonth(), i);
-        const ds = iso(day);
-        const r = rates[ds];
-        const cls = ["c", day.getDay() % 6 === 0 ? "we" : "", ds === today ? "today" : "", ds < today ? "past" : "",
-          lo && ds >= lo && ds <= (hi || lo) ? "sel" : "", bad.has(ds) ? "badgap" : ""].join(" ");
-        const wd = day.toLocaleDateString(locale(), { weekday: "narrow" });
-        cells += `<div class="${cls}" data-day="${ds}"><span class="d">${i}</span> ${wd}
-          ${r && r.min_length_of_stay > 1 ? `<div class="ms">☾${r.min_length_of_stay}</div>` : ""}
-          ${r && r.price ? `<div class="p">${num(r.price)}</div>` : ""}</div>`;
-      }
-      let bars = "";
-      for (const b of bookings) {
-        if (b.abreise <= mStart || b.anreise >= mEnd) continue;
-        const a = D(b.anreise), d = D(b.abreise);
-        const cutL = b.anreise < mStart, cutR = b.abreise > mEnd;
-        const left = cutL ? 0 : (a.getDate() - 1 + 0.55) / 31;
-        const right = cutR ? dim / 31 : Math.min((b.abreise === mEnd ? dim + 0.45 : d.getDate() - 1 + 0.45) / 31, 1);
-        const label = b.blockiert ? `🔒 ${t("Gesperrt")}${b.notiz ? " · " + esc(b.notiz) : ""}` : `${esc(b.gast || "")}${b.hund ? " 🐕" : ""} · ${b.personen}P`;
-        bars += `<div class="bar ${b.blockiert ? "blocked" : ""} ${cutL ? "cl" : ""} ${cutR ? "cr" : ""}" data-id="${b.id}"
-          title="${esc(b.blockiert ? t("Sperrzeit") : `${b.gast} · ${b.kanal} · ${money(b.brutto, cur)}`)}"
-          style="left:calc(${(left * 100).toFixed(3)}%);width:calc(${((right - left) * 100).toFixed(3)}%);background:${colorOf(apt, b.kanal)}">${label}</div>`;
-      }
-      rows.push(`<div class="month"><div class="ml">${m.toLocaleDateString(locale(), MONTH_FMT)}</div><div class="days">${cells}${bars}</div></div>`);
+      const aptRows = apts.map((w, wi) => {
+        const rates = ratesBy[w.apartment_id] || {};
+        let cells = "";
+        for (let i = 1; i <= 31; i++) {
+          if (i > dim) { cells += `<div class="c none"></div>`; continue; }
+          const day = new Date(m.getFullYear(), m.getMonth(), i);
+          const ds = iso(day);
+          const r = rates[ds];
+          const isSel = lo && selApt === w.apartment_id && ds >= lo && ds <= (hi || lo);
+          const cls = ["c", day.getDay() % 6 === 0 ? "we" : "", ds === today ? "today" : "", ds < today ? "past" : "",
+            isSel ? "sel" : "", bad[w.apartment_id].has(ds) ? "badgap" : ""].join(" ");
+          const wd = day.toLocaleDateString(locale(), { weekday: "narrow" });
+          cells += `<div class="${cls}" data-day="${ds}" data-apt="${w.apartment_id}"><span class="d">${i}</span> ${wd}
+            ${r && r.min_length_of_stay > 1 ? `<div class="ms">☾${r.min_length_of_stay}</div>` : ""}
+            ${r && r.price ? `<div class="p">${num(r.price)}</div>` : ""}</div>`;
+        }
+        let bars = "";
+        for (const b of own(w)) {
+          if (b.abreise <= mStart || b.anreise >= mEnd) continue;
+          const a = D(b.anreise), d = D(b.abreise);
+          const cutL = b.anreise < mStart, cutR = b.abreise > mEnd;
+          const left = cutL ? 0 : (a.getDate() - 1 + 0.55) / 31;
+          const right = cutR ? dim / 31 : Math.min((b.abreise === mEnd ? dim + 0.45 : d.getDate() - 1 + 0.45) / 31, 1);
+          const label = b.blockiert ? `🔒 ${t("Gesperrt")}${b.notiz ? ", " + esc(b.notiz) : ""}` : `${esc(b.gast || "")}${b.hund ? " 🐕" : ""}`;
+          bars += `<div class="bar ${b.blockiert ? "blocked" : ""} ${cutL ? "cl" : ""} ${cutR ? "cr" : ""}" data-id="${b.id}"
+            title="${esc(b.blockiert ? t("Sperrzeit") : `${b.gast}, ${b.personen} P., ${b.kanal}, ${money(b.brutto, cur)}`)}"
+            style="left:calc(${(left * 100).toFixed(3)}%);width:calc(${((right - left) * 100).toFixed(3)}%);--c:${colorOf(apt, b.kanal)}">${label}</div>`;
+        }
+        const lab = `${wi === 0 ? `<span>${m.toLocaleDateString(locale(), MONTH_FMT)}</span>` : ""}${this.multi ? `<span class="ak" title="${esc(w.name)}">${esc(w.kuerzel)}</span>` : ""}`;
+        return `<div class="arow"><div class="ml">${lab}</div><div class="days">${cells}${bars}</div></div>`;
+      }).join("");
+      rows.push(`<div class="month" style="grid-template-columns:1fr">${aptRows}</div>`);
     }
     const nights = lo ? nightsBetween(lo, hi || lo) + 1 : 0;
     const p = this._state.panel;
+    const selName = this.multi ? apts.find((w) => w.apartment_id === selApt)?.name : "";
     const panel = !this._config.actions ? "" : lo ? `<div class="panel">
-        <b>${t("Auswahl")}: ${fdow(lo)} – ${fdow(hi || lo)} (${nights} ${t("Nächte")})</b>
+        <b>${selName ? `${esc(selName)}: ` : ""}${fdow(lo)} – ${fdow(hi || lo)} (${plural(nights, t("Nacht"), t("Nächte"))})</b>
         ${p === "block" ? `<input data-k="notice" placeholder="${t("Grund (optional)")}" style="width:180px">
             <button class="btn" data-act="do-block">${t("Sperren")}</button>`
           : p === "rate" ? `<label>${t("Preis/Nacht")} <input data-k="price" type="number" min="1" step="1"></label>
@@ -614,23 +1112,25 @@ class SmoobuTimelineCard extends SmoobuCard {
           : `<button class="btn" data-act="block">🔒 ${t("Sperren")}</button><button class="btn" data-act="rate">€ ${t("Preis setzen")}</button>`}
         <button class="btn flat" data-act="clear">${t("Abbrechen")}</button></div>`
       : `<div class="legend">${t("Tage markieren: erst ersten, dann letzten Tag antippen")}</div>`;
+    const chans = apts.flatMap((w) => w.kanaele).filter((c, i, a) => a.findIndex((x) => x.name === c.name) === i);
     return `
-      <div class="row"><h2 class="grow">${esc(this._config.title || t("Belegungsplan"))}</h2>
-        <button class="btn flat" data-act="prev">◀</button><button class="btn flat" data-act="now">${t("Heute")}</button>
-        <button class="btn flat" data-act="next">▶</button></div>
-      <div class="scroll"><div class="months">${rows.join("")}</div></div>
-      <div class="legend">${apt.kanaele.map((c) => `<span><span class="dot" style="background:${c.farbe}"></span> ${esc(c.name)}</span>`).join("")}
-        <span><span class="dot" style="background:#9e9e9e"></span> ${t("Gesperrt")}</span>
-        <span><span class="dot" style="background:var(--sm-bad)"></span> ${t("nicht buchbar")} (${t("Mindestaufenthalt zu hoch")})</span>
-        ${this._config.show_prices ? `<span>${t("Preis/Nacht")} · ☾ ${t("Mindestaufenthalt")}</span>` : ""}</div>
+      <div class="head"><h2>${esc(this._config.title || t("Belegungsplan"))}</h2>
+        <button class="btn flat" data-act="prev" aria-label="${t("Zurück")}">◀</button><button class="btn flat" data-act="now">${t("Heute")}</button>
+        <button class="btn flat" data-act="next" aria-label="${t("Weiter")}">▶</button></div>
+      <div class="scroll"><div class="months ${this.multi ? "multi" : ""}">${rows.join("")}</div></div>
+      <div class="legend">${chans.map((c) => `<span><span class="dot" style="background:${chColor(c.name)}"></span>${esc(c.name)}</span>`).join("")}
+        <span><span class="dot hatch"></span>${t("Gesperrt")}</span>
+        <span><span class="dot" style="background:var(--sm-bad)"></span>${t("nicht buchbar")} (${t("Mindestaufenthalt zu hoch")})</span>
+        ${this._config.show_prices ? `<span>${t("Zahl unten = Preis/Nacht")}, ☾ = ${t("Mindestaufenthalt")}</span>` : ""}
+        ${this.multi ? apts.map((w) => `<span>${codeTag(w.kuerzel)} ${esc(w.name)}</span>`).join("") : ""}</div>
       ${panel}`;
   }
   bind(root) {
     root.querySelectorAll(".bar").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); this.openBooking(Number(el.dataset.id)); }));
     if (this._config.actions) root.querySelectorAll(".c[data-day]").forEach((el) => el.addEventListener("click", () => {
-      const d = el.dataset.day;
-      const { selStart, selEnd } = this._state;
-      if (!selStart || selEnd) this.setState({ selStart: d, selEnd: null, panel: null });
+      const d = el.dataset.day, a = Number(el.dataset.apt);
+      const { selStart, selEnd, selApt } = this._state;
+      if (!selStart || selEnd || selApt !== a) this.setState({ selStart: d, selEnd: null, selApt: a, panel: null });
       else this.setState({ selEnd: d });
     }));
     root.querySelectorAll("[data-act]").forEach((el) => el.addEventListener("click", () => this.act(el.dataset.act)));
@@ -648,21 +1148,22 @@ class SmoobuTimelineCard extends SmoobuCard {
     if (a === "clear") return this.setState({ selStart: null, selEnd: null, panel: null });
     if (a === "block" || a === "rate") return this.setState({ panel: a });
     const [lo, hi] = this.range();
-    const apt = await this.apartment();
+    // Aktionen gehören immer zu genau einer Wohnung: der markierten Zeile
+    const aptId = this._state.selApt || (await this.apartment()).apartment_id;
     try {
       if (a === "do-block") {
         const notice = this.$('[data-k="notice"]')?.value || undefined;
         if (!(await confirmDialog(`${t("Sperren")}: ${fdate(lo)} – ${fdate(hi)}?`))) return;
-        await this.store.service("block_period", { apartment_id: apt.apartment_id, start_date: lo, end_date: iso(addDays(D(hi), 1)), ...(notice ? { notice } : {}) });
+        await this.store.service("block_period", { apartment_id: aptId, start_date: lo, end_date: iso(addDays(D(hi), 1)), ...(notice ? { notice } : {}) });
       } else if (a === "do-rate") {
         const price = this.$('[data-k="price"]')?.value, min = this.$('[data-k="min"]')?.value;
         if (!price && !min) return;
-        if (!(await confirmDialog(`${t("Preis setzen")}: ${fdate(lo)} – ${fdate(hi)}${price ? ` · ${price} €` : ""}${min ? ` · ☾${min}` : ""}?`))) return;
-        await this.store.service("set_rates", { apartment_id: apt.apartment_id, start_date: lo, end_date: hi,
+        if (!(await confirmDialog(`${t("Preis setzen")}: ${fdate(lo)} – ${fdate(hi)}${price ? `, ${price} €` : ""}${min ? `, ☾${min}` : ""}?`))) return;
+        await this.store.service("set_rates", { apartment_id: aptId, start_date: lo, end_date: hi,
           ...(price ? { price: Number(price) } : {}), ...(min ? { min_stay: Number(min) } : {}) });
       }
       toast(t("Gespeichert"));
-      this.setState({ selStart: null, selEnd: null, panel: null }, true);
+      this.setState({ selStart: null, selEnd: null, selApt: null, panel: null }, true);
     } catch (e) {
       toast(`${t("Fehler")}: ${e.message || e}`);
     }
@@ -673,11 +1174,12 @@ class SmoobuTimelineCard extends SmoobuCard {
 function confirmDialog(text) {
   return new Promise((resolve) => {
     const wrap = document.createElement("div");
+    const p = PAL[DARK ? "dark" : "light"];
     wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10002;display:flex;align-items:center;justify-content:center";
-    wrap.innerHTML = `<div style="background:var(--card-background-color,#fff);color:var(--primary-text-color,#000);padding:20px;border-radius:12px;max-width:360px;font:15px Roboto,sans-serif">
-      <div style="margin-bottom:16px">${esc(text)}</div><div style="display:flex;gap:8px;justify-content:flex-end">
-      <button data-v="0" style="padding:8px 14px;border-radius:8px;border:1px solid #999;background:none;color:inherit;cursor:pointer">${t("Nein")}</button>
-      <button data-v="1" style="padding:8px 14px;border-radius:8px;border:none;background:var(--primary-color,#03a9f4);color:#fff;cursor:pointer">${t("Ja")}</button></div></div>`;
+    wrap.innerHTML = `<div style="background:${p.surf};color:${p.ink};padding:22px;border-radius:16px;max-width:380px;font:15px/1.45 ${FONT};border:1px solid ${p.line};box-shadow:0 12px 40px rgba(0,0,0,.3)">
+      <div style="margin-bottom:18px">${esc(text)}</div><div style="display:flex;gap:8px;justify-content:flex-end">
+      <button data-v="0" style="font:600 14px ${FONT};padding:8px 16px;border-radius:999px;border:1px solid ${p.line};background:none;color:${p.acc};cursor:pointer">${t("Nein")}</button>
+      <button data-v="1" style="font:600 14px ${FONT};padding:8px 16px;border-radius:999px;border:none;background:${p.acc};color:${p.accInk};cursor:pointer">${t("Ja")}</button></div></div>`;
     wrap.addEventListener("click", (e) => {
       const v = e.target?.dataset?.v;
       if (v !== undefined || e.target === wrap) { wrap.remove(); resolve(v === "1"); }
@@ -755,7 +1257,7 @@ class SmoobuBookingsCard extends SmoobuCard {
       return true;
     });
     const k = s.sort;
-    rows = rows.map((b) => ({ ...b, kosten: Math.round((b.provision + b.zahlungsgebuehr) * 100) / 100 }));
+    rows = rows.map((b) => ({ ...b, kosten: Math.round((b.provision + b.zahlungsgebuehr) * 100) / 100, wohnung: aptCode(this.store.info, b.wohnung_id) }));
     rows.sort((a, b) => {
       const x = a[k] ?? "", y = b[k] ?? "";
       return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * s.dir;
@@ -772,10 +1274,11 @@ class SmoobuBookingsCard extends SmoobuCard {
     const sum = (k) => valid.reduce((a, b) => a + (b[k] || 0), 0);
     const statusChips = ["kommend", "laufend", "vergangen", "storniert", "blockiert"].map((st) =>
       `<button class="chip" data-st="${st}" aria-pressed="${s.status.includes(st)}"><ha-icon icon="${STATUS_ICON[st]}"></ha-icon>${t(st)}</button>`).join("");
-    const head = BOOKING_COLS.map(([k, l, n]) => `<th class="${n || ""}" data-sort="${k}">${t(l)}${s.sort === k ? (s.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("");
+    const cols = this.multi ? [BOOKING_COLS[0], ["wohnung", "Wohnung"], ...BOOKING_COLS.slice(1)] : BOOKING_COLS;
+    const head = cols.map(([k, l, n]) => `<th class="${n || ""}" data-sort="${k}">${t(l)}${s.sort === k ? (s.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("");
     const body = rows.map((b) => `<tr class="click ${b.storniert ? "cx" : ""} ${b.blockiert ? "bl" : ""}" data-id="${b.id}">
       <td class="st"><ha-icon icon="${STATUS_ICON[b.status]}" title="${t(b.status)}"></ha-icon></td>
-      <td>${fdow(b.anreise)}</td><td>${fdow(b.abreise)}</td><td class="n">${b.naechte}</td>
+      ${this.multi ? `<td>${codeTag(b.wohnung)}</td>` : ""}<td>${fdow(b.anreise)}</td><td>${fdow(b.abreise)}</td><td class="n">${b.naechte}</td>
       <td>${b.blockiert ? `🔒 ${esc(b.notiz || t("Gesperrt"))}` : esc(b.gast)}${b.hund ? " 🐕" : ""}</td>
       <td class="n">${b.blockiert ? "" : b.personen}</td>
       <td><span class="dot" style="background:${colorOf(apt, b.kanal, b.blockiert)}"></span>${esc(b.kanal)}</td>
@@ -784,7 +1287,7 @@ class SmoobuBookingsCard extends SmoobuCard {
       <td class="n">${b.offen > 0 ? `<span class="badge bad">${money(b.offen, cur, 2)}</span>` : ""}</td>
       <td class="n">${b.vorlauf_tage ?? ""}</td></tr>`).join("");
     return `
-      <div class="row"><h2 class="grow">${esc(this._config.title || t("Buchungen"))}</h2>
+      <div class="head"><h2>${esc(this._config.title || t("Buchungen"))}</h2>
         <button class="btn flat" data-act="csv">⬇ ${t("Export CSV")}</button></div>
       <div class="toolbar">
         <input type="search" data-k="search" placeholder="${t("Suche")} (Name, E-Mail, Telefon, Notiz …)" value="${esc(s.search)}">
@@ -793,8 +1296,8 @@ class SmoobuBookingsCard extends SmoobuCard {
       </div>
       <div class="toolbar">${channelChips(apt, s.channels)}</div>
       <div class="toolbar">${statusChips}</div>
-      <div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="13" class="empty">${t("Keine Daten")}</td></tr>`}</tbody>
-      <tfoot><tr><td colspan="3">${t("Summe")} · ${valid.length} ${t("Buchungen")}</td><td class="n">${num(sum("naechte"))}</td><td></td>
+      <div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="14" class="empty">${t("Keine Daten")}</td></tr>`}</tbody>
+      <tfoot><tr><td colspan="${this.multi ? 4 : 3}">${t("Summe")}: ${valid.length} ${t("Buchungen")}</td><td class="n">${num(sum("naechte"))}</td><td></td>
         <td class="n">${num(sum("personen"))}</td><td></td><td class="n">${money(sum("brutto"), cur)}</td><td class="n">${money(sum("kosten"), cur)}</td>
         <td class="n">${money(sum("netto"), cur)}</td><td class="n">${sum("naechte") ? money(sum("netto") / sum("naechte"), cur) : ""}</td>
         <td class="n">${money(sum("offen"), cur)}</td><td></td></tr></tfoot></table></div>`;
@@ -820,10 +1323,10 @@ class SmoobuBookingsCard extends SmoobuCard {
     root.querySelector('[data-k="from"]')?.addEventListener("change", (e) => this.setState({ from: e.target.value }, true));
     root.querySelector('[data-k="to"]')?.addEventListener("change", (e) => this.setState({ to: e.target.value }, true));
     root.querySelector('[data-act="csv"]')?.addEventListener("click", () => {
-      const cols = ["id", "status", "anreise", "abreise", "naechte", "gast", "email", "telefon", "personen", "erwachsene", "kinder",
+      const csvCols = ["id", "wohnung", "status", "anreise", "abreise", "naechte", "gast", "email", "telefon", "personen", "erwachsene", "kinder",
         "kanal", "gruppe", "brutto", "provision", "zahlungsgebuehr", "netto", "netto_pro_nacht", "offen", "bezahlt", "vorlauf_tage",
         "erstellt", "hund", "notiz"];
-      downloadCsv(`smoobu-buchungen-${iso(new Date())}.csv`, [cols, ...(this._rows || []).map((b) => cols.map((c) => b[c]))]);
+      downloadCsv(`smoobu-buchungen-${iso(new Date())}.csv`, [csvCols, ...(this._rows || []).map((b) => csvCols.map((c) => b[c]))]);
     });
   }
 }
@@ -858,7 +1361,7 @@ function barChart({ labels, stacks, line, fmt, unit, daily }) {
       const v = s.values[i] || 0;
       if (v <= 0) continue;
       const y1 = y(acc + v), y0 = y(acc);
-      svg += `<rect x="${x + bw * 0.14}" y="${y1}" width="${bw * 0.72}" height="${Math.max(y0 - y1, 0)}" fill="${s.color}" rx="2"/>`;
+      svg += `<rect x="${x + bw * 0.16}" y="${y1}" width="${bw * 0.68}" height="${Math.max(y0 - y1, 0)}" fill="${s.color}" rx="3"/>`;
       parts.push(`${s.name}: ${fmt(v)}`);
       acc += v;
     }
@@ -873,7 +1376,7 @@ function barChart({ labels, stacks, line, fmt, unit, daily }) {
     svg += `<polyline points="${pts}" fill="none" stroke="currentColor" stroke-opacity=".55" stroke-width="2" stroke-dasharray="5 4"/>`;
     line.values.slice(0, n).forEach((v, i) => { svg += `<circle cx="${L + i * bw + bw / 2}" cy="${y(v || 0)}" r="2.5" fill="currentColor" fill-opacity=".6"/>`; });
   }
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;color:var(--primary-text-color)" role="img">${svg}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;color:var(--sm-ink);font-family:inherit" role="img">${svg}</svg>`;
 }
 function donut(parts, center = "") {
   const total = parts.reduce((a, p) => a + p.value, 0) || 1;
@@ -898,12 +1401,10 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     .split { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 16px; align-items: center; }
     @media (max-width: 700px) { .split { grid-template-columns: 1fr; } }
     .share { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: .8rem; }
-    .bar-in { height: 6px; border-radius: 3px; background: var(--sm-accent); }
+    .bar-in { height: 5px; border-radius: 3px; background: var(--sm-accent); margin-top: 3px; }
+    .grid { margin-bottom: 4px; }
     .tip { min-height: 1.2em; font-size: .82rem; color: var(--sm-muted); margin-top: 4px; }
     .ins li { margin: 4px 0; } .ins { padding-left: 18px; margin: 4px 0; }
-    .seg { display: inline-flex; border: 1px solid var(--sm-line); border-radius: 8px; overflow: hidden; }
-    .seg button { border: none; background: none; padding: 5px 10px; font: inherit; font-size: .82rem; cursor: pointer; color: var(--primary-text-color); }
-    .seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--sm-accent) 20%, transparent); }
   `;
   async load() {
     const apt = await this.apartment();
@@ -915,7 +1416,15 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     } else params.period = s.period;
     if (s.channels.length) params.channels = s.channels;
     const r = await this.store.ws("smoobu/analytics", params);
-    return { apt, r };
+    // Gesamtansicht: dieselbe Auswertung je Wohnung für den Wohnungsvergleich
+    let per = [];
+    if (this.multi) {
+      const info = await this.store.getInfo();
+      per = await Promise.all(info.wohnungen.filter((w) => !params.entry_id || w.entry_id === params.entry_id)
+        .map((w) => this.store.ws("smoobu/analytics", { ...params, apartment_id: w.apartment_id }).then((x) => ({ w, x })).catch(() => null)));
+      per = per.filter(Boolean);
+    }
+    return { apt, r, per };
   }
   insights(apt, r) {
     const cur = apt.currency;
@@ -942,7 +1451,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     if (r.prognose) out.push(`Prognose ${new Date().getFullYear()}: <b>${money(r.prognose.prognose, cur)}</b> brutto (gebucht ${money(r.prognose.gebucht, cur)} + ${t("Nachbuchung wie Vorjahr")} ${money(r.prognose.nachbuchung_vorjahr, cur)}).`);
     return out;
   }
-  body({ apt, r }) {
+  body({ apt, r, per = [] }) {
     const cur = apt.currency;
     const s = this._state;
     const c = r.vergleich;
@@ -950,10 +1459,10 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     const cmpTxt = (k, f) => (c ? `${t("Vergleich")} ${f(c[k])}` : "");
     const m = s.metric;
     const reihe = r.reihe;
-    const colors = r.farben || {};
+    const colors = Object.fromEntries(Object.keys(r.farben || {}).map((n) => [n, chColor(n)]));
     const stacks = m === "brutto"
       ? Object.entries(reihe.kanaele).map(([name, values]) => ({ name, values, color: colors[name] || colorOf(apt, name) }))
-      : [{ name: t(m === "netto" ? "Netto" : "Nächte"), values: reihe[m], color: "var(--sm-accent)" }];
+      : [{ name: t(m === "netto" ? "Netto" : "Nächte"), values: reihe[m], color: PAL[DARK ? "dark" : "light"].acc }];
     const fmt = m === "naechte" ? (v) => num(v) : (v) => money(v, cur);
     const line = c?.reihe ? { values: c.reihe[m], label: t(COMPARE_LABEL[s.compare]) } : null;
     const chans = Object.entries(r.kanaele);
@@ -967,8 +1476,8 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       <td class="n">${num(v.aufenthalt_schnitt, 1)}</td><td class="n">${num(v.vorlauf_schnitt)}</td><td class="n">${num(v.personen_schnitt, 1)}</td></tr>`).join("");
     const ins = this.insights(apt, r);
     return `
-      <div class="row"><h2 class="grow">${esc(this._config.title || t("Finanzen"))}</h2>
-        <span class="sub">${fdate(r.von)} – ${fdate(iso(addDays(D(r.bis), -1)))}${c ? ` · ${t("Vergleich")} ${fdate(c.von)} – ${fdate(iso(addDays(D(c.bis), -1)))}` : ""}</span></div>
+      <div class="head"><h2>${esc(this._config.title || t("Finanzen"))}${this.multi ? ` <span class="sub">${t("Alle Wohnungen")}</span>` : ""}</h2>
+        <span class="sub">${fdate(r.von)} – ${fdate(iso(addDays(D(r.bis), -1)))}${c ? `, ${t("Vergleich")} ${fdate(c.von)} – ${fdate(iso(addDays(D(c.bis), -1)))}` : ""}</span></div>
       <div class="toolbar">${periodSelect(s.period)}
         ${s.period === "custom" ? `<input type="date" data-k="from" value="${s.from || ""}"> – <input type="date" data-k="to" value="${s.to || ""}">` : ""}
         <select data-k="compare">${Object.entries(COMPARE_LABEL).map(([k, v]) => `<option value="${k}" ${k === s.compare ? "selected" : ""}>${t("Vergleich")}: ${t(v)}</option>`).join("")}</select>
@@ -993,6 +1502,15 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       <div class="split"><div>${barChart({ labels: reihe.labels, stacks, line, fmt, daily: reihe.einheit === "tag" })}<div class="tip" data-k="tip"></div></div>
         <div class="share">${donut(chans.map(([n, v]) => ({ name: n, value: v.brutto, color: colors[n] || colorOf(apt, n) })), pct(r.direktanteil_prozent, 0))}
           <span class="sub">${t("Direktanteil")}</span></div></div>
+      ${per.length > 1 ? `<h3>${t("Wohnungen im Vergleich")}</h3>
+      <div class="scroll"><table><thead><tr><th>${t("Wohnung")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
+        <th class="n">${t("Netto")}</th><th class="n">${t("Auslastung")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Netto/Nacht")}</th>
+        <th class="n">${t("Buchungen")}</th><th class="n">${t("Direktanteil")}</th></tr></thead><tbody>
+        ${per.map(({ w, x }) => `<tr><td>${codeTag(w.kuerzel)} ${esc(w.name)}</td><td class="n">${money(x.brutto, cur)}</td>
+          <td class="n">${pct(r.brutto ? (x.brutto / r.brutto) * 100 : null, 0)}</td><td class="n">${delta(x.veraenderung_prozent?.brutto)}</td>
+          <td class="n">${money(x.netto, cur)}</td><td class="n">${pct(x.auslastung_prozent, 0)} ${delta(x.veraenderung_punkte?.auslastung_prozent, "pp")}</td>
+          <td class="n">${x.naechte}</td><td class="n">${money(x.netto_pro_nacht, cur)}</td><td class="n">${x.buchungen}</td>
+          <td class="n">${pct(x.direktanteil_prozent, 0)}</td></tr>`).join("")}</tbody></table></div>` : ""}
       ${ins.length ? `<h3>${t("Erkenntnisse")}</h3><ul class="ins">${ins.map((i) => `<li>${i}</li>`).join("")}</ul>` : ""}
       <h3>${t("Kanaltabelle")}</h3>
       <div class="scroll"><table><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
@@ -1025,18 +1543,19 @@ class SmoobuAnalyticsCard extends SmoobuCard {
 // Buchungsdetail (Overlay, von allen Karten geöffnet)
 // ===========================================================================
 const DIALOG_CSS = `
-  .back { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 10000; display: flex; justify-content: center; align-items: flex-start;
+  .back { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 10000; font-family: ${FONT}; display: flex; justify-content: center; align-items: flex-start;
     overflow-y: auto; padding: 24px 8px; box-sizing: border-box; }
-  .dlg { background: var(--card-background-color, #fff); color: var(--primary-text-color); border-radius: 16px; width: min(760px, 100%);
-    padding: 20px; box-sizing: border-box; box-shadow: 0 8px 32px rgba(0,0,0,.35); font-family: var(--paper-font-body1_-_font-family, Roboto, sans-serif); }
+  .dlg { background: var(--sm-surf); color: var(--sm-ink); border-radius: 18px; width: min(780px, 100%); border: 1px solid var(--sm-line);
+    padding: 22px 24px; box-sizing: border-box; box-shadow: 0 16px 48px rgba(0,0,0,.35); font-family: ${FONT}; }
+  .dlg h2 { font-size: 1.4rem; letter-spacing: -.015em; }
   .top { display: flex; gap: 10px; align-items: flex-start; } .top h2 { flex: 1; }
   .x { background: none; border: none; font-size: 1.6rem; cursor: pointer; color: var(--sm-muted); line-height: 1; }
   .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: .9rem; }
   .kv dt { color: var(--sm-muted); } .kv dd { margin: 0; }
   .sec { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px 24px; }
   .msgs { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; padding: 4px; }
-  .msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; font-size: .88rem; white-space: pre-wrap; word-break: break-word;
-    background: var(--secondary-background-color, rgba(127,127,127,.12)); align-self: flex-start; }
+  .msg { max-width: 85%; padding: 9px 13px; border-radius: 14px; font-size: .9rem; white-space: pre-wrap; word-break: break-word;
+    background: var(--sm-surf2); border: 1px solid var(--sm-line); align-self: flex-start; }
   .msg.out { align-self: flex-end; background: color-mix(in srgb, var(--sm-accent) 18%, transparent); }
   .msg .h { font-size: .72rem; color: var(--sm-muted); margin-bottom: 2px; }
   .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--sm-line); }
@@ -1076,8 +1595,12 @@ class SmoobuBookingDialog extends HTMLElement {
     if (this.err) inner = `<div class="err">${t("Fehler")}: ${esc(this.err)}</div>`;
     else if (!d) inner = `<div class="empty">${t("Laden …")}</div>`;
     else inner = this.content(d);
-    this.shadowRoot.innerHTML = `<style>${BASE_CSS}${DIALOG_CSS}</style><div class="back"><div class="dlg">
-      <div class="top"><h2>${d?.buchung ? (d.buchung.blockiert ? `🔒 ${t("Sperrzeit")}` : esc(d.buchung.gast)) + (d.buchung.hund ? " 🐕" : "") : t("Details")}</h2>
+    DARK = Theme.dark(this.hass);
+    const vars = `:host { ${CSS_VARS(PAL[DARK ? "dark" : "light"])} --sm-scheme: ${DARK ? "dark" : "light"}; }`;
+    const multi = (this.store.info?.wohnungen || []).length > 1;
+    const code = multi && d?.buchung ? codeTag(aptCode(this.store.info, d.buchung.wohnung_id)) : "";
+    this.shadowRoot.innerHTML = `<style>${vars}${BASE_CSS}${DIALOG_CSS}</style><div class="back"><div class="dlg">
+      <div class="top"><h2>${d?.buchung ? (d.buchung.blockiert ? `🔒 ${t("Sperrzeit")}` : esc(d.buchung.gast)) + (d.buchung.hund ? " 🐕" : "") + code : t("Details")}</h2>
       <button class="x" data-act="close" aria-label="close">×</button></div>${inner}</div></div>`;
     this.bind();
   }
@@ -1194,7 +1717,7 @@ class SmoobuInboxCard extends SmoobuCard {
   static css = `
     .wrap { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; }
     @media (max-width: 700px) { .wrap { grid-template-columns: 1fr; } }
-    .item { padding: 8px 10px; border-radius: 10px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+    .item { padding: 10px 12px; border-radius: var(--sm-rs); cursor: pointer; display: flex; gap: 10px; align-items: center; margin-bottom: 2px; }
     .item:hover, .item.on { background: color-mix(in srgb, var(--sm-accent) 12%, transparent); }
     /* v1.13.0: Gast wartet auf Antwort → roter Rand links, rote Tönung, Badge */
     .item.open { border-left: 4px solid var(--sm-bad); padding-left: 6px;
@@ -1213,8 +1736,8 @@ class SmoobuInboxCard extends SmoobuCard {
     .sugbox { margin-top: 8px; padding: 8px 12px; border-radius: 10px; font-size: .85rem;
       background: color-mix(in srgb, var(--sm-accent) 10%, transparent); border-left: 4px solid var(--sm-accent); }
     .sugbox.urgent { border-left-color: var(--sm-bad); background: color-mix(in srgb, var(--sm-bad) 12%, transparent); }
-    .last { padding: 10px 12px; border-radius: 10px; border-left: 4px solid var(--sm-accent); margin-bottom: 12px;
-      background: var(--secondary-background-color, rgba(127,127,127,.08)); cursor: pointer; white-space: pre-wrap; }
+    .last { padding: 12px 14px; border-radius: var(--sm-rs); border-left: 4px solid var(--sm-accent); margin-bottom: 14px;
+      background: var(--sm-surf2); cursor: pointer; white-space: pre-wrap; }
     ${DIALOG_CSS.replace(/\.back[^}]+}|\.dlg[^}]+}/g, "")}
   `;
   async load() {
@@ -1288,7 +1811,7 @@ class SmoobuInboxCard extends SmoobuCard {
     const openCount = guests.filter((b) => status[b.id]?.offen).length;
     const items = guests.map((b) => { const op = !!status[b.id]?.offen;
       return `<div class="item ${s.sel === b.id ? "on" : ""} ${op ? "open" : ""}" data-rid="${b.id}">
-      <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span><div class="grow"><b>${esc(b.gast)}</b>${b.hund ? " 🐕" : ""}
+      <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span><div class="grow"><b>${esc(b.gast)}</b>${b.hund ? " 🐕" : ""}${this.code(b)}
       <div class="sub">${fdate(b.anreise)} – ${fdate(b.abreise)} · ${t(b.status)}</div>
       ${op ? `<span class="pending">💬 ${t("Antwort offen")}</span><button class="btn flat mini" data-noreply="${b.id}" title="${t("Keine Antwort nötig")}">✓ ${t("Keine Antwort nötig")}</button>` : ""}</div></div>`; }).join("");
     const th = s.thread;
@@ -1316,7 +1839,7 @@ class SmoobuInboxCard extends SmoobuCard {
           return `<select data-k="anlass" ${lock ? `disabled title="${tip}"` : ""}>${["antwort", "willkommen", "anreise", "abreise", "bewertung"].map((a) => `<option value="${a}">${a}</option>`).join("")}</select>
           <button class="btn flat ${lock ? "locked" : ""}" data-act="ai" ${s.thinking || lock ? "disabled" : ""} ${lock ? `title="${tip}"` : ""}>${lock ? `🔒 ${t("KI gesperrt")}` : s.thinking ? `⏳ ${t("KI denkt …")}` : `✨ ${t("Vorschlag")}`}</button>`; })() : ""}
           <span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>`;
-    return `<div class="row"><h2 class="grow">${esc(this._config.title || t("Posteingang"))}</h2>${openCount ? `<span class="opencount">💬 ${openCount} ${t("warten auf Antwort")}</span>` : ""}</div>${lastHtml}
+    return `<div class="head"><h2>${esc(this._config.title || t("Posteingang"))}</h2>${openCount ? `<span class="opencount">💬 ${openCount} ${t("warten auf Antwort")}</span>` : ""}</div>${lastHtml}
       <div class="wrap"><div>${items || `<div class="empty">${t("Keine Daten")}</div>`}</div><div>${right}</div></div>`;
   }
   bind(root) {
@@ -1362,7 +1885,7 @@ class SmoobuAssistantCard extends SmoobuCard {
   static initialState = () => ({ tab: "wissen", edit: null, filter: "" });
   static css = `
     .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; }
-    .kn { border: 1px solid var(--sm-line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+    .kn { border: 1px solid var(--sm-line); border-radius: var(--sm-rs); padding: 12px 14px; margin-bottom: 8px; }
     .kn.vorschlag { border-color: var(--sm-warn); background: color-mix(in srgb, var(--sm-warn) 8%, transparent); }
     .kn.aus { opacity: .55; }
     .kn .t { font-weight: 600; } .kn .x { white-space: pre-wrap; font-size: .88rem; margin-top: 4px; }
@@ -1372,8 +1895,8 @@ class SmoobuAssistantCard extends SmoobuCard {
     .prog { height: 6px; border-radius: 3px; background: var(--sm-line); overflow: hidden; margin-top: 6px; }
     .prog > div { height: 100%; background: var(--sm-accent); }
     .btn[disabled].locked { opacity: .45; cursor: not-allowed; }
-    .lockinfo { margin-top: 8px; padding: 8px 12px; border-radius: 10px; font-size: .85rem;
-      background: var(--secondary-background-color, rgba(127,127,127,.08)); border-left: 4px solid var(--sm-muted); }
+    .lockinfo { margin-top: 8px; padding: 10px 14px; border-radius: var(--sm-rs); font-size: .86rem;
+      background: var(--sm-surf2); border-left: 4px solid var(--sm-muted); }
   `;
   async load() {
     const st = await this.store.ws("smoobu/assistant/state", this.target, { cache: false });
@@ -1407,7 +1930,7 @@ class SmoobuAssistantCard extends SmoobuCard {
     const tab = this._state.tab;
     const imp = st.import || {};
     const pct = imp.buchungen ? Math.round((imp.fertig / imp.buchungen) * 100) : 0;
-    const head = `<div class="row"><h2 class="grow">🤖 ${esc(this._config.title || "Assistent")}</h2>
+    const head = `<div class="head"><h2>${esc(this._config.title || "Assistent")}</h2>
         ${st.ki_erlaubt === false ? `<span class="badge bad" title="${esc(st.ki_sperre || "")}">🔒 ${t("KI gesperrt")}</span>`
           : `<span class="badge ${st.aktiv ? "good" : "bad"}" title="Automatische Antwortvorschläge">${st.aktiv ? "aktiv" : "aus"}</span>`}
         <span class="badge">${esc(st.ki || "keine KI")}</span></div>
@@ -1494,9 +2017,109 @@ class SmoobuAssistantCard extends SmoobuCard {
 }
 
 // ===========================================================================
+// Kopfleiste (v1.15.0): Seiten-Navigation, Wohnungsauswahl, Hell/Dunkel/System
+// ===========================================================================
+// Eine Karte oben auf jeder Smoobu-Seite. Die Seitenpfade sind relativ zum
+// aktuellen Dashboard (z. B. „smoobu-belegung“ → /dashboard-x/smoobu-belegung).
+// Zusätzlich färbt sie den Seitenhintergrund passend zum gewählten Modus,
+// damit zwischen den Karten keine helle HA-Fläche im Dunkelmodus bleibt.
+const DEFAULT_PAGES = [
+  { name: "Übersicht", path: "smoobu" }, { name: "Belegung", path: "smoobu-belegung" },
+  { name: "Buchungen", path: "smoobu-buchungen" }, { name: "Finanzen", path: "smoobu-finanzen" },
+  { name: "Nachrichten", path: "smoobu-nachrichten", badge: "nachrichten" }, { name: "Assistent", path: "smoobu-assistent" },
+];
+const ICON_SVG = {
+  hell: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,
+  dunkel: `<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>`,
+  system: `<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>`,
+};
+class SmoobuHeaderCard extends SmoobuCard {
+  static defaults = { pages: DEFAULT_PAGES, show_apartments: true, page_background: true };
+  static css = `
+    ha-card { background: none; border: 0; padding: 14px 0 2px; overflow: visible; } /* Abstand zur HA-Kopfzeile */
+    .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+    .tabs a { padding: 8px 15px; border-radius: 999px; color: var(--sm-muted); font-weight: 500; text-decoration: none; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .tabs a:hover { color: var(--sm-ink); background: color-mix(in srgb, var(--sm-ink) 6%, transparent); }
+    .tabs a.on { background: var(--sm-accent); color: var(--sm-acc-ink); font-weight: 600; }
+    .tabs i { font-style: normal; font-size: .7rem; font-weight: 700; background: var(--sm-bad); color: #fff; border-radius: 9px; padding: 0 6px; line-height: 1.5; }
+    .right { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .seg button { display: inline-flex; gap: 6px; align-items: center; }
+    .seg.theme button[aria-pressed="true"] { background: var(--sm-accent); color: var(--sm-acc-ink); }
+    .seg svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .seg .n { opacity: .7; margin-left: 2px; }
+    @media (max-width: 700px) { .seg .lbl { display: none; } }
+  `;
+  async load() {
+    const info = await this.store.getInfo();
+    let open = 0;
+    if ((this._config.pages || []).some((p) => p.badge === "nachrichten")) {
+      try {
+        const list = await this.store.ws("smoobu/bookings", { ...this.target, start: iso(addDays(D(info.heute), -14)), end: iso(addDays(D(info.heute), 60)) });
+        const ids = list.buchungen.filter((b) => !b.blockiert && !b.storniert && b.status !== "vergangen").slice(0, 60).map((b) => b.id);
+        if (ids.length) {
+          const st = (await this.store.ws("smoobu/message_status", { ...this.target, reservation_ids: ids })).status || {};
+          open = Object.values(st).filter((x) => x.offen).length;
+        }
+      } catch (e) { open = 0; }
+    }
+    return { info, open };
+  }
+  href(path) {
+    if (path.startsWith("/")) return path;
+    const parts = location.pathname.split("/").filter(Boolean);
+    return `/${parts[0] || "lovelace"}/${path}`;
+  }
+  body({ info, open }) {
+    const here = location.pathname.split("/").filter(Boolean).pop();
+    const tabs = (this._config.pages || []).map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
+    const ws = info.wohnungen;
+    const sel = this.target.apartment_id;
+    const apts = this._config.show_apartments && ws.length > 1 && !this._config.apartment_id
+      ? `<div class="seg" role="group" aria-label="${t("Wohnung")}"><button data-apt="${ALL}" aria-pressed="${sel === ALL}">${t("Alle")}<span class="n">${ws.length}</span></button>
+        ${ws.map((w) => `<button data-apt="${w.apartment_id}" aria-pressed="${sel === w.apartment_id}" title="${esc(w.name)}">${esc(w.name)}</button>`).join("")}</div>` : "";
+    const mode = Theme.mode;
+    const theme = `<div class="seg theme" role="group" aria-label="${t("Darstellung")}">${[["hell", "Hell"], ["dunkel", "Dunkel"], ["system", "System"]]
+      .map(([k, l]) => `<button data-theme="${k}" aria-pressed="${mode === k}" title="${t(l)}">${ICON_SVG[k]}<span class="lbl">${t(l)}</span></button>`).join("")}</div>`;
+    return `<div class="bar"><nav class="tabs">${tabs}</nav><div class="right">${apts}${theme}</div></div>`;
+  }
+  render() {
+    super.render();
+    this.pageBackground();
+  }
+  // Hintergrund der Dashboard-Ansicht an den Modus anpassen (beim Verlassen wiederherstellen)
+  pageBackground() {
+    if (!this._config?.page_background) return;
+    let n = this, view = null;
+    for (let i = 0; i < 60 && n; i++) {
+      n = n.parentNode || n.host;
+      if (n?.localName === "hui-view" || n?.localName === "hui-panel-view" || n?.localName === "hui-sections-view") view = n;
+    }
+    if (!view) return;
+    if (this._view !== view) { this._restoreBg(); this._view = view; this._prevBg = view.style.background; }
+    view.style.background = PAL[DARK ? "dark" : "light"].bg;
+  }
+  _restoreBg() { if (this._view) { this._view.style.background = this._prevBg || ""; this._view = null; } }
+  disconnectedCallback() { this._restoreBg(); super.disconnectedCallback(); }
+  bind(root) {
+    root.querySelectorAll("[data-href]").forEach((el) => el.addEventListener("click", () => {
+      history.pushState(null, "", el.dataset.href);
+      window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+    }));
+    root.querySelectorAll("[data-theme]").forEach((el) => el.addEventListener("click", () => { Theme.mode = el.dataset.theme; }));
+    root.querySelectorAll("[data-apt]").forEach((el) => el.addEventListener("click", () => {
+      AptSel.value = el.dataset.apt === ALL ? ALL : Number(el.dataset.apt);
+    }));
+  }
+  getCardSize() { return 1; }
+}
+
+// ===========================================================================
 // Registrierung
 // ===========================================================================
 const CARDS = [
+  ["smoobu-header-card", SmoobuHeaderCard, "Smoobu Kopfleiste", "Seiten-Navigation, Wohnungsauswahl und Hell/Dunkel/System"],
   ["smoobu-overview-card", SmoobuOverviewCard, "Smoobu Übersicht", "Status, Gäste, Kennzahlen, Lücken, offene Zahlungen"],
   ["smoobu-timeline-card", SmoobuTimelineCard, "Smoobu Belegungsplan", "Belegung mit Preisen und Mindestaufenthalt; sperren und Preise setzen"],
   ["smoobu-bookings-card", SmoobuBookingsCard, "Smoobu Buchungen", "Buchungsliste mit Suche, Filtern, Summen und CSV-Export"],
@@ -1510,5 +2133,5 @@ window.customCards = window.customCards || [];
 for (const [type, , name, description] of CARDS) {
   if (!window.customCards.some((c) => c.type === type)) window.customCards.push({ type, name, description, preview: false });
 }
-console.info(`%c SMOOBU-CARDS %c ${SMOOBU_CARDS_VERSION} `, "background:#1E5BB8;color:#fff;padding:2px 4px;border-radius:3px 0 0 3px",
-  "background:#2E9E5B;color:#fff;padding:2px 4px;border-radius:0 3px 3px 0");
+console.info(`%c SMOOBU-CARDS %c ${SMOOBU_CARDS_VERSION} `, "background:#17211D;color:#fff;padding:2px 4px;border-radius:3px 0 0 3px",
+  "background:#2F6B4F;color:#fff;padding:2px 4px;border-radius:0 3px 3px 0");

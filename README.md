@@ -72,6 +72,16 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 
 Alle Bilder zeigen eine **erfundene Demo-Ferienwohnung**. Die Bilder stammen aus der echten Integration, aber mit Demodaten (`tools/screenshots/`). Echte Gäste- oder Umsatzdaten kommen darin nicht vor.
 
+**Übersicht (ab 1.15.0), hell und dunkel:** Status heute in einem Satz, aktueller und nächster Gast, Belegung der nächsten 6 Wochen mit Preisen, Kennzahlen mit 12-Monats-Verlauf, nächste Anreisen, freie Zeiträume, „Wartet auf dich“ (offene Nachrichten und Zahlungen)
+![Übersicht hell](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_hell.png)
+![Übersicht dunkel](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_dunkel.png)
+
+**Mehrere Wohnungen (ab 1.15.0):** Auswahl „Alle“ oder eine Wohnung oben rechts; Gesamtansicht mit Status je Wohnung, einer Belegungszeile je Wohnung und Wohnungskürzeln
+![Alle Wohnungen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_alle_hell.png)
+![Belegung alle Wohnungen dunkel](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_belegung_alle_dunkel.png)
+
+Einzelne Karten:
+
 **Übersicht:** Status, Anreise/Abreise/Gästewechsel heute, Kennzahlen mit Vorjahresvergleich, Lücken gegen den Mindestaufenthalt geprüft, offene Zahlungen
 ![Übersicht](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/uebersicht.png)
 
@@ -384,15 +394,22 @@ Die Integration bringt eigene Karten mit. Sie werden automatisch geladen (keine 
 
 | Karte | Inhalt | Optionen |
 |---|---|---|
-| `custom:smoobu-overview-card` | Status, Gäste-Kacheln, Anreise/Abreise/Gästewechsel heute, Hunde, Kennzahlen Monat/Jahr mit Vorjahr, Prognose, nächste Anreisen, **Lücken mit Prüfung gegen den Mindestaufenthalt**, offene Zahlungen | `title`, `entities` (eigene HA-Entitäten als Chips), `upcoming`, `gap_days`, `apartment_id` |
+| `custom:smoobu-header-card` (ab 1.15.0) | Kopfleiste: Seiten-Navigation (mit Zähler offener Nachrichten), **Wohnungsauswahl** „Alle / Wohnung …“ (ab 2 Wohnungen), **Hell / Dunkel / System**. Färbt auch den Seitenhintergrund passend | `pages` (Liste `name`, `path`, optional `badge: nachrichten`; Pfade relativ zum Dashboard), `show_apartments`, `page_background` |
+| `custom:smoobu-overview-card` | Status heute als kurzer Satz, aktueller und nächster Gast, Belegung der nächsten Wochen mit Preisen, Kennzahlen mit 12-Monats-Verlauf und Vorjahr, Prognose, nächste Anreisen, **freie Zeiträume mit Prüfung gegen den Mindestaufenthalt**, „Wartet auf dich“ (offene Nachrichten, Zahlungen) | `title`, `entities` (eigene HA-Entitäten als Chips), `upcoming`, `gap_days`, `band_days` (42), `apartment_id` |
 | `custom:smoobu-timeline-card` | Belegungsplan je Monat mit Kanalfarben, Sperrzeiten, Tagespreis, Mindestaufenthalt, nicht buchbaren Lücken. Tage markieren → **sperren** oder **Preis/Mindestaufenthalt setzen** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
 | `custom:smoobu-bookings-card` | Buchungsliste: Suche, Zeitraum, Kanal- und Statusfilter (inkl. Stornos, Sperrzeiten), Sortierung, Summen, CSV-Export | `title`, `period`, `status`, `apartment_id` |
 | `custom:smoobu-analytics-card` | Finanzen: Zeitraum frei (auch benutzerdefiniert), Kanäle mehrfach wählbar, Vergleich Vorjahr/Vorperiode. Kennzahlen mit Veränderung, gestapeltes Diagramm je Kanal mit Vergleichslinie, Anteile, Erkenntnisse, Kanaltabelle | `title`, `period`, `compare`, `apartment_id` |
 | `custom:smoobu-inbox-card` | Posteingang: laufende, kommende und kürzliche Buchungen, Nachrichtenverlauf, antworten, ✨ KI-Vorschlag. **Antwort offen** = neueste Nachricht kommt vom Gast (Nachrichten an den Gast, auch automatische, schließen); Button **„Keine Antwort nötig“** hakt sie ohne Antwort ab, bis der Gast erneut schreibt (rückgängig machbar) | `title`, `days_back`, `days_ahead`, `message_entity` |
 | `custom:smoobu-assistant-card` | KI-Assistent: Wissensdatenbank (freigeben, bearbeiten, vertraulich), Vorschläge, Gelerntes, Lücken, Import | `title` |
 
+**Design (ab 1.15.0):** Eigene, aufeinander abgestimmte Farben für hell und dunkel (Kanäle, Zustände, Flächen) und die Schrift *Schibsted Grotesk* (SIL OFL, wird mit der Integration ausgeliefert, kein externer Server). Der Modus wird **je Gerät** gespeichert; „System“ folgt dem Dunkelmodus von Home Assistant.
+
+**Mehrere Wohnungen (ab 1.15.0):** Ohne `apartment_id` folgen alle Karten der Wohnungsauswahl der Kopfleiste (je Gerät gespeichert). „Alle“ zeigt Daten aller Wohnungen zusammen: Umsätze summiert, Auslastung über alle verfügbaren Nächte, Listen mit Wohnungskürzel (automatisch aus dem Namen, z. B. „Haus Seeblick“ → „HS“), Belegungsplan mit einer Zeile je Wohnung, Finanzen mit Wohnungsvergleich. Sperren und Preise gelten immer für die markierte Wohnung. Eine Karte mit `apartment_id` bleibt fest bei dieser Wohnung. Bei nur einer Wohnung gibt es keine Auswahl.
+
 ```yaml
-# Beispiel: eigene Seite „Smoobu“ mit Übersicht und Belegungsplan
+# Beispiel: eigene Seite „Smoobu“ mit Kopfleiste, Übersicht und Belegungsplan
+type: custom:smoobu-header-card
+---
 type: custom:smoobu-overview-card
 entities:
   - climate.ferienwohnung
@@ -407,7 +424,7 @@ Datenquelle der Karten sind WebSocket-Befehle (`smoobu/info`, `smoobu/analytics`
 
 ### Dashboard-Vorlage
 
-[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) ist ein komplettes Dashboard mit 6 Seiten (Übersicht, Belegungsplan, Buchungen, Finanzen, Nachrichten, Assistent) und Navigationsleiste – so wie auf den [Screenshots](#screenshots).
+[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) ist ein komplettes Dashboard mit 6 Seiten (Übersicht, Belegung, Buchungen, Finanzen, Nachrichten, Assistent) und Kopfleiste – so wie auf den [Screenshots](#screenshots).
 
 1. **Einstellungen → Dashboards → Dashboard hinzufügen → Neues Dashboard von Grund auf**, URL z. B. `dashboard-ferienwohnung`
 2. Dashboard öffnen → ✎ → ⋮ → **Raw-Konfigurationseditor** → Inhalt der Vorlage einfügen → Speichern
@@ -712,6 +729,16 @@ This integration handles the signing and exposes all data natively in Home Assis
 ### Screenshots
 
 All images show a **fictional demo apartment**. They come from the real integration, but with demo data (`tools/screenshots/`). No real guest or revenue data appears in them.
+
+**Overview (since 1.15.0), light and dark:** today's status in one sentence, current and next guest, occupancy of the next 6 weeks with prices, key figures with 12-month trend, upcoming arrivals, free periods, "Waiting for you" (open messages and payments)
+![Overview light](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_hell.png)
+![Overview dark](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_dunkel.png)
+
+**Several properties (since 1.15.0):** select "All" or one property at the top right; combined view with status per property, one occupancy row per property and property codes
+![All properties](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_alle_hell.png)
+![Occupancy all properties dark](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_belegung_alle_dunkel.png)
+
+Single cards:
 
 **Overview:** status, arrivals/departures/changeover today, key figures vs. last year, gaps checked against the minimum stay, unpaid bookings
 ![Overview](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/uebersicht.png)
@@ -1027,12 +1054,17 @@ The integration ships its own cards. They are loaded automatically (no resource 
 
 | Card | Content | Options |
 |---|---|---|
-| `custom:smoobu-overview-card` | Status, guest tiles, arrivals/departures/changeover today, dogs, key figures month/year vs. last year, forecast, upcoming arrivals, **gaps checked against the minimum stay**, open payments | `title`, `entities`, `upcoming`, `gap_days`, `apartment_id` |
+| `custom:smoobu-header-card` (since 1.15.0) | Header: page navigation (with open-message counter), **property selector** "All / property …" (from 2 properties), **Light / Dark / System**. Also colours the page background | `pages` (list of `name`, `path`, optional `badge: nachrichten`; paths relative to the dashboard), `show_apartments`, `page_background` |
+| `custom:smoobu-overview-card` | Today's status as a short sentence, current and next guest, occupancy of the next weeks with prices, key figures with 12-month trend and previous year, forecast, upcoming arrivals, **free periods checked against the minimum stay**, "Waiting for you" (open messages, payments) | `title`, `entities`, `upcoming`, `gap_days`, `band_days` (42), `apartment_id` |
 | `custom:smoobu-timeline-card` | Occupancy plan per month with channel colours, blocks, daily price, minimum stay, unbookable gaps. Mark days → **block** or **set price/minimum stay** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
 | `custom:smoobu-bookings-card` | Booking list: search, period, channel and status filters (incl. cancellations, blocks), sorting, totals, CSV export | `title`, `period`, `status`, `apartment_id` |
 | `custom:smoobu-analytics-card` | Finance: free period (also custom), multiple channels, comparison previous year/period. Key figures with change, stacked chart per channel with comparison line, shares, insights, channel table | `title`, `period`, `compare`, `apartment_id` |
 | `custom:smoobu-inbox-card` | Inbox: current, upcoming and recent bookings, message thread, reply, ✨ AI suggestion. **Reply pending** = latest message is from the guest (messages to the guest, including automatic ones, close it); **"No reply needed"** marks it done without replying until the guest writes again (can be undone) | `title`, `days_back`, `days_ahead`, `message_entity` |
 | `custom:smoobu-assistant-card` | AI assistant: knowledge base (approve, edit, confidential), suggestions, learned examples, gaps, import | `title` |
+
+**Design (since 1.15.0):** dedicated, matched colours for light and dark (channels, states, surfaces) and the *Schibsted Grotesk* typeface (SIL OFL, shipped with the integration, no external server). The mode is stored **per device**; "System" follows Home Assistant's dark mode.
+
+**Several properties (since 1.15.0):** cards without `apartment_id` follow the property selector of the header (stored per device). "All" combines all properties: revenue summed, occupancy over all available nights, lists with a property code (derived from the name automatically), occupancy plan with one row per property, finance with a property comparison. Blocks and prices always apply to the marked property. A card with `apartment_id` stays on that property. With a single property there is no selector.
 
 The cards read data through WebSocket commands (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/message_status`, `smoobu/message_done`, `smoobu/subscribe`) and refresh themselves on every data update. All texts from Smoobu are escaped before display.
 
@@ -1040,7 +1072,7 @@ The cards read data through WebSocket commands (`smoobu/info`, `smoobu/analytics
 
 ### Dashboard template
 
-[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) is a complete dashboard with 6 pages (overview, occupancy plan, bookings, finance, messages, assistant) and a navigation bar – as shown in the [screenshots](#screenshots-1).
+[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) is a complete dashboard with 6 pages (overview, occupancy, bookings, finance, messages, assistant) and a header card – as shown in the [screenshots](#screenshots-1).
 
 1. **Settings → Dashboards → Add dashboard → New dashboard from scratch**, URL e.g. `dashboard-ferienwohnung`
 2. Open it → ✎ → ⋮ → **Raw configuration editor** → paste the template → Save

@@ -6,6 +6,26 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.15.0 – 2026-11-15
+
+**Deutsch**
+- **Neues Design der Dashboard-Karten** („Moos & Schiefer“): eigene, aufeinander abgestimmte Farben für hell und dunkel (Kanäle, Zustände, Flächen), Schrift *Schibsted Grotesk* (SIL OFL 1.1, lokal unter `www/fonts/`, kein externer Server), ruhigere Tabellen, Knöpfe und Chips
+- **Hell / Dunkel / System** je Gerät (gespeichert im Browser); „System“ folgt dem Dunkelmodus von Home Assistant. Gilt für alle Karten, die Buchungsdetails, Bestätigungen und Meldungen
+- Neue Karte **`custom:smoobu-header-card`**: Seiten-Navigation (Zähler offener Nachrichten), Wohnungsauswahl, Hell/Dunkel/System; färbt den Seitenhintergrund passend zum Modus
+- **Übersicht neu aufgebaut:** Status heute als kurzer, präziser Satz (Belegt bis / Abreise / Anreise / Gästewechsel / Frei bis) plus Monatsstand; aktueller und nächster Gast; Belegungsband der nächsten 6 Wochen (Balken von Tagesmitte zu Tagesmitte, Preise unter freien Nächten); Kennzahlenleiste mit 12-Monats-Verlauf (Monat, Auslastung, Jahr bis heute, Prognose ggü. Vorjahr gesamt, Netto je Nacht, Direktanteil mit gesparter Provision); nächste Anreisen, freie Zeiträume mit Preisspanne, **„Wartet auf dich“** (offene Gastnachrichten mit Textanfang, offene Zahlungen der nächsten 30 Tage)
+- **Mehrere Wohnungen:** Auswahl „Alle / Wohnung …“ (ab 2 Wohnungen, je Gerät). „Alle“: Kennzahlen summiert, Auslastung über alle verfügbaren Nächte, Status je Wohnung, Belegung mit einer Zeile je Wohnung, Buchungsliste mit Spalte Wohnung, Finanzen mit Wohnungsvergleich, Posteingang gemischt. Automatische Wohnungskürzel (`kuerzel` in `smoobu/info`). Karten mit `apartment_id` bleiben fest
+- WebSocket: `apartment_id: "alle"` für `bookings`, `analytics`, `booking`, `message_status`, `message_done` und den Assistenten; `analytics` liefert `einheiten`; `rates` lehnt „alle“ ab (Preise gehören zu einer Wohnung); `message_status` liefert `letzte_text` (Anfang der offenen Gastnachricht)
+- Dashboard-Vorlage auf die Kopfleiste umgestellt; Seiten-Screenshots hell/dunkel und mit 3 Wohnungen (`tools/screenshots/render_pages.py`)
+
+**English**
+- **New card design** ("Moss & Slate"): dedicated, matched colours for light and dark (channels, states, surfaces), *Schibsted Grotesk* typeface (SIL OFL 1.1, local in `www/fonts/`, no external server), calmer tables, buttons and chips
+- **Light / Dark / System** per device (stored in the browser); "System" follows Home Assistant's dark mode. Applies to all cards, booking details, confirmations and toasts
+- New card **`custom:smoobu-header-card`**: page navigation (open-message counter), property selector, light/dark/system; colours the page background to match
+- **Overview rebuilt:** today's status as a short, precise sentence plus month status; current and next guest; occupancy band for the next 6 weeks with prices; key-figure strip with 12-month trend; upcoming arrivals, free periods with price range, **"Waiting for you"** (open guest messages with text preview, open payments of the next 30 days)
+- **Several properties:** selector "All / property …" (from 2 properties, per device). "All": figures summed, occupancy over all available nights, status per property, one occupancy row per property, booking list with property column, finance with property comparison, combined inbox. Automatic property codes (`kuerzel` in `smoobu/info`). Cards with `apartment_id` stay fixed
+- WebSocket: `apartment_id: "alle"` for `bookings`, `analytics`, `booking`, `message_status`, `message_done` and the assistant; `analytics` returns `einheiten`; `rates` rejects "alle"; `message_status` returns `letzte_text`
+- Dashboard template switched to the header card; page screenshots light/dark and with 3 properties
+
 ## 1.14.0 – 2026-11-15
 
 **Deutsch**

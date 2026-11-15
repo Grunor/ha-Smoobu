@@ -13,9 +13,17 @@ Befehle (alle nur für angemeldete HA-Benutzer):
 - smoobu/message_done     „Keine Antwort erforderlich“ setzen/aufheben (v1.14.0)
 - smoobu/rates             Tagespreise, Mindestaufenthalt, Verfügbarkeit für einen Zeitraum
 - smoobu/subscribe         Meldung bei jedem neuen Datenstand (Karten laden dann neu)
+
+Ab v1.15.0 akzeptieren bookings, analytics, booking, message_status,
+message_done und der Assistent `apartment_id: "alle"` (Ansicht „Alle
+Wohnungen“): Datensätze aller Wohnungen aller geladenen Smoobu-Konten,
+Auslastung über die Summe der verfügbaren Nächte. rates bleibt je Wohnung,
+weil Preise immer zu genau einer Wohnung gehören.
 """
 
 from __future__ import annotations
+
+import re
 
 from datetime import date, timedelta
 from typing import Any
@@ -65,21 +73,85 @@ def _coordinators(hass: HomeAssistant) -> list[SmoobuCoordinator]:
     ]
 
 
-def _resolve(hass: HomeAssistant, msg: dict[str, Any]) -> tuple[SmoobuCoordinator, int]:
-    """Coordinator + Wohnung aus entry_id/apartment_id, sonst die erste."""
+ALL = "alle"  # apartment_id für die Ansicht „Alle Wohnungen“ (v1.15.0)
+
+
+def _targets(hass: HomeAssistant, msg: dict[str, Any]) -> list[tuple[SmoobuCoordinator, int]]:
+    """Alle (Coordinator, Wohnung)-Paare, die eine Anfrage betrifft.
+
+    apartment_id = Zahl → genau diese Wohnung; „alle“ → jede Wohnung jedes
+    geladenen Kontos (optional auf entry_id begrenzt); fehlt sie → die erste
+    Wohnung (Verhalten bis v1.14, damit bestehende Karten unverändert bleiben).
+    """
     coords = _coordinators(hass)
     if entry_id := msg.get("entry_id"):
         coords = [c for c in coords if c.config_entry.entry_id == entry_id]
     if not coords:
         raise vol.Invalid("Keine geladene Smoobu-Integration")
     apt = msg.get("apartment_id")
-    for c in coords:
-        apts = list(c.data.apartments) if c.data else []
-        if apt is None and apts:
-            return c, apts[0]
-        if apt in apts:
-            return c, apt
+    pairs = [(c, a) for c in coords for a in (list(c.data.apartments) if c.data else [])]
+    if apt == ALL:
+        if not pairs:
+            raise vol.Invalid("Keine Wohnung gefunden")
+        return pairs
+    if apt is None:
+        if pairs:
+            return pairs[:1]
+        raise vol.Invalid("Keine Wohnung gefunden")
+    for c, a in pairs:
+        if a == apt:
+            return [(c, a)]
     raise vol.Invalid(f"Wohnung {apt} nicht gefunden")
+
+
+def _resolve(hass: HomeAssistant, msg: dict[str, Any]) -> tuple[SmoobuCoordinator, int]:
+    """Coordinator + Wohnung; bei „alle“ die Wohnung der Buchung (reservation_id), sonst die erste."""
+    pairs = _targets(hass, msg)
+    rid = msg.get("reservation_id")
+    if len(pairs) > 1 and rid is not None:
+        for c, a in pairs:
+            if any(r["id"] == rid for r in c.records(a)):
+                return c, a
+    return pairs[0]
+
+
+def _apt_id(value: Any) -> Any:
+    """apartment_id aus der Anfrage: „alle“ bleibt Text, sonst ganze Zahl."""
+    if value == ALL:
+        return ALL
+    return vol.Coerce(int)(value)
+
+
+# Allgemeine Wörter, die im Kürzel nichts unterscheiden („Ferienwohnung Seeblick“ → „SE“)
+_GENERIC = {"ferienwohnung", "fewo", "wohnung", "apartment", "appartement", "ferienhaus", "studio", "zimmer"}
+
+
+def short_codes(names: list[str]) -> list[str]:
+    """Automatische, eindeutige Kürzel je Wohnung (v1.15.0), z. B. „Haus Sonnenhang“ → „HS“.
+
+    Mehrere Wörter → Anfangsbuchstaben der ersten beiden (Zahlen ganz),
+    ein Wort → die ersten zwei Buchstaben. Allgemeine Wörter (Ferienwohnung …)
+    zählen nur, wenn sonst nichts übrig bleibt. Doppelte Kürzel bekommen 2, 3 …
+    """
+    out: list[str] = []
+    for name in names:
+        words = re.findall(r"[0-9]+|[^\W\d_]+", name or "")
+        useful = [w for w in words if w.casefold() not in _GENERIC] or words
+        if useful and all(w.isdigit() for w in useful) and useful != words:
+            useful = [words[0], *useful]  # „Wohnung 2“ → „W2“ statt nur „2“
+        if not useful:
+            code = "?"
+        elif len(useful) == 1:
+            code = useful[0][:2] if not useful[0].isdigit() else useful[0]
+        else:
+            code = "".join(w if w.isdigit() else w[0] for w in useful[:2])
+        code = code.upper()
+        base, n = code, 2
+        while code in out:
+            code = f"{base}{n}"
+            n += 1
+        out.append(code)
+    return out
 
 
 def channel_colors(names: list[str]) -> dict[str, str]:
@@ -115,7 +187,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_assistant_job)
 
 
-_TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): vol.Coerce(int)}
+_TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): _apt_id}
 
 
 @websocket_api.websocket_command({vol.Required("type"): "smoobu/info"})
@@ -144,6 +216,8 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
                     "aktualisiert": c.data.last_update.isoformat() if c.data and c.data.last_update else None,
                 }
             )
+    for apt, code in zip(result, short_codes([w["name"] or str(w["apartment_id"]) for w in result])):
+        apt["kuerzel"] = code
     connection.send_result(
         msg["id"],
         {"wohnungen": result, "zeitraeume": PERIODS, "vergleiche": COMPARES, "sperr_farbe": BLOCKED_COLOR,
@@ -165,11 +239,11 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
 @callback
 def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     try:
-        c, apt = _resolve(hass, msg)
+        pairs = _targets(hass, msg)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
-    recs = c.records(apt)
+    recs = [r for c, a in pairs for r in c.records(a)]
     today = dt_util.now().date()
     if msg.get("period"):
         first = min((date.fromisoformat(r["anreise"]) for r in recs), default=None)
@@ -181,7 +255,7 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         connection.send_error(msg["id"], "invalid_range", "Ende muss nach dem Start liegen")
         return
     channels = msg.get("channels") or None
-    result = analyze_with_compare(recs, start, end, channels, msg["compare"], today=today)
+    result = analyze_with_compare(recs, start, end, channels, msg["compare"], today=today, units=len(pairs))
     result["prognose"] = forecast_year(recs, today, channels)
     result["farben"] = channel_colors([ch["name"] for ch in channels_of(recs)])
     connection.send_result(msg["id"], result)
@@ -201,7 +275,7 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
 @callback
 def ws_bookings(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     try:
-        c, apt = _resolve(hass, msg)
+        pairs = _targets(hass, msg)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
@@ -210,7 +284,10 @@ def ws_bookings(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
     status = set(msg.get("status") or [])
     needle = (msg.get("search") or "").casefold().strip()
     out = []
-    for r in c.records(apt):
+    recs = [r for c, a in pairs for r in c.records(a)]
+    if len(pairs) > 1:  # gemischt → nach Anreise sortieren wie bei einer Wohnung
+        recs.sort(key=lambda r: (r["anreise"], r["id"]))
+    for r in recs:
         if start and r["abreise"] <= start.isoformat():
             continue
         if end and r["anreise"] >= end.isoformat():
@@ -279,11 +356,19 @@ async def ws_booking(hass: HomeAssistant, connection: websocket_api.ActiveConnec
 async def ws_message_status(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Posteingang: welche Gäste warten auf eine Antwort? (Schlüssel = Buchungs-ID als Text)"""
     try:
-        c, _apt = _resolve(hass, msg)
+        pairs = _targets(hass, msg)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
-    status = await c.async_message_status(msg["reservation_ids"])
+    # Je Konto nur dessen Buchungen abfragen (Buchungs-IDs gelten je Smoobu-Konto)
+    ids = msg["reservation_ids"]
+    status: dict[Any, Any] = {}
+    coords = list(dict.fromkeys(c for c, _a in pairs))
+    for c in coords:
+        own = {r["id"] for r in c.records_all()}
+        mine = ids if len(coords) == 1 else [i for i in ids if i in own]
+        if mine:
+            status.update(await c.async_message_status(mine))
     connection.send_result(msg["id"], {"status": {str(k): v for k, v in status.items()}})
 
 
@@ -316,6 +401,9 @@ async def ws_message_done(hass: HomeAssistant, connection: websocket_api.ActiveC
 )
 @websocket_api.async_response
 async def ws_rates(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    if msg.get("apartment_id") == ALL:  # Preise gehören immer zu genau einer Wohnung
+        connection.send_error(msg["id"], "invalid_target", "Preise nur je Wohnung abrufbar")
+        return
     try:
         c, apt = _resolve(hass, msg)
     except vol.Invalid as err:

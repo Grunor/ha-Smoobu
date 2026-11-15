@@ -400,10 +400,17 @@ def analyze(
     end: date,
     selection: str | Iterable[str] | None = None,
     series: bool = True,
+    units: int = 1,
 ) -> dict[str, Any]:
-    """Kennzahlen gesamt, je Kanal und (optional) als Monats-/Tagesreihe."""
+    """Kennzahlen gesamt, je Kanal und (optional) als Monats-/Tagesreihe.
+
+    `units` = Anzahl Wohnungen in `records` (v1.15.0, Ansicht „Alle Wohnungen“):
+    verfügbare Nächte = Tage × Wohnungen, damit die Auslastung über alle
+    Wohnungen gerechnet wird statt über 100 % hinauszulaufen.
+    """
     match = channel_filter(selection)
-    days = max((end - start).days, 0)
+    units = max(int(units or 1), 1)
+    days = max((end - start).days, 0) * units
     total = _empty()
     per_channel: dict[str, dict[str, Any]] = {}
     groups: dict[str, str | None] = {}
@@ -441,7 +448,8 @@ def analyze(
     result["direktanteil_prozent"] = _pct(direct, result["brutto"])
     result["von"] = start.isoformat()
     result["bis"] = end.isoformat()
-    result["tage"] = days
+    result["tage"] = days // units
+    result["einheiten"] = units
     if series:
         result["reihe"] = _series(records, start, end, match)
     return result
@@ -528,12 +536,13 @@ def analyze_with_compare(
     mode: str,
     series: bool = True,
     today: date | None = None,
+    units: int = 1,
 ) -> dict[str, Any]:
     """Auswertung + Vergleichszeitraum + Veränderungen je Kennzahl.
 
     `today` wird nur für „vorjahr_stand“ gebraucht (Stichtag = gleicher Tag im Vorjahr).
     """
-    result = analyze(records, start, end, selection, series)
+    result = analyze(records, start, end, selection, series, units)
     rng = compare_range(start, end, mode)
     if rng is None:
         result["vergleich"] = None
@@ -543,7 +552,7 @@ def analyze_with_compare(
         stichtag = _prev_year(today or date.today())
         base = as_of(records, stichtag)
         result["stichtag_vergleich"] = stichtag.isoformat()
-    cmp = analyze(base, rng[0], rng[1], selection, series)
+    cmp = analyze(base, rng[0], rng[1], selection, series, units)
     result["vergleich"] = cmp
     result["veraenderung_prozent"] = {k: change(result.get(k), cmp.get(k)) for k in COMPARE_KEYS}
     # Prozentwerte (Auslastung, Kostenquote, Stornoquote) zusätzlich als Punkte

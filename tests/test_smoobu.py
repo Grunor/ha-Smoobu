@@ -631,3 +631,47 @@ async def test_no_reply_and_guest_message(hass, setup, hass_ws_client, aioclient
     await c.async_fetch_last_message(2, "host")
     await c.async_fetch_last_message(2, None)
     assert c.data.last_message["nachricht_id"] == 13
+
+
+def test_short_codes():
+    """v1.15.0: automatische, eindeutige Wohnungskürzel."""
+    from custom_components.smoobu.websocket_api import short_codes
+
+    assert short_codes(["Haus Sonnenhang", "Altmühlblick", "Ferienwohnung Seeblick", "Wohnung 2", "Haus Sonnenberg"]) == [
+        "HS", "AL", "SE", "W2", "HS2"]
+    assert short_codes(["", "Studio"]) == ["?", "ST"]
+
+
+def test_analytics_units():
+    """v1.15.0: Auslastung über mehrere Wohnungen = Nächte ÷ (Tage × Wohnungen)."""
+    from datetime import date
+
+    from custom_components.smoobu.analytics import analyze
+
+    rec = {"anreise": "2026-11-01", "abreise": "2026-11-11", "naechte": 10, "brutto": 1000.0, "provision": 0.0,
+           "zahlungsgebuehr": 0.0, "netto": 1000.0, "blockiert": False, "storniert": False, "kanal": "Direct booking",
+           "gruppe": "Direkt", "personen": 2, "vorlauf_tage": 5, "hund": False, "erstellt": None}
+    one = analyze([rec], date(2026, 11, 1), date(2026, 12, 1), series=False)
+    two = analyze([rec, {**rec}], date(2026, 11, 1), date(2026, 12, 1), series=False, units=2)
+    assert one["auslastung_prozent"] == 33.3 and one["einheiten"] == 1
+    assert two["auslastung_prozent"] == 33.3 and two["naechte"] == 20 and two["tage"] == 30 and two["einheiten"] == 2
+
+
+async def test_websocket_all_apartments(hass, setup, hass_ws_client):
+    """v1.15.0: apartment_id „alle“ wird angenommen; rates bleibt je Wohnung."""
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "smoobu/info"})
+    info = (await ws.receive_json())["result"]
+    assert info["wohnungen"][0]["kuerzel"] == "FE"
+    await ws.send_json({"id": 2, "type": "smoobu/bookings", "apartment_id": "alle"})
+    res = (await ws.receive_json())["result"]
+    assert res["anzahl"] >= 1 and all("wohnung_id" in b for b in res["buchungen"])
+    await ws.send_json({"id": 3, "type": "smoobu/analytics", "apartment_id": "alle", "period": "monat"})
+    res = (await ws.receive_json())["result"]
+    assert res["einheiten"] == 1 and "brutto" in res
+    await ws.send_json({"id": 4, "type": "smoobu/rates", "apartment_id": "alle"})
+    res = await ws.receive_json()
+    assert not res["success"] and res["error"]["code"] == "invalid_target"
+    await ws.send_json({"id": 5, "type": "smoobu/bookings", "apartment_id": 999})
+    res = await ws.receive_json()
+    assert not res["success"]
