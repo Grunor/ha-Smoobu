@@ -493,3 +493,23 @@ async def test_assistant(hass, setup, hass_ws_client, aioclient_mock):
     assert strip_quote("Danke!\nVon meinem Galaxy gesendet") == "Danke!"
     assert strip_quote("Grüße ThomasVon meinem/meiner Galaxy gesendet\n---- alt") == "Grüße Thomas"
     assert rank("fahrrad unterstellen", ["wo parken", "fahrrad in der garage unterstellen"]) == [1]
+
+    # Import: Vorlagen (gleicher Betreff in ≥ 3 Buchungen) sind keine Antworten
+    msgs = {
+        1: [{"id": 11, "type": 2, "subject": "Willkommen", "message": "Danke für Deine Buchung"},
+            {"id": 12, "type": 1, "message": "Darf der Hund mit?"},
+            {"id": 13, "type": 2, "subject": "Willkommen", "message": "Danke für Deine Buchung"},
+            {"id": 14, "type": 2, "message": "Gerne, 15 € Reinigung. Code ist 2025"}],
+        2: [{"id": 21, "type": 2, "subject": "Willkommen", "message": "Danke für Deine Buchung"}],
+    }
+
+    async def fake_msgs(rid):
+        return msgs.get(rid, [{"id": 31, "type": 2, "subject": "Willkommen", "message": "Danke für Deine Buchung"}])
+
+    a._messages = fake_msgs
+    a.throttle = 0
+    st = await a.import_history(5)
+    ex = [b for b in a.data["beispiele"] if b["quelle"] == "verlauf"]
+    assert st["beispiele"] == 1 and ex[0]["gast"] == "Darf der Hund mit?"
+    assert ex[0]["antwort"] == "Gerne, 15 € Reinigung. Code ist [CODE]"
+    assert a.data["vorlagen_betreff"] == ["Willkommen"]

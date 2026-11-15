@@ -90,3 +90,15 @@ def test_block_channel():
             {"blockiert": True, "kanal": "Blocked channel", "kanal_id": 7}]
     assert block_channel_id(recs) == 7
     assert block_channel_id(recs[:2]) == 5
+
+
+def test_assistant_clean_redact():
+    from custom_components.smoobu.assistant import clean
+    t = clean("Hallo Carmen,\nAnbei die Kontodaten:\nDE31 7655 0000 0009 0888 32\nLiebe Grüße")
+    assert "DE31" not in t and "[IBAN]" in t
+    t = clean("Der Code ist 2025, Mail an info@example.de oder 0176-40464701")
+    assert "2025" not in t and "[CODE]" in t and "[E-MAIL]" in t and "[TELEFON]" in t
+    assert clean("Danke&nbsp;Betreiber\nGesendet von Outlook für iOSVon: x") == "Danke Betreiber"
+    assert clean("Kein Problem\n\n schrieb am Do., 31. Juli 2025:\n> Hallo") == "Kein Problem"
+    assert "[LINK]" in clean("Mappe: https://guest.smoobu.com/?t=abc&b=1")
+    assert clean("Ankunft 21:30, 3 Nächte, 2025 war schön") == "Ankunft 21:30, 3 Nächte, 2025 war schön"
