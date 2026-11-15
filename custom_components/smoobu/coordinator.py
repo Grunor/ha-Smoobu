@@ -42,6 +42,7 @@ from .models import (
     SmoobuData,
     nights_by_month,
     revenue_by_month,
+    strip_html,
     booking_end,
     booking_release,
     booking_start,
@@ -59,6 +60,9 @@ _LOGGER = logging.getLogger(__name__)
 APARTMENT_REFRESH = timedelta(hours=24)
 # Umsatzdaten (Vorjahr + laufendes Jahr) stündlich bzw. nach Webhook neu laden.
 REVENUE_REFRESH = timedelta(hours=1)
+# Tagespreise/Verfügbarkeit: 60 Tage Vorschau, stündlich neu laden.
+RATES_DAYS = 60
+RATES_REFRESH = timedelta(hours=1)
 
 
 class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
@@ -86,6 +90,9 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         self._revenue_loaded: Any = None
         self._revenue_bookings: list[dict[str, Any]] = []
         self.force_revenue_refresh = False
+        # Tagespreise-Cache
+        self._rates_loaded: Any = None
+        self._rates: dict[int, dict[str, dict[str, Any]]] = {}
         # Zeitraum (von, bis) der zuletzt geladenen Buchungen.
         self.window: tuple[Any, Any] = (None, None)
 
@@ -130,6 +137,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             bookings = await self._async_load_bookings()
             bookings = await self._async_enrich(bookings)
             revenue_bookings = await self._async_load_revenue_bookings()
+            rates = await self._async_load_rates(apartments)
         except SmoobuAuthError as err:
             # Löst in HA den Reauth-Dialog aus (neuer Schlüssel/Secret).
             raise ConfigEntryAuthFailed(str(err)) from err
@@ -185,7 +193,71 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             revenue_earned=earned,
             guest_nights=g_nights,
             blocked_nights=b_nights,
+            rates=rates,
+            last_message=previous.last_message,
         )
+
+    async def _async_load_rates(
+        self, apartments: dict[int, dict[str, Any]]
+    ) -> dict[int, dict[str, dict[str, Any]]]:
+        """Tagespreise der nächsten 60 Tage (gecacht 1 h, Fehler nicht fatal)."""
+        now = dt_util.utcnow()
+        if (
+            self._rates_loaded
+            and not self.force_revenue_refresh
+            and now - self._rates_loaded < RATES_REFRESH
+        ):
+            return self._rates
+        today = dt_util.now().date()
+        end = today + timedelta(days=RATES_DAYS)
+        rates: dict[int, dict[str, dict[str, Any]]] = {}
+        for apt_id in apartments:
+            try:
+                rates[apt_id] = await self.client.get_rates(
+                    apt_id, today.isoformat(), end.isoformat()
+                )
+            except SmoobuAuthError:
+                raise
+            except SmoobuError as err:
+                # Preise sind Zusatzdaten – ohne sie läuft der Rest weiter.
+                _LOGGER.debug("Tagespreise %s nicht ladbar: %s", apt_id, err)
+                rates[apt_id] = self._rates.get(apt_id, {})
+        self._rates = rates
+        self._rates_loaded = now
+        return rates
+
+    async def async_fetch_last_message(self, reservation_id: int, sender: str | None) -> None:
+        """Neueste Nachricht einer Buchung laden (nach Webhook „newMessage“)."""
+        try:
+            messages = await self.client.get_messages(reservation_id, True)
+        except SmoobuError as err:
+            _LOGGER.debug("Nachrichten zu Buchung %s nicht ladbar: %s", reservation_id, err)
+            return
+        if not messages or self.data is None:
+            return
+        latest = max(messages, key=lambda m: int(m.get("id") or 0))
+        text = strip_html(latest.get("message") or latest.get("messageHtml") or latest.get("htmlMessage") or "")
+        # Gast und Wohnung aus den geladenen Buchungen ergänzen
+        booking = next(
+            (
+                b
+                for items in self.data.bookings.values()
+                for b in items
+                if int(b.get("id") or 0) == int(reservation_id)
+            ),
+            {},
+        )
+        self.data.last_message = {
+            "text": text,
+            "betreff": latest.get("subject"),
+            "absender": sender,
+            "nachricht_id": latest.get("id"),
+            "buchungs_id": reservation_id,
+            "gast": guest_name(booking) if booking else None,
+            "wohnung": (booking.get("apartment") or {}).get("name") if booking else None,
+            "empfangen": dt_util.now().isoformat(),
+        }
+        self.async_update_listeners()
 
     async def _async_load_revenue_bookings(self) -> list[dict[str, Any]]:
         """Alle Buchungen mit Nächten im Vorjahr, laufenden Jahr und Januar des Folgejahres

@@ -51,6 +51,13 @@ def mock_api(aioclient_mock):
     aioclient_mock.get(f"{BASE}/api/reservations/1", json={**BOOKINGS[0], "firstname": "Anna", "lastname": "Beispiel", "city-tax": 7.5})
     aioclient_mock.get(f"{BASE}/api/reservations/2", json={**BOOKINGS[1], "firstname": "Max", "lastname": "Mustermann"})
     aioclient_mock.get(f"{BASE}/api/reservations", json={"page_count": 1, "page_size": 100, "total_items": 3, "page": 1, "bookings": BOOKINGS})
+    rates = {}
+    for i in range(0, 61):
+        day = d(i)
+        # belegt: 15. (laufend), 18.–20. (Buchung 2), 25.–26. (Sperrzeit) → nicht verfügbar
+        busy = day in (d(0), d(3), d(4), d(5), d(10), d(11))
+        rates[day] = {"price": 80 + i, "min_length_of_stay": 2, "available": 0 if busy else 1}
+    aioclient_mock.get(f"{BASE}/api/rates", json={"data": {"123": rates}})
     aioclient_mock.get(f"{BASE}/api/users/webhooks", json={"webhooks": []})
     aioclient_mock.post(f"{BASE}/api/users/webhooks", json={"id": 77, "webhookUrl": "x"}, status=201)
     aioclient_mock.get(f"{BASE}/api/reservations/2/messages", json={"page_count": 1, "messages": [{"id": 5, "subject": "Hi", "message": "Hallo"}]})
@@ -264,3 +271,34 @@ async def test_month_compare_occupancy_blocked(hass, setup):
     assert vm.attributes["monat"] == "2026-10"
     fm = hass.states.get("sensor.smoobu_ferienwohnung_umsatz_folgemonat")
     assert fm.attributes["monat"] == "2026-12"
+
+
+async def test_rates_gaps_fields_message(hass, setup, hass_client_no_auth, aioclient_mock):
+    """Tagespreise, Lücken, einzelne Buchungsfelder, letzte Gästenachricht."""
+    assert float(hass.states.get("sensor.smoobu_ferienwohnung_preis_heute").state) == 80.0
+    assert float(hass.states.get("sensor.smoobu_ferienwohnung_preis_morgen").state) == 81.0
+    assert hass.states.get("sensor.smoobu_ferienwohnung_mindestaufenthalt_heute").state == "2"
+    assert hass.states.get("sensor.smoobu_ferienwohnung_nachster_freier_tag").state == "2026-11-16"
+    # Lücke zwischen Buchung 1 (bis 16.) und Buchung 2 (ab 18.): 16.–18. (2 Nächte)
+    gap = hass.states.get("sensor.smoobu_ferienwohnung_nachste_lucke")
+    assert gap.state == "2026-11-16"
+    assert gap.attributes["naechte"] == 2 and gap.attributes["buchbar"] is True
+    # Einzelfelder
+    assert hass.states.get("sensor.smoobu_ferienwohnung_aktueller_gast_e_mail").state == "a@b.de"
+    assert hass.states.get("sensor.smoobu_ferienwohnung_aktueller_gast_kanal").state == "Airbnb"
+    assert hass.states.get("sensor.smoobu_ferienwohnung_nachster_gast_check_in_zeit").state == "20:00"
+    assert hass.states.get("binary_sensor.smoobu_ferienwohnung_nachster_gast_anzahlung_bezahlt").state == "on"
+    assert hass.states.get("sensor.smoobu_ferienwohnung_aktueller_gast_buchungs_id") is None  # deaktiviert
+    # Gästenachricht per Webhook
+    # Mock neu aufbauen: Nachrichten-Antwort zuerst registrieren (erster Treffer gewinnt)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{BASE}/api/reservations/2/messages", json={"page_count": 1, "messages": [
+        {"id": 5, "subject": "Hi", "message": "alt"}, {"id": 9, "subject": "Frage", "message": "Wo ist der <b>Schlüssel</b>?<br>Danke"}]})
+    mock_api(aioclient_mock)
+    client = await hass_client_no_auth()
+    r = await client.post(f"/api/webhook/{setup.data['webhook_id']}", json={"action": "newMessage", "user": 999, "data": {"id": 9, "sender": "guest", "booking": {"id": 2}}})
+    assert r.status == 200
+    await hass.async_block_till_done()
+    msg = hass.states.get("sensor.smoobu_letzte_gastenachricht")
+    assert msg.state == "Wo ist der Schlüssel? Danke", msg.state
+    assert msg.attributes["gast"] == "Max Mustermann"

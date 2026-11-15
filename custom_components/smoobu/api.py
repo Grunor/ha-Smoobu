@@ -271,6 +271,28 @@ class SmoobuClient:
             path = f"/api/reservations/{reservation_id}/messages/send-message-to-guest"
         await self.request("POST", path, body=body)
 
+    async def get_rates(
+        self, apartment_id: int, start_date: str, end_date: str
+    ) -> dict[str, dict[str, Any]]:
+        """Tagespreise/Mindestaufenthalt/Verfügbarkeit einer Wohnung.
+
+        Antwort von Smoobu: {"data": {"<aptId>": {"YYYY-MM-DD": {price,
+        min_length_of_stay, available}}}} → hier nur das innere Dict.
+        """
+        data = (
+            await self.request(
+                "GET",
+                "/api/rates",
+                params={
+                    "apartments[]": apartment_id,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                },
+            )
+            or {}
+        )
+        return (data.get("data") or {}).get(str(apartment_id)) or {}
+
     # --- Webhook-Verwaltung ---------------------------------------------
     async def list_webhooks(self) -> list[dict[str, Any]]:
         data = await self.request("GET", "/api/users/webhooks") or {}

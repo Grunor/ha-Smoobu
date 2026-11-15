@@ -90,6 +90,24 @@
       },
       "hund_naechster_gast": {
         "name": "Hund nächster Gast"
+      },
+      "aktueller_gast_preis_bezahlt": {
+        "name": "Aktueller Gast Preis bezahlt"
+      },
+      "naechster_gast_preis_bezahlt": {
+        "name": "Nächster Gast Preis bezahlt"
+      },
+      "aktueller_gast_anzahlung_bezahlt": {
+        "name": "Aktueller Gast Anzahlung bezahlt"
+      },
+      "naechster_gast_anzahlung_bezahlt": {
+        "name": "Nächster Gast Anzahlung bezahlt"
+      },
+      "aktueller_gast_kaution_bezahlt": {
+        "name": "Aktueller Gast Kaution bezahlt"
+      },
+      "naechster_gast_kaution_bezahlt": {
+        "name": "Nächster Gast Kaution bezahlt"
       }
     },
     "sensor": {
@@ -169,6 +187,183 @@
       },
       "gesperrte_naechte_monat": {
         "name": "Gesperrte Nächte Monat"
+      },
+      "aktueller_gast_buchungs_id": {
+        "name": "Aktueller Gast Buchungs-ID"
+      },
+      "naechster_gast_buchungs_id": {
+        "name": "Nächster Gast Buchungs-ID"
+      },
+      "aktueller_gast_referenz_id": {
+        "name": "Aktueller Gast Referenz-ID"
+      },
+      "naechster_gast_referenz_id": {
+        "name": "Nächster Gast Referenz-ID"
+      },
+      "aktueller_gast_gast_id": {
+        "name": "Aktueller Gast Gast-ID"
+      },
+      "naechster_gast_gast_id": {
+        "name": "Nächster Gast Gast-ID"
+      },
+      "aktueller_gast_typ": {
+        "name": "Aktueller Gast Buchungstyp"
+      },
+      "naechster_gast_typ": {
+        "name": "Nächster Gast Buchungstyp"
+      },
+      "aktueller_gast_kanal": {
+        "name": "Aktueller Gast Kanal"
+      },
+      "naechster_gast_kanal": {
+        "name": "Nächster Gast Kanal"
+      },
+      "aktueller_gast_sprache": {
+        "name": "Aktueller Gast Sprache"
+      },
+      "naechster_gast_sprache": {
+        "name": "Nächster Gast Sprache"
+      },
+      "aktueller_gast_email": {
+        "name": "Aktueller Gast E-Mail"
+      },
+      "naechster_gast_email": {
+        "name": "Nächster Gast E-Mail"
+      },
+      "aktueller_gast_telefon": {
+        "name": "Aktueller Gast Telefon"
+      },
+      "naechster_gast_telefon": {
+        "name": "Nächster Gast Telefon"
+      },
+      "aktueller_gast_erwachsene": {
+        "name": "Aktueller Gast Erwachsene"
+      },
+      "naechster_gast_erwachsene": {
+        "name": "Nächster Gast Erwachsene"
+      },
+      "aktueller_gast_kinder": {
+        "name": "Aktueller Gast Kinder"
+      },
+      "naechster_gast_kinder": {
+        "name": "Nächster Gast Kinder"
+      },
+      "aktueller_gast_personen": {
+        "name": "Aktueller Gast Personen"
+      },
+      "naechster_gast_personen": {
+        "name": "Nächster Gast Personen"
+      },
+      "aktueller_gast_naechte": {
+        "name": "Aktueller Gast Nächte"
+      },
+      "naechster_gast_naechte": {
+        "name": "Nächster Gast Nächte"
+      },
+      "aktueller_gast_check_in_zeit": {
+        "name": "Aktueller Gast Check-in-Zeit"
+      },
+      "naechster_gast_check_in_zeit": {
+        "name": "Nächster Gast Check-in-Zeit"
+      },
+      "aktueller_gast_check_out_zeit": {
+        "name": "Aktueller Gast Check-out-Zeit"
+      },
+      "naechster_gast_check_out_zeit": {
+        "name": "Nächster Gast Check-out-Zeit"
+      },
+      "aktueller_gast_anreise": {
+        "name": "Aktueller Gast Anreise"
+      },
+      "naechster_gast_anreise": {
+        "name": "Nächster Gast Anreise"
+      },
+      "aktueller_gast_abreise": {
+        "name": "Aktueller Gast Abreise"
+      },
+      "naechster_gast_abreise": {
+        "name": "Nächster Gast Abreise"
+      },
+      "aktueller_gast_freigabe": {
+        "name": "Aktueller Gast Freigabe"
+      },
+      "naechster_gast_freigabe": {
+        "name": "Nächster Gast Freigabe"
+      },
+      "aktueller_gast_anzahlung": {
+        "name": "Aktueller Gast Anzahlung"
+      },
+      "naechster_gast_anzahlung": {
+        "name": "Nächster Gast Anzahlung"
+      },
+      "aktueller_gast_kaution": {
+        "name": "Aktueller Gast Kaution"
+      },
+      "naechster_gast_kaution": {
+        "name": "Nächster Gast Kaution"
+      },
+      "aktueller_gast_kurtaxe": {
+        "name": "Aktueller Gast Kurtaxe"
+      },
+      "naechster_gast_kurtaxe": {
+        "name": "Nächster Gast Kurtaxe"
+      },
+      "aktueller_gast_offener_betrag": {
+        "name": "Aktueller Gast Offener Betrag"
+      },
+      "naechster_gast_offener_betrag": {
+        "name": "Nächster Gast Offener Betrag"
+      },
+      "aktueller_gast_notiz": {
+        "name": "Aktueller Gast Notiz"
+      },
+      "naechster_gast_notiz": {
+        "name": "Nächster Gast Notiz"
+      },
+      "aktueller_gast_assistent_notiz": {
+        "name": "Aktueller Gast Assistent-Notiz"
+      },
+      "naechster_gast_assistent_notiz": {
+        "name": "Nächster Gast Assistent-Notiz"
+      },
+      "aktueller_gast_gaeste_app": {
+        "name": "Aktueller Gast Gäste-App"
+      },
+      "naechster_gast_gaeste_app": {
+        "name": "Nächster Gast Gäste-App"
+      },
+      "aktueller_gast_erstellt": {
+        "name": "Aktueller Gast Erstellt"
+      },
+      "naechster_gast_erstellt": {
+        "name": "Nächster Gast Erstellt"
+      },
+      "aktueller_gast_geaendert": {
+        "name": "Aktueller Gast Geändert"
+      },
+      "naechster_gast_geaendert": {
+        "name": "Nächster Gast Geändert"
+      },
+      "preis_heute": {
+        "name": "Preis heute"
+      },
+      "preis_morgen": {
+        "name": "Preis morgen"
+      },
+      "mindestaufenthalt_heute": {
+        "name": "Mindestaufenthalt heute"
+      },
+      "naechster_freier_tag": {
+        "name": "Nächster freier Tag"
+      },
+      "freie_naechte_30_tage": {
+        "name": "Freie Nächte 30 Tage"
+      },
+      "naechste_luecke": {
+        "name": "Nächste Lücke"
+      },
+      "letzte_gastnachricht": {
+        "name": "Letzte Gästenachricht"
       }
     }
   },

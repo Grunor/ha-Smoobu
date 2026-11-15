@@ -183,6 +183,38 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 | Webhook | `sensor.smoobu_webhook` | `registriert`, `manuell` (URL muss in Smoobu eingetragen werden) oder `aus`. Attribut `url`. |
 | Gastdaten fehlen | `binary_sensor.smoobu_gastdaten_fehlen` | An, wenn Smoobu keine Gastnamen liefert (PII-Berechtigung fehlt) |
 
+#### Einzelne Buchungsfelder (aktueller und nächster Gast)
+
+Jedes Feld der laufenden bzw. nächsten Buchung gibt es zusätzlich als eigene Entität, z. B. `sensor.smoobu_ferienwohnung_aktueller_gast_e_mail` oder `binary_sensor.smoobu_ferienwohnung_nachster_gast_preis_bezahlt`.
+
+| Feld | aktiv | Feld | aktiv |
+|---|---|---|---|
+| Kanal, Sprache, E-Mail, Telefon | ✅ | Buchungs-ID, Referenz-ID, Gast-ID, Buchungstyp | ⬜ |
+| Erwachsene, Kinder, Nächte | ✅ | Personen | ⬜ |
+| Check-in-Zeit, Check-out-Zeit | ✅ | Gäste-App (Link) | ⬜ |
+| Anreise (nur aktueller Gast), Abreise | ✅ | Freigabe | ⬜ |
+| Anzahlung, offener Betrag | ✅ | Kaution, Kurtaxe | ⬜ |
+| Notiz, Assistent-Notiz (voller Text im Attribut `text`) | ✅ | Erstellt, Geändert | ⬜ |
+| Preis bezahlt, Anzahlung bezahlt (Binärsensoren) | ✅ | Kaution bezahlt | ⬜ |
+
+⬜ = angelegt, aber deaktiviert (in HA unter Entität → Einstellungen aktivierbar). **Hinweis:** Kontaktdaten und Notizen landen als Entitäten in der Historie von Home Assistant.
+
+#### Preise & Verfügbarkeit (Smoobu-Tagespreise, 60 Tage)
+
+| Entität | Beispiel-ID | Inhalt |
+|---|---|---|
+| Preis heute / morgen | `sensor.smoobu_ferienwohnung_preis_heute` / `…_preis_morgen` | Tagespreis laut Smoobu. Attribute: `preise_60_tage`, `mindestaufenthalt_60_tage`, `verfuegbar` |
+| Mindestaufenthalt heute | `sensor.smoobu_ferienwohnung_mindestaufenthalt_heute` | Nächte |
+| Nächster freier Tag | `sensor.smoobu_ferienwohnung_nachster_freier_tag` | Erster buchbarer Tag ab heute |
+| Freie Nächte 30 Tage | `sensor.smoobu_ferienwohnung_freie_nachte_30_tage` | Anzahl buchbarer Nächte |
+| Nächste Lücke | `sensor.smoobu_ferienwohnung_nachste_lucke` | Beginn der nächsten freien Lücke zwischen zwei Belegungen. Attribute: `bis`, `naechte`, `mindestaufenthalt`, `buchbar`, `alle_luecken_60_tage` |
+
+#### Nachrichten
+
+| Entität | Beispiel-ID | Inhalt |
+|---|---|---|
+| Letzte Gästenachricht | `sensor.smoobu_letzte_gastenachricht` | Text der letzten Nachricht (per Webhook `newMessage` geladen, übersteht Neustarts). Attribute: `text`, `betreff`, `absender`, `gast`, `buchungs_id`, `empfangen` |
+
 #### Attribute der Buchungs-Entitäten
 
 `Aktueller Gast`, `Nächster Gast`, `Belegt`, `Anreise heute` und `Abreise heute` tragen die komplette Buchung als Attribute:
@@ -457,7 +489,7 @@ X-Signature = Base64( HMAC-SHA256(Secret, canonical) )
 - `NONCE`: neue UUID v4 je Anfrage
 - Header: `X-API-Key`, `X-Timestamp`, `X-Nonce`, `X-Signature`
 
-**Verwendete Endpunkte:** `GET /api/me`, `GET /api/apartments`, `GET /api/apartments/{id}`, `GET /api/reservations`, `GET /api/reservations/{id}`, `GET /api/reservations/{id}/messages`, `POST /api/reservations/{id}/messages/send-message-to-guest`, `POST /api/reservations/{id}/messages/send-message-to-host`, `GET/POST/DELETE /api/users/webhooks`.
+**Verwendete Endpunkte:** `GET /api/me`, `GET /api/rates`, `GET /api/apartments`, `GET /api/apartments/{id}`, `GET /api/reservations`, `GET /api/reservations/{id}`, `GET /api/reservations/{id}/messages`, `POST /api/reservations/{id}/messages/send-message-to-guest`, `POST /api/reservations/{id}/messages/send-message-to-host`, `GET/POST/DELETE /api/users/webhooks`.
 
 **Datenabruf:** Ein Coordinator je Konto lädt alle Buchungen im Zeitfenster [heute − Rückblick, heute + Vorschau], Stornos ausgenommen. Wohnungsdetails werden alle 24 h aktualisiert. Detaildaten der laufenden und nächsten Buchungen werden zwischengespeichert und nur neu abgerufen, wenn sich `modifiedAt` ändert. Blättert eine Kalenderkarte über das Zeitfenster hinaus, fragt der Kalender direkt bei Smoobu nach.
 
@@ -647,6 +679,38 @@ Each Smoobu apartment becomes a device **"Smoobu &lt;apartment name&gt;"**, plus
 | Last event | `sensor.smoobu_last_event` | Last webhook action (e.g. `newReservation`) with booking ID and guest |
 | Webhook | `sensor.smoobu_webhook` | `registriert` (registered), `manuell` (URL must be entered in Smoobu) or `aus` (off). Attribute `url`. |
 | Guest data missing | `binary_sensor.smoobu_guest_data_missing` | On if Smoobu returns no guest names (PII permission missing) |
+
+#### Individual booking fields (current and next guest)
+
+Every field of the current/next booking is also available as its own entity, e.g. `sensor.smoobu_apartment_current_guest_email` or `binary_sensor.smoobu_apartment_next_guest_price_paid`.
+
+| Field | enabled | Field | enabled |
+|---|---|---|---|
+| Channel, language, email, phone | ✅ | Booking ID, reference ID, guest ID, booking type | ⬜ |
+| Adults, children, nights | ✅ | Guests | ⬜ |
+| Check-in time, check-out time | ✅ | Guest app (link) | ⬜ |
+| Arrival (current guest only), departure | ✅ | Release | ⬜ |
+| Prepayment, open amount | ✅ | Deposit, city tax | ⬜ |
+| Note, assistant note (full text in attribute `text`) | ✅ | Created, modified | ⬜ |
+| Price paid, prepayment paid (binary sensors) | ✅ | Deposit paid | ⬜ |
+
+⬜ = created but disabled (enable in HA under entity → settings). **Note:** contact details and notes are stored in the Home Assistant history as entities.
+
+#### Prices & availability (Smoobu daily rates, 60 days)
+
+| Entity | Example ID | Content |
+|---|---|---|
+| Price today / tomorrow | `sensor.smoobu_apartment_price_today` / `…_price_tomorrow` | Daily rate from Smoobu. Attributes: `preise_60_tage`, `mindestaufenthalt_60_tage`, `verfuegbar` |
+| Minimum stay today | `sensor.smoobu_apartment_minimum_stay_today` | Nights |
+| Next free day | `sensor.smoobu_apartment_next_free_day` | First bookable day from today |
+| Free nights 30 days | `sensor.smoobu_apartment_free_nights_30_days` | Number of bookable nights |
+| Next gap | `sensor.smoobu_apartment_next_gap` | Start of the next free gap between two stays. Attributes: `bis`, `naechte`, `mindestaufenthalt`, `buchbar`, `alle_luecken_60_tage` |
+
+#### Messages
+
+| Entity | Example ID | Content |
+|---|---|---|
+| Last guest message | `sensor.smoobu_last_guest_message` | Text of the latest message (loaded via webhook `newMessage`, survives restarts). Attributes: `text`, `betreff`, `absender`, `gast`, `buchungs_id`, `empfangen` |
 
 #### Attributes of the booking entities
 
@@ -922,7 +986,7 @@ X-Signature = Base64( HMAC-SHA256(secret, canonical) )
 - `NONCE`: new UUID v4 per request
 - Headers: `X-API-Key`, `X-Timestamp`, `X-Nonce`, `X-Signature`
 
-**Endpoints used:** `GET /api/me`, `GET /api/apartments`, `GET /api/apartments/{id}`, `GET /api/reservations`, `GET /api/reservations/{id}`, `GET /api/reservations/{id}/messages`, `POST /api/reservations/{id}/messages/send-message-to-guest`, `POST /api/reservations/{id}/messages/send-message-to-host`, `GET/POST/DELETE /api/users/webhooks`.
+**Endpoints used:** `GET /api/me`, `GET /api/rates`, `GET /api/apartments`, `GET /api/apartments/{id}`, `GET /api/reservations`, `GET /api/reservations/{id}`, `GET /api/reservations/{id}/messages`, `POST /api/reservations/{id}/messages/send-message-to-guest`, `POST /api/reservations/{id}/messages/send-message-to-host`, `GET/POST/DELETE /api/users/webhooks`.
 
 **Data retrieval:** One coordinator per account loads all bookings in the window [today − days back, today + days ahead], excluding cancellations. Apartment details are refreshed every 24 h. Details of the current and next bookings are cached and only fetched again when `modifiedAt` changes. If a calendar card scrolls beyond the window, the calendar queries Smoobu directly.
 
