@@ -6,6 +6,18 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.10.3 – 2026-11-15
+
+**Deutsch**
+- Assistent: Vorlagenerkennung zusätzlich über den Text ohne Anrede (gleicher Text ≥ 3-mal in ≥ 2 Buchungen) und über Betreffe ohne Nummern („Rechnung RE2026-045 …“)
+- Automatische Portal-Antworten („Request approved“, „Confirm for free“) werden nicht gelernt
+- Airbnb-Zitate („Reply to: …“) und Mail-Köpfe („Gesendet: …“) werden abgeschnitten
+
+**English**
+- Assistant: template detection also by text without greeting (same text ≥ 3 times in ≥ 2 bookings) and by subjects without numbers
+- Automatic portal replies ("Request approved", "Confirm for free") are not learned
+- Airbnb quotes ("Reply to: …") and mail headers ("Gesendet: …") are cut off
+
 ## 1.10.2 – 2026-11-15
 
 **Deutsch**
