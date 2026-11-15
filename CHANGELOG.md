@@ -6,6 +6,28 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.14.0 – 2026-11-15
+
+**Deutsch**
+- Neue Option **„KI-Funktionen erlauben“** (Optionen → KI-Assistent): Hauptschalter für alle KI-Funktionen. Aus = KI **explizit gesperrt** – jeder Aufruf von `ai_task` wird zentral abgelehnt (Karten, Aktionen `assistant_suggest`/`assistant_build_knowledge`, WebSocket, Push-Buttons, Webhook), es gehen keine Daten an einen KI-Anbieter. Die Karten grauen ✨ Vorschlag, Anlass-Auswahl und 📚 Wissen erzeugen aus und zeigen „🔒 KI gesperrt“. Wissensdatenbank, Lernen, Import, Tagesbriefing und Lücken-Meldung funktionieren weiter
+- Standard: bestehende Installationen mit gewählter KI-Entität bleiben erlaubt (keine Verhaltensänderung), neue Installationen starten ohne KI. „KI erlauben“ ohne KI-Entität wird im Formular abgelehnt
+- „Assistent aktivieren“ heißt jetzt **„Automatische Antwortvorschläge“** und wirkt nur bei erlaubter KI; ✨ Vorschlag auf Abruf geht auch ohne diese Option
+- Posteingang: neuer Button **„Keine Antwort nötig“** (in der Liste und im Verlauf) – hakt die offene Gastnachricht ohne Antwort ab, bis der Gast erneut schreibt; rückgängig machbar; ein offener KI-Vorschlag wird dabei verworfen. Neuer WebSocket-Befehl `smoobu/message_done`, Status `ohne_antwort`/`erledigt_id` in `smoobu/message_status`
+- Korrektur: **„Antwort offen“ nur bei Nachrichten VOM Gast.** Der Status wurde mit `onlyRelatedToGuest=true` ermittelt – dabei fehlten automatische Nachrichten an den Gast (z. B. Willkommensnachricht), die Buchung erschien fälschlich offen. Jetzt werden alle Nachrichten (ohne interne Notizen) ausgewertet; `type` wird auch als Text erkannt
+- Korrektur: Sensor **„Letzte Gästenachricht“** zeigt nur noch Nachrichten vom Gast; eigene Nachrichten an den Gast überschreiben ihn nicht mehr (auch ein so gespeicherter alter Stand wird nach dem Neustart nicht übernommen)
+- Nachrichtenverlauf: Richtung eindeutig beschriftet („← Vom Gast“ / „→ An den Gast“)
+- README: **Screenshots** aller Karten mit erfundenen Demodaten, **Dashboard-Vorlage** `docs/dashboard-vorlage.yaml`, Optionen des KI-Assistenten dokumentiert. Screenshots reproduzierbar über `tools/screenshots/render_screenshots.py` (echte Integration + Demodaten + Chrome headless)
+
+**English**
+- New option **"Allow AI features"** (Options → AI assistant): master switch for all AI features. Off = AI **explicitly locked** – every `ai_task` call is rejected centrally (cards, actions `assistant_suggest`/`assistant_build_knowledge`, WebSocket, push buttons, webhook), no data is sent to an AI provider. The cards grey out ✨ Suggestion, occasion selector and 📚 Build knowledge and show "🔒 AI locked". Knowledge base, learning, import, daily briefing and gap report keep working
+- Default: existing installations with an AI entity stay allowed (no behaviour change), new installations start without AI. "Allow AI" without an AI entity is rejected in the form
+- "Enable assistant" is now **"Automatic reply suggestions"** and only works with AI allowed; on-demand ✨ suggestions work without it
+- Inbox: new **"No reply needed"** button (list and thread) – marks the open guest message as done without replying until the guest writes again; can be undone; an open AI suggestion is discarded. New WebSocket command `smoobu/message_done`, status `ohne_antwort`/`erledigt_id` in `smoobu/message_status`
+- Fix: **"Reply pending" only for messages FROM the guest.** The status used `onlyRelatedToGuest=true`, which left out automatic messages to the guest (e.g. welcome message), so bookings wrongly showed as open. All messages (without internal notes) are now evaluated; `type` is also recognised as text
+- Fix: sensor **"Last guest message"** only shows messages from the guest; your own messages to the guest no longer overwrite it (an old state stored that way is not restored after a restart)
+- Message thread: direction clearly labelled ("← From guest" / "→ To guest")
+- README: **screenshots** of all cards with fictional demo data, **dashboard template** `docs/dashboard-vorlage.yaml`, AI assistant options documented. Screenshots reproducible via `tools/screenshots/render_screenshots.py` (real integration + demo data + headless Chrome)
+
 ## 1.13.0 – 2026-11-15
 
 **Deutsch**

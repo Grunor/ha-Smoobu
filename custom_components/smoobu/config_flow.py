@@ -29,6 +29,7 @@ from homeassistant.helpers.selector import (
 
 from .api import SmoobuAuthError, SmoobuClient, SmoobuError
 from .const import (
+    CONF_AI_ENABLED,
     CONF_AI_ENTITY,
     CONF_ASSISTANT,
     CONF_ASSIST_BRIEFING,
@@ -326,11 +327,21 @@ class SmoobuOptionsFlow(OptionsFlow):
         return self.async_show_form(step_id="provisionen", data_schema=schema, errors=errors)
 
     async def async_step_assistent(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """KI-Assistent: KI-Entität, Push-Empfänger, Kontext-Entitäten, Zusatzaufgaben."""
+        """KI-Assistent: KI-Hauptschalter, KI-Entität, Push-Empfänger, Kontext-Entitäten, Zusatzaufgaben."""
         opts = self.config_entry.options
+        errors: dict[str, str] = {}
         if user_input is not None:
             user_input[CONF_ASSIST_BRIEFING_TIME] = str(user_input.get(CONF_ASSIST_BRIEFING_TIME) or "07:30")[:5]
-            return self.async_create_entry(data={**opts, **self._general, **self._prov, **user_input})
+            # KI erlauben ohne gewählte KI-Entität ergibt keinen Sinn → Hinweis am Feld
+            if user_input.get(CONF_AI_ENABLED) and not user_input.get(CONF_AI_ENTITY):
+                errors[CONF_AI_ENTITY] = "ai_entity_required"
+            else:
+                # Ohne Auswahl entfernt der Selektor den Schlüssel nicht → explizit leeren,
+                # damit eine abgewählte KI-Entität nicht aus den alten Optionen weiterlebt.
+                merged = {**opts, **self._general, **self._prov, **user_input}
+                if not user_input.get(CONF_AI_ENTITY):
+                    merged.pop(CONF_AI_ENTITY, None)
+                return self.async_create_entry(data=merged)
         # Push-Empfänger: nur mobile_app-Dienste können Buttons (Senden/Ignorieren)
         notify = sorted(
             f"notify.{svc}" for svc in self.hass.services.async_services().get("notify", {})
@@ -338,6 +349,11 @@ class SmoobuOptionsFlow(OptionsFlow):
         )
         schema = vol.Schema(
             {
+                # Hauptschalter zuerst. Standard: bisheriges Verhalten (KI-Entität gewählt = erlaubt);
+                # neue Installationen haben keine KI-Entität → aus.
+                vol.Required(
+                    CONF_AI_ENABLED, default=opts.get(CONF_AI_ENABLED, bool(opts.get(CONF_AI_ENTITY)))
+                ): BooleanSelector(),
                 vol.Required(CONF_ASSISTANT, default=opts.get(CONF_ASSISTANT, False)): BooleanSelector(),
                 vol.Optional(CONF_AI_ENTITY, description={"suggested_value": opts.get(CONF_AI_ENTITY)}): EntitySelector(
                     EntitySelectorConfig(domain="ai_task")
@@ -356,5 +372,5 @@ class SmoobuOptionsFlow(OptionsFlow):
                 vol.Required(CONF_ASSIST_GAPS, default=opts.get(CONF_ASSIST_GAPS, False)): BooleanSelector(),
             }
         )
-        return self.async_show_form(step_id="assistent", data_schema=schema)
+        return self.async_show_form(step_id="assistent", data_schema=schema, errors=errors)
 

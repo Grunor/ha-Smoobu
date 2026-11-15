@@ -1041,7 +1041,7 @@ class SmoobuBookingFieldSensor(SmoobuEntity, SensorEntity):
 
 
 class SmoobuLastMessageSensor(SmoobuEntity, RestoreSensor):
-    """Letzte Gästenachricht (per Webhook „newMessage“), übersteht Neustarts."""
+    """Letzte Nachricht VOM Gast (per Webhook „newMessage“), übersteht Neustarts."""
 
     _attr_icon = "mdi:message-text"
 
@@ -1053,7 +1053,8 @@ class SmoobuLastMessageSensor(SmoobuEntity, RestoreSensor):
         # Nach Neustart letzten Stand wiederherstellen (Smoobu wird nicht abgefragt)
         if self.coordinator.data and self.coordinator.data.last_message is None:
             last = await self.async_get_last_state()
-            if last is not None and last.attributes.get("text"):
+            # v1.14.0: alten Stand mit eigener Nachricht (absender „host“) nicht übernehmen
+            if last is not None and last.attributes.get("text") and last.attributes.get("absender") != "host":
                 self.coordinator.data.last_message = {
                     k: v for k, v in last.attributes.items() if k not in ("icon", "friendly_name")
                 }

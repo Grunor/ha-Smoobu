@@ -98,7 +98,7 @@ def test_assistant_clean_redact():
     assert "DE31" not in t and "[IBAN]" in t
     t = clean("Der Code ist 2025, Mail an info@example.de oder 0176-40464701")
     assert "2025" not in t and "[CODE]" in t and "[E-MAIL]" in t and "[TELEFON]" in t
-    assert clean("Danke&nbsp;Betreiber\nGesendet von Outlook für iOSVon: x") == "Danke Betreiber"
+    assert clean("Danke&nbsp;Max\nGesendet von Outlook für iOSVon: x") == "Danke Max"
     assert clean("Kein Problem\n\n schrieb am Do., 31. Juli 2025:\n> Hallo") == "Kein Problem"
     assert "[LINK]" in clean("Mappe: https://guest.smoobu.com/?t=abc&b=1")
     assert clean("Ankunft 21:30, 3 Nächte, 2025 war schön") == "Ankunft 21:30, 3 Nächte, 2025 war schön"
@@ -111,7 +111,7 @@ def test_assistant_template_keys():
     assert body_key(a) == body_key(b) and len(body_key(a)) >= 40
     assert body_key("Hallo Saskia,falls du es noch nicht getan hast, lass uns bitte wissen wann") == \
         body_key("Hallo Robin,falls du es noch nicht getan hast, lass uns bitte wissen wann")
-    assert norm_subject("Rechnung RE2026-045 Ferienhaus Beispiel") == norm_subject("Rechnung RE2026-051 Ferienhaus Beispiel")
+    assert norm_subject("Rechnung RE2026-045 Ferienwohnung") == norm_subject("Rechnung RE2026-051 Ferienwohnung")
     assert clean("Gerne!\n\nReply to: Is 12 Uhr just as well?") == "Gerne!"
 
 

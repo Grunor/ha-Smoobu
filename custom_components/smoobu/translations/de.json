@@ -84,9 +84,10 @@
       },
       "assistent": {
         "title": "KI-Assistent",
-        "description": "Antwortvorschläge für Gästenachrichten mit Wissensdatenbank und Lernen aus euren Antworten. Nichts wird ohne Bestätigung an Gäste gesendet. Gästenachrichten und Buchungsdaten gehen an den gewählten KI-Anbieter.",
+        "description": "Antwortvorschläge für Gästenachrichten mit Wissensdatenbank und Lernen aus euren Antworten. Nichts wird ohne Bestätigung an Gäste gesendet. Ist die KI erlaubt, gehen Gästenachrichten und Buchungsdaten an den gewählten KI-Anbieter. Wissensdatenbank, Lernen, Import, Tagesbriefing und Lücken-Meldung funktionieren auch ohne KI.",
         "data": {
-          "assistant": "Assistent aktivieren",
+          "ai_enabled": "KI-Funktionen erlauben",
+          "assistant": "Automatische Antwortvorschläge bei neuen Gästenachrichten",
           "ai_entity": "KI (KI-Aufgabe)",
           "assist_recipients": "Pushes an (mobile App)",
           "assist_status": "HA-Entitäten als Kontext",
@@ -96,6 +97,8 @@
           "assist_gaps": "Nicht buchbare Lücken melden"
         },
         "data_description": {
+          "ai_enabled": "Aus = KI vollständig gesperrt: keine Vorschläge, kein „Wissen erzeugen“, keine Daten an einen KI-Anbieter. Die KI-Buttons in den Karten werden ausgegraut.",
+          "assistant": "Wirkt nur, wenn die KI erlaubt ist. Vorschläge auf Abruf (✨ in der Karte) gehen auch ohne diese Option.",
           "ai_entity": "z. B. Google Gemini. Wird über ai_task.generate_data aufgerufen.",
           "assist_recipients": "Nur mobile_app-Dienste können Buttons (Senden, Ignorieren, Ankunftszeit übernehmen).",
           "assist_status": "z. B. Heizung, Tür, Außentemperatur – hilft bei Problemmeldungen.",
@@ -105,7 +108,8 @@
       }
     },
     "error": {
-      "invalid_custom": "Format: Kanal=Prozent; Kanal=Prozent"
+      "invalid_custom": "Format: Kanal=Prozent; Kanal=Prozent",
+      "ai_entity_required": "Bitte eine KI auswählen oder „KI-Funktionen erlauben“ ausschalten."
     }
   },
   "entity": {

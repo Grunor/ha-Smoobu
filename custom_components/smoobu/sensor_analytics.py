@@ -369,6 +369,7 @@ class SmoobuAssistantSensor(SmoobuEntity, SensorEntity):
         st = a.state()
         return {
             "aktiv": st["aktiv"],
+            "ki_erlaubt": st["ki_erlaubt"],
             "ki": st["ki"],
             "fehler": st["fehler"],
             "wissen": len(st["wissen"]),

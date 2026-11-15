@@ -21,6 +21,12 @@ Aufgaben
    - Tagesbriefing am Morgen
    - Vorschläge für Willkommen/Anreise/Abreise/Bewertung auf Abruf
 
+KI-Sperre (ab v1.14.0): Option „KI-Funktionen erlauben“. Aus = jeder KI-Aufruf
+wird in `_ai()` abgelehnt (einzige Stelle, an der ai_task aufgerufen wird) –
+egal ob über Karte, WebSocket, Aktion, Push-Button oder Webhook. Ohne KI weiter
+verfügbar: Wissensdatenbank pflegen, Lernen aus gesendeten Antworten, Verlauf
+importieren, Tagesbriefing, Lücken-Meldung, Nachrichten senden.
+
 KI: HA-Aktion `ai_task.generate_data` mit strukturierter Antwort – der Anbieter
 (Gemini, OpenAI …) wird in den Optionen gewählt; kein eigener API-Schlüssel.
 Die Anweisung verbietet Erfindungen: Unbekanntes wird als [OFFEN: …]
@@ -55,6 +61,7 @@ from .const import (
     CONF_ASSIST_RECIPIENTS,
     CONF_ASSIST_STATUS,
     DOMAIN,
+    ai_allowed,
 )
 from .models import free_gaps, strip_html
 
@@ -67,6 +74,7 @@ STORE_VERSION = 1
 AI_TIMEOUT = 120  # Sekunden; Gemini braucht teils > 20 s
 ACTION_PREFIX = "SMOOBU_"
 MAX_EXAMPLES = 400
+AI_LOCKED = "KI ist in den Integrationsoptionen deaktiviert (Smoobu → Konfigurieren → KI-Assistent)"
 INTENTS = [
     "frage", "spaete_anreise", "frueher_checkin", "spaeter_checkout", "problem_dringend",
     "dank", "buchungsanfrage", "stornierung", "sonstiges",
@@ -208,8 +216,21 @@ class SmoobuAssistant:
         return dict(self.c.config_entry.options)
 
     @property
+    def ai_allowed(self) -> bool:
+        """KI-Hauptschalter (ab v1.14.0): False = KI explizit gesperrt."""
+        return ai_allowed(self.opts)
+
+    @property
     def enabled(self) -> bool:
-        return bool(self.opts.get(CONF_ASSISTANT)) and bool(self.opts.get(CONF_AI_ENTITY))
+        """Automatische Vorschläge bei neuen Gästenachrichten – nur mit erlaubter KI."""
+        return self.ai_allowed and bool(self.opts.get(CONF_ASSISTANT))
+
+    def _require_ai(self) -> None:
+        """Vor jeder KI-Funktion: gesperrt → verständlicher Fehler statt stillem Nichtstun."""
+        if not self.opts.get(CONF_AI_ENTITY):
+            raise SmoobuError("Keine KI ausgewählt (Optionen → KI-Assistent)")
+        if not self.ai_allowed:
+            raise SmoobuError(AI_LOCKED)
 
     # --- Lebenszyklus ----------------------------------------------------
     async def async_setup(self) -> None:
@@ -422,9 +443,9 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
     }
 
     async def _ai(self, instructions: str, structure: dict[str, Any], task: str) -> dict[str, Any]:
+        # Zentrale Sperre: einzige Stelle mit ai_task-Aufruf → hier greift die Option immer
+        self._require_ai()
         entity = self.opts.get(CONF_AI_ENTITY)
-        if not entity:
-            raise SmoobuError("Keine KI ausgewählt (Optionen → Assistent)")
         try:
             async with asyncio.timeout(AI_TIMEOUT):
                 resp = await self.hass.services.async_call(
@@ -468,6 +489,7 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
         msgs: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Vorschlag erzeugen, speichern und optional per Push melden."""
+        self._require_ai()  # früh abbrechen: kein Nachrichtenabruf, wenn KI gesperrt
         rec = next((r for r in self.c.records_all() if r["id"] == rid), None)
         if rec is None:
             raise SmoobuError(f"Buchung {rid} nicht gefunden")
@@ -586,6 +608,14 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
         self.learn(rid, guest, text, source)
         await self._clear_push(rid)
         self._changed()
+
+    async def dismiss(self, rid: int) -> None:
+        """„Keine Antwort erforderlich“: offenen Vorschlag verwerfen und Push entfernen (v1.14.0)."""
+        sug = self.data["vorschlaege"].get(str(rid))
+        if sug and sug["status"] == "offen":
+            sug["status"] = "ignoriert"
+            self._changed()
+        await self._clear_push(rid)
 
     async def _on_push_action(self, event: Event) -> None:
         action = str(event.data.get("action") or "")
@@ -806,6 +836,7 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
 
     async def build_knowledge(self) -> int:
         """Aus eigenen Vorlagen + Antworten Wissensvorschläge erzeugen (Status „vorschlag“)."""
+        self._require_ai()
         imp = self.data.get("import") or {}
         sources = [f"VORLAGE „{k}“:\n{clean(v)[:1800]}" for k, v in (imp.get("vorlagen") or {}).items()]
         sources += [f"ANTWORT:\n{b['antwort'][:600]}" for b in self.data["beispiele"][-80:]]
@@ -840,6 +871,9 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
         sugs = sorted(self.data["vorschlaege"].values(), key=lambda s: s["erstellt"], reverse=True)
         return {
             "aktiv": self.enabled,
+            # Für die Karten: False → KI-Buttons ausgrauen (Sperre greift serverseitig ohnehin)
+            "ki_erlaubt": self.ai_allowed,
+            "ki_sperre": None if self.ai_allowed else (AI_LOCKED if self.opts.get(CONF_AI_ENTITY) else "Keine KI ausgewählt"),
             "ki": self.opts.get(CONF_AI_ENTITY),
             "empfaenger": self.opts.get(CONF_ASSIST_RECIPIENTS) or [],
             "status_entitaeten": self.opts.get(CONF_ASSIST_STATUS) or [],

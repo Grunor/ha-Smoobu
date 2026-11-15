@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -114,6 +115,11 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         # 10 min gecacht; Webhook „newMessage“ und eigenes Senden verwerfen den Eintrag.
         self._msg_status: dict[int, tuple[Any, dict[str, Any]]] = {}
         client.on_message_sent = self.invalidate_message_status
+        # „Keine Antwort erforderlich“ (v1.14.0): {reservation_id (Text): Nachrichten-ID}.
+        # Gemerkt wird die Gastnachricht, die bewusst unbeantwortet bleibt – schreibt der
+        # Gast danach erneut (höhere ID), ist die Buchung wieder offen. Dauerhaft in .storage.
+        self._no_reply_store: Store = Store(hass, 1, f"{DOMAIN}_ohne_antwort_{entry.entry_id}")
+        self._no_reply: dict[str, int] | None = None  # None = noch nicht geladen
         # KI-Assistent (assistant.py), gesetzt in __init__.async_setup_entry
         self.assistant: Any = None
 
@@ -300,6 +306,46 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         self._rates_loaded = now
         return rates
 
+    @staticmethod
+    def _visible(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Nachrichten ohne interne Notizen (zählen weder als Gastnachricht noch als Antwort)."""
+        return [m for m in messages if not (m.get("internal") or m.get("isInternal"))]
+
+    @staticmethod
+    def _is_guest(m: dict[str, Any] | None) -> bool:
+        """type 1 = Gast → Gastgeber (Smoobu liefert teils Text, daher int())."""
+        try:
+            return bool(m) and int(m.get("type") or 0) == 1
+        except (TypeError, ValueError):
+            return False
+
+    async def _async_no_reply(self) -> dict[str, int]:
+        if self._no_reply is None:
+            self._no_reply = dict(await self._no_reply_store.async_load() or {})
+        return self._no_reply
+
+    async def async_set_no_reply(self, reservation_id: int, done: bool = True) -> dict[str, Any]:
+        """Buchung als „keine Antwort erforderlich“ markieren bzw. Markierung aufheben.
+
+        Markiert wird die aktuell neueste Gastnachricht. Ein offener KI-Vorschlag zur
+        Buchung wird dabei auf „ignoriert“ gesetzt (Push wird entfernt).
+        """
+        rid = int(reservation_id)
+        store = await self._async_no_reply()
+        if done:
+            messages = self._visible(await self.client.get_messages(rid, False))
+            guest = [m for m in messages if self._is_guest(m)]
+            if not guest:
+                raise SmoobuError("Keine Gastnachricht vorhanden")
+            store[str(rid)] = max(int(m.get("id") or 0) for m in guest)
+            if self.assistant is not None:
+                await self.assistant.dismiss(rid)
+        else:
+            store.pop(str(rid), None)
+        self._no_reply_store.async_delay_save(lambda: self._no_reply or {}, 2)
+        self.invalidate_message_status(rid)
+        return (await self.async_message_status([rid]))[rid]
+
     def invalidate_message_status(self, reservation_id: int) -> None:
         """Antwortstatus einer Buchung neu laden lassen (neue/gesendete Nachricht)."""
         self._msg_status.pop(int(reservation_id), None)
@@ -307,7 +353,11 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
     async def async_message_status(self, reservation_ids: list[int]) -> dict[int, dict[str, Any]]:
         """Je Buchung: Ist die letzte Nachricht vom Gast und noch unbeantwortet?
 
-        „offen“ = die neueste nicht interne Nachricht hat type 1 (Gast → Gastgeber).
+        „offen“ = die neueste nicht interne Nachricht hat type 1 (Gast → Gastgeber) und
+        wurde nicht als „keine Antwort erforderlich“ markiert. Nachrichten an den Gast
+        (type 2, auch automatische Smoobu-Nachrichten) schließen die Buchung immer.
+        v1.14.0: Verlauf mit onlyRelatedToGuest=false laden – mit „true“ fehlten
+        automatische Nachrichten an den Gast, die Buchung erschien fälschlich offen.
         Interne Notizen zählen nicht als Antwort. Abruf parallel (max. 4 gleichzeitig),
         Fehler einzelner Buchungen liefern {"fehler": …} statt den ganzen Befehl abzubrechen.
         """
@@ -315,6 +365,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         ttl = timedelta(minutes=10)
         sem = asyncio.Semaphore(4)
         out: dict[int, dict[str, Any]] = {}
+        no_reply = await self._async_no_reply()
 
         async def one(rid: int) -> None:
             cached = self._msg_status.get(rid)
@@ -323,14 +374,20 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
                 return
             async with sem:
                 try:
-                    messages = await self.client.get_messages(rid, True)
+                    messages = await self.client.get_messages(rid, False)
                 except SmoobuError as err:
                     out[rid] = {"offen": False, "fehler": str(err)}
                     return
-            visible = [m for m in messages if not (m.get("internal") or m.get("isInternal"))]
+            visible = self._visible(messages)
             last = max(visible, key=lambda m: int(m.get("id") or 0)) if visible else None
+            done_id = no_reply.get(str(rid))
+            waiting = self._is_guest(last)
+            # Bewusst ohne Antwort erledigt: gilt, solange keine neuere Gastnachricht kam
+            dismissed = waiting and done_id is not None and int(last.get("id") or 0) <= done_id
             status = {
-                "offen": bool(last) and last.get("type") == 1,
+                "offen": waiting and not dismissed,
+                "ohne_antwort": dismissed,
+                "erledigt_id": done_id,
                 "anzahl": len(visible),
                 "letzte_zeit": (last or {}).get("createdAt") or (last or {}).get("created_at"),
                 "letzte_typ": (last or {}).get("type"),
@@ -342,16 +399,26 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         return out
 
     async def async_fetch_last_message(self, reservation_id: int, sender: str | None) -> None:
-        """Neueste Nachricht einer Buchung laden (nach Webhook „newMessage“)."""
+        """Neueste Gästenachricht einer Buchung laden (nach Webhook „newMessage“).
+
+        v1.14.0: nur Nachrichten VOM Gast (type 1). Eigene Nachrichten an den Gast
+        (auch automatische) ändern den Sensor „Letzte Gästenachricht“ nicht mehr.
+        """
         self.invalidate_message_status(reservation_id)
+        if sender == "host":
+            return  # Webhook meldet eine eigene Nachricht → keine Gästenachricht
         try:
-            messages = await self.client.get_messages(reservation_id, True)
+            messages = await self.client.get_messages(reservation_id, False)
         except SmoobuError as err:
             _LOGGER.debug("Nachrichten zu Buchung %s nicht ladbar: %s", reservation_id, err)
             return
-        if not messages or self.data is None:
+        guest = [m for m in self._visible(messages) if self._is_guest(m)]
+        if not guest or self.data is None:
             return
-        latest = max(messages, key=lambda m: int(m.get("id") or 0))
+        latest = max(guest, key=lambda m: int(m.get("id") or 0))
+        prev = self.data.last_message or {}
+        if prev.get("nachricht_id") == latest.get("id"):
+            return  # unverändert (z. B. Webhook zu eigener Antwort ohne sender-Angabe)
         text = strip_html(latest.get("message") or latest.get("messageHtml") or latest.get("htmlMessage") or "")
         # Gast und Wohnung aus den geladenen Buchungen ergänzen
         booking = next(
@@ -366,7 +433,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         self.data.last_message = {
             "text": text,
             "betreff": latest.get("subject"),
-            "absender": sender,
+            "absender": "guest",
             "nachricht_id": latest.get("id"),
             "buchungs_id": reservation_id,
             "gast": guest_name(booking) if booking else None,

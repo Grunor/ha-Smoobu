@@ -19,6 +19,7 @@ Sie verbindet Home Assistant direkt mit der Smoobu-API und stellt Buchungen, Gä
 
 - [Warum diese Integration?](#warum-diese-integration)
 - [Funktionen](#funktionen)
+- [Screenshots](#screenshots)
 - [Voraussetzungen](#voraussetzungen)
 - [Smoobu-API-Schlüssel erstellen](#smoobu-api-schlüssel-erstellen)
 - [Installation](#installation)
@@ -27,6 +28,8 @@ Sie verbindet Home Assistant direkt mit der Smoobu-API und stellt Buchungen, Gä
 - [Entitäten](#entitäten)
 - [Aktionen](#aktionen)
 - [Dashboard-Karten](#dashboard-karten-ab-180)
+- [Dashboard-Vorlage](#dashboard-vorlage)
+- [KI-Assistent und KI-Sperre](#ki-assistent-ab-1100)
 - [Events](#events)
 - [Beispiele](#beispiele)
 - [Webhook](#webhook)
@@ -58,9 +61,38 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 - 🧭 **Kanal-Auswertung:** ein Sensor je Kanal (Portale und Direktkanäle) mit Umsatz, Netto, Kosten, Nächten, Ø Aufenthalt, Ø Personen, Ø Vorlaufzeit, Stornoquote – Monat, Jahr, bis heute, Vorjahr
 - 🎚️ **Filter für Dashboards ohne Templates:** Auswahl-Entitäten Kanal, Zeitraum, Vergleich + Auswertungs-Sensoren
 - 🔮 **Prognose Jahresende:** gebucht + Nachbuchungen wie im Vorjahr
-- 🖥️ **Eigene Dashboard-Karten:** Übersicht, Belegungsplan mit Preisen, Buchungsliste, Finanzen, Posteingang – werden automatisch geladen
+- 🖥️ **Eigene Dashboard-Karten:** Übersicht, Belegungsplan mit Preisen, Buchungsliste, Finanzen, Posteingang (offene Gastnachrichten, „Keine Antwort nötig“), Assistent – werden automatisch geladen; fertige [Dashboard-Vorlage](docs/dashboard-vorlage.yaml)
+- 🤖 **KI-Assistent (optional):** Antwortvorschläge mit Wissensdatenbank; per Option **komplett abschaltbar** (KI gesperrt, keine Daten an KI-Anbieter)
 - 🔐 **HMAC-SHA256-Signatur** nach aktueller Smoobu-Spezifikation
 - 🌍 Deutsch und Englisch, Einrichtung komplett über die Oberfläche, Diagnose-Download mit geschwärzten Gästedaten
+
+---
+
+### Screenshots
+
+Alle Bilder zeigen eine **erfundene Demo-Ferienwohnung**. Die Bilder stammen aus der echten Integration, aber mit Demodaten (`tools/screenshots/`). Echte Gäste- oder Umsatzdaten kommen darin nicht vor.
+
+**Übersicht:** Status, Anreise/Abreise/Gästewechsel heute, Kennzahlen mit Vorjahresvergleich, Lücken gegen den Mindestaufenthalt geprüft, offene Zahlungen
+![Übersicht](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/uebersicht.png)
+
+**Belegungsplan:** Kanalfarben, Tagespreis, Mindestaufenthalt, nicht buchbare Lücken (schraffiert); Tage markieren → sperren oder Preis setzen
+![Belegungsplan](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/belegungsplan.png)
+
+**Posteingang:** Gäste mit offener Nachricht oben und rot markiert, Button **„Keine Antwort nötig“**, KI-Vorschlag
+![Posteingang](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/posteingang.png)
+
+**Finanzen:** Zeitraum und Kanäle frei wählbar, Vergleich Vorjahr, Diagramm je Kanal, Erkenntnisse, Kanaltabelle
+![Finanzen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/finanzen.png)
+
+<details><summary>Weitere Bilder: Buchungsliste, Buchungsdetails, Assistent, KI gesperrt</summary>
+
+![Buchungen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungen.png)
+![Buchungsdetails](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungsdetails.png)
+![Assistent](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/assistent.png)
+![Posteingang mit gesperrter KI](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/ki_gesperrt_posteingang.png)
+![Assistent mit gesperrter KI](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/ki_gesperrt_assistent.png)
+
+</details>
 
 ---
 
@@ -136,6 +168,19 @@ Unter **Einstellungen → Geräte & Dienste → Smoobu → Konfigurieren**:
 | Rückblick | 30 Tage | Wie weit zurück Buchungen geladen werden |
 | Vorschau | 365 Tage | Wie weit voraus Buchungen geladen werden |
 | Detaildaten für die nächsten n Buchungen | 3 | Laufende und nächste n Buchungen je Wohnung werden zusätzlich einzeln abgerufen (Vor-/Nachname, Kurtaxe, Preisdetails) |
+
+Schritt **Provisionen**: Provision je Kanal in %, Direktkanäle. Schritt **KI-Assistent**:
+
+| Option | Standard | Bedeutung |
+|---|---|---|
+| **KI-Funktionen erlauben** | aus (bei Installationen vor 1.14.0 mit gewählter KI: an) | Hauptschalter. Aus = KI **gesperrt**: kein Aufruf von `ai_task`, keine Daten an einen KI-Anbieter, KI-Buttons in den Karten ausgegraut. Gilt für Karten, Aktionen, WebSocket, Push-Buttons und Webhook |
+| Automatische Antwortvorschläge | aus | Bei jeder neuen Gästenachricht einen Vorschlag erzeugen und per Push senden (nur mit erlaubter KI) |
+| KI (KI-Aufgabe) | – | `ai_task`-Entität, z. B. Google Gemini; Pflicht, wenn die KI erlaubt ist |
+| Pushes an | – | `notify.mobile_app_*` (Buttons Senden/Bearbeiten/Ignorieren) |
+| HA-Entitäten als Kontext | – | z. B. Heizung, Tür, Außentemperatur |
+| Dashboard-Seite für „Bearbeiten“ | `/lovelace` | z. B. `/dashboard-ferienwohnung/smoobu-nachrichten` |
+| Tagesbriefing per Push, Uhrzeit | aus, 07:30 | funktioniert ohne KI |
+| Nicht buchbare Lücken melden | aus | täglich 09:05, funktioniert ohne KI |
 
 Nach dem Speichern wird die Integration automatisch neu geladen.
 
@@ -219,7 +264,7 @@ Jedes Feld der laufenden bzw. nächsten Buchung gibt es zusätzlich als eigene E
 
 | Entität | Beispiel-ID | Inhalt |
 |---|---|---|
-| Letzte Gästenachricht | `sensor.smoobu_letzte_gastenachricht` | Text der letzten Nachricht (per Webhook `newMessage` geladen, übersteht Neustarts). Attribute: `text`, `betreff`, `absender`, `gast`, `buchungs_id`, `empfangen` |
+| Letzte Gästenachricht | `sensor.smoobu_letzte_gastenachricht` | Text der letzten Nachricht **vom Gast** (per Webhook `newMessage` geladen, übersteht Neustarts; eigene Nachrichten an den Gast ändern ihn ab 1.14.0 nicht). Attribute: `text`, `betreff`, `absender`, `gast`, `buchungs_id`, `empfangen` |
 
 #### Direktvermarktung vs. Portale, Nettoumsatz
 
@@ -343,7 +388,7 @@ Die Integration bringt eigene Karten mit. Sie werden automatisch geladen (keine 
 | `custom:smoobu-timeline-card` | Belegungsplan je Monat mit Kanalfarben, Sperrzeiten, Tagespreis, Mindestaufenthalt, nicht buchbaren Lücken. Tage markieren → **sperren** oder **Preis/Mindestaufenthalt setzen** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
 | `custom:smoobu-bookings-card` | Buchungsliste: Suche, Zeitraum, Kanal- und Statusfilter (inkl. Stornos, Sperrzeiten), Sortierung, Summen, CSV-Export | `title`, `period`, `status`, `apartment_id` |
 | `custom:smoobu-analytics-card` | Finanzen: Zeitraum frei (auch benutzerdefiniert), Kanäle mehrfach wählbar, Vergleich Vorjahr/Vorperiode. Kennzahlen mit Veränderung, gestapeltes Diagramm je Kanal mit Vergleichslinie, Anteile, Erkenntnisse, Kanaltabelle | `title`, `period`, `compare`, `apartment_id` |
-| `custom:smoobu-inbox-card` | Posteingang: laufende, kommende und kürzliche Buchungen, Nachrichtenverlauf, antworten, ✨ KI-Vorschlag | `title`, `days_back`, `days_ahead`, `message_entity` |
+| `custom:smoobu-inbox-card` | Posteingang: laufende, kommende und kürzliche Buchungen, Nachrichtenverlauf, antworten, ✨ KI-Vorschlag. **Antwort offen** = neueste Nachricht kommt vom Gast (Nachrichten an den Gast, auch automatische, schließen); Button **„Keine Antwort nötig“** hakt sie ohne Antwort ab, bis der Gast erneut schreibt (rückgängig machbar) | `title`, `days_back`, `days_ahead`, `message_entity` |
 | `custom:smoobu-assistant-card` | KI-Assistent: Wissensdatenbank (freigeben, bearbeiten, vertraulich), Vorschläge, Gelerntes, Lücken, Import | `title` |
 
 ```yaml
@@ -356,13 +401,25 @@ type: custom:smoobu-timeline-card
 months: 4
 ```
 
-Datenquelle der Karten sind WebSocket-Befehle (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/subscribe`). Sie aktualisieren sich bei jedem neuen Datenstand von selbst. Alle Texte aus Smoobu werden vor der Anzeige maskiert.
+Datenquelle der Karten sind WebSocket-Befehle (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/message_status`, `smoobu/message_done`, `smoobu/subscribe`). Sie aktualisieren sich bei jedem neuen Datenstand von selbst. Alle Texte aus Smoobu werden vor der Anzeige maskiert.
+
+---
+
+### Dashboard-Vorlage
+
+[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) ist ein komplettes Dashboard mit 6 Seiten (Übersicht, Belegungsplan, Buchungen, Finanzen, Nachrichten, Assistent) und Navigationsleiste – so wie auf den [Screenshots](#screenshots).
+
+1. **Einstellungen → Dashboards → Dashboard hinzufügen → Neues Dashboard von Grund auf**, URL z. B. `dashboard-ferienwohnung`
+2. Dashboard öffnen → ✎ → ⋮ → **Raw-Konfigurationseditor** → Inhalt der Vorlage einfügen → Speichern
+3. Andere URL gewählt? `/dashboard-ferienwohnung/` in der Vorlage ersetzen. Bei der Übersicht eigene Entitäten unter `entities` eintragen.
 
 ---
 
 ### KI-Assistent (ab 1.10.0)
 
 Antwortvorschläge für Gästenachrichten auf Basis einer Wissensdatenbank, die aus euren eigenen Antworten lernt. **Nichts wird ohne Bestätigung an Gäste gesendet.**
+
+- **KI-Sperre (ab 1.14.0):** Option **„KI-Funktionen erlauben“** (Optionen → KI-Assistent). Aus = jeder KI-Aufruf wird abgelehnt – zentral in der Integration, also auch über Aktionen, WebSocket, Push-Buttons und Webhook. Die Karten grauen ✨ Vorschlag und 📚 Wissen erzeugen aus und zeigen „🔒 KI gesperrt“. **Ohne KI weiter nutzbar:** Wissensdatenbank pflegen, Lernen aus gesendeten Antworten, Verlauf importieren, Tagesbriefing, Lücken-Meldung, Nachrichten senden.
 
 - **Ablauf:** Neue Gästenachricht (Webhook) → Entwurf per `ai_task.generate_data` (Anbieter frei wählbar, z. B. Google Gemini) → Push an die gewählten Handys mit **Senden / Bearbeiten / Ignorieren**; erkennt der Assistent eine neue Ankunftszeit, gibt es zusätzlich **„Ankunft HH:MM übernehmen“**.
 - **Keine Erfindungen:** Die Anweisung erlaubt nur Fakten aus Wissen, Buchung, Belegung und HA-Status. Unbekanntes wird als `[OFFEN: …]` markiert, als Wissenslücke gemeldet und blockiert das Senden per Push.
@@ -371,7 +428,7 @@ Antwortvorschläge für Gästenachrichten auf Basis einer Wissensdatenbank, die 
 - **Kontext:** Buchung, Belegung davor/danach (früher Check-in / später Check-out), frei wählbare HA-Entitäten (z. B. Heizung, Tür, Außentemperatur) – bei Problemen („kalt“, „kein Wasser“) Push als **dringend** mit Hinweis.
 - **Zusatzaufgaben (Optionen):** Tagesbriefing per Push, tägliche Meldung nicht buchbarer Lücken (Mindestaufenthalt) mit Button zum Anpassen.
 - **Entitäten/Aktionen:** `sensor.smoobu_assistent_offene_vorschlage`, `smoobu.assistant_suggest` (Anlass: antwort, willkommen, anreise, abreise, bewertung), WebSocket `smoobu/assistant/*`.
-- **Datenschutz:** Gästenachrichten und Buchungsdaten gehen an den gewählten KI-Anbieter.
+- **Datenschutz:** Nur bei erlaubter KI gehen Gästenachrichten und Buchungsdaten an den gewählten KI-Anbieter (vertrauliche Wissenseinträge nie).
 
 ---
 
@@ -606,6 +663,7 @@ It connects Home Assistant directly to the Smoobu API and provides bookings, gue
 
 - [Why this integration?](#why-this-integration)
 - [Features](#features)
+- [Screenshots](#screenshots-1)
 - [Requirements](#requirements)
 - [Create a Smoobu API key](#create-a-smoobu-api-key)
 - [Installation](#installation-1)
@@ -614,6 +672,8 @@ It connects Home Assistant directly to the Smoobu API and provides bookings, gue
 - [Entities](#entities)
 - [Actions](#actions)
 - [Dashboard cards](#dashboard-cards-since-180)
+- [Dashboard template](#dashboard-template)
+- [AI assistant and AI lock](#ai-assistant-since-1100)
 - [Events](#events-1)
 - [Examples](#examples)
 - [Webhook](#webhook-1)
@@ -641,9 +701,41 @@ This integration handles the signing and exposes all data natively in Home Assis
 - 📊 **Statistics:** 30-day bookings, occupancy and revenue, revenue month/year/previous year (split by nights), price per booking, unpaid bookings
 - ⚡ **Real-time webhook:** Nabu Casa cloudhook or external HTTPS URL, registered with Smoobu automatically
 - 🔔 **Event `smoobu_event`** for new, changed or cancelled bookings and new guest messages
-- 🛠️ **Actions:** query bookings, get a single booking, read messages, send messages
+- 🛠️ **Actions:** query bookings, get a single booking, read messages, send messages, block periods, set prices/minimum stay
+- 🖥️ **Dashboard cards:** overview, occupancy plan, booking list, finance, inbox (open guest messages, "No reply needed"), assistant – loaded automatically; ready-made [dashboard template](docs/dashboard-vorlage.yaml)
+- 🤖 **AI assistant (optional):** reply suggestions with a knowledge base; can be **switched off completely** (AI locked, no data sent to an AI provider)
 - 🔐 **HMAC-SHA256 signing** according to the current Smoobu specification
 - 🌍 German and English, set up entirely in the UI, diagnostics download with redacted guest data
+
+---
+
+### Screenshots
+
+All images show a **fictional demo apartment**. They come from the real integration, but with demo data (`tools/screenshots/`). No real guest or revenue data appears in them.
+
+**Overview:** status, arrivals/departures/changeover today, key figures vs. last year, gaps checked against the minimum stay, unpaid bookings
+![Overview](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/uebersicht.png)
+
+**Occupancy plan:** channel colours, daily price, minimum stay, unbookable gaps (hatched); mark days → block or set price
+![Occupancy plan](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/belegungsplan.png)
+
+**Inbox:** guests with an open message on top and highlighted, **"No reply needed"** button, AI suggestion
+![Inbox](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/posteingang.png)
+
+**Finance:** free period and channel selection, comparison with last year, chart per channel, insights, channel table
+![Finance](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/finanzen.png)
+
+<details><summary>More: booking list, booking details, assistant, AI locked</summary>
+
+![Bookings](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungen.png)
+![Booking details](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungsdetails.png)
+![Assistant](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/assistent.png)
+![Inbox with AI locked](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/ki_gesperrt_posteingang.png)
+![Assistant with AI locked](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/ki_gesperrt_assistent.png)
+
+</details>
+
+The screenshots show the German interface; the cards follow the Home Assistant language.
 
 ---
 
@@ -719,6 +811,19 @@ Under **Settings → Devices & services → Smoobu → Configure**:
 | Days back | 30 days | How far back bookings are loaded |
 | Days ahead | 365 days | How far ahead bookings are loaded |
 | Fetch details for next n bookings | 3 | The current and next n bookings per apartment are additionally fetched one by one (first/last name, city tax, price details) |
+
+Step **Commissions**: commission per channel in %, direct channels. Step **AI assistant**:
+
+| Option | Default | Meaning |
+|---|---|---|
+| **Allow AI features** | off (installations before 1.14.0 with an AI selected: on) | Master switch. Off = AI **locked**: no `ai_task` call, no data sent to an AI provider, AI buttons in the cards greyed out. Applies to cards, actions, WebSocket, push buttons and webhook |
+| Automatic reply suggestions | off | Create a suggestion for every new guest message and push it (only with AI allowed) |
+| AI (AI task) | – | `ai_task` entity, e.g. Google Gemini; required when AI is allowed |
+| Push to | – | `notify.mobile_app_*` (Send/Edit/Ignore buttons) |
+| HA entities as context | – | e.g. heating, door, outdoor temperature |
+| Dashboard page for "Edit" | `/lovelace` | e.g. `/dashboard-ferienwohnung/smoobu-nachrichten` |
+| Daily briefing push, time | off, 07:30 | works without AI |
+| Report unbookable gaps | off | daily at 09:05, works without AI |
 
 The integration reloads automatically after saving.
 
@@ -802,7 +907,7 @@ Every field of the current/next booking is also available as its own entity, e.g
 
 | Entity | Example ID | Content |
 |---|---|---|
-| Last guest message | `sensor.smoobu_last_guest_message` | Text of the latest message (loaded via webhook `newMessage`, survives restarts). Attributes: `text`, `betreff`, `absender`, `gast`, `buchungs_id`, `empfangen` |
+| Last guest message | `sensor.smoobu_last_guest_message` | Text of the latest message **from the guest** (loaded via webhook `newMessage`, survives restarts; since 1.14.0 your own messages to the guest do not change it). Attributes: `text`, `betreff`, `absender`, `gast`, `buchungs_id`, `empfangen` |
 
 #### Direct marketing vs. portals, net revenue
 
@@ -926,16 +1031,28 @@ The integration ships its own cards. They are loaded automatically (no resource 
 | `custom:smoobu-timeline-card` | Occupancy plan per month with channel colours, blocks, daily price, minimum stay, unbookable gaps. Mark days → **block** or **set price/minimum stay** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
 | `custom:smoobu-bookings-card` | Booking list: search, period, channel and status filters (incl. cancellations, blocks), sorting, totals, CSV export | `title`, `period`, `status`, `apartment_id` |
 | `custom:smoobu-analytics-card` | Finance: free period (also custom), multiple channels, comparison previous year/period. Key figures with change, stacked chart per channel with comparison line, shares, insights, channel table | `title`, `period`, `compare`, `apartment_id` |
-| `custom:smoobu-inbox-card` | Inbox: current, upcoming and recent bookings, message thread, reply, ✨ AI suggestion | `title`, `days_back`, `days_ahead`, `message_entity` |
+| `custom:smoobu-inbox-card` | Inbox: current, upcoming and recent bookings, message thread, reply, ✨ AI suggestion. **Reply pending** = latest message is from the guest (messages to the guest, including automatic ones, close it); **"No reply needed"** marks it done without replying until the guest writes again (can be undone) | `title`, `days_back`, `days_ahead`, `message_entity` |
 | `custom:smoobu-assistant-card` | AI assistant: knowledge base (approve, edit, confidential), suggestions, learned examples, gaps, import | `title` |
 
-The cards read data through WebSocket commands (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/subscribe`) and refresh themselves on every data update. All texts from Smoobu are escaped before display.
+The cards read data through WebSocket commands (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/message_status`, `smoobu/message_done`, `smoobu/subscribe`) and refresh themselves on every data update. All texts from Smoobu are escaped before display.
+
+---
+
+### Dashboard template
+
+[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) is a complete dashboard with 6 pages (overview, occupancy plan, bookings, finance, messages, assistant) and a navigation bar – as shown in the [screenshots](#screenshots-1).
+
+1. **Settings → Dashboards → Add dashboard → New dashboard from scratch**, URL e.g. `dashboard-ferienwohnung`
+2. Open it → ✎ → ⋮ → **Raw configuration editor** → paste the template → Save
+3. Different URL? Replace `/dashboard-ferienwohnung/` in the template. Add your own entities under `entities` on the overview. Page titles are German – rename as you like.
 
 ---
 
 ### AI assistant (since 1.10.0)
 
 Reply suggestions for guest messages based on a knowledge base that learns from your own replies. **Nothing is sent to guests without confirmation.**
+
+- **AI lock (since 1.14.0):** option **"Allow AI features"** (Options → AI assistant). Off = every AI call is rejected – centrally in the integration, so also via actions, WebSocket, push buttons and webhook. The cards grey out ✨ Suggestion and 📚 Build knowledge and show "🔒 AI locked". **Still usable without AI:** knowledge base, learning from sent replies, history import, daily briefing, gap report, sending messages.
 
 - **Flow:** new guest message (webhook) → draft via `ai_task.generate_data` (any provider, e.g. Google Gemini) → push to the chosen phones with **Send / Edit / Ignore**; if a new arrival time is detected, also **"Apply arrival HH:MM"**.
 - **No invention:** only facts from knowledge, booking, occupancy and HA state are allowed. Unknown items are marked `[OFFEN: …]`, reported as knowledge gaps and block sending via push.
@@ -944,7 +1061,7 @@ Reply suggestions for guest messages based on a knowledge base that learns from 
 - **Context:** booking, occupancy before/after (early check-in / late check-out), selectable HA entities (heating, door, outdoor temperature) – problem reports are pushed as **urgent** with a hint.
 - **Extra tasks (options):** daily briefing push, daily report of unbookable gaps (minimum stay) with a button to adjust.
 - **Entities/actions:** `sensor.smoobu_assistant_open_suggestions`, `smoobu.assistant_suggest`, WebSocket `smoobu/assistant/*`.
-- **Privacy:** guest messages and booking data are sent to the chosen AI provider.
+- **Privacy:** only when AI is allowed are guest messages and booking data sent to the chosen AI provider (confidential knowledge entries never).
 
 ---
 
