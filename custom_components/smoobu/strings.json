@@ -157,6 +157,18 @@
       },
       "umsatz_vorjahr": {
         "name": "Revenue previous year"
+      },
+      "umsatz_vormonat": {
+        "name": "Revenue previous month"
+      },
+      "umsatz_folgemonat": {
+        "name": "Revenue next month"
+      },
+      "auslastung_monat": {
+        "name": "Occupancy rate month"
+      },
+      "gesperrte_naechte_monat": {
+        "name": "Blocked nights month"
       }
     }
   },

@@ -40,6 +40,7 @@ from .const import (
 )
 from .models import (
     SmoobuData,
+    nights_by_month,
     revenue_by_month,
     booking_end,
     booking_release,
@@ -163,12 +164,16 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         today = dt_util.now().date()
         revenue: dict[int, dict[str, float]] = {}
         earned: dict[int, dict[str, float]] = {}
+        g_nights: dict[int, dict[str, int]] = {}
+        b_nights: dict[int, dict[str, int]] = {}
         for apt_id in apartments:
             items = [
                 b for b in revenue_bookings if (b.get("apartment") or {}).get("id") == apt_id
             ]
             revenue[apt_id] = revenue_by_month(items)
             earned[apt_id] = revenue_by_month(items, until=today)
+            g_nights[apt_id] = nights_by_month(items)
+            b_nights[apt_id] = nights_by_month(items, blocked=True)
 
         return SmoobuData(
             apartments=apartments,
@@ -178,10 +183,13 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             last_event=previous.last_event,
             revenue=revenue,
             revenue_earned=earned,
+            guest_nights=g_nights,
+            blocked_nights=b_nights,
         )
 
     async def _async_load_revenue_bookings(self) -> list[dict[str, Any]]:
-        """Alle Buchungen mit Nächten im Vorjahr oder laufenden Jahr (gecacht 1 h)."""
+        """Alle Buchungen mit Nächten im Vorjahr, laufenden Jahr und Januar des Folgejahres
+        (für „Folgemonat“ im Dezember). Gecacht 1 h, Sperrzeiten inklusive."""
         now = dt_util.utcnow()
         if (
             self._revenue_loaded
@@ -192,7 +200,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         year = dt_util.now().year
         self._revenue_bookings = await self.client.get_reservations(
             departureFrom=f"{year - 1}-01-02",  # mind. eine Nacht im Vorjahr
-            arrivalTo=f"{year}-12-31",
+            arrivalTo=f"{year + 1}-01-31",
             showCancellation=False,
         )
         self._revenue_loaded = now
