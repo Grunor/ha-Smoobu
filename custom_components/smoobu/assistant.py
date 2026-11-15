@@ -30,6 +30,7 @@ markiert und als Wissenslücke gemeldet (validiert am 15.11.2026 mit Gemini).
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import math
 import re
@@ -91,16 +92,50 @@ def _tokens(text: str) -> list[str]:
     return [w for w in words if len(w) > 2 and w not in _STOP]
 
 
+_QUOTE_RE = re.compile(
+    r"(\n|^)\s*-{3,}\s*(Ursprüngliche Nachricht|Original Message|Original-Nachricht)"
+    r"|Von meinem(/meiner)? [^\n]{0,40}gesendet|Sent from my|Gesendet von Outlook|Gesendet mit der"
+    r"|(\n|^)\s*(Von|From):\s|(\n|^)\s*>"
+    r"|(\n|^)[^\n]{0,80}(schrieb am|schrieb |wrote:|ha scritto:)",
+    re.IGNORECASE,
+)
+
+
 def strip_quote(text: str) -> str:
-    """Zitierten E-Mail-Verlauf und Signaturen abschneiden (wie in den Karten)."""
-    # Signaturen hängen oft ohne Zeilenumbruch am Text („…ThomasVon meinem/meiner Galaxy gesendet“)
-    m = re.search(
-        r"(\n|^)\s*-{3,}\s*(Ursprüngliche Nachricht|Original Message|Original-Nachricht)"
-        r"|Von meinem(/meiner)? [^\n]{0,40}gesendet|Sent from my|(\n|^)\s*(Am .{6,60} schrieb |On .{6,80} wrote:)",
-        text or "",
-        re.IGNORECASE,
-    )
-    return (text[: m.start()] if m and m.start() > 2 else text or "").strip()
+    """Zitierten E-Mail-Verlauf, Signaturen und Mail-Köpfe abschneiden.
+
+    Signaturen hängen oft ohne Zeilenumbruch am Text („…ThomasVon meinem/meiner Galaxy gesendet“).
+    """
+    text = text or ""
+    m = _QUOTE_RE.search(text)
+    return (text[: m.start()] if m and m.start() > 2 else text).strip()
+
+
+# Schwärzen, bevor etwas gespeichert oder an die KI geschickt wird
+_REDACT = [
+    (re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){3,7}(?:[ ]?[A-Z0-9]{1,3})?\b"), "[IBAN]"),
+    (re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"), "[E-MAIL]"),
+    (re.compile(r"https?://\S*(?:[?&]t=|check-in/|request_id|hotel_id|token)\S*", re.IGNORECASE), "[LINK]"),
+    (re.compile(r"(?<![\w.])(?:\+\d{2}[\d \t/-]{7,}\d|0\d{2,4}[ \t/-]?\d[\d \t/-]{4,}\d)"), "[TELEFON]"),
+    (re.compile(r"(?i)\b((?:zahlen)?code|pin|key ?code)([^\d\n]{0,40}?)\d{3,6}\b"), r"\1\2[CODE]"),
+]
+
+
+def redact(text: str) -> str:
+    """IBAN, E-Mail, Telefon, Zugangs-Codes und persönliche Links unkenntlich machen."""
+    for pattern, repl in _REDACT:
+        text = pattern.sub(repl, text or "")
+    return text
+
+
+def clean(text: str) -> str:
+    """HTML/Entities entfernen, Zitate/Signaturen abschneiden, sensible Daten schwärzen."""
+    text = html.unescape(strip_html(text or "")).replace("\xa0", " ")
+    return redact(strip_quote(text)).strip()
+
+
+def _norm_prefix(text: str) -> str:
+    return re.sub(r"[^a-zäöüß]+", "", clean(text).casefold())[:60]
 
 
 def rank(query: str, docs: list[str], k: int = 4) -> list[int]:
@@ -136,6 +171,7 @@ class SmoobuAssistant:
         self.data: dict[str, Any] = {"wissen": [], "beispiele": [], "vorschlaege": {}, "import": None}
         self.last_error: str | None = None
         self.busy: set[int] = set()
+        self.throttle = 0.2  # Pause zwischen Abfragen beim Import (s)
         self._unsubs: list = []
         self._listeners: list = []
 
@@ -215,8 +251,10 @@ class SmoobuAssistant:
 
     def learn(self, rid: int, guest: str | None, answer: str, source: str, key: str | None = None) -> None:
         """Gästenachricht + Gastgeber-Antwort als Beispiel speichern (doppelte Schlüssel ignoriert)."""
-        answer = strip_html(answer or "").strip()
-        if len(answer) < 3:
+        answer = clean(answer)
+        guest = clean(guest or "")
+        # Airbnb-Reaktionen und „keine Antwort nötig“ sind keine Lernbeispiele
+        if len(answer) < 3 or answer.startswith("You reacted") or guest.startswith("Marked as no reply"):
             return
         key = key or f"{rid}:{hash(answer)}"
         if any(b.get("key") == key for b in self.data["beispiele"]):
@@ -227,7 +265,7 @@ class SmoobuAssistant:
                 "id": uuid.uuid4().hex[:10],
                 "key": key,
                 "buchung_id": rid,
-                "gast": strip_quote(guest or "")[:1500],
+                "gast": guest[:1500],
                 "antwort": answer[:2500],
                 "sprache": rec.get("sprache"),
                 "kanal": rec.get("kanal"),
@@ -334,7 +372,7 @@ BEISPIELE früherer Antworten der Gastgeber:
 {self._examples_text(guest_text or occasion)}
 BISHERIGER VERLAUF (älteste zuerst, gekürzt):
 {history or '(keiner)'}
-GÄSTENACHRICHT: {guest_text or '(keine – Nachricht aus Anlass oben schreiben)'}
+GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht aus Anlass oben schreiben)'}
 """
 
     STRUCTURE = {
@@ -391,7 +429,7 @@ GÄSTENACHRICHT: {guest_text or '(keine – Nachricht aus Anlass oben schreiben)
         lines = []
         for m in msgs[-limit:]:
             who = "Gast" if int(m.get("type") or 0) == 1 else "Gastgeber"
-            lines.append(f"{who}: {strip_quote(self._text(m))[:600]}")
+            lines.append(f"{who}: {clean(self._text(m))[:600]}")
         return "\n".join(lines)
 
     async def suggest(
@@ -462,6 +500,14 @@ GÄSTENACHRICHT: {guest_text or '(keine – Nachricht aus Anlass oben schreiben)
             await self._push_suggestion(sug, rec)
         return sug
 
+    # --- Vorlagen (automatische Smoobu-Nachrichten) ---------------------------
+    def is_template(self, m: dict[str, Any]) -> bool:
+        """Automatische Nachricht (Willkommen, Check-in-Info …) – keine Antwort auf den Gast."""
+        subj = (m.get("subject") or "").strip()
+        if subj and subj in set(self.data.get("vorlagen_betreff") or []):
+            return True
+        return _norm_prefix(self._text(m)) in set(self.data.get("vorlagen_anfang") or [])
+
     # --- Webhook: neue Nachricht -------------------------------------------
     async def on_new_message(self, rid: int) -> None:
         """Neue Nachricht: Gast → Vorschlag; Gastgeber → lernen + offenen Vorschlag erledigen."""
@@ -474,6 +520,8 @@ GÄSTENACHRICHT: {guest_text or '(keine – Nachricht aus Anlass oben schreiben)
             return
         latest = msgs[-1]
         if int(latest.get("type") or 0) == 2:
+            if self.is_template(latest):
+                return  # automatische Nachricht: weder lernen noch Vorschlag erledigen
             prev_guest = next((m for m in reversed(msgs[:-1]) if int(m.get("type") or 0) == 1), None)
             self.learn(rid, self._text(prev_guest) if prev_guest else None, self._text(latest), "smoobu",
                        key=f"msg:{latest.get('id')}")
@@ -655,40 +703,58 @@ GÄSTENACHRICHT: {guest_text or '(keine – Nachricht aus Anlass oben schreiben)
 
     # --- Verlauf importieren / Wissen erzeugen ------------------------------------
     async def import_history(self, years: int = 2) -> dict[str, Any]:
-        """Alle Nachrichten der Gästebuchungen laden und als Beispiele speichern."""
+        """Alle Nachrichten der Gästebuchungen laden und als Lernbeispiele speichern.
+
+        Zwei Durchläufe: erst alle Nachrichten laden und Vorlagen erkennen
+        (gleicher Betreff in ≥ 3 Buchungen = automatische Smoobu-Nachricht),
+        dann Paare „Gästenachricht → eure nächste eigene Antwort“ bilden.
+        Frühere Import-Beispiele werden ersetzt; Texte werden bereinigt und geschwärzt.
+        """
         since = (dt_util.now().date() - timedelta(days=365 * years)).isoformat()
         recs = [r for r in self.c.records_all()
                 if not r["blockiert"] and not r["storniert"] and r["anreise"] >= since]
         state = {"start": dt_util.now().isoformat(), "buchungen": len(recs), "fertig": 0, "beispiele": 0,
-                 "vorlagen": {}, "laeuft": True, "fehler": 0}
+                 "laeuft": True, "fehler": 0, "vorlagen": {}}
         self.data["import"] = state
         self._changed()
-        templates: dict[str, str] = {}
+        loaded: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
         for r in recs:
             try:
-                msgs = await self._messages(r["id"])
+                loaded.append((r, await self._messages(r["id"])))
             except SmoobuError:
                 state["fehler"] += 1
-                continue
-            last_guest = None
-            for m in msgs:
-                typ = int(m.get("type") or 0)
-                text = self._text(m)
-                if typ == 1:
-                    last_guest = text
-                elif typ == 2:
-                    subject = (m.get("subject") or "").strip()
-                    if last_guest:
-                        before = len(self.data["beispiele"])
-                        self.learn(r["id"], last_guest, text, "verlauf", key=f"msg:{m.get('id')}")
-                        state["beispiele"] += len(self.data["beispiele"]) - before
-                        last_guest = None
-                    elif subject:
-                        templates[subject] = text  # neueste Fassung je Betreff
             state["fertig"] += 1
             if state["fertig"] % 10 == 0:
                 self._changed()
-            await asyncio.sleep(0.2)  # Smoobu schonen
+            await asyncio.sleep(self.throttle)  # Smoobu schonen
+        # Vorlagen erkennen
+        subjects = Counter(
+            (m.get("subject") or "").strip()
+            for _r, msgs in loaded for m in msgs
+            if int(m.get("type") or 0) == 2 and (m.get("subject") or "").strip()
+        )
+        tmpl_subjects = sorted(k for k, n in subjects.items() if n >= 3)
+        templates: dict[str, str] = {}
+        for _r, msgs in loaded:
+            for m in msgs:
+                subj = (m.get("subject") or "").strip()
+                if int(m.get("type") or 0) == 2 and subj in tmpl_subjects:
+                    templates[subj] = clean(self._text(m))  # neueste Fassung je Betreff
+        self.data["vorlagen_betreff"] = tmpl_subjects
+        self.data["vorlagen_anfang"] = sorted({_norm_prefix(t) for t in templates.values() if t})
+        # Paare bilden (frühere Import-Beispiele ersetzen)
+        self.data["beispiele"] = [b for b in self.data["beispiele"] if b.get("quelle") != "verlauf"]
+        for r, msgs in loaded:
+            last_guest = None
+            for m in msgs:
+                typ = int(m.get("type") or 0)
+                if typ == 1:
+                    last_guest = self._text(m)
+                elif typ == 2 and last_guest and not self.is_template(m):
+                    before = len(self.data["beispiele"])
+                    self.learn(r["id"], last_guest, self._text(m), "verlauf", key=f"msg:{m.get('id')}")
+                    state["beispiele"] += len(self.data["beispiele"]) - before
+                    last_guest = None
         state["vorlagen"] = {k: v[:3000] for k, v in templates.items()}
         state["laeuft"] = False
         state["ende"] = dt_util.now().isoformat()
@@ -698,7 +764,7 @@ GÄSTENACHRICHT: {guest_text or '(keine – Nachricht aus Anlass oben schreiben)
     async def build_knowledge(self) -> int:
         """Aus eigenen Vorlagen + Antworten Wissensvorschläge erzeugen (Status „vorschlag“)."""
         imp = self.data.get("import") or {}
-        sources = [f"VORLAGE „{k}“:\n{strip_quote(v)[:1800]}" for k, v in (imp.get("vorlagen") or {}).items()]
+        sources = [f"VORLAGE „{k}“:\n{clean(v)[:1800]}" for k, v in (imp.get("vorlagen") or {}).items()]
         sources += [f"ANTWORT:\n{b['antwort'][:600]}" for b in self.data["beispiele"][-80:]]
         if not sources:
             raise SmoobuError("Keine Texte vorhanden – zuerst den Verlauf importieren")

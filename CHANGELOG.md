@@ -6,6 +6,20 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.10.1 – 2026-11-15
+
+**Deutsch**
+- Assistent: Vorlagen (automatische Smoobu-Nachrichten, gleicher Betreff in ≥ 3 Buchungen) werden erkannt und nicht mehr als Antwort auf die Gästenachricht davor gelernt
+- Bereinigung aller Lerntexte und KI-Eingaben: HTML/Entities, Zitate, Mail-Köpfe, Signaturen („Gesendet von Outlook …“), Airbnb-Reaktionen
+- Schwärzung vor dem Speichern und vor dem Senden an die KI: IBAN, E-Mail, Telefonnummern, Zugangs-Codes, persönliche Links
+- Erneuter Import ersetzt frühere Import-Beispiele
+
+**English**
+- Assistant: templates (automatic Smoobu messages, same subject in ≥ 3 bookings) are detected and no longer learned as reply to the preceding guest message
+- Cleaning of all learning texts and AI input: HTML/entities, quotes, mail headers, signatures, Airbnb reactions
+- Redaction before storing and before sending to the AI: IBAN, e-mail, phone numbers, access codes, personal links
+- Re-import replaces earlier import examples
+
 ## 1.10.0 – 2026-11-15
 
 **Deutsch**
