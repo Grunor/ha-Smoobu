@@ -259,6 +259,25 @@ def channel_filter(selection: str | Iterable[str] | None) -> Callable[[dict[str,
     return lambda r: (r["kanal"] or "").casefold() in names or r["gruppe"] in groups
 
 
+def block_channel_id(records: list[dict[str, Any]]) -> Any:
+    """ID des normalen Sperr-Kanals („Blocked channel“).
+
+    Smoobu kennt zusätzlich „Blocked channel auto“ (automatische Sperren).
+    Bevorzugt wird der Kanal ohne „auto“, sonst der häufigste Sperr-Kanal.
+    """
+    counts: dict[Any, int] = {}
+    for r in records:
+        if not r["blockiert"] or not r["kanal_id"]:
+            continue
+        name = (r["kanal"] or "").casefold()
+        if name == "blocked channel":
+            return r["kanal_id"]
+        if "auto" not in name:
+            counts[r["kanal_id"]] = counts.get(r["kanal_id"], 0) + 10
+        counts[r["kanal_id"]] = counts.get(r["kanal_id"], 0) + 1
+    return max(counts, key=counts.get) if counts else None
+
+
 def channels_of(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Alle vorkommenden Kanäle mit Gruppe, sortiert nach Gesamtumsatz."""
     totals: dict[str, dict[str, Any]] = {}
@@ -284,7 +303,7 @@ def _pct(part: float, whole: float) -> float | None:
 
 def _empty() -> dict[str, Any]:
     return {
-        "brutto": 0.0, "provision": 0.0, "zahlungsgebuehren": 0.0, "netto": 0.0, "naechte": 0,
+        "brutto": 0.0, "provision": 0.0, "zahlungsgebuehren": 0.0, "netto": 0.0, "naechte": 0, "_pn": 0,
         "_n": [], "_p": [], "_lead": [], "_price": [], "buchungen": 0, "stornos": 0,
         "storno_brutto": 0.0, "hunde": 0,
     }
@@ -303,6 +322,9 @@ def _add_nights(acc: dict[str, Any], r: dict[str, Any], start: date, end: date) 
     acc["zahlungsgebuehren"] += r["zahlungsgebuehr"] * share
     acc["netto"] += r["netto"] * share
     acc["naechte"] += n
+    # Nächte mit Preis: Basis für €/Nacht (Buchungen ohne Preis zählen nur zur Auslastung)
+    if r["brutto"]:
+        acc["_pn"] += n
 
 
 def _add_booking(acc: dict[str, Any], r: dict[str, Any]) -> None:
@@ -335,8 +357,8 @@ def _finish(acc: dict[str, Any], days: int) -> dict[str, Any]:
         "kostenquote_prozent": _pct(costs, acc["brutto"]) or 0.0,
         "naechte": n,
         "auslastung_prozent": round(min(n, days) / days * 100, 1) if days else None,
-        "brutto_pro_nacht": round(acc["brutto"] / n, 2) if n else None,
-        "netto_pro_nacht": round(acc["netto"] / n, 2) if n else None,
+        "brutto_pro_nacht": round(acc["brutto"] / acc["_pn"], 2) if acc["_pn"] else None,
+        "netto_pro_nacht": round(acc["netto"] / acc["_pn"], 2) if acc["_pn"] else None,
         "buchungen": acc["buchungen"],
         "stornos": acc["stornos"],
         "stornoquote_prozent": _pct(acc["stornos"], total) if total else None,

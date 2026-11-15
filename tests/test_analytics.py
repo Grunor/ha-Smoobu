@@ -81,3 +81,12 @@ def test_forecast():
     # Vorjahr ab 15.11.2025 nachgebucht: Buchung 6 (160) – Buchung 1 war vorher gebucht
     assert f["nachbuchung_vorjahr"] == 160.0
     assert f["prognose"] == 860.0
+
+
+def test_block_channel():
+    from custom_components.smoobu.analytics import block_channel_id
+    recs = [{"blockiert": True, "kanal": "Blocked channel auto", "kanal_id": 5},
+            {"blockiert": True, "kanal": "Blocked channel auto", "kanal_id": 5},
+            {"blockiert": True, "kanal": "Blocked channel", "kanal_id": 7}]
+    assert block_channel_id(recs) == 7
+    assert block_channel_id(recs[:2]) == 5
