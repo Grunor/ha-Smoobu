@@ -21,7 +21,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.9.0";
+const SMOOBU_CARDS_VERSION = "1.9.1";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -92,7 +92,8 @@ const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 
 const addMonths = (d, n) => new Date(d.getFullYear(), d.getMonth() + n, 1);
 function fdate(s, opts = { day: "2-digit", month: "2-digit", year: "2-digit" }) {
   if (!s) return "–";
-  const d = s.length > 10 ? new Date(s) : D(s);
+  // Smoobu liefert „YYYY-MM-DD HH:MM:SS“ – Safari/iOS braucht das „T“
+  const d = s.length > 10 ? new Date(String(s).replace(" ", "T")) : D(s);
   return d.toLocaleDateString(locale(), opts);
 }
 const fdow = (s) => fdate(s, { weekday: "short", day: "2-digit", month: "2-digit" });
@@ -342,6 +343,15 @@ function toggleChannel(list, ch) {
 function colorOf(apt, name, blocked = false) {
   if (blocked) return "#9E9E9E";
   return apt?.kanaele.find((c) => c.name === name)?.farbe || "#00A6A6";
+}
+
+// Zitierten E-Mail-Verlauf in Gastantworten abschneiden (bleibt per Klick sichtbar)
+const QUOTE_RE = /(\n|^)\s*(-{3,}\s*(Ursprüngliche Nachricht|Original Message|Original-Nachricht)|Von meinem\/meiner|Sent from my|Am .{6,60} schrieb |On .{6,80} wrote:)/i;
+function msgHtml(text) {
+  const s = String(text || "");
+  const m = s.match(QUOTE_RE);
+  if (!m || m.index < 3) return esc(s.trim());
+  return `${esc(s.slice(0, m.index).trim())}<details><summary class="muted">…</summary>${esc(s.slice(m.index).trim())}</details>`;
 }
 
 // Freie Lücken zwischen Belegungen (inkl. Sperrzeiten) + Prüfung gegen Mindestaufenthalt
@@ -1050,7 +1060,7 @@ class SmoobuBookingDialog extends HTMLElement {
     const color = colorOf(this.apt, b.kanal, b.blockiert);
     const kv = (rows) => `<dl class="kv">${rows.filter(Boolean).map(([k, v]) => `<dt>${t(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
     const positions = (b.positionen || []).map((p) => `<div class="row"><span class="grow">${esc(p.name)}</span><span>${money(p.betrag, cur, 2)}</span></div>`).join("");
-    const msgs = (d.nachrichten || []).map((m) => `<div class="msg ${m.typ === 2 ? "out" : ""}"><div class="h">${m.typ === 2 ? "→ " + t("Gast") : "← " + t("Gast")}${m.zeit ? " · " + esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""}${m.betreff ? " · " + esc(m.betreff) : ""}</div>${esc(m.text)}</div>`).join("");
+    const msgs = (d.nachrichten || []).map((m) => `<div class="msg ${m.typ === 2 ? "out" : ""}"><div class="h">${m.typ === 2 ? "→ " + t("Gast") : "← " + t("Gast")}${m.zeit ? " · " + esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""}${m.betreff ? " · " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("");
     const canCancel = !b.blockiert && b.gruppe === "Direkt" && !b.storniert && b.status !== "vergangen";
     return `
       <div class="row" style="margin-bottom:12px"><span class="badge"><span class="dot" style="background:${color}"></span> ${esc(b.kanal)}</span>
@@ -1188,7 +1198,7 @@ class SmoobuInboxCard extends SmoobuCard {
       <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span><div class="grow"><b>${esc(b.gast)}</b>${b.hund ? " 🐕" : ""}
       <div class="sub">${fdate(b.anreise)} – ${fdate(b.abreise)} · ${t(b.status)}</div></div></div>`).join("");
     const th = s.thread;
-    const msgs = th ? (th.nachrichten || []).map((m) => `<div class="msg ${m.typ === 2 ? "out" : ""}"><div class="h">${m.typ === 2 ? "→" : "←"} ${m.zeit ? esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""} ${m.betreff ? "· " + esc(m.betreff) : ""}</div>${esc(m.text)}</div>`).join("") : "";
+    const msgs = th ? (th.nachrichten || []).map((m) => `<div class="msg ${m.typ === 2 ? "out" : ""}"><div class="h">${m.typ === 2 ? "→" : "←"} ${m.zeit ? esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""} ${m.betreff ? "· " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("") : "";
     const right = !s.sel ? `<div class="empty">← ${t("Gast")}</div>`
       : s.loadingThread ? `<div class="empty">${t("Laden …")}</div>`
       : `${th?.fehler ? `<div class="err">${esc(th.fehler)}</div>` : ""}

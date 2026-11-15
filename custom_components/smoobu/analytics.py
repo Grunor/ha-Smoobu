@@ -386,8 +386,10 @@ def analyze(
     blocked_nights = 0
     for r in records:
         if r["blockiert"]:
-            arrival, departure = date.fromisoformat(r["anreise"]), date.fromisoformat(r["abreise"])
-            blocked_nights += max((min(departure, end) - max(arrival, start)).days, 0)
+            # Stornierte Sperrzeiten liefert Smoobu mit – sie zählen nicht als gesperrt
+            if not r["storniert"]:
+                arrival, departure = date.fromisoformat(r["anreise"]), date.fromisoformat(r["abreise"])
+                blocked_nights += max((min(departure, end) - max(arrival, start)).days, 0)
             continue
         if not match(r):
             continue

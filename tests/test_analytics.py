@@ -34,6 +34,9 @@ BOOKINGS = [
     bk(4, "2026-03-20", "2026-03-25", "Booking.com", 500, type="cancellation", **{"created-at": "2026-02-01 09:00"}),
     {"id": 5, "arrival": "2026-03-26", "departure": "2026-03-28", "channel": {"id": 9, "name": "Blocked"},
      "apartment": {"id": 1}, "is-blocked-booking": True},
+    # stornierte Sperrzeit: zählt weder als gesperrt noch als Storno einer Gästebuchung
+    {"id": 7, "arrival": "2026-04-01", "departure": "2026-04-10", "channel": {"id": 9, "name": "Blocked"},
+     "apartment": {"id": 1}, "is-blocked-booking": True, "type": "cancellation"},
     # Vorjahr gleicher Monat, nach dem Vorjahres-Stichtag gebucht (Pickup)
     bk(6, "2025-12-10", "2025-12-12", "Direct booking", 160, **{"created-at": "2025-11-20 09:00"}),
 ]
