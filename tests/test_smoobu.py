@@ -91,12 +91,12 @@ async def test_entities(hass, setup, aioclient_mock):
     assert s("nachster_gast").state == "Max Mustermann"
     assert s("nachste_anreise").state == "2026-11-18T19:00:00+00:00"
     assert s("nachste_abreise").state == "2026-11-16T10:00:00+00:00"
-    assert s("binary_sensor.ferienwohnung_belegt").state == "on"
+    assert s("binary_sensor.smoobu_ferienwohnung_belegt").state == "on"
     assert s("anreise_heute").state == "off"
     assert s("offene_zahlungen").state == "1"
     assert s("buchungen_30_tage").state == "1"
     assert s("gastdaten_fehlen").state == "off"
-    cal = s("calendar.ferienwohnung_belegung")
+    cal = s("calendar.smoobu_ferienwohnung_belegung")
     assert cal.state == "on" and cal.attributes["message"] == "Anna Beispiel"
 
     # Signatur-Header vorhanden
@@ -112,9 +112,9 @@ async def test_entities(hass, setup, aioclient_mock):
 async def test_calendar_events(hass, setup):
     resp = await hass.services.async_call(
         "calendar", "get_events",
-        {"entity_id": "calendar.ferienwohnung_belegung", "start_date_time": "2026-11-14 00:00:00", "end_date_time": "2026-12-01 00:00:00"},
+        {"entity_id": "calendar.smoobu_ferienwohnung_belegung", "start_date_time": "2026-11-14 00:00:00", "end_date_time": "2026-12-01 00:00:00"},
         blocking=True, return_response=True)
-    events = resp["calendar.ferienwohnung_belegung"]["events"]
+    events = resp["calendar.smoobu_ferienwohnung_belegung"]["events"]
     print(events)
     assert [e["summary"] for e in events] == ["Anna Beispiel", "Max Mustermann", "Blockiert"]
     assert events[1]["start"] == "2026-11-18T20:00:00+01:00"
@@ -126,8 +126,8 @@ async def test_time_passes(hass, setup, freezer):
     from pytest_homeassistant_custom_component.common import async_fire_time_changed
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert hass.states.get("binary_sensor.ferienwohnung_belegt").state == "off"
-    assert hass.states.get("binary_sensor.ferienwohnung_abreise_heute").state == "on"
+    assert hass.states.get("binary_sensor.smoobu_ferienwohnung_belegt").state == "off"
+    assert hass.states.get("binary_sensor.smoobu_ferienwohnung_abreise_heute").state == "on"
 
 
 async def test_webhook(hass, setup, hass_client_no_auth, aioclient_mock):

@@ -39,7 +39,10 @@ class SmoobuEntity(CoordinatorEntity[SmoobuCoordinator]):
             apt_type = apt.get("type")
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, f"{entry_id}_{apartment_id}")},
-                name=apt.get("name") or f"Wohnung {apartment_id}",
+                # Präfix „Smoobu“ im Gerätenamen → Entitäts-IDs werden zu
+                # <domain>.smoobu_<wohnung>_<entität> (eindeutig, gut suchbar,
+                # keine Kollision mit anderen Geräten derselben Wohnung).
+                name=f"Smoobu {apt.get('name') or apartment_id}",
                 manufacturer="Smoobu",
                 model=apt_type.get("name") if isinstance(apt_type, dict) else "Wohnung",
                 model_id=str(apartment_id),
