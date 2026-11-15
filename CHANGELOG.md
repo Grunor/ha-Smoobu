@@ -6,6 +6,18 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.16.0 – 2026-11-16
+
+**Deutsch**
+- **Buchungsdetails:** Im Nachrichtenbereich gibt es jetzt wie im Posteingang **„✨ Vorschlag“** (KI-Antwortvorschlag mit Anlass-Auswahl, offener automatischer Vorschlag wird vorbefüllt) und **„✓ Keine Antwort nötig“** inkl. Status „Antwort offen“ / „Ohne Antwort erledigt“ und Rückgängig. Bei gesperrter KI ausgegraut (🔒)
+- Senden aus den Buchungsdetails prüft wie der Posteingang auf nicht ergänzte Stellen `[OFFEN: …]`; der Entwurf bleibt beim Neuzeichnen erhalten
+- Intern: Antwortstatus- und KI-Bausteine von Posteingang und Buchungsdetails gemeinsam genutzt
+
+**English**
+- **Booking details:** the messages section now offers, like the inbox, **"✨ Suggestion"** (AI reply suggestion with occasion selector, an open automatic suggestion is prefilled) and **"✓ No reply needed"** incl. status "Reply pending" / "Done without reply" and undo. Greyed out (🔒) when AI is locked
+- Sending from booking details checks for unfilled `[OFFEN: …]` placeholders like the inbox; the draft survives re-rendering
+- Internal: reply-status and AI building blocks shared between inbox and booking details
+
 ## 1.15.3 – 2026-11-15
 
 **Deutsch**

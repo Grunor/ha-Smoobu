@@ -21,7 +21,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.15.3";
+const SMOOBU_CARDS_VERSION = "1.16.0";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -1572,6 +1572,46 @@ class SmoobuAnalyticsCard extends SmoobuCard {
 // ===========================================================================
 // Buchungsdetail (Overlay, von allen Karten geöffnet)
 // ===========================================================================
+// v1.16.0: Antwortstatus + KI-Vorschlag – gemeinsam für Posteingang und Buchungsdialog
+const REPLY_CSS = `
+  .pending { display: inline-block; margin-top: 2px; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600;
+    background: var(--sm-bad); color: #fff; }
+  .done { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600;
+    background: color-mix(in srgb, var(--sm-good) 18%, transparent); color: var(--sm-good); }
+  .noreply { display: flex; gap: 8px; align-items: center; margin: 4px 0 8px; flex-wrap: wrap; }
+  .btn[disabled].locked { opacity: .45; cursor: not-allowed; }
+  .sugbox { margin-top: 8px; padding: 8px 12px; border-radius: 10px; font-size: .85rem;
+    background: color-mix(in srgb, var(--sm-accent) 10%, transparent); border-left: 4px solid var(--sm-accent); }
+  .sugbox.urgent { border-left-color: var(--sm-bad); background: color-mix(in srgb, var(--sm-bad) 12%, transparent); }
+`;
+// Antwortstatus aus dem frischen Verlauf: offen nur, wenn die neueste sichtbare Nachricht VOM Gast ist (typ 1)
+// und nicht als „keine Antwort nötig“ markiert wurde (erledigt_id = abgehakte Gastnachricht, v1.14.0)
+function threadStatus(d, prev = {}) {
+  const last = newestFirst((d?.nachrichten || []).filter((m) => !m.intern))[0];
+  const guest = !!last && Number(last.typ) === 1;
+  const doneId = prev?.erledigt_id;
+  const dismissed = guest && doneId != null && Number(last.id) <= Number(doneId);
+  return { ...prev, offen: guest && !dismissed, ohne_antwort: dismissed, letzte_zeit: last?.zeit };
+}
+// Statuszeile über dem Verlauf (data-noreply / data-undo tragen die Buchungs-ID)
+const noReplyHtml = (st, id) => st?.offen ? `<div class="noreply"><span class="pending">💬 ${t("Antwort offen")}</span>
+    <button class="btn flat" data-noreply="${id}">✓ ${t("Keine Antwort nötig")}</button></div>`
+  : st?.ohne_antwort ? `<div class="noreply"><span class="done">✓ ${t("Ohne Antwort erledigt")}</span>
+    <button class="btn flat" data-undo="${id}">↶ ${t("Rückgängig")}</button></div>` : "";
+// Hinweisbox zum KI-Vorschlag (Absicht, Hinweise, Wissenslücke, offene Stellen)
+const sugHtml = (sug) => sug ? `<div class="sugbox ${sug.dringend ? "urgent" : ""}"><b>✨ ${sug.dringend ? "DRINGEND · " : ""}${esc(sug.absicht)}</b>
+    ${sug.zusammenfassung ? ` · ${esc(sug.zusammenfassung)}` : ""}
+    ${sug.hinweis ? `<div>ℹ️ ${esc(sug.hinweis)}</div>` : ""}
+    ${sug.wissensluecke ? `<div>❓ Wissenslücke: ${esc(sug.wissensluecke)}</div>` : ""}
+    ${sug.offen ? `<div>✏️ Bitte die Stellen [OFFEN: …] ergänzen.</div>` : ""}</div>` : "";
+// Anlass-Auswahl + ✨-Knopf. KI gesperrt → ausgegraut mit Tooltip (eigentliche Sperre liegt im Backend)
+const aiCtlHtml = (ai, allowed, reason, thinking) => {
+  if (!ai) return "";
+  const lock = !allowed;
+  const tip = esc(reason || t("KI in den Integrationsoptionen deaktiviert"));
+  return `<select data-k="anlass" ${lock ? `disabled title="${tip}"` : ""}>${["antwort", "willkommen", "anreise", "abreise", "bewertung"].map((a) => `<option value="${a}">${a}</option>`).join("")}</select>
+    <button class="btn flat ${lock ? "locked" : ""}" data-act="ai" ${thinking || lock ? "disabled" : ""} ${lock ? `title="${tip}"` : ""}>${lock ? `🔒 ${t("KI gesperrt")}` : thinking ? `⏳ ${t("KI denkt …")}` : `✨ ${t("Vorschlag")}`}</button>`;
+};
 const DIALOG_CSS = `
   .back { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 10000; font-family: ${FONT}; display: flex; justify-content: center; align-items: flex-start;
     overflow-y: auto; padding: 24px 8px; box-sizing: border-box; }
@@ -1602,7 +1642,9 @@ class SmoobuBookingDialog extends HTMLElement {
     document.body.appendChild(el);
     return el;
   }
-  constructor() { super(); this.attachShadow({ mode: "open" }); this.data = null; this.err = null; }
+  // v1.16.0: Antwortstatus (st), KI-Vorschlag (sug), Assistent vorhanden/erlaubt, Entwurf bleibt beim Neuzeichnen erhalten
+  constructor() { super(); this.attachShadow({ mode: "open" }); this.data = null; this.err = null;
+    this.st = null; this.sug = null; this.ai = false; this.aiAllowed = false; this.aiReason = ""; this.thinking = false; this.draft = null; }
   connectedCallback() {
     this._esc = (e) => e.key === "Escape" && this.remove();
     window.addEventListener("keydown", this._esc);
@@ -1612,10 +1654,19 @@ class SmoobuBookingDialog extends HTMLElement {
   disconnectedCallback() { window.removeEventListener("keydown", this._esc); }
   async load() {
     try {
-      const [info, d] = await Promise.all([this.store.getInfo(),
-        this.store.ws("smoobu/booking", { ...this.target, reservation_id: this.rid }, { cache: false })]);
+      const [info, d, ms, a] = await Promise.all([this.store.getInfo(),
+        this.store.ws("smoobu/booking", { ...this.target, reservation_id: this.rid }, { cache: false }),
+        // Antwortstatus + Assistent sind optional: schlägt einer fehl, bleibt der Dialog ohne diese Teile nutzbar
+        this.store.ws("smoobu/message_status", { ...this.target, reservation_ids: [this.rid] }, { cache: false }).catch(() => null),
+        this.store.ws("smoobu/assistant/state", this.target, { cache: false }).catch(() => null)]);
       this.apt = info.wohnungen.find((w) => w.apartment_id === (d.buchung?.wohnung_id ?? this.target.apartment_id)) || info.wohnungen[0];
       this.data = d;
+      // Status aus dem frischen Verlauf ableiten (erledigt_id kommt aus message_status)
+      this.st = threadStatus(d, ms?.status?.[String(this.rid)] || {});
+      this.ai = !!a; this.aiAllowed = !!a?.ki_erlaubt; this.aiReason = a?.ki_sperre || "";
+      // Offenen automatischen Vorschlag übernehmen – nur wenn noch nichts getippt wurde
+      if (!this.sug) this.sug = a?.vorschlaege?.find((v) => v.buchung_id === this.rid && v.status === "offen") || null;
+      if (this.draft === null) this.draft = this.sug?.antwort || "";
     } catch (e) { this.err = e.message || String(e); }
     this.render();
   }
@@ -1629,7 +1680,7 @@ class SmoobuBookingDialog extends HTMLElement {
     const vars = `:host { ${CSS_VARS(PAL[DARK ? "dark" : "light"])} --sm-scheme: ${DARK ? "dark" : "light"}; }`;
     const multi = (this.store.info?.wohnungen || []).length > 1;
     const code = multi && d?.buchung ? codeTag(aptCode(this.store.info, d.buchung.wohnung_id)) : "";
-    this.shadowRoot.innerHTML = `<style>${vars}${BASE_CSS}${DIALOG_CSS}</style><div class="back"><div class="dlg">
+    this.shadowRoot.innerHTML = `<style>${vars}${BASE_CSS}${DIALOG_CSS}${REPLY_CSS}</style><div class="back"><div class="dlg">
       <div class="top"><h2>${d?.buchung ? (d.buchung.blockiert ? `🔒 ${t("Sperrzeit")}` : esc(d.buchung.gast)) + (d.buchung.hund ? " 🐕" : "") + code : t("Details")}</h2>
       <button class="x" data-act="close" aria-label="close">×</button></div>${inner}</div></div>`;
     this.bind();
@@ -1682,9 +1733,11 @@ class SmoobuBookingDialog extends HTMLElement {
           <div class="row"><button class="btn flat" data-act="notice">${t("Speichern")}</button></div>
           ${b.assistent_notiz ? `<div class="sub" style="margin-top:8px;white-space:pre-wrap">${esc(b.assistent_notiz)}</div>` : ""}</div>
       </div>
-      ${!b.blockiert ? `<h3>${t("Nachrichten")} (${(d.nachrichten || []).length})</h3><div class="msgs">${msgs || `<div class="muted">${t("keine")}</div>`}</div>
-        <textarea data-k="msg" placeholder="${t("Antworten")} ${t("an den Gast")} …" style="margin-top:8px"></textarea>
-        <div class="row"><span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>` : ""}
+      ${!b.blockiert ? `<h3>${t("Nachrichten")} (${(d.nachrichten || []).length})</h3>${noReplyHtml(this.st, this.rid)}
+        <div class="msgs">${msgs || `<div class="muted">${t("keine")}</div>`}</div>
+        ${sugHtml(this.sug)}
+        <textarea data-k="msg" placeholder="${t("Antworten")} ${t("an den Gast")} …" style="margin-top:8px;min-height:110px">${esc(this.draft || "")}</textarea>
+        <div class="row">${aiCtlHtml(this.ai, this.aiAllowed, this.aiReason, this.thinking)}<span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>` : ""}
       <div class="acts">
         ${b.blockiert ? `<button class="btn danger" data-act="unblock">🔓 ${t("Sperre löschen")}</button>` : ""}
         ${canCancel ? `<button class="btn danger" data-act="cancel">${t("Stornieren")}</button>` : ""}
@@ -1696,9 +1749,39 @@ class SmoobuBookingDialog extends HTMLElement {
     const r = this.shadowRoot;
     r.querySelector(".back")?.addEventListener("click", (e) => { if (e.target.classList.contains("back")) this.remove(); });
     r.querySelectorAll("[data-act]").forEach((el) => el.addEventListener("click", () => this.act(el.dataset.act)));
+    // Entwurf mitschreiben, damit er beim Neuzeichnen (z. B. nach „Keine Antwort nötig“) nicht verloren geht
+    r.querySelector('[data-k="msg"]')?.addEventListener("input", (e) => { this.draft = e.target.value; });
+    r.querySelector("[data-noreply]")?.addEventListener("click", () => this.noReply(true));
+    r.querySelector("[data-undo]")?.addEventListener("click", () => this.noReply(false));
+  }
+  // v1.16.0: „Keine Antwort nötig“ / Rückgängig – gleicher Backend-Aufruf wie im Posteingang
+  async noReply(done) {
+    try {
+      const r = await this.store.ws("smoobu/message_done", { ...this.target, reservation_id: this.rid, done }, { cache: false });
+      this.st = threadStatus(this.data, r.status || {});
+      if (done) {                         // offener KI-Vorschlag gilt im Backend als „ignoriert“
+        if (this.sug && this.draft === this.sug.antwort) this.draft = "";   // unveränderten Entwurf mit entfernen
+        this.sug = null;
+      }
+      this.store.invalidate();            // Zähler in Kopfleiste/Übersicht/Posteingang neu laden
+      toast(t(done ? "Ohne Antwort erledigt" : "Gespeichert"));
+      this.render();
+    } catch (e) { toast(`${t("Fehler")}: ${e.message || e}`); }
+  }
+  // v1.16.0: KI-Antwortvorschlag – füllt das Eingabefeld, gesendet wird erst nach Klick auf „Senden“
+  async aiSuggest() {
+    if (!this.aiAllowed) { toast(this.aiReason || t("KI in den Integrationsoptionen deaktiviert")); return; }
+    const anlass = this.shadowRoot.querySelector('[data-k="anlass"]')?.value || "antwort";
+    this.thinking = true; this.render();
+    try {
+      this.sug = await this.store.ws("smoobu/assistant/suggest", { ...this.target, reservation_id: this.rid, anlass }, { cache: false });
+      this.draft = this.sug.antwort || "";
+    } catch (e) { toast(`${t("Fehler")}: ${e.message || e}`); }
+    this.thinking = false; this.render();
   }
   async act(a) {
     if (a === "close") return this.remove();
+    if (a === "ai") return this.aiSuggest();
     const v = (k) => this.shadowRoot.querySelector(`[data-k="${k}"]`)?.value;
     const id = this.rid;
     try {
@@ -1712,9 +1795,12 @@ class SmoobuBookingDialog extends HTMLElement {
       } else if (a === "send") {
         const text = (v("msg") || "").trim();
         if (!text) return;
+        if (/\[OFFEN/i.test(text)) { toast("Bitte zuerst die Stellen [OFFEN: …] ergänzen"); return; }
         if (!(await confirmDialog(`${t("Senden")} ${t("an den Gast")}?`))) return;
+        // Über den Assistenten senden → Antwort wird als Lernbeispiel gespeichert
         await this.store.ws("smoobu/assistant/send", { ...this.target, reservation_id: id, text }, { cache: false });
         this.store.invalidate();
+        this.draft = ""; this.sug = null;
         toast(t("Gesendet"));
         return this.load();
       } else if (a === "unblock") {
@@ -1754,18 +1840,10 @@ class SmoobuInboxCard extends SmoobuCard {
       background: color-mix(in srgb, var(--sm-bad) 10%, transparent); }
     .item.open.on, .item.open:hover { background: color-mix(in srgb, var(--sm-bad) 18%, transparent); }
     .item.open b { color: var(--sm-bad); }
-    .pending { display: inline-block; margin-top: 2px; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600;
-      background: var(--sm-bad); color: #fff; }
-    /* v1.14.0: „Keine Antwort nötig“ – klein in der Liste, normal im Verlauf */
+    /* v1.14.0: „Keine Antwort nötig“ – klein in der Liste, normal im Verlauf (gemeinsam: REPLY_CSS) */
     .btn.mini { padding: 2px 8px; font-size: .75rem; min-height: 0; margin: 2px 0 0 6px; }
-    .done { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600;
-      background: color-mix(in srgb, var(--sm-good) 18%, transparent); color: var(--sm-good); }
-    .noreply { display: flex; gap: 8px; align-items: center; margin: 4px 0 8px; }
-    .btn[disabled].locked { opacity: .45; cursor: not-allowed; }
+    ${REPLY_CSS}
     .opencount { padding: 2px 10px; border-radius: 999px; font-size: .85rem; font-weight: 600; background: var(--sm-bad); color: #fff; }
-    .sugbox { margin-top: 8px; padding: 8px 12px; border-radius: 10px; font-size: .85rem;
-      background: color-mix(in srgb, var(--sm-accent) 10%, transparent); border-left: 4px solid var(--sm-accent); }
-    .sugbox.urgent { border-left-color: var(--sm-bad); background: color-mix(in srgb, var(--sm-bad) 12%, transparent); }
     .last { padding: 12px 14px; border-radius: var(--sm-rs); border-left: 4px solid var(--sm-accent); margin-bottom: 14px;
       background: var(--sm-surf2); cursor: pointer; white-space: pre-wrap; }
     ${DIALOG_CSS.replace(/\.back[^}]+}|\.dlg[^}]+}/g, "")}
@@ -1799,17 +1877,10 @@ class SmoobuInboxCard extends SmoobuCard {
       const sug = a?.vorschlaege?.find((v) => v.buchung_id === id && v.status === "offen") || null;
       // Status aus dem frischen Verlauf übernehmen: offen nur, wenn die neueste sichtbare Nachricht
       // VOM Gast ist (typ 1) und nicht als „keine Antwort nötig“ markiert wurde (erledigt_id, v1.14.0)
-      if (this._data?.status) this._data.status[id] = this.threadStatus(d, this._data.status[id]);
+      if (this._data?.status) this._data.status[id] = threadStatus(d, this._data.status[id]);
       if (this._state.sel === id) this.setState({ thread: d, loadingThread: false, sug, draft: sug?.antwort || "",
         ai: !!a, aiAllowed: !!a?.ki_erlaubt, aiReason: a?.ki_sperre || "" });
     } catch (e) { this.setState({ thread: { fehler: e.message || String(e), nachrichten: [] }, loadingThread: false }); }
-  }
-  threadStatus(d, prev = {}) {
-    const last = newestFirst((d.nachrichten || []).filter((m) => !m.intern))[0];
-    const guest = !!last && Number(last.typ) === 1;
-    const doneId = prev.erledigt_id;
-    const dismissed = guest && doneId != null && Number(last.id) <= Number(doneId);
-    return { ...prev, offen: guest && !dismissed, ohne_antwort: dismissed, letzte_zeit: last?.zeit };
   }
   async noReply(id, done = true) {
     try {
@@ -1850,24 +1921,11 @@ class SmoobuInboxCard extends SmoobuCard {
       : s.loadingThread ? `<div class="empty">${t("Laden …")}</div>`
       : `${th?.fehler ? `<div class="err">${esc(th.fehler)}</div>` : ""}
         <div class="row"><b class="grow">${esc(th?.buchung?.gast || "")}</b><button class="btn flat" data-act="detail">${t("Details")}</button></div>
-        ${status[s.sel]?.offen ? `<div class="noreply"><span class="pending">💬 ${t("Antwort offen")}</span>
-          <button class="btn flat" data-noreply="${s.sel}">✓ ${t("Keine Antwort nötig")}</button></div>`
-          : status[s.sel]?.ohne_antwort ? `<div class="noreply"><span class="done">✓ ${t("Ohne Antwort erledigt")}</span>
-          <button class="btn flat" data-undo="${s.sel}">↶ ${t("Rückgängig")}</button></div>` : ""}
+        ${noReplyHtml(status[s.sel], s.sel)}
         <div class="msgs">${msgs || `<div class="muted">${t("keine")}</div>`}</div>
-        ${s.sug ? `<div class="sugbox ${s.sug.dringend ? "urgent" : ""}"><b>✨ ${s.sug.dringend ? "DRINGEND · " : ""}${esc(s.sug.absicht)}</b>
-          ${s.sug.zusammenfassung ? ` · ${esc(s.sug.zusammenfassung)}` : ""}
-          ${s.sug.hinweis ? `<div>ℹ️ ${esc(s.sug.hinweis)}</div>` : ""}
-          ${s.sug.wissensluecke ? `<div>❓ Wissenslücke: ${esc(s.sug.wissensluecke)}</div>` : ""}
-          ${s.sug.offen ? `<div>✏️ Bitte die Stellen [OFFEN: …] ergänzen.</div>` : ""}</div>` : ""}
+        ${sugHtml(s.sug)}
         <textarea data-k="msg" placeholder="${t("Antworten")} …" style="margin-top:8px;min-height:140px">${esc(s.draft || "")}</textarea>
-        <div class="row">${s.ai ? (() => {
-          // KI gesperrt (Option „KI-Funktionen erlauben“ aus): Bedienelemente ausgegraut + Tooltip;
-          // die eigentliche Sperre liegt im Backend, das hier ist nur die Anzeige.
-          const lock = !s.aiAllowed;
-          const tip = esc(s.aiReason || t("KI in den Integrationsoptionen deaktiviert"));
-          return `<select data-k="anlass" ${lock ? `disabled title="${tip}"` : ""}>${["antwort", "willkommen", "anreise", "abreise", "bewertung"].map((a) => `<option value="${a}">${a}</option>`).join("")}</select>
-          <button class="btn flat ${lock ? "locked" : ""}" data-act="ai" ${s.thinking || lock ? "disabled" : ""} ${lock ? `title="${tip}"` : ""}>${lock ? `🔒 ${t("KI gesperrt")}` : s.thinking ? `⏳ ${t("KI denkt …")}` : `✨ ${t("Vorschlag")}`}</button>`; })() : ""}
+        <div class="row">${aiCtlHtml(s.ai, s.aiAllowed, s.aiReason, s.thinking)}
           <span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>`;
     return `<div class="head"><h2>${esc(this._config.title || t("Posteingang"))}</h2>${openCount ? `<span class="opencount">💬 ${openCount} ${t("warten auf Antwort")}</span>` : ""}</div>${lastHtml}
       <div class="wrap"><div>${items || `<div class="empty">${t("Keine Daten")}</div>`}</div><div>${right}</div></div>`;
