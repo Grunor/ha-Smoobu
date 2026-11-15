@@ -29,6 +29,7 @@ from .analytics import (
     COMPARES,
     PERIODS,
     analyze_with_compare,
+    block_channel_id,
     channels_of,
     forecast_year,
     period_range,
@@ -115,7 +116,7 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
         for apt_id, apt in (c.data.apartments if c.data else {}).items():
             chans = channels_of(c.records(apt_id))
             colors = channel_colors([ch["name"] for ch in chans])
-            blocked = next((r["kanal_id"] for r in c.records(apt_id) if r["blockiert"] and r["kanal_id"]), None)
+            blocked = block_channel_id(c.records(apt_id))
             result.append(
                 {
                     "entry_id": c.config_entry.entry_id,

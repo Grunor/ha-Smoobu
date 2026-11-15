@@ -21,7 +21,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.9.1";
+const SMOOBU_CARDS_VERSION = "1.9.2";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -56,7 +56,7 @@ const EN = {
   "an den Gast": "to guest", "Gesendet": "Sent", "Aktualisiert": "Updated", "Nachbuchung wie Vorjahr": "Pickup like last year",
   "gebucht": "booked", "Gesperrt": "Blocked", "Monate": "months", "Diagramm": "Chart", "Sperrzeit": "Block",
   "Preis/Nacht": "Price/night", "Ersparnis Direkt": "Direct savings", "Kanaltabelle": "Channel table",
-  "Neu laden": "Reload", "Heute": "Today", "Ankunft": "Check-in", "Abfahrt": "Check-out", "Gäste": "Guests",
+  "Neu laden": "Reload", "morgen": "tomorrow", "Heute abgereist": "Departed today", "Heute": "Today", "Ankunft": "Check-in", "Abfahrt": "Check-out", "Gäste": "Guests",
   "Details": "Details", "In Smoobu öffnen": "Open in Smoobu", "Grund (optional)": "Reason (optional)",
   "Tage markieren: erst ersten, dann letzten Tag antippen": "Mark days: tap first day, then last day",
 };
@@ -415,7 +415,9 @@ class SmoobuOverviewCard extends SmoobuCard {
   body({ apt, today, month, ytd, bookings, rates }) {
     const cur = apt.currency;
     const guests = bookings.filter((b) => !b.blockiert && !b.storniert);
-    const current = guests.find((b) => b.anreise <= today && b.abreise > today) || guests.find((b) => b.abreise === today);
+    const staying = guests.find((b) => b.anreise <= today && b.abreise > today);
+    // Nach der Freigabe am Abreisetag: abgereisten Gast noch zeigen, aber so benennen
+    const current = staying || guests.find((b) => b.abreise === today);
     const arrivals = guests.filter((b) => b.anreise === today);
     const departures = guests.filter((b) => b.abreise === today);
     const next = guests.filter((b) => b.anreise > today).slice(0, this._config.upcoming);
@@ -430,7 +432,7 @@ class SmoobuOverviewCard extends SmoobuCard {
         <div class="sub">${t(label)}</div><div class="n">${esc(b.gast || "–")}${b.hund ? " 🐕" : ""}</div>
         <div class="m">${fdow(b.anreise)} → ${fdow(b.abreise)} · ${b.naechte} ${t("Nächte")} · ${b.personen} ${t("Personen")}</div>
         <div class="m"><span class="dot" style="background:${colorOf(apt, b.kanal)}"></span> ${esc(b.kanal)} · ${money(b.brutto, cur)}
-          ${b.check_in ? ` · ${t("Ankunft")} ${esc(b.check_in)}` : ""}${label === "Nächster Gast" ? ` · in ${days(b)} ${t("Tage")}` : ""}</div>
+          ${b.check_in ? ` · ${t("Ankunft")} ${esc(b.check_in)}` : ""}${label === "Nächster Gast" ? ` · ${days(b) === 1 ? t("morgen") : `in ${days(b)} ${t("Tage")}`}` : ""}</div>
       </div>` : "";
     const ents = (this._config.entities || []).map((e) => {
       const id = typeof e === "string" ? e : e.entity;
@@ -451,7 +453,7 @@ class SmoobuOverviewCard extends SmoobuCard {
         ${dogs.map((b) => `<span class="badge">🐕 ${esc(b.gast)} (${fdate(b.anreise)})</span>`).join("")}
         ${ents}
       </div>
-      <div class="hero">${guestCard(current, "Aktueller Gast")}${guestCard(nextGuest, "Nächster Gast")}</div>
+      <div class="hero">${guestCard(current, staying ? "Aktueller Gast" : "Heute abgereist")}${guestCard(nextGuest, "Nächster Gast")}</div>
       <div class="grid">
         ${tile(`${t("Monat")} ${t("Brutto")}`, money(m.brutto, cur), `${t("Netto")} ${money(m.netto, cur)} ${delta(m.veraenderung_prozent?.brutto)}`)}
         ${tile(t("Auslastung"), pct(m.auslastung_prozent, 0), `${m.naechte} ${t("Nächte")} ${delta(m.veraenderung_punkte?.auslastung_prozent, "pp")}`)}
@@ -721,7 +723,9 @@ class SmoobuBookingsCard extends SmoobuCard {
     const q = s.search.trim().toLowerCase();
     const chans = new Set(s.channels);
     let rows = bookings.filter((b) => {
-      if (s.status.length && !s.status.includes(b.status)) return false;
+      // Stornierte Sperrzeiten (Smoobu legt viele automatisch an) nur auf ausdrücklichen Wunsch
+      if (b.storniert && b.blockiert && !(s.status.includes("storniert") && s.status.includes("blockiert"))) return false;
+      if (s.status.length && !s.status.includes(b.status) && !(b.blockiert && s.status.includes("blockiert"))) return false;
       if (chans.size && !(chans.has(b.kanal) || (chans.has("Direkt") && b.gruppe === "Direkt") || (chans.has("Portale") && b.gruppe === "Portal"))) return false;
       if (q && ![b.gast, b.email, b.telefon, b.referenz, b.notiz, b.kanal, b.id].join(" ").toLowerCase().includes(q)) return false;
       return true;
@@ -903,8 +907,8 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     }
     const best = chans.filter(([, v]) => v.netto_pro_nacht).sort((a, b) => b[1].netto_pro_nacht - a[1].netto_pro_nacht);
     if (best.length > 1) out.push(`Bester Erlös je Nacht: <b>${esc(best[0][0])}</b> ${money(best[0][1].netto_pro_nacht, cur)} netto, schwächster: ${esc(best.at(-1)[0])} ${money(best.at(-1)[1].netto_pro_nacht, cur)}.`);
-    const storno = chans.filter(([, v]) => v.stornos > 0).sort((a, b) => b[1].stornoquote_prozent - a[1].stornoquote_prozent);
-    if (storno.length) out.push(`Höchste Stornoquote: <b>${esc(storno[0][0])}</b> ${pct(storno[0][1].stornoquote_prozent)} (${storno[0][1].stornos} ${t("Stornos")}, ${money(storno[0][1].storno_volumen, cur)}).`);
+    const storno = chans.filter(([, v]) => v.stornos > 0 && v.buchungen + v.stornos >= 3).sort((a, b) => b[1].stornoquote_prozent - a[1].stornoquote_prozent);
+    if (storno.length) out.push(`Höchste Stornoquote: <b>${esc(storno[0][0])}</b> ${pct(storno[0][1].stornoquote_prozent)} (${storno[0][1].stornos} von ${storno[0][1].stornos + storno[0][1].buchungen}, ${money(storno[0][1].storno_volumen, cur)}).`);
     const lead = chans.filter(([, v]) => v.vorlauf_schnitt !== null && v.buchungen >= 2).sort((a, b) => a[1].vorlauf_schnitt - b[1].vorlauf_schnitt);
     if (lead.length > 1) out.push(`Kurzfristigste Gäste: <b>${esc(lead[0][0])}</b> (Ø ${num(lead[0][1].vorlauf_schnitt)} Tage Vorlauf), langfristigste: ${esc(lead.at(-1)[0])} (Ø ${num(lead.at(-1)[1].vorlauf_schnitt)} Tage).`);
     if (r.vergleich && r.veraenderung_prozent?.brutto !== null && r.veraenderung_prozent?.brutto !== undefined) {
@@ -955,7 +959,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
         ${tile(t("Buchungen"), num(r.buchungen), `${r.stornos} ${t("Stornos")} (${pct(r.stornoquote_prozent, 0)}) ${delta(dp.buchungen)}`)}
         ${tile(t("Ø Aufenthalt"), `${num(r.aufenthalt_schnitt, 1)} N`, `${cmpTxt("aufenthalt_schnitt", (v) => num(v, 1))} ${delta(dp.aufenthalt_schnitt)}`)}
         ${tile(t("Ø Vorlauf"), `${num(r.vorlauf_schnitt)} ${t("Tage")}`, `Median ${num(r.vorlauf_median)} · ${cmpTxt("vorlauf_schnitt", (v) => num(v))}`)}
-        ${tile(t("Ø Personen"), num(r.personen_schnitt, 1), `${r.hunde} × 🐕 · ${money(r.preis_pro_buchung, cur)}/${t("Buchungen")}`)}
+        ${tile(t("Ø Personen"), num(r.personen_schnitt, 1), `${r.hunde} × 🐕 · ${money(r.preis_pro_buchung, cur)} je Buchung`)}
         ${tile(t("Direktanteil"), pct(r.direktanteil_prozent, 0), delta(dpp.direktanteil_prozent, "pp"))}
         ${r.prognose ? tile(t("Prognose Jahr"), money(r.prognose.prognose, cur), `${t("Netto")} ${money(r.prognose.prognose_netto, cur)}`) : ""}
       </div>
@@ -1191,9 +1195,10 @@ class SmoobuInboxCard extends SmoobuCard {
     const s = this._state;
     const entityId = this._config.message_entity || Object.keys(this._hass.states).find((e) => e.startsWith("sensor.") && e.endsWith("letzte_gastenachricht"));
     const last = entityId ? this._hass.states[entityId] : null;
-    const lastHtml = last && last.attributes.text ? `<div class="last" data-rid="${esc(last.attributes.buchungs_id || "")}">
-      <div class="sub">${t("Nachrichten")} · ${esc(last.attributes.gast || "")} · ${fdate(last.attributes.empfangen, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
-      ${esc(last.attributes.text).slice(0, 600)}</div>` : "";
+    // Ohne Leerraum zwischen den Tags: .last nutzt white-space: pre-wrap
+    const lastHtml = last && last.attributes.text ? `<div class="last" data-rid="${esc(last.attributes.buchungs_id || "")}">` +
+      `<div class="sub">${t("Nachrichten")} · ${esc(last.attributes.gast || "")} · ${fdate(last.attributes.empfangen, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>` +
+      `${msgHtml(String(last.attributes.text).slice(0, 2000))}</div>` : "";
     const items = guests.map((b) => `<div class="item ${s.sel === b.id ? "on" : ""}" data-rid="${b.id}">
       <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span><div class="grow"><b>${esc(b.gast)}</b>${b.hund ? " 🐕" : ""}
       <div class="sub">${fdate(b.anreise)} – ${fdate(b.abreise)} · ${t(b.status)}</div></div></div>`).join("");

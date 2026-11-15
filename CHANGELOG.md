@@ -6,6 +6,20 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.9.2 – 2026-11-15
+
+**Deutsch**
+- €/Nacht nur aus Nächten mit Preis (Buchungen ohne Preis zählen weiter zur Auslastung)
+- Übersicht: „Heute abgereist“ statt „Aktueller Gast“ nach der Freigabe, „morgen“ statt „in 1 Tage“; Erkenntnis „Höchste Stornoquote“ erst ab 3 Buchungen
+- Sperren: `block_period` nutzt gezielt den Kanal „Blocked channel“ (nicht „Blocked channel auto“)
+- Buchungsliste: stornierte (automatische) Sperrzeiten ausgeblendet, außer „storniert“ + „blockiert“ sind gewählt; Posteingang: letzte Nachricht ohne Leerraum, Zitat eingeklappt
+
+**English**
+- €/night only from nights with a price (bookings without price still count for occupancy)
+- Overview: "Departed today" instead of "Current guest" after release, "tomorrow"; insight "highest cancellation rate" only from 3 bookings
+- Blocking: `block_period` uses the "Blocked channel" (not "Blocked channel auto")
+- Booking list: cancelled (automatic) blocks hidden unless "cancelled" + "blocked" are selected; inbox: last message without extra whitespace, quote collapsed
+
 ## 1.9.1 – 2026-11-15
 
 **Deutsch**

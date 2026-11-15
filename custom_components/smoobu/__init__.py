@@ -84,6 +84,7 @@ from .const import (
     SERVICE_REFRESH,
     SERVICE_SEND_MESSAGE,
 )
+from .analytics import block_channel_id
 from .coordinator import SmoobuCoordinator
 from .frontend import async_register_frontend
 from .websocket_api import async_register as async_register_websocket
@@ -438,9 +439,7 @@ def _register_services(hass: HomeAssistant) -> None:
         if end <= start:
             raise ServiceValidationError("Enddatum (Abreise) muss nach dem Startdatum liegen")
         # Sperr-Kanal-ID aus vorhandenen Sperrzeiten (Smoobu „Blocked channel“)
-        channel_id = next(
-            (r["kanal_id"] for r in coordinator.records(apt) if r["blockiert"] and r["kanal_id"]), None
-        )
+        channel_id = block_channel_id(coordinator.records(apt))
         if channel_id is None:
             raise ServiceValidationError(
                 "Keine Sperrzeit in Smoobu gefunden, aus der die ID des Sperr-Kanals gelesen werden kann. "
