@@ -215,17 +215,17 @@ async def test_diagnostics(hass, setup):
 
 
 async def test_checkout_buffer(hass, setup, freezer):
-    """Abreisezeit aus Smoobu + Puffer, ohne Zeit Standard-Check-out."""
+    """Freigabe = Abreisezeit (Smoobu bzw. Standard-Check-out) + Wartezeit nach Check-out."""
     hass.config_entries.async_update_entry(setup, options={
-        "scan_interval": 10, "use_webhook": True, "default_checkin": "16:00", "default_checkout": "11:30",
-        "days_back": 30, "days_ahead": 365, "enrich_count": 3, "checkout_buffer": 60})
+        "scan_interval": 10, "use_webhook": True, "default_checkin": "16:00", "default_checkout": "11:00",
+        "days_back": 30, "days_ahead": 365, "enrich_count": 3, "checkout_buffer": 30})
     await hass.async_block_till_done()
-    # Buchung 1 ohne Abreisezeit → frei ab 11:30 am 16.11.
+    # Buchung 1 ohne Abreisezeit → Freigabe 11:00 + 30 min = 11:30 am 16.11.
     st = hass.states.get("sensor.smoobu_ferienwohnung_nachste_abreise")
     assert st.state == "2026-11-16T10:30:00+00:00", st.state
-    # Buchung 2 hat check-out 10:00 → Freigabe 11:00 (lokal) am 21.11.
+    # Buchung 2 hat check-out 10:00 → Freigabe 10:30 (lokal) am 21.11.
     attrs = hass.states.get("sensor.smoobu_ferienwohnung_nachster_gast").attributes
-    assert attrs["freigabe"] == "2026-11-21T11:00:00+01:00", attrs["freigabe"]
+    assert attrs["freigabe"] == "2026-11-21T10:30:00+01:00", attrs["freigabe"]
     assert attrs["abreise"] == "2026-11-21T10:00:00+01:00"
 
 

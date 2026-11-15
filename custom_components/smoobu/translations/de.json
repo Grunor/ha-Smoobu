@@ -48,7 +48,7 @@
           "days_back": "Rückblick (Tage)",
           "days_ahead": "Vorschau (Tage)",
           "enrich_count": "Detaildaten für die nächsten n Buchungen",
-          "checkout_buffer": "Puffer nach Smoobu-Abreisezeit",
+          "checkout_buffer": "Wartezeit nach Check-out (Minuten)",
           "payment_excluded_channels": "Kanäle mit Zahlung über das Portal",
           "history_years": "Auswertung: Jahre Historie"
         },
@@ -56,9 +56,9 @@
           "scan_interval": "Rückfall-Abfrage zusätzlich zum Webhook.",
           "use_webhook": "Smoobu meldet Buchungsänderungen sofort über Nabu Casa.",
           "default_checkin": "Gilt, wenn in der Buchung keine Ankunftszeit steht.",
-          "default_checkout": "Gilt, wenn in der Buchung keine Abreisezeit steht (Freigabezeit, ohne Puffer).",
+          "default_checkout": "Gilt, wenn in der Buchung keine Abreisezeit steht (offizielle Check-out-Zeit für Gäste).",
           "enrich_count": "Laufende + nächste n Buchungen je Wohnung mit Vor-/Nachname, Kurtaxe usw. ergänzen.",
-          "checkout_buffer": "Steht in der Buchung eine Abreisezeit, gilt die Wohnung erst nach dieser Zeit + Puffer als frei. Ohne Abreisezeit gilt der Standard-Check-out.",
+          "checkout_buffer": "Zeit nach dem Check-out bis zur tatsächlichen Freigabe, z. B. bis zum Reinigungsstart. Freigabe = Abreisezeit (aus Smoobu, sonst Standard-Check-out) + Wartezeit, z. B. 11:00 + 30 min = 11:30. Nutzen „Belegt“, „Freigabe“ und alle Automationen darauf.",
           "payment_excluded_channels": "Buchungen dieser Kanäle zählen nicht als offene Zahlung (das Portal kassiert, Smoobu meldet trotzdem „unbezahlt“).",
           "history_years": "Jahre vor dem laufenden Jahr, die für Auswertungen und Vergleiche geladen werden."
         }

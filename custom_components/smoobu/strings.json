@@ -48,7 +48,7 @@
           "days_back": "Days back",
           "days_ahead": "Days ahead",
           "enrich_count": "Fetch details for next n bookings",
-          "checkout_buffer": "Buffer after Smoobu departure time",
+          "checkout_buffer": "Waiting time after check-out (minutes)",
           "payment_excluded_channels": "Channels paid via the portal",
           "history_years": "Auswertung: Jahre Historie"
         },
@@ -56,9 +56,9 @@
           "scan_interval": "Fallback polling in addition to the webhook.",
           "use_webhook": "Smoobu pushes booking changes instantly via Nabu Casa.",
           "default_checkin": "Used when the booking has no arrival time.",
-          "default_checkout": "Used when the booking has no departure time (release time, no buffer).",
+          "default_checkout": "Used when the booking has no departure time (official guest check-out time).",
           "enrich_count": "Enrich current + next n bookings per apartment with first/last name, city tax etc.",
-          "checkout_buffer": "If the booking has a departure time, the apartment counts as vacant only after that time + buffer. Without a departure time the default check-out applies.",
+          "checkout_buffer": "Time after check-out until the actual release, e.g. until cleaning starts. Release = departure time (from Smoobu, else default check-out) + waiting time, e.g. 11:00 + 30 min = 11:30. Used by \"Occupied\", \"Release\" and automations based on them.",
           "payment_excluded_channels": "Bookings from these channels do not count as unpaid (the portal collects payment, Smoobu still reports \"unpaid\").",
           "history_years": "Jahre vor dem laufenden Jahr, die für Auswertungen und Vergleiche geladen werden."
         }

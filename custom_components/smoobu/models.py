@@ -105,18 +105,16 @@ def booking_end(booking: dict[str, Any], default_checkout: time) -> datetime | N
 def booking_release(
     booking: dict[str, Any], default_checkout: time, buffer_minutes: int
 ) -> datetime | None:
-    """Zeitpunkt, ab dem die Wohnung als frei gilt („Freigabe“).
+    """Zeitpunkt, ab dem die Wohnung als frei gilt („Freigabe“, tatsächlicher Check-out).
 
-    - Abreisezeit in Smoobu angegeben → diese Zeit + Puffer
-    - keine Abreisezeit → Standard-Check-out (ohne Puffer)
+    Abreisezeit (aus Smoobu, sonst Standard-Check-out) + Wartezeit nach Check-out
+    (z. B. bis zum Reinigungsstart): 11:00 + 30 min = 11:30.
+    Seit v1.11.0 gilt die Wartezeit immer – vorher nur bei einer Abreisezeit aus Smoobu.
     """
     end = booking_end(booking, default_checkout)
     if end is None:
         return None
-    # parse_time mit fallback=None → None, wenn Smoobu keine gültige Zeit liefert
-    if parse_time(booking.get("check-out"), None) is not None:
-        return end + timedelta(minutes=buffer_minutes)
-    return end
+    return end + timedelta(minutes=buffer_minutes)
 
 
 # Hinweise auf mitreisende Hunde/Haustiere (Preiselemente, Notizen).

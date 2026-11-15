@@ -113,3 +113,12 @@ def test_assistant_template_keys():
         body_key("Hallo Robin,falls du es noch nicht getan hast, lass uns bitte wissen wann")
     assert norm_subject("Rechnung RE2026-045 Ferienwohnung") == norm_subject("Rechnung RE2026-051 Ferienwohnung")
     assert clean("Gerne!\n\nReply to: Is 12 Uhr just as well?") == "Gerne!"
+
+
+def test_release_waiting_time():
+    from datetime import time
+    from custom_components.smoobu.models import booking_release
+    r = booking_release({"departure": "2026-11-16"}, time(11, 0), 30)
+    assert (r.hour, r.minute) == (11, 30)
+    r = booking_release({"departure": "2026-11-16", "check-out": "10:00"}, time(11, 0), 30)
+    assert (r.hour, r.minute) == (10, 30)
