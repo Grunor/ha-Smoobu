@@ -21,7 +21,7 @@ from . import SmoobuConfigEntry
 from .api import SmoobuError
 from .coordinator import SmoobuCoordinator
 from .entity import SmoobuEntity
-from .models import booking_end, booking_start, guest_count, guest_name, is_blocked, nights
+from .models import booking_end, booking_start, guest_count, guest_name, is_blocked, nights, pet_hint
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,6 +53,8 @@ class SmoobuCalendar(SmoobuEntity, CalendarEntity):
             summary = "Blockiert"
         else:
             summary = guest_name(booking) or "Gast"
+            if pet_hint(booking):
+                summary += " 🐕"  # Hund sofort im Kalender erkennbar
         channel = (booking.get("channel") or {}).get("name") or ""
         # Beschreibung zeilenweise, damit Kalenderkarten sie lesbar anzeigen.
         lines = [
@@ -72,6 +74,8 @@ class SmoobuCalendar(SmoobuEntity, CalendarEntity):
             lines.append(f"E-Mail: {booking.get('email')}")
         if booking.get("language"):
             lines.append(f"Sprache: {booking.get('language')}")
+        if hint := pet_hint(booking):
+            lines.append(f"🐕 Hund: {hint}")
         if booking.get("notice"):
             lines.append(f"Notiz: {booking.get('notice')}")
         return CalendarEvent(

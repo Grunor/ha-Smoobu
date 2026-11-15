@@ -16,6 +16,9 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -32,6 +35,7 @@ from .const import (
     CONF_DEFAULT_CHECKIN,
     CONF_DEFAULT_CHECKOUT,
     CONF_ENRICH_COUNT,
+    CONF_PAYMENT_EXCLUDED_CHANNELS,
     CONF_SCAN_INTERVAL,
     CONF_USE_WEBHOOK,
     CONF_USER_ID,
@@ -41,6 +45,7 @@ from .const import (
     DEFAULT_DAYS_AHEAD,
     DEFAULT_DAYS_BACK,
     DEFAULT_ENRICH_COUNT,
+    DEFAULT_PAYMENT_EXCLUDED_CHANNELS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_USE_WEBHOOK,
     DOMAIN,
@@ -188,6 +193,21 @@ class SmoobuOptionsFlow(OptionsFlow):
                     default=opts.get(CONF_CHECKOUT_BUFFER, DEFAULT_CHECKOUT_BUFFER),
                 ): NumberSelector(
                     NumberSelectorConfig(min=0, max=240, step=5, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
+                ),
+                # Kanäle, deren Zahlung das Portal abwickelt (nicht als offen zählen).
+                # Eigene Kanalnamen können frei eingetragen werden.
+                vol.Required(
+                    CONF_PAYMENT_EXCLUDED_CHANNELS,
+                    default=opts.get(
+                        CONF_PAYMENT_EXCLUDED_CHANNELS, DEFAULT_PAYMENT_EXCLUDED_CHANNELS
+                    ),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=["Airbnb", "Booking.com", "Expedia", "Vrbo", "HomeToGo", "Direct booking", "Website"],
+                        multiple=True,
+                        custom_value=True,
+                        mode=SelectSelectorMode.DROPDOWN,
+                    )
                 ),
                 vol.Required(
                     CONF_DAYS_BACK, default=opts.get(CONF_DAYS_BACK, DEFAULT_DAYS_BACK)
