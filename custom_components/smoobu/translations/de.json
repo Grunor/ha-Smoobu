@@ -3,14 +3,14 @@
     "step": {
       "user": {
         "title": "Smoobu",
-        "description": "HMAC-API-Schlüssel und Secret aus Smoobu eingeben.",
+        "description": "API-Schlüssel und Secret aus Smoobu (Erweitert → API-Schlüssel) eingeben. Das Label ist nur der Name des Schlüssels und wird nicht benötigt.",
         "data": {
           "api_key": "API-Schlüssel",
           "api_secret": "Secret"
         },
         "data_description": {
-          "api_key": "In Smoobu unter Einstellungen → Erweitert → API-Schlüssel erstellen. Für Gastnamen die Option „Guest Data (PII)“ aktivieren.",
-          "api_secret": "Wird in Smoobu nur einmal angezeigt (Generate Secret)."
+          "api_key": "Wert aus der Spalte „Schlüssel“ (Key) in der Liste unter Erweitert → API-Schlüssel – nicht das Label.",
+          "api_secret": "Das Secret aus dem Fenster nach dem Erstellen (in der deutschen Oberfläche ggf. „Verschlüsselung“). Wird nur einmal angezeigt."
         }
       },
       "reauth_confirm": {
@@ -21,8 +21,8 @@
           "api_secret": "Secret"
         },
         "data_description": {
-          "api_key": "In Smoobu unter Einstellungen → Erweitert → API-Schlüssel erstellen. Für Gastnamen die Option „Guest Data (PII)“ aktivieren.",
-          "api_secret": "Wird in Smoobu nur einmal angezeigt (Generate Secret)."
+          "api_key": "Wert aus der Spalte „Schlüssel“ (Key) in der Liste unter Erweitert → API-Schlüssel – nicht das Label.",
+          "api_secret": "Das Secret aus dem Fenster nach dem Erstellen (in der deutschen Oberfläche ggf. „Verschlüsselung“). Wird nur einmal angezeigt."
         }
       }
     },

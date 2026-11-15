@@ -3,14 +3,14 @@
     "step": {
       "user": {
         "title": "Smoobu",
-        "description": "Enter the HMAC API key and secret from Smoobu.",
+        "description": "Enter the API key and secret from Smoobu (Advanced → API Keys). The label is only the key's name and is not needed.",
         "data": {
           "api_key": "API key",
           "api_secret": "Secret"
         },
         "data_description": {
-          "api_key": "Create in Smoobu under Settings → Advanced → API Keys. Enable 'Guest Data (PII)' for guest names.",
-          "api_secret": "Shown only once in Smoobu (Generate Secret)."
+          "api_key": "Value from the 'Key' column in the list under Advanced → API Keys – not the label.",
+          "api_secret": "The secret shown in the window after creating the key. Shown only once."
         }
       },
       "reauth_confirm": {
@@ -21,8 +21,8 @@
           "api_secret": "Secret"
         },
         "data_description": {
-          "api_key": "Create in Smoobu under Settings → Advanced → API Keys. Enable 'Guest Data (PII)' for guest names.",
-          "api_secret": "Shown only once in Smoobu (Generate Secret)."
+          "api_key": "Value from the 'Key' column in the list under Advanced → API Keys – not the label.",
+          "api_secret": "The secret shown in the window after creating the key. Shown only once."
         }
       }
     },
