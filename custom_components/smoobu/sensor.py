@@ -38,9 +38,11 @@ from .models import (
     guest_name,
     is_blocked,
     is_yes,
+    nights,
     open_amount,
     parse_date,
     pet_hint,
+    price_breakdown,
     stay_overlap_nights,
     window,
 )
@@ -136,6 +138,89 @@ def _currency(c: C, apt: int) -> str:
     return (c.data.apartments.get(apt, {}) if c.data else {}).get("currency") or "EUR"
 
 
+def _price(b: dict[str, Any] | None) -> float | None:
+    return round(float(b.get("price")), 2) if b and b.get("price") is not None else None
+
+
+def _price_attrs(c: C, b: dict[str, Any] | None) -> dict[str, Any]:
+    """Preisdetails: Aufschlüsselung, Preis pro Nacht, Zahlungsstand."""
+    if not b:
+        return {}
+    n = nights(b) or 0
+    price = float(b.get("price") or 0)
+    return {
+        "gastname": guest_name(b),
+        "kanal": (b.get("channel") or {}).get("name"),
+        "anreise": b.get("arrival"),
+        "abreise": b.get("departure"),
+        "naechte": n,
+        "preis_pro_nacht": round(price / n, 2) if n else None,
+        "aufschluesselung": price_breakdown(b),
+        "anzahlung": b.get("prepayment"),
+        "anzahlung_bezahlt": is_yes(b.get("prepayment-paid")),
+        "preis_bezahlt": is_yes(b.get("price-paid")),
+        "offen": open_amount(b, c.payment_excluded_channels),
+        "kurtaxe": b.get("city-tax"),
+    }
+
+
+def _rev(c: C, apt: int, earned: bool = False) -> dict[str, float]:
+    if not c.data:
+        return {}
+    source = c.data.revenue_earned if earned else c.data.revenue
+    return source.get(apt, {})
+
+
+def _month_key(d) -> str:
+    return f"{d.year:04d}-{d.month:02d}"
+
+
+def _sum_year(rev: dict[str, float], year: int) -> float:
+    return round(sum(v for k, v in rev.items() if k.startswith(f"{year:04d}-")), 2)
+
+
+def _revenue_month(c: C, apt: int) -> float:
+    return round(_rev(c, apt).get(_month_key(dt_util.now()), 0.0), 2)
+
+
+def _revenue_month_attrs(c: C, apt: int) -> dict[str, Any]:
+    now = dt_util.now()
+    prev = (now.replace(day=1) - timedelta(days=1))
+    last_year = now.replace(year=now.year - 1, day=1)
+    return {
+        "monat": _month_key(now),
+        "davon_bis_heute": round(_rev(c, apt, True).get(_month_key(now), 0.0), 2),
+        "vormonat": round(_rev(c, apt).get(_month_key(prev), 0.0), 2),
+        "vorjahresmonat": round(_rev(c, apt).get(_month_key(last_year), 0.0), 2),
+        "berechnung": "Buchungspreis anteilig nach Nächten, ohne Sperrzeiten/Stornos",
+    }
+
+
+def _revenue_year(c: C, apt: int) -> float:
+    return _sum_year(_rev(c, apt), dt_util.now().year)
+
+
+def _revenue_year_attrs(c: C, apt: int) -> dict[str, Any]:
+    now = dt_util.now()
+    year = now.year
+    rev = _rev(c, apt)
+    # Vorjahr bis zum gleichen Tag: Nächte vor (heute − 1 Jahr) – anteilig über den laufenden Monat
+    earned = _rev(c, apt, True)
+    return {
+        "jahr": year,
+        "davon_bis_heute": _sum_year(earned, year),
+        "gebucht_ab_heute": round(_sum_year(rev, year) - _sum_year(earned, year), 2),
+        "vorjahr_gesamt": _sum_year(rev, year - 1),
+        "monate": {k: v for k, v in rev.items() if k.startswith(f"{year:04d}-")},
+        "monate_vorjahr": {k: v for k, v in rev.items() if k.startswith(f"{year - 1:04d}-")},
+        "berechnung": "Buchungspreis anteilig nach Nächten, ohne Sperrzeiten/Stornos",
+    }
+
+
+def _revenue_prev_year(c: C, apt: int) -> float:
+    return _sum_year(_rev(c, apt), dt_util.now().year - 1)
+
+
 # ---------------------------------------------------------------------------
 # Beschreibungen
 # ---------------------------------------------------------------------------
@@ -144,6 +229,8 @@ class SmoobuSensorDescription(SensorEntityDescription):
     value_fn: Callable[[C, int], Any]
     attrs_fn: Callable[[C, int], dict[str, Any]] | None = None
     time_dependent: bool = True
+    # "month"/"year": Umsatz-Sensor, last_reset am Monats-/Jahresanfang
+    reset: str | None = None
 
 
 APARTMENT_SENSORS: tuple[SmoobuSensorDescription, ...] = (
@@ -214,6 +301,49 @@ APARTMENT_SENSORS: tuple[SmoobuSensorDescription, ...] = (
         value_fn=_revenue,
     ),
     SmoobuSensorDescription(
+        key="preis_aktueller_gast",
+        icon="mdi:cash",
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=lambda c, a: _price(_current(c, a)),
+        attrs_fn=lambda c, a: _price_attrs(c, _current(c, a)),
+    ),
+    SmoobuSensorDescription(
+        key="preis_naechster_gast",
+        icon="mdi:cash-fast",
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=lambda c, a: _price(_next(c, a)),
+        attrs_fn=lambda c, a: _price_attrs(c, _next(c, a)),
+    ),
+    SmoobuSensorDescription(
+        key="umsatz_monat",
+        icon="mdi:calendar-month",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=2,
+        reset="month",
+        value_fn=_revenue_month,
+        attrs_fn=_revenue_month_attrs,
+    ),
+    SmoobuSensorDescription(
+        key="umsatz_jahr",
+        icon="mdi:calendar-blank-multiple",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=2,
+        reset="year",
+        value_fn=_revenue_year,
+        attrs_fn=_revenue_year_attrs,
+    ),
+    SmoobuSensorDescription(
+        key="umsatz_vorjahr",
+        icon="mdi:calendar-clock",
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=_revenue_prev_year,
+    ),
+    SmoobuSensorDescription(
         key="offene_zahlungen",
         icon="mdi:cash-clock",
         state_class=SensorStateClass.MEASUREMENT,
@@ -272,6 +402,15 @@ class SmoobuApartmentSensor(SmoobuEntity, SensorEntity):
     @property
     def native_value(self) -> Any:
         return self.entity_description.value_fn(self.coordinator, self.apartment_id)
+
+    @property
+    def last_reset(self) -> datetime | None:
+        """Monats-/Jahresanfang für Umsatz-Sensoren (state_class total)."""
+        reset = self.entity_description.reset
+        if reset is None:
+            return None
+        start = dt_util.start_of_local_day().replace(day=1)
+        return start.replace(month=1) if reset == "year" else start
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

@@ -28,6 +28,10 @@ class SmoobuData:
     pii_available: bool | None = None
     last_update: datetime | None = None
     last_event: dict[str, Any] | None = None
+    # Wohnungs-ID → {"YYYY-MM": Umsatz} (Vorjahr + laufendes Jahr, anteilig nach Nächten)
+    revenue: dict[int, dict[str, float]] = field(default_factory=dict)
+    # Wohnungs-ID → {"YYYY-MM": Umsatz} nur bereits vergangener Nächte (bis gestern)
+    revenue_earned: dict[int, dict[str, float]] = field(default_factory=dict)
 
 
 def parse_time(value: Any, fallback: time | None) -> time | None:
@@ -145,6 +149,45 @@ def open_amount(booking: dict[str, Any], excluded_channels: list[str]) -> float:
     price = float(booking.get("price") or 0)
     paid = float(booking.get("prepayment") or 0) if is_yes(booking.get("prepayment-paid")) else 0.0
     return round(max(price - paid, 0.0), 2)
+
+
+def price_breakdown(booking: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Preiselemente kompakt: [{name, typ, betrag}] (Grundpreis, Reinigung, Zusatzleistungen …)."""
+    if not booking:
+        return []
+    return [
+        {"name": e.get("name"), "typ": e.get("type"), "betrag": e.get("amount")}
+        for e in booking.get("priceElements") or []
+    ]
+
+
+def revenue_by_month(
+    bookings: list[dict[str, Any]], until: date | None = None
+) -> dict[str, float]:
+    """Umsatz je Monat, Buchungspreis anteilig auf die Nächte verteilt.
+
+    Beispiel: 27.12.–06.01. (10 Nächte, 552,60 €) → je 276,30 € Dez./Jan.
+    until: nur Nächte VOR diesem Datum zählen (bereits erbrachter Umsatz).
+    Sperrzeiten und Buchungen ohne Preis/Nächte zählen nicht.
+    """
+    result: dict[str, float] = {}
+    for b in bookings:
+        if is_blocked(b):
+            continue
+        arrival = parse_date(b.get("arrival"))
+        departure = parse_date(b.get("departure"))
+        price = float(b.get("price") or 0)
+        if arrival is None or departure is None or departure <= arrival or price <= 0:
+            continue
+        per_night = price / (departure - arrival).days
+        day = arrival
+        while day < departure:
+            if until is not None and day >= until:
+                break
+            key = f"{day.year:04d}-{day.month:02d}"
+            result[key] = result.get(key, 0.0) + per_night
+            day += timedelta(days=1)
+    return {k: round(v, 2) for k, v in sorted(result.items())}
 
 
 def is_blocked(booking: dict[str, Any]) -> bool:

@@ -225,3 +225,26 @@ def test_pet_hint_notice():
     assert pet_hint({"notice": "Wir kommen mit unserem Hund (Cocker Spaniel)"}).startswith("Notiz:")
     assert pet_hint({"notice": "Peter und Petra kommen"}) is None
     assert pet_hint({"notice": "We bring our dog"}) is not None
+
+
+async def test_price_and_revenue(hass, setup):
+    """Preis-Sensoren und Umsatz anteilig nach Nächten."""
+    st = hass.states.get("sensor.smoobu_ferienwohnung_preis_aktueller_gast")
+    assert float(st.state) == 300.0
+    assert st.attributes["preis_pro_nacht"] == 100.0
+    nx = hass.states.get("sensor.smoobu_ferienwohnung_preis_nachster_gast")
+    assert float(nx.state) == 450.5
+    assert nx.attributes["aufschluesselung"][0]["name"] == "Endreinigung 1 Hund"
+    # Buchung 1: 13.11.–16.11. (300 €), Buchung 2: 18.11.–21.11. (450,50 €) → alles November
+    m = hass.states.get("sensor.smoobu_ferienwohnung_umsatz_monat")
+    assert float(m.state) == 750.5
+    assert m.attributes["davon_bis_heute"] == 200.0  # Nächte 13. + 14.11.
+    y = hass.states.get("sensor.smoobu_ferienwohnung_umsatz_jahr")
+    assert float(y.state) == 750.5
+    assert y.attributes["monate"] == {"2026-11": 750.5}
+
+
+def test_revenue_split():
+    from custom_components.smoobu.models import revenue_by_month
+    r = revenue_by_month([{"arrival": "2026-12-27", "departure": "2027-01-06", "price": 552.6}])
+    assert r == {"2026-12": 276.3, "2027-01": 276.3}
