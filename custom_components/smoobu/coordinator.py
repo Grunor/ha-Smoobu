@@ -51,7 +51,11 @@ from .const import (
 from .analytics import build_records, is_cancelled
 from .channels import booking_costs, night_rows
 from .models import (
+    PET_MESSAGE_KEY,
     SmoobuData,
+    pet_hint,
+    pet_match,
+    pet_snippet,
     nights_by_month,
     revenue_by_month,
     strip_html,
@@ -114,6 +118,9 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         # Smoobu meldet „unbeantwortet“ nicht selbst → aus dem Verlauf abgeleitet und
         # 10 min gecacht; Webhook „newMessage“ und eigenes Senden verwerfen den Eintrag.
         self._msg_status: dict[int, tuple[Any, dict[str, Any]]] = {}
+        # Hund aus Gastnachrichten (v1.15.3): {reservation_id: (geladen_um, Fundstelle | None)},
+        # 12 h gecacht; neue Nachricht (Webhook) oder Abruf des Antwortstatus aktualisiert.
+        self._pet_msg: dict[int, tuple[Any, str | None]] = {}
         client.on_message_sent = self.invalidate_message_status
         # „Keine Antwort erforderlich“ (v1.14.0): {reservation_id (Text): Nachrichten-ID}.
         # Gemerkt wird die Gastnachricht, die bewusst unbeantwortet bleibt – schreibt der
@@ -197,6 +204,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             apartments = await self._async_load_apartments(previous)
             bookings = await self._async_load_bookings()
             bookings = await self._async_enrich(bookings)
+            await self._async_pet_messages(bookings)
             revenue_bookings = await self._async_load_revenue_bookings()
             rates = await self._async_load_rates(apartments)
         except SmoobuAuthError as err:
@@ -349,6 +357,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
     def invalidate_message_status(self, reservation_id: int) -> None:
         """Antwortstatus einer Buchung neu laden lassen (neue/gesendete Nachricht)."""
         self._msg_status.pop(int(reservation_id), None)
+        self._pet_msg.pop(int(reservation_id), None)
 
     async def async_message_status(self, reservation_ids: list[int]) -> dict[int, dict[str, Any]]:
         """Je Buchung: Ist die letzte Nachricht vom Gast und noch unbeantwortet?
@@ -379,6 +388,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
                     out[rid] = {"offen": False, "fehler": str(err)}
                     return
             visible = self._visible(messages)
+            self._pet_msg[rid] = (now, self._pet_from_messages(visible))
             last = max(visible, key=lambda m: int(m.get("id") or 0)) if visible else None
             done_id = no_reply.get(str(rid))
             waiting = self._is_guest(last)
@@ -399,6 +409,60 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
 
         await asyncio.gather(*(one(int(r)) for r in reservation_ids))
         return out
+
+    def _pet_from_messages(self, messages: list[dict[str, Any]]) -> str | None:
+        """Hund/Haustier in Nachrichten VOM Gast (neueste zuerst); eigene Vorlagen zählen nicht."""
+        guest = sorted((m for m in messages if self._is_guest(m)), key=lambda m: -int(m.get("id") or 0))
+        for m in guest:
+            text = strip_html(m.get("message") or m.get("messageHtml") or m.get("htmlMessage") or "")
+            match = pet_match(text)
+            if match:
+                return f"Gastnachricht: …{pet_snippet(text, match)}…"
+        return None
+
+    async def _async_pet_messages(self, bookings: list[dict[str, Any]]) -> None:
+        """Laufende und kommende Gästebuchungen (180 Tage) auf Hunde in Gastnachrichten prüfen.
+
+        Nur wo Preise/Notizen noch keinen Hund zeigen. Je Aktualisierung höchstens 12
+        Abrufe (3 parallel), Ergebnis 12 h gecacht → wenige Smoobu-Anfragen. Fehler sind
+        nicht fatal: dann bleibt es bei der Erkennung aus Preisen und Notizen.
+        """
+        now = dt_util.utcnow()
+        today = dt_util.now().date().isoformat()
+        horizon = (dt_util.now().date() + timedelta(days=180)).isoformat()
+        ttl = timedelta(hours=12)
+        todo: list[dict[str, Any]] = []
+        for b in sorted(bookings, key=lambda x: x.get("arrival") or ""):
+            if is_blocked(b) or "cancel" in str(b.get("type") or "") or not b.get("id"):
+                continue
+            if (b.get("departure") or "") < today or (b.get("arrival") or "") > horizon:
+                continue
+            rid = int(b["id"])
+            cached = self._pet_msg.get(rid)
+            if cached and cached[1]:
+                b[PET_MESSAGE_KEY] = cached[1]
+            if pet_hint({k: v for k, v in b.items() if k != PET_MESSAGE_KEY}):
+                continue  # schon aus Preisen/Notizen bekannt
+            if not cached or now - cached[0] > ttl:
+                todo.append(b)
+        sem = asyncio.Semaphore(3)
+
+        async def one(b: dict[str, Any]) -> None:
+            rid = int(b["id"])
+            async with sem:
+                try:
+                    messages = await self.client.get_messages(rid, False)
+                except SmoobuAuthError:
+                    raise
+                except Exception as err:  # noqa: BLE001 – Zusatzinfo, darf das Update nie abbrechen
+                    _LOGGER.debug("Nachrichten %s für Hunde-Erkennung nicht ladbar: %s", rid, err)
+                    return
+            hint = self._pet_from_messages(self._visible(messages))
+            self._pet_msg[rid] = (now, hint)
+            if hint:
+                b[PET_MESSAGE_KEY] = hint
+
+        await asyncio.gather(*(one(b) for b in todo[:12]))
 
     async def async_fetch_last_message(self, reservation_id: int, sender: str | None) -> None:
         """Neueste Gästenachricht einer Buchung laden (nach Webhook „newMessage“).

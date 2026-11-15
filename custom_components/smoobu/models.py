@@ -117,34 +117,58 @@ def booking_release(
     return end + timedelta(minutes=buffer_minutes)
 
 
-# Hinweise auf mitreisende Hunde/Haustiere (Preiselemente, Notizen).
-# Wortgrenzen verhindern Treffer wie „Peter“ für „pet“.
-_PET_PATTERN = re.compile(
-    r"\b(hund|hunde|hündin|welpe|dog|dogs|puppy|haustier|haustiere|pet|pets|chien)\b",
-    re.IGNORECASE,
+# Hinweise auf mitreisende Hunde/Haustiere (Preiselemente, Preisdetails, Notizen, Gastnachrichten).
+# v1.15.3: Wortgrenzen ohne „_“ – Airbnb liefert „PASS_THROUGH_PET_FEE“, das mit \b nicht
+# erkannt wurde (Unterstrich zählt dort als Buchstabe). „Peter“, „Petra“, „Hundert“ bleiben
+# ausgeschlossen, weil davor/danach kein weiterer Buchstabe stehen darf.
+_PET_WORDS = (
+    r"hund|hunde|hundes|hündin|welpe|welpen|dog|dogs|puppy|haustier|haustiere|pet|pets|petfee|chien|hond|cane|perro"
 )
+_PET_PATTERN = re.compile(rf"(?<![^\W\d_])({_PET_WORDS})(?![^\W\d_])", re.IGNORECASE)
+# Verneinung kurz davor („ohne Hund“, „kein Hund“, „no pets“) → kein Treffer
+_PET_NEGATION = re.compile(r"(ohne|kein|keine|keinen|no|without|not)\W{1,3}(\w+\W{1,3})?$", re.IGNORECASE)
+PET_MESSAGE_KEY = "_hund_nachricht"  # vom Coordinator gesetzt (Fundstelle aus Gastnachrichten)
+
+
+def pet_match(text: str) -> re.Match | None:
+    """Erster nicht verneinter Hunde-/Haustier-Treffer im Text."""
+    for match in _PET_PATTERN.finditer(text or ""):
+        if not _PET_NEGATION.search(text[max(match.start() - 24, 0) : match.start()]):
+            return match
+    return None
+
+
+def pet_snippet(text: str, match: re.Match) -> str:
+    """Kurzer Ausschnitt rund um den Treffer für die Anzeige."""
+    start = max(match.start() - 40, 0)
+    return " ".join(text[start : match.end() + 40].split())
 
 
 def pet_hint(booking: dict[str, Any] | None) -> str | None:
     """Fundstelle, falls die Buchung einen Hund/ein Haustier erwähnt, sonst None.
 
-    Geprüft werden Preiselemente (z. B. Zusatzleistung „Endreinigung 1 Hund“)
-    und die Notizen des Gastes bzw. des Assistenten.
+    Reihenfolge: Preiselemente (z. B. „Endreinigung 1 Hund“, Airbnb „PASS_THROUGH_PET_FEE“;
+    nur mit Betrag ≠ 0), Preisdetails der Portale, Notizen des Gastes bzw. des
+    Assistenten und zuletzt die Gastnachrichten (vom Coordinator ermittelt).
     """
     if not booking:
         return None
     for element in booking.get("priceElements") or []:
         name = str(element.get("name") or "")
-        if _PET_PATTERN.search(name):
-            return f"Zusatzleistung: {name}"
-    for key, label in (("notice", "Notiz"), ("assistant-notice", "Assistent-Notiz")):
+        try:
+            amount = float(element.get("amount") or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
+        if amount and pet_match(name.replace("_", " ")):
+            return f"Zusatzleistung: {name.replace('_', ' ').title() if name.isupper() else name}"
+    sources = (("price-details", "Preisdetails"), ("notice", "Notiz"), ("assistant-notice", "Assistent-Notiz"))
+    for key, label in sources:
         text = str(booking.get(key) or "")
-        match = _PET_PATTERN.search(text)
+        match = pet_match(text)
         if match:
-            # Kurzer Ausschnitt rund um den Treffer für die Anzeige
-            start = max(match.start() - 40, 0)
-            snippet = text[start : match.end() + 40].replace("\n", " ").strip()
-            return f"{label}: …{snippet}…"
+            return f"{label}: …{pet_snippet(text, match)}…"
+    if booking.get(PET_MESSAGE_KEY):
+        return str(booking[PET_MESSAGE_KEY])
     return None
 
 

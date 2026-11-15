@@ -6,6 +6,15 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.15.3 – 2026-11-15
+
+**Deutsch**
+- **Hunde-Erkennung verbessert:** Airbnb liefert die Haustiergebühr als `PASS_THROUGH_PET_FEE` – das wurde bisher nicht erkannt (Unterstrich galt als Teil des Wortes). Jetzt zählen Preiselemente mit Betrag ≠ 0, die Preisdetails der Portale, Notizen und **Nachrichten des Gastes** (nur Nachrichten VOM Gast; laufende und kommende Buchungen der nächsten 180 Tage, höchstens 12 Abrufe je Aktualisierung, 12 h zwischengespeichert, neue Nachricht per Webhook prüft neu). Verneinungen („ohne Hund“, „no pets“) zählen nicht; zusätzliche Wörter: Hundes, Welpen, petfee, hond, cane, perro
+- Fundstelle bleibt im Attribut `hund_hinweis` sichtbar (z. B. „Zusatzleistung: Pass Through Pet Fee“, „Gastnachricht: …“)
+
+**English**
+- **Better dog detection:** Airbnb sends the pet fee as `PASS_THROUGH_PET_FEE`, which was not recognised. Price elements with an amount ≠ 0, portal price details, notes and **guest messages** (only messages FROM the guest; current and upcoming bookings within 180 days, at most 12 requests per update, cached 12 h, re-checked on a new-message webhook) now count. Negations ("without dog", "no pets") are ignored
+
 ## 1.15.2 – 2026-11-15
 
 **Deutsch**

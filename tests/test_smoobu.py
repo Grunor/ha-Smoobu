@@ -61,6 +61,7 @@ def mock_api(aioclient_mock):
     aioclient_mock.get(f"{BASE}/api/users/webhooks", json={"webhooks": []})
     aioclient_mock.post(f"{BASE}/api/users/webhooks", json={"id": 77, "webhookUrl": "x"}, status=201)
     aioclient_mock.get(f"{BASE}/api/reservations/2/messages", json={"page_count": 1, "messages": [{"id": 5, "subject": "Hi", "message": "Hallo"}]})
+    aioclient_mock.get(f"{BASE}/api/reservations/1/messages", json={"page_count": 1, "messages": []})
     aioclient_mock.post(f"{BASE}/api/reservations/2/messages/send-message-to-guest", status=201, text="")
 
 
@@ -675,3 +676,29 @@ async def test_websocket_all_apartments(hass, setup, hass_ws_client):
     await ws.send_json({"id": 5, "type": "smoobu/bookings", "apartment_id": 999})
     res = await ws.receive_json()
     assert not res["success"]
+
+
+def test_pet_hint_airbnb_fee_and_negation():
+    """v1.15.3: Airbnb „PASS_THROUGH_PET_FEE“, Preisdetails, Verneinung, keine Fehltreffer."""
+    from custom_components.smoobu.models import pet_hint
+
+    fee = {"priceElements": [{"type": "channelCustom", "name": "PASS_THROUGH_PET_FEE", "amount": 15}]}
+    assert pet_hint(fee) == "Zusatzleistung: Pass Through Pet Fee"
+    assert pet_hint({"priceElements": [{"name": "PASS_THROUGH_PET_FEE", "amount": 0}]}) is None
+    assert pet_hint({"price-details": "Cleaning - EUR 10\r\nPASS_THROUGH_PET_FEE - EUR 15"}).startswith("Preisdetails")
+    assert pet_hint({"notice": "Wir kommen ohne Hund"}) is None
+    assert pet_hint({"notice": "No pets, thanks"}) is None
+    assert pet_hint({"notice": "Peter und Petra, hundert Grüße"}) is None
+    assert pet_hint({"notice": "Wir bringen unseren Hund mit"}).startswith("Notiz")
+    assert pet_hint({"_hund_nachricht": "Gastnachricht: …Hund…"}) == "Gastnachricht: …Hund…"
+
+
+async def test_pet_from_guest_messages(hass, setup):
+    """v1.15.3: Hund aus Nachrichten VOM Gast (eigene Nachrichten zählen nicht)."""
+    c = hass.config_entries.async_entries(DOMAIN)[0].runtime_data
+    msgs = [
+        {"id": 1, "type": 2, "message": "Hunde sind willkommen (15 € Endreinigung)."},
+        {"id": 2, "type": 1, "message": "Danke! Wir kommen mit unserem kleinen Dackel – darf der Hund mit?"},
+    ]
+    assert c._pet_from_messages(msgs).startswith("Gastnachricht: …")
+    assert c._pet_from_messages(msgs[:1]) is None
