@@ -49,7 +49,8 @@
           "days_ahead": "Days ahead",
           "enrich_count": "Fetch details for next n bookings",
           "checkout_buffer": "Buffer after Smoobu departure time",
-          "payment_excluded_channels": "Channels paid via the portal"
+          "payment_excluded_channels": "Channels paid via the portal",
+          "history_years": "Analysis: years of history"
         },
         "data_description": {
           "scan_interval": "Fallback polling in addition to the webhook.",
@@ -58,7 +59,8 @@
           "default_checkout": "Used when the booking has no departure time (release time, no buffer).",
           "enrich_count": "Enrich current + next n bookings per apartment with first/last name, city tax etc.",
           "checkout_buffer": "If the booking has a departure time, the apartment counts as vacant only after that time + buffer. Without a departure time the default check-out applies.",
-          "payment_excluded_channels": "Bookings from these channels do not count as unpaid (the portal collects payment, Smoobu still reports \"unpaid\")."
+          "payment_excluded_channels": "Bookings from these channels do not count as unpaid (the portal collects payment, Smoobu still reports \"unpaid\").",
+          "history_years": "Years before the current year loaded for analyses and comparisons."
         }
       },
       "provisionen": {
@@ -422,6 +424,78 @@
       },
       "naechster_gast_netto_preis": {
         "name": "Next guest Net price"
+      },
+      "kanal": {
+        "name": "Channel {kanal}"
+      },
+      "prognose_jahr": {
+        "name": "Forecast year"
+      },
+      "auswertung_brutto": {
+        "name": "Analysis gross"
+      },
+      "auswertung_netto": {
+        "name": "Analysis net"
+      },
+      "auswertung_kosten": {
+        "name": "Analysis costs"
+      },
+      "auswertung_kostenquote": {
+        "name": "Analysis cost ratio"
+      },
+      "auswertung_naechte": {
+        "name": "Analysis nights"
+      },
+      "auswertung_auslastung": {
+        "name": "Analysis occupancy"
+      },
+      "auswertung_buchungen": {
+        "name": "Analysis bookings"
+      },
+      "auswertung_stornoquote": {
+        "name": "Analysis cancellation rate"
+      },
+      "auswertung_netto_pro_nacht": {
+        "name": "Analysis net per night"
+      },
+      "auswertung_aufenthalt": {
+        "name": "Analysis avg. stay"
+      },
+      "auswertung_vorlauf": {
+        "name": "Analysis avg. lead time"
+      },
+      "auswertung_personen": {
+        "name": "Analysis avg. guests"
+      },
+      "auswertung_direktanteil": {
+        "name": "Analysis direct share"
+      }
+    },
+    "select": {
+      "auswertung_kanal": {
+        "name": "Analysis channel"
+      },
+      "auswertung_zeitraum": {
+        "name": "Analysis period",
+        "state": {
+          "monat": "Current month",
+          "vormonat": "Previous month",
+          "folgemonat": "Next month",
+          "jahr": "Current year",
+          "jahr_bis_heute": "Year to date",
+          "vorjahr": "Previous year",
+          "letzte_12_monate": "Last 12 months",
+          "naechste_12_monate": "Next 12 months",
+          "gesamt": "All data"
+        }
+      },
+      "auswertung_vergleich": {
+        "name": "Analysis comparison",
+        "state": {
+          "vorjahr": "Previous year (same period)",
+          "vorperiode": "Previous period",
+          "kein": "No comparison"
+        }
       }
     }
   },
@@ -536,6 +610,106 @@
         "internal": {
           "name": "Internal",
           "description": "Host only: hide from guest."
+        }
+      }
+    },
+    "block_period": {
+      "name": "Block period",
+      "description": "Blocks a period in Smoobu (pushed to all channels).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Only needed with several Smoobu accounts."
+        },
+        "apartment_id": {
+          "name": "Apartment ID",
+          "description": "Only needed with several apartments."
+        },
+        "start_date": {
+          "name": "From",
+          "description": "First blocked night."
+        },
+        "end_date": {
+          "name": "To",
+          "description": "Day after the last blocked night (like a departure day)."
+        },
+        "notice": {
+          "name": "Note",
+          "description": "Reason (internal)."
+        }
+      }
+    },
+    "delete_reservation": {
+      "name": "Delete block / cancel direct booking",
+      "description": "Deletes a blocked period. Direct bookings only when allowed; portal bookings never (cancel them in the portal).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Only needed with several Smoobu accounts."
+        },
+        "reservation_id": {
+          "name": "Reservation ID",
+          "description": "ID of the block or booking."
+        },
+        "allow_booking": {
+          "name": "Allow cancelling a guest booking",
+          "description": "Must be on to cancel a direct booking."
+        }
+      }
+    },
+    "set_rates": {
+      "name": "Set rates",
+      "description": "Sets daily price and/or minimum stay for a period (pushed to all channels).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Only needed with several Smoobu accounts."
+        },
+        "apartment_id": {
+          "name": "Apartment ID",
+          "description": "Only needed with several apartments."
+        },
+        "start_date": {
+          "name": "From",
+          "description": "First day (inclusive)."
+        },
+        "end_date": {
+          "name": "To",
+          "description": "Last day (inclusive)."
+        },
+        "price": {
+          "name": "Price per night",
+          "description": "Leave empty to keep the price."
+        },
+        "min_stay": {
+          "name": "Minimum stay",
+          "description": "Nights; leave empty to keep it."
+        }
+      }
+    },
+    "update_reservation": {
+      "name": "Update booking",
+      "description": "Changes arrival/departure time or note of a booking.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Only needed with several Smoobu accounts."
+        },
+        "reservation_id": {
+          "name": "Reservation ID",
+          "description": "ID of the booking."
+        },
+        "arrival_time": {
+          "name": "Arrival time",
+          "description": "New check-in time."
+        },
+        "departure_time": {
+          "name": "Departure time",
+          "description": "New check-out time."
+        },
+        "notice": {
+          "name": "Note",
+          "description": "New note (replaces the old one)."
         }
       }
     }

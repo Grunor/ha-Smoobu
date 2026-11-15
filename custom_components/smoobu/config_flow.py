@@ -43,6 +43,7 @@ from .const import (
     CONF_DEFAULT_CHECKIN,
     CONF_DEFAULT_CHECKOUT,
     CONF_ENRICH_COUNT,
+    CONF_HISTORY_YEARS,
     CONF_PAYMENT_EXCLUDED_CHANNELS,
     CONF_SCAN_INTERVAL,
     CONF_USE_WEBHOOK,
@@ -53,6 +54,7 @@ from .const import (
     DEFAULT_DAYS_AHEAD,
     DEFAULT_DAYS_BACK,
     DEFAULT_ENRICH_COUNT,
+    DEFAULT_HISTORY_YEARS,
     DEFAULT_PAYMENT_EXCLUDED_CHANNELS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_USE_WEBHOOK,
@@ -173,6 +175,7 @@ class SmoobuOptionsFlow(OptionsFlow):
                 CONF_DAYS_AHEAD,
                 CONF_ENRICH_COUNT,
                 CONF_CHECKOUT_BUFFER,
+                CONF_HISTORY_YEARS,
             ):
                 user_input[key] = int(user_input[key])
             # Weiter zum Schritt „Provisionen“; beide Schritte werden zusammen gespeichert.
@@ -233,6 +236,12 @@ class SmoobuOptionsFlow(OptionsFlow):
                     CONF_ENRICH_COUNT, default=opts.get(CONF_ENRICH_COUNT, DEFAULT_ENRICH_COUNT)
                 ): NumberSelector(
                     NumberSelectorConfig(min=0, max=20, step=1, mode=NumberSelectorMode.BOX)
+                ),
+                # Auswertungen/Vergleiche: Jahre vor dem laufenden Jahr (mehr = längere Abfrage)
+                vol.Required(
+                    CONF_HISTORY_YEARS, default=opts.get(CONF_HISTORY_YEARS, DEFAULT_HISTORY_YEARS)
+                ): NumberSelector(
+                    NumberSelectorConfig(min=1, max=5, step=1, unit_of_measurement="J", mode=NumberSelectorMode.BOX)
                 ),
             }
         )

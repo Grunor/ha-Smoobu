@@ -49,7 +49,8 @@
           "days_ahead": "Vorschau (Tage)",
           "enrich_count": "Detaildaten für die nächsten n Buchungen",
           "checkout_buffer": "Puffer nach Smoobu-Abreisezeit",
-          "payment_excluded_channels": "Kanäle mit Zahlung über das Portal"
+          "payment_excluded_channels": "Kanäle mit Zahlung über das Portal",
+          "history_years": "Auswertung: Jahre Historie"
         },
         "data_description": {
           "scan_interval": "Rückfall-Abfrage zusätzlich zum Webhook.",
@@ -58,7 +59,8 @@
           "default_checkout": "Gilt, wenn in der Buchung keine Abreisezeit steht (Freigabezeit, ohne Puffer).",
           "enrich_count": "Laufende + nächste n Buchungen je Wohnung mit Vor-/Nachname, Kurtaxe usw. ergänzen.",
           "checkout_buffer": "Steht in der Buchung eine Abreisezeit, gilt die Wohnung erst nach dieser Zeit + Puffer als frei. Ohne Abreisezeit gilt der Standard-Check-out.",
-          "payment_excluded_channels": "Buchungen dieser Kanäle zählen nicht als offene Zahlung (das Portal kassiert, Smoobu meldet trotzdem „unbezahlt“)."
+          "payment_excluded_channels": "Buchungen dieser Kanäle zählen nicht als offene Zahlung (das Portal kassiert, Smoobu meldet trotzdem „unbezahlt“).",
+          "history_years": "Jahre vor dem laufenden Jahr, die für Auswertungen und Vergleiche geladen werden."
         }
       },
       "provisionen": {
@@ -422,6 +424,78 @@
       },
       "naechster_gast_netto_preis": {
         "name": "Nächster Gast Nettopreis"
+      },
+      "kanal": {
+        "name": "Kanal {kanal}"
+      },
+      "prognose_jahr": {
+        "name": "Prognose Jahr"
+      },
+      "auswertung_brutto": {
+        "name": "Auswertung Brutto"
+      },
+      "auswertung_netto": {
+        "name": "Auswertung Netto"
+      },
+      "auswertung_kosten": {
+        "name": "Auswertung Kosten"
+      },
+      "auswertung_kostenquote": {
+        "name": "Auswertung Kostenquote"
+      },
+      "auswertung_naechte": {
+        "name": "Auswertung Nächte"
+      },
+      "auswertung_auslastung": {
+        "name": "Auswertung Auslastung"
+      },
+      "auswertung_buchungen": {
+        "name": "Auswertung Buchungen"
+      },
+      "auswertung_stornoquote": {
+        "name": "Auswertung Stornoquote"
+      },
+      "auswertung_netto_pro_nacht": {
+        "name": "Auswertung Netto pro Nacht"
+      },
+      "auswertung_aufenthalt": {
+        "name": "Auswertung Aufenthaltsdauer"
+      },
+      "auswertung_vorlauf": {
+        "name": "Auswertung Vorlaufzeit"
+      },
+      "auswertung_personen": {
+        "name": "Auswertung Personen je Buchung"
+      },
+      "auswertung_direktanteil": {
+        "name": "Auswertung Direktanteil"
+      }
+    },
+    "select": {
+      "auswertung_kanal": {
+        "name": "Auswertung Kanal"
+      },
+      "auswertung_zeitraum": {
+        "name": "Auswertung Zeitraum",
+        "state": {
+          "monat": "Laufender Monat",
+          "vormonat": "Vormonat",
+          "folgemonat": "Folgemonat",
+          "jahr": "Laufendes Jahr",
+          "jahr_bis_heute": "Jahr bis heute",
+          "vorjahr": "Vorjahr",
+          "letzte_12_monate": "Letzte 12 Monate",
+          "naechste_12_monate": "Nächste 12 Monate",
+          "gesamt": "Gesamter Zeitraum"
+        }
+      },
+      "auswertung_vergleich": {
+        "name": "Auswertung Vergleich",
+        "state": {
+          "vorjahr": "Vorjahr (gleicher Zeitraum)",
+          "vorperiode": "Vorperiode",
+          "kein": "Kein Vergleich"
+        }
       }
     }
   },
@@ -536,6 +610,106 @@
         "internal": {
           "name": "Intern",
           "description": "Nur bei Gastgeber: vor dem Gast verbergen."
+        }
+      }
+    },
+    "block_period": {
+      "name": "Zeitraum sperren",
+      "description": "Sperrt einen Zeitraum in Smoobu (wird an alle Portale übertragen).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konto",
+          "description": "Nur bei mehreren Smoobu-Konten nötig."
+        },
+        "apartment_id": {
+          "name": "Wohnungs-ID",
+          "description": "Nur bei mehreren Wohnungen nötig."
+        },
+        "start_date": {
+          "name": "Von",
+          "description": "Erste gesperrte Nacht."
+        },
+        "end_date": {
+          "name": "Bis",
+          "description": "Tag nach der letzten gesperrten Nacht (wie ein Abreisetag)."
+        },
+        "notice": {
+          "name": "Notiz",
+          "description": "Grund der Sperre (nur intern)."
+        }
+      }
+    },
+    "delete_reservation": {
+      "name": "Sperre löschen / Direktbuchung stornieren",
+      "description": "Löscht eine Sperrzeit. Direktbuchungen nur mit Freigabe; Portalbuchungen nie (dort stornieren).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konto",
+          "description": "Nur bei mehreren Smoobu-Konten nötig."
+        },
+        "reservation_id": {
+          "name": "Buchungs-ID",
+          "description": "ID der Sperrzeit bzw. Buchung."
+        },
+        "allow_booking": {
+          "name": "Gästebuchung stornieren erlauben",
+          "description": "Muss an sein, um eine Direktbuchung zu stornieren."
+        }
+      }
+    },
+    "set_rates": {
+      "name": "Preise setzen",
+      "description": "Setzt Tagespreis und/oder Mindestaufenthalt für einen Zeitraum (an alle Portale).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konto",
+          "description": "Nur bei mehreren Smoobu-Konten nötig."
+        },
+        "apartment_id": {
+          "name": "Wohnungs-ID",
+          "description": "Nur bei mehreren Wohnungen nötig."
+        },
+        "start_date": {
+          "name": "Von",
+          "description": "Erster Tag (inklusive)."
+        },
+        "end_date": {
+          "name": "Bis",
+          "description": "Letzter Tag (inklusive)."
+        },
+        "price": {
+          "name": "Preis pro Nacht",
+          "description": "Leer lassen, um den Preis nicht zu ändern."
+        },
+        "min_stay": {
+          "name": "Mindestaufenthalt",
+          "description": "Nächte; leer lassen, um ihn nicht zu ändern."
+        }
+      }
+    },
+    "update_reservation": {
+      "name": "Buchung ändern",
+      "description": "Ändert Ankunfts-/Abreisezeit oder Notiz einer Buchung.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konto",
+          "description": "Nur bei mehreren Smoobu-Konten nötig."
+        },
+        "reservation_id": {
+          "name": "Buchungs-ID",
+          "description": "ID der Buchung."
+        },
+        "arrival_time": {
+          "name": "Ankunftszeit",
+          "description": "Neue Check-in-Zeit."
+        },
+        "departure_time": {
+          "name": "Abreisezeit",
+          "description": "Neue Check-out-Zeit."
+        },
+        "notice": {
+          "name": "Notiz",
+          "description": "Neue Notiz (ersetzt die bisherige)."
         }
       }
     }

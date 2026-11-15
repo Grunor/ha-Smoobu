@@ -74,6 +74,10 @@ COMMISSION_FIELDS = {
 }
 CONF_COMMISSION_CUSTOM = "commission_custom"  # Freitext "Kanal=Prozent; Kanal=Prozent"
 
+# Auswertungen: so viele Jahre vor dem laufenden Jahr werden geladen
+CONF_HISTORY_YEARS = "history_years"
+DEFAULT_HISTORY_YEARS = 2
+
 FALLBACK_CHECKIN = time(16, 0)
 FALLBACK_CHECKOUT = time(11, 0)
 
@@ -92,6 +96,11 @@ SERVICE_GET_RESERVATIONS = "get_reservations"
 SERVICE_GET_RESERVATION = "get_reservation"
 SERVICE_GET_MESSAGES = "get_messages"
 SERVICE_SEND_MESSAGE = "send_message"
+# Schreibende Aktionen (ab v1.9.0)
+SERVICE_BLOCK_PERIOD = "block_period"
+SERVICE_DELETE_RESERVATION = "delete_reservation"
+SERVICE_SET_RATES = "set_rates"
+SERVICE_UPDATE_RESERVATION = "update_reservation"
 
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 ATTR_RESERVATION_ID = "reservation_id"
@@ -106,6 +115,14 @@ ATTR_RECIPIENT = "recipient"
 ATTR_SUBJECT = "subject"
 ATTR_MESSAGE = "message"
 ATTR_INTERNAL = "internal"
+ATTR_START = "start_date"
+ATTR_END = "end_date"
+ATTR_NOTICE = "notice"
+ATTR_PRICE = "price"
+ATTR_MIN_STAY = "min_stay"
+ATTR_ARRIVAL_TIME = "arrival_time"
+ATTR_DEPARTURE_TIME = "departure_time"
+ATTR_ALLOW_BOOKING = "allow_booking"
 
 # Felder, die in Diagnosen geschwärzt werden (Gästedaten / Zugangsdaten).
 REDACT_KEYS = {
@@ -121,4 +138,11 @@ REDACT_KEYS = {
     "guest-app-url",
     "notice",
     "assistant-notice",
+    # Felder der Auswertungs-Datensätze (analytics.py)
+    "gast",
+    "vorname",
+    "telefon",
+    "notiz",
+    "assistent_notiz",
+    "hund_hinweis",
 }

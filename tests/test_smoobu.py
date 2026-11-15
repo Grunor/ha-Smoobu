@@ -347,3 +347,70 @@ async def test_direct_vs_portal(hass, setup):
     assert float(hass.states.get("sensor.smoobu_ferienwohnung_aktueller_gast_nettopreis").state) == 253.5
     p = hass.states.get("sensor.smoobu_ferienwohnung_preis_aktueller_gast")
     assert p.attributes["kanal_gruppe"] == "Portal" and p.attributes["netto"] == 253.5
+
+
+async def test_channel_and_selection(hass, setup):
+    # Kanal-Sensoren je Kanal, Zustand = Brutto Jahr
+    air = hass.states.get("sensor.smoobu_ferienwohnung_kanal_airbnb")
+    assert air is not None and air.attributes["gruppe"] == "Portal"
+    assert "monate" in air.attributes and "vorjahr_bis_heute" in air.attributes
+    assert hass.states.get("sensor.smoobu_ferienwohnung_kanal_direct_booking") is not None
+    # Auswahl ändern → Auswertungs-Sensoren folgen
+    sel = "select.smoobu_ferienwohnung_auswertung_kanal"
+    assert "Airbnb" in hass.states.get(sel).attributes["options"]
+    await hass.services.async_call("select", "select_option", {"entity_id": sel, "option": "Airbnb"}, blocking=True)
+    await hass.services.async_call(
+        "select", "select_option",
+        {"entity_id": "select.smoobu_ferienwohnung_auswertung_zeitraum", "option": "monat"}, blocking=True)
+    await hass.async_block_till_done()
+    brutto = hass.states.get("sensor.smoobu_ferienwohnung_auswertung_brutto")
+    assert brutto.attributes["kanal"] == "Airbnb" and brutto.attributes["zeitraum"] == "monat"
+    # Airbnb-Buchung 13.–16.11.: 3 Nächte à 100 € im November
+    assert float(brutto.state) == 300.0
+    assert hass.states.get("sensor.smoobu_ferienwohnung_auswertung_nachte").state == "3"
+    assert hass.states.get("sensor.smoobu_ferienwohnung_prognose_jahr") is not None
+
+
+async def test_websocket(hass, setup, hass_ws_client, aioclient_mock):
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "smoobu/info"})
+    info = (await ws.receive_json())["result"]
+    apt = info["wohnungen"][0]
+    assert apt["apartment_id"] == 123 and apt["sperr_kanal_id"] == 3
+    assert {c["name"] for c in apt["kanaele"]} == {"Airbnb", "Direct booking"}
+    await ws.send_json({"id": 2, "type": "smoobu/analytics", "period": "monat", "channels": ["Airbnb"]})
+    res = (await ws.receive_json())["result"]
+    assert res["brutto"] == 300.0 and "reihe" in res and "prognose" in res
+    await ws.send_json({"id": 3, "type": "smoobu/bookings", "search": "muster"})
+    res = (await ws.receive_json())["result"]
+    assert [b["id"] for b in res["buchungen"]] == [2]
+    await ws.send_json({"id": 4, "type": "smoobu/booking", "reservation_id": 2})
+    res = (await ws.receive_json())["result"]
+    assert res["buchung"]["gast"] == "Max Mustermann" and res["nachrichten"][0]["text"] == "Hallo"
+    await ws.send_json({"id": 5, "type": "smoobu/subscribe"})
+    assert (await ws.receive_json())["success"]
+
+
+async def test_write_services(hass, setup, aioclient_mock):
+    from homeassistant.exceptions import ServiceValidationError
+
+    aioclient_mock.post(f"{BASE}/api/reservations", json={"id": 50})
+    aioclient_mock.delete(f"{BASE}/api/reservations/3", status=204, text="")
+    aioclient_mock.post(f"{BASE}/api/rates", json={"success": True})
+    r = await hass.services.async_call(
+        DOMAIN, "block_period", {"start_date": "2026-12-01", "end_date": "2026-12-03", "notice": "Handwerker"},
+        blocking=True, return_response=True)
+    assert r["reservation"]["id"] == 50
+    call = [c for c in aioclient_mock.mock_calls if c[0] == "POST" and str(c[1]).endswith("/api/reservations")][0]
+    assert b'"channelId":3' in call[2] and b'"apartmentId":123' in call[2]
+    # Portalbuchung (Airbnb) darf nicht gelöscht werden, Direktbuchung nur mit allow_booking
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(DOMAIN, "delete_reservation", {"reservation_id": 1}, blocking=True)
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(DOMAIN, "delete_reservation", {"reservation_id": 2}, blocking=True)
+    await hass.services.async_call(DOMAIN, "delete_reservation", {"reservation_id": 3}, blocking=True)
+    await hass.services.async_call(
+        DOMAIN, "set_rates", {"start_date": "2026-12-01", "end_date": "2026-12-05", "price": 95, "min_stay": 2},
+        blocking=True)
+    call = [c for c in aioclient_mock.mock_calls if c[0] == "POST" and "/api/rates" in str(c[1])][0]
+    assert b'"dates":["2026-12-01:2026-12-05"]' in call[2] and b'"daily_price":95.0' in call[2]

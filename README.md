@@ -26,6 +26,7 @@ Sie verbindet Home Assistant direkt mit der Smoobu-API und stellt Buchungen, Gä
 - [Optionen](#optionen)
 - [Entitäten](#entitäten)
 - [Aktionen](#aktionen)
+- [Dashboard-Karten](#dashboard-karten-ab-180)
 - [Events](#events)
 - [Beispiele](#beispiele)
 - [Webhook](#webhook)
@@ -53,7 +54,11 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 - 📊 **Statistik:** Buchungen, Auslastung und Umsatz 30 Tage, Umsatz Monat/Jahr/Vorjahr (anteilig nach Nächten), Preis je Buchung, offene Zahlungen
 - ⚡ **Echtzeit-Webhook:** Nabu Casa Cloudhook oder externe HTTPS-URL, wird automatisch bei Smoobu registriert
 - 🔔 **Event `smoobu_event`** bei neuer, geänderter oder stornierter Buchung und bei neuer Gastnachricht
-- 🛠️ **Aktionen:** Buchungen abfragen, einzelne Buchung abrufen, Nachrichten lesen, Nachrichten senden
+- 🛠️ **Aktionen:** Buchungen abfragen, einzelne Buchung abrufen, Nachrichten lesen und senden, Zeiträume sperren, Sperren löschen, Preise und Mindestaufenthalt setzen, Ankunfts-/Abreisezeit und Notiz ändern
+- 🧭 **Kanal-Auswertung:** ein Sensor je Kanal (Portale und Direktkanäle) mit Umsatz, Netto, Kosten, Nächten, Ø Aufenthalt, Ø Personen, Ø Vorlaufzeit, Stornoquote – Monat, Jahr, bis heute, Vorjahr
+- 🎚️ **Filter für Dashboards ohne Templates:** Auswahl-Entitäten Kanal, Zeitraum, Vergleich + Auswertungs-Sensoren
+- 🔮 **Prognose Jahresende:** gebucht + Nachbuchungen wie im Vorjahr
+- 🖥️ **Eigene Dashboard-Karten:** Übersicht, Belegungsplan mit Preisen, Buchungsliste, Finanzen, Posteingang – werden automatisch geladen
 - 🔐 **HMAC-SHA256-Signatur** nach aktueller Smoobu-Spezifikation
 - 🌍 Deutsch und Englisch, Einrichtung komplett über die Oberfläche, Diagnose-Download mit geschwärzten Gästedaten
 
@@ -230,6 +235,16 @@ Je Gast zusätzlich: `…_aktueller_gast_kanalgruppe` (Direkt/Portal), `…_prov
 
 **Optionen → Schritt „Provisionen“:** % je Kanal (Standard Airbnb 15,5 · Booking.com 15 · FeWo-direkt 8 · Website 0 · Direktbuchung 0), sonstige Portale (15), weitere Kanäle als `Kanal=Prozent; …`, Direktkanäle (Standard: Direct booking, Website).
 
+#### Kanäle, Auswertung mit Filtern, Prognose (ab 1.7.0)
+
+**Ein Sensor je Kanal** entsteht automatisch, sobald ein Kanal in den Buchungen vorkommt (z. B. `sensor.smoobu_apartment_kanal_booking_com`). Zustand = Brutto laufendes Jahr. Attribute flach für Kacheln: `netto`, `kosten`, `kostenquote_prozent`, `naechte`, `auslastung_prozent`, `buchungen`, `stornos`, `stornoquote_prozent`, `netto_pro_nacht`, `aufenthalt_schnitt`, `personen_schnitt`, `vorlauf_schnitt`, `bis_heute_brutto`, `veraenderung_vorjahr_bis_heute_prozent`, `prognose_jahr`. Dazu alle Kennzahlen je Zeitraum (`jahr`, `bis_heute`, `vorjahr`, `vorjahr_bis_heute`, `monat`, `vormonat`, `folgemonat`, `vorjahresmonat`, `letzte_12_monate`) und Monatswerte (`monate`, `monate_netto`, `monate_vorjahr`, `monate_vorjahr_netto`).
+
+**Filter:** Drei Auswahl-Entitäten je Wohnung – `select.…_auswertung_kanal` (Alle Kanäle, Direkt, Portale, jeder Kanal), `select.…_auswertung_zeitraum` (laufender Monat, Vormonat, Folgemonat, laufendes Jahr, Jahr bis heute, Vorjahr, letzte/nächste 12 Monate, gesamt) und `select.…_auswertung_vergleich` (Vorjahr, Vorperiode, kein). Die Sensoren `sensor.…_auswertung_*` (Brutto, Netto, Kosten, Kostenquote, Nächte, Auslastung, Buchungen, Stornoquote, Netto pro Nacht, Aufenthaltsdauer, Vorlaufzeit, Personen je Buchung, Direktanteil) zeigen sofort die Werte der Auswahl, jeweils mit `vergleichswert` und `veraenderung_prozent` bzw. `veraenderung_punkte`. Die Auswahl übersteht Neustarts.
+
+**Prognose:** `sensor.…_prognose_jahr` = gebuchter Jahresumsatz + Umsatz, der im Vorjahr ab dem gleichen Stichtag noch nachgebucht wurde (aus dem Erstellungsdatum der Buchungen).
+
+Bezugsgrößen: Umsatz und Nächte werden anteilig nach Nächten gezählt. Buchungen, Stornos, Ø Aufenthalt, Ø Personen und Ø Vorlaufzeit gehören zur Buchung und zählen im Zeitraum der **Anreise**. Stornos zählen nie zum Umsatz. Option **„Auswertung: Jahre Historie“** (Standard 2) legt fest, wie weit zurück geladen wird.
+
 #### Attribute der Buchungs-Entitäten
 
 `Aktueller Gast`, `Nächster Gast`, `Belegt`, `Anreise heute` und `Abreise heute` tragen die komplette Buchung als Attribute:
@@ -297,6 +312,49 @@ Nachricht an den Gast oder als Gastgeber-Notiz.
 | `subject` | nein | Betreff |
 | `recipient` | nein | `guest` (Standard) oder `host` |
 | `internal` | nein | nur bei `host`: Notiz vor dem Gast verbergen |
+
+
+#### `smoobu.block_period` (ab 1.9.0)
+
+Sperrt einen Zeitraum (über den Sperr-Kanal von Smoobu, wird an alle Portale übertragen). Felder: `start_date` (erste Nacht), `end_date` (Tag nach der letzten Nacht), `notice`, `apartment_id` (nur bei mehreren Wohnungen). Die ID des Sperr-Kanals wird aus vorhandenen Sperrzeiten gelesen.
+
+#### `smoobu.delete_reservation` (ab 1.9.0)
+
+Löscht eine Sperrzeit. Eine **Direktbuchung** wird nur mit `allow_booking: true` storniert. **Portalbuchungen** (Airbnb, Booking.com …) werden nie storniert – das muss im Portal passieren.
+
+#### `smoobu.set_rates` (ab 1.9.0)
+
+Setzt `price` (pro Nacht) und/oder `min_stay` (Nächte) für `start_date` bis `end_date` (beide inklusive).
+
+#### `smoobu.update_reservation` (ab 1.9.0)
+
+Ändert `arrival_time`, `departure_time` und/oder `notice` einer Buchung (`reservation_id`).
+
+---
+
+### Dashboard-Karten (ab 1.8.0)
+
+Die Integration bringt eigene Karten mit. Sie werden automatisch geladen (keine Ressource eintragen) und erscheinen im Kartendialog unter „Smoobu …“. Ein Klick auf eine Buchung öffnet überall dieselbe Detailansicht: Gast und Kontakt, Preis mit Positionen, Provision, Gebühr und Netto, Notiz bearbeiten, Ankunfts-/Abreisezeit ändern, Nachrichtenverlauf und Antwort, Sperre löschen bzw. Direktbuchung stornieren.
+
+| Karte | Inhalt | Optionen |
+|---|---|---|
+| `custom:smoobu-overview-card` | Status, Gäste-Kacheln, Anreise/Abreise/Gästewechsel heute, Hunde, Kennzahlen Monat/Jahr mit Vorjahr, Prognose, nächste Anreisen, **Lücken mit Prüfung gegen den Mindestaufenthalt**, offene Zahlungen | `title`, `entities` (eigene HA-Entitäten als Chips), `upcoming`, `gap_days`, `apartment_id` |
+| `custom:smoobu-timeline-card` | Belegungsplan je Monat mit Kanalfarben, Sperrzeiten, Tagespreis, Mindestaufenthalt, nicht buchbaren Lücken. Tage markieren → **sperren** oder **Preis/Mindestaufenthalt setzen** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
+| `custom:smoobu-bookings-card` | Buchungsliste: Suche, Zeitraum, Kanal- und Statusfilter (inkl. Stornos, Sperrzeiten), Sortierung, Summen, CSV-Export | `title`, `period`, `status`, `apartment_id` |
+| `custom:smoobu-analytics-card` | Finanzen: Zeitraum frei (auch benutzerdefiniert), Kanäle mehrfach wählbar, Vergleich Vorjahr/Vorperiode. Kennzahlen mit Veränderung, gestapeltes Diagramm je Kanal mit Vergleichslinie, Anteile, Erkenntnisse, Kanaltabelle | `title`, `period`, `compare`, `apartment_id` |
+| `custom:smoobu-inbox-card` | Posteingang: laufende, kommende und kürzliche Buchungen, Nachrichtenverlauf, antworten | `title`, `days_back`, `days_ahead`, `message_entity` |
+
+```yaml
+# Beispiel: eigene Seite „Smoobu“ mit Übersicht und Belegungsplan
+type: custom:smoobu-overview-card
+entities:
+  - climate.ferienwohnung
+---
+type: custom:smoobu-timeline-card
+months: 4
+```
+
+Datenquelle der Karten sind WebSocket-Befehle (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/subscribe`). Sie aktualisieren sich bei jedem neuen Datenstand von selbst. Alle Texte aus Smoobu werden vor der Anzeige maskiert.
 
 ---
 
@@ -538,6 +596,7 @@ It connects Home Assistant directly to the Smoobu API and provides bookings, gue
 - [Options](#options)
 - [Entities](#entities)
 - [Actions](#actions)
+- [Dashboard cards](#dashboard-cards-since-180)
 - [Events](#events-1)
 - [Examples](#examples)
 - [Webhook](#webhook-1)
@@ -742,6 +801,16 @@ Per guest additionally: channel group (direct/portal), commission and net price;
 
 **Options → step "Commissions":** % per channel (defaults Airbnb 15.5 · Booking.com 15 · FeWo-direkt 8 · Website 0 · Direct booking 0), other portals (15), further channels as `Channel=percent; …`, direct channels (default: Direct booking, Website).
 
+#### Channels, filtered analysis, forecast (since 1.7.0)
+
+**One sensor per channel** is created automatically as soon as a channel appears in the bookings (e.g. `sensor.smoobu_apartment_channel_booking_com`). State = gross current year. Flat attributes for tiles: `netto`, `kosten`, `kostenquote_prozent`, `naechte`, `auslastung_prozent`, `buchungen`, `stornos`, `stornoquote_prozent`, `netto_pro_nacht`, `aufenthalt_schnitt`, `personen_schnitt`, `vorlauf_schnitt`, `bis_heute_brutto`, `veraenderung_vorjahr_bis_heute_prozent`, `prognose_jahr`. Plus all key figures per period (`jahr`, `bis_heute`, `vorjahr`, `vorjahr_bis_heute`, `monat`, `vormonat`, `folgemonat`, `vorjahresmonat`, `letzte_12_monate`) and monthly values (`monate`, `monate_netto`, `monate_vorjahr`, `monate_vorjahr_netto`).
+
+**Filters:** three select entities per apartment – channel (all, direct, portals, each channel), period (current/previous/next month, current year, year to date, previous year, last/next 12 months, all) and comparison (previous year, previous period, none). The `sensor.…_analysis_*` sensors (gross, net, costs, cost ratio, nights, occupancy, bookings, cancellation rate, net per night, stay, lead time, guests per booking, direct share) follow the selection immediately, each with `vergleichswert` and `veraenderung_prozent` / `veraenderung_punkte`. The selection survives restarts.
+
+**Forecast:** `sensor.…_forecast_year` = booked revenue of the year + revenue that was still booked last year after the same date (from the booking creation date).
+
+Revenue and nights are prorated by night. Bookings, cancellations, avg. stay, avg. guests and avg. lead time belong to the booking and count in the period of **arrival**. Cancellations never count as revenue. Option **"Analysis: years of history"** (default 2) sets how far back data is loaded.
+
 #### Attributes of the booking entities
 
 `Current guest`, `Next guest`, `Occupied`, `Arrival today` and `Departure today` carry the complete booking as attributes. **The attribute keys are German** (independent of the system language):
@@ -809,6 +878,39 @@ Message to the guest or as a host note.
 | `subject` | no | Subject |
 | `recipient` | no | `guest` (default) or `host` |
 | `internal` | no | only with `host`: hide the note from the guest |
+
+
+#### `smoobu.block_period` (since 1.9.0)
+
+Blocks a period (through Smoobu's block channel, pushed to all portals). Fields: `start_date` (first night), `end_date` (day after the last night), `notice`, `apartment_id` (only with several apartments). The block channel ID is read from existing blocks.
+
+#### `smoobu.delete_reservation` (since 1.9.0)
+
+Deletes a block. A **direct booking** is only cancelled with `allow_booking: true`. **Portal bookings** (Airbnb, Booking.com …) are never cancelled – do that in the portal.
+
+#### `smoobu.set_rates` (since 1.9.0)
+
+Sets `price` (per night) and/or `min_stay` (nights) for `start_date` to `end_date` (both inclusive).
+
+#### `smoobu.update_reservation` (since 1.9.0)
+
+Changes `arrival_time`, `departure_time` and/or `notice` of a booking (`reservation_id`).
+
+---
+
+### Dashboard cards (since 1.8.0)
+
+The integration ships its own cards. They are loaded automatically (no resource needed) and appear in the card picker as "Smoobu …". Clicking a booking opens the same detail view everywhere: guest and contact, price with line items, commission, fee and net, edit note, change arrival/departure time, message thread and reply, delete a block or cancel a direct booking.
+
+| Card | Content | Options |
+|---|---|---|
+| `custom:smoobu-overview-card` | Status, guest tiles, arrivals/departures/changeover today, dogs, key figures month/year vs. last year, forecast, upcoming arrivals, **gaps checked against the minimum stay**, open payments | `title`, `entities`, `upcoming`, `gap_days`, `apartment_id` |
+| `custom:smoobu-timeline-card` | Occupancy plan per month with channel colours, blocks, daily price, minimum stay, unbookable gaps. Mark days → **block** or **set price/minimum stay** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
+| `custom:smoobu-bookings-card` | Booking list: search, period, channel and status filters (incl. cancellations, blocks), sorting, totals, CSV export | `title`, `period`, `status`, `apartment_id` |
+| `custom:smoobu-analytics-card` | Finance: free period (also custom), multiple channels, comparison previous year/period. Key figures with change, stacked chart per channel with comparison line, shares, insights, channel table | `title`, `period`, `compare`, `apartment_id` |
+| `custom:smoobu-inbox-card` | Inbox: current, upcoming and recent bookings, message thread, reply | `title`, `days_back`, `days_ahead`, `message_entity` |
+
+The cards read data through WebSocket commands (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/subscribe`) and refresh themselves on every data update. All texts from Smoobu are escaped before display.
 
 ---
 
