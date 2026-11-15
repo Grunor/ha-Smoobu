@@ -29,6 +29,8 @@ from .const import (
     CONF_DIRECT_CHANNELS,
     CONF_PAYMENT_EXCLUDED_CHANNELS,
     CONF_SCAN_INTERVAL,
+    CONF_HISTORY_YEARS,
+    DEFAULT_HISTORY_YEARS,
     DEFAULT_COMMISSION_OTHER,
     DEFAULT_COMMISSIONS,
     DEFAULT_DIRECT_CHANNELS,
@@ -44,6 +46,7 @@ from .const import (
     FALLBACK_CHECKIN,
     FALLBACK_CHECKOUT,
 )
+from .analytics import build_records, is_cancelled
 from .channels import booking_costs, night_rows
 from .models import (
     SmoobuData,
@@ -102,6 +105,9 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         self._rates: dict[int, dict[str, dict[str, Any]]] = {}
         # Zeitraum (von, bis) der zuletzt geladenen Buchungen.
         self.window: tuple[Any, Any] = (None, None)
+        # Auswahl der Lovelace-Filter je Wohnung: {"kanal", "zeitraum", "vergleich"}
+        # (gesetzt von den select-Entitäten, die ihren Stand selbst wiederherstellen)
+        self.selection: dict[int, dict[str, str]] = {}
 
     # --- Optionen bequem lesbar ----------------------------------------
     @property
@@ -147,6 +153,17 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
     def costs(self, booking: dict[str, Any]) -> dict[str, Any]:
         """Kanalgruppe, Provision, Zahlungsgebühr und Netto einer Buchung."""
         return booking_costs(booking, self.commissions, self.commission_other, self.direct_channels)
+
+    @property
+    def history_years(self) -> int:
+        """Wie viele Jahre vor dem laufenden für Auswertungen geladen werden."""
+        return max(int(self.config_entry.options.get(CONF_HISTORY_YEARS, DEFAULT_HISTORY_YEARS)), 1)
+
+    def records(self, apartment_id: int) -> list[dict[str, Any]]:
+        """Aufbereitete Buchungsdatensätze (inkl. Stornos/Sperrzeiten) einer Wohnung."""
+        if not self.data:
+            return []
+        return self.data.records.get(apartment_id, [])
 
     def release(self, booking: dict[str, Any]):
         """Freigabezeit einer Buchung (Abreisezeit + Puffer bzw. Standard-Check-out)."""
@@ -199,9 +216,21 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         g_nights: dict[int, dict[str, int]] = {}
         b_nights: dict[int, dict[str, int]] = {}
         rows: dict[int, list] = {}
+        records: dict[int, list] = {}
+        # Aktuellere Daten aus dem Buchungsfenster haben Vorrang (Detaildaten
+        # wie Vorname); Umsatzabfrage ergänzt Historie, Stornos und Fernes.
+        merged = {int(b.get("id") or 0): b for b in revenue_bookings}
+        merged.update({int(b.get("id") or 0): {**merged.get(int(b.get("id") or 0), {}), **b} for b in bookings})
         for apt_id in apartments:
+            apt_all = [b for b in merged.values() if (b.get("apartment") or {}).get("id") == apt_id]
+            records[apt_id] = build_records(
+                apt_all, self.costs, self.payment_excluded_channels, today
+            )
+            # Für alle bisherigen Umsatzwerte nur gültige Buchungen (ohne Stornos)
             items = [
-                b for b in revenue_bookings if (b.get("apartment") or {}).get("id") == apt_id
+                b
+                for b in revenue_bookings
+                if (b.get("apartment") or {}).get("id") == apt_id and not is_cancelled(b)
             ]
             revenue[apt_id] = revenue_by_month(items)
             earned[apt_id] = revenue_by_month(items, until=today)
@@ -225,6 +254,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             rates=rates,
             last_message=previous.last_message,
             night_rows=rows,
+            records=records,
         )
 
     async def _async_load_rates(
@@ -290,8 +320,13 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         self.async_update_listeners()
 
     async def _async_load_revenue_bookings(self) -> list[dict[str, Any]]:
-        """Alle Buchungen mit Nächten im Vorjahr, laufenden Jahr und Januar des Folgejahres
-        (für „Folgemonat“ im Dezember). Gecacht 1 h, Sperrzeiten inklusive."""
+        """Alle Buchungen für Umsatz und Auswertungen. Gecacht 1 h.
+
+        Zeitraum: ab 01.01. vor `history_years` Jahren bis zum Ende der Vorschau,
+        mindestens bis Ende Januar des Folgejahres (für „Folgemonat“ im Dezember).
+        Sperrzeiten und Stornos inklusive – Stornos zählen nur für die Stornoquote,
+        alle Umsatzwerte filtern sie wieder heraus.
+        """
         now = dt_util.utcnow()
         if (
             self._revenue_loaded
@@ -299,11 +334,15 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             and now - self._revenue_loaded < REVENUE_REFRESH
         ):
             return self._revenue_bookings
-        year = dt_util.now().year
+        today = dt_util.now().date()
+        year = today.year
+        days_ahead = int(self.config_entry.options.get(CONF_DAYS_AHEAD, DEFAULT_DAYS_AHEAD))
+        until = max(f"{year + 1}-01-31", (today + timedelta(days=days_ahead)).isoformat())
         self._revenue_bookings = await self.client.get_reservations(
-            departureFrom=f"{year - 1}-01-02",  # mind. eine Nacht im Vorjahr
-            arrivalTo=f"{year + 1}-01-31",
-            showCancellation=False,
+            departureFrom=f"{year - self.history_years}-01-02",  # mind. eine Nacht im Startjahr
+            arrivalTo=until,
+            showCancellation=True,
+            includePriceElements=True,  # Hunde-Erkennung in den Datensätzen
         )
         self._revenue_loaded = now
         self.force_revenue_refresh = False

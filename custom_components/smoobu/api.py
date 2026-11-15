@@ -293,6 +293,44 @@ class SmoobuClient:
         )
         return (data.get("data") or {}).get(str(apartment_id)) or {}
 
+    # --- Schreibende Aktionen (ab v1.9.0) -------------------------------
+    async def create_reservation(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Buchung oder Sperrzeit anlegen (POST /api/reservations).
+
+        Pflichtfelder laut Smoobu: arrivalDate, departureDate, apartmentId, channelId.
+        Eine Sperrzeit ist eine Buchung über den Kanal „Blocked channel“.
+        """
+        return await self.request("POST", "/api/reservations", body=body) or {}
+
+    async def update_reservation(self, reservation_id: int, body: dict[str, Any]) -> dict[str, Any]:
+        """Buchung ändern (PUT /api/reservations/{id}), z. B. arrivalTime, departureTime, notice."""
+        return await self.request("PUT", f"/api/reservations/{reservation_id}", body=body) or {}
+
+    async def delete_reservation(self, reservation_id: int) -> None:
+        """Buchung stornieren bzw. Sperrzeit löschen (DELETE /api/reservations/{id})."""
+        await self.request("DELETE", f"/api/reservations/{reservation_id}")
+
+    async def set_rates(
+        self,
+        apartment_id: int,
+        start_date: str,
+        end_date: str,
+        price: float | None = None,
+        min_stay: int | None = None,
+    ) -> dict[str, Any]:
+        """Preis und/oder Mindestaufenthalt für einen Zeitraum setzen (POST /api/rates).
+
+        Smoobu überträgt die Werte an alle verbundenen Portale.
+        Format laut Smoobu: dates = ["YYYY-MM-DD:YYYY-MM-DD"] (beide inklusive).
+        """
+        operation: dict[str, Any] = {"dates": [f"{start_date}:{end_date}"]}
+        if price is not None:
+            operation["daily_price"] = price
+        if min_stay is not None:
+            operation["min_length_of_stay"] = min_stay
+        body = {"apartments": [apartment_id], "operations": [operation]}
+        return await self.request("POST", "/api/rates", body=body) or {}
+
     # --- Webhook-Verwaltung ---------------------------------------------
     async def list_webhooks(self) -> list[dict[str, Any]]:
         data = await self.request("GET", "/api/users/webhooks") or {}

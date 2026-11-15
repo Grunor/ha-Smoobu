@@ -94,3 +94,88 @@ send_message:
       default: false
       selector:
         boolean:
+
+# --- Schreibende Aktionen (ab v1.9.0) -----------------------------------------
+block_period:
+  fields:
+    config_entry_id: &entry
+      selector:
+        config_entry:
+          integration: smoobu
+    apartment_id: &apt
+      selector:
+        number:
+          min: 1
+          max: 9999999999
+          mode: box
+    start_date:
+      required: true
+      selector:
+        date:
+    end_date:
+      required: true
+      selector:
+        date:
+    notice:
+      selector:
+        text:
+delete_reservation:
+  fields:
+    config_entry_id: *entry
+    reservation_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 9999999999
+          mode: box
+    allow_booking:
+      default: false
+      selector:
+        boolean:
+set_rates:
+  fields:
+    config_entry_id: *entry
+    apartment_id: *apt
+    start_date:
+      required: true
+      selector:
+        date:
+    end_date:
+      required: true
+      selector:
+        date:
+    price:
+      selector:
+        number:
+          min: 1
+          max: 10000
+          step: 1
+          mode: box
+          unit_of_measurement: "€"
+    min_stay:
+      selector:
+        number:
+          min: 1
+          max: 90
+          mode: box
+update_reservation:
+  fields:
+    config_entry_id: *entry
+    reservation_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 9999999999
+          mode: box
+    arrival_time:
+      selector:
+        time:
+    departure_time:
+      selector:
+        time:
+    notice:
+      selector:
+        text:
+          multiline: true

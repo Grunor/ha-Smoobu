@@ -32,6 +32,12 @@ from .booking_fields import FIELDS, SCOPES, BookingField, is_enabled
 from .const import CONF_CLOUDHOOK_URL, CONF_SMOOBU_WEBHOOK_ID, STATS_DAYS
 from .coordinator import SmoobuCoordinator
 from .entity import SmoobuEntity
+from .sensor_analytics import (
+    SELECTION_SENSORS,
+    SmoobuForecastSensor,
+    SmoobuSelectionSensor,
+    channel_entity_adder,
+)
 from .models import (
     booking_attributes,
     booking_end,
@@ -850,7 +856,23 @@ async def async_setup_entry(
         SmoobuLastEventSensor(coordinator),
         SmoobuWebhookSensor(coordinator),
     ]
+    # v1.7.0: Auswertung nach Auswahl + Prognose je Wohnung
+    entities += [
+        SmoobuSelectionSensor(coordinator, apt_id, desc, _currency(coordinator, apt_id))
+        for apt_id in coordinator.data.apartments
+        for desc in SELECTION_SENSORS
+    ]
+    entities += [
+        SmoobuForecastSensor(coordinator, apt_id, _currency(coordinator, apt_id))
+        for apt_id in coordinator.data.apartments
+    ]
     async_add_entities(entities)
+    # Kanal-Sensoren: einer je Kanal, neue Kanäle kommen zur Laufzeit dazu
+    entry.async_on_unload(
+        channel_entity_adder(
+            coordinator, async_add_entities, lambda apt: _currency(coordinator, apt)
+        )
+    )
 
 
 class SmoobuApartmentSensor(SmoobuEntity, SensorEntity):

@@ -56,6 +56,18 @@ from .const import (
     ATTR_RESERVATION_ID,
     ATTR_SHOW_CANCELLATION,
     ATTR_SUBJECT,
+    ATTR_ALLOW_BOOKING,
+    ATTR_ARRIVAL_TIME,
+    ATTR_DEPARTURE_TIME,
+    ATTR_END,
+    ATTR_MIN_STAY,
+    ATTR_NOTICE,
+    ATTR_PRICE,
+    ATTR_START,
+    SERVICE_BLOCK_PERIOD,
+    SERVICE_DELETE_RESERVATION,
+    SERVICE_SET_RATES,
+    SERVICE_UPDATE_RESERVATION,
     CONF_API_KEY,
     CONF_API_SECRET,
     CONF_CLOUDHOOK_URL,
@@ -73,10 +85,12 @@ from .const import (
     SERVICE_SEND_MESSAGE,
 )
 from .coordinator import SmoobuCoordinator
+from .frontend import async_register_frontend
+from .websocket_api import async_register as async_register_websocket
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.CALENDAR, Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.CALENDAR, Platform.SELECT, Platform.SENSOR]
 
 type SmoobuConfigEntry = ConfigEntry[SmoobuCoordinator]
 
@@ -90,8 +104,10 @@ NOTIFICATION_ID = "smoobu_webhook"
 # Einrichtung
 # ===========================================================================
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Aktionen einmalig registrieren (unabhängig von der Anzahl Konten)."""
+    """Aktionen, WebSocket-Befehle und Dashboard-Karten einmalig registrieren."""
     _register_services(hass)
+    async_register_websocket(hass)
+    await async_register_frontend(hass)
     return True
 
 
@@ -398,6 +414,169 @@ def _register_services(hass: HomeAssistant) -> None:
             )
         except SmoobuError as err:
             raise HomeAssistantError(str(err)) from err
+
+    # --- Schreibende Aktionen (v1.9.0) ---------------------------------
+    def _apartment(coordinator: SmoobuCoordinator, call: ServiceCall) -> int:
+        apts = list(coordinator.data.apartments) if coordinator.data else []
+        apt = call.data.get(ATTR_APARTMENT_ID)
+        if apt is None and len(apts) == 1:
+            return apts[0]
+        if apt not in apts:
+            raise ServiceValidationError(f"Wohnung {apt} unbekannt (vorhanden: {apts})")
+        return apt
+
+    async def _after_write(coordinator: SmoobuCoordinator) -> None:
+        # Geänderte Buchungen/Preise sofort neu laden (auch Umsatz- und Preisdaten)
+        coordinator.force_revenue_refresh = True
+        await coordinator.async_request_refresh()
+
+    async def block_period(call: ServiceCall) -> ServiceResponse:
+        """Zeitraum sperren: Buchung über den Sperr-Kanal von Smoobu."""
+        coordinator = _get_coordinator(hass, call)
+        apt = _apartment(coordinator, call)
+        start, end = call.data[ATTR_START], call.data[ATTR_END]
+        if end <= start:
+            raise ServiceValidationError("Enddatum (Abreise) muss nach dem Startdatum liegen")
+        # Sperr-Kanal-ID aus vorhandenen Sperrzeiten (Smoobu „Blocked channel“)
+        channel_id = next(
+            (r["kanal_id"] for r in coordinator.records(apt) if r["blockiert"] and r["kanal_id"]), None
+        )
+        if channel_id is None:
+            raise ServiceValidationError(
+                "Keine Sperrzeit in Smoobu gefunden, aus der die ID des Sperr-Kanals gelesen werden kann. "
+                "Bitte einmal in Smoobu einen Zeitraum sperren."
+            )
+        body: dict[str, Any] = {
+            "arrivalDate": start.isoformat(),
+            "departureDate": end.isoformat(),
+            "apartmentId": apt,
+            "channelId": channel_id,
+        }
+        if call.data.get(ATTR_NOTICE):
+            body["notice"] = call.data[ATTR_NOTICE]
+        try:
+            result = await coordinator.client.create_reservation(body)
+        except SmoobuError as err:
+            raise HomeAssistantError(str(err)) from err
+        await _after_write(coordinator)
+        return {"reservation": result}
+
+    async def delete_reservation(call: ServiceCall) -> None:
+        """Sperrzeit löschen bzw. Direktbuchung stornieren. Portalbuchungen nie."""
+        coordinator = _get_coordinator(hass, call)
+        rid = call.data[ATTR_RESERVATION_ID]
+        record = next(
+            (r for apt in (coordinator.data.apartments if coordinator.data else {})
+             for r in coordinator.records(apt) if r["id"] == rid),
+            None,
+        )
+        if record is None:
+            raise ServiceValidationError(f"Buchung {rid} nicht gefunden")
+        if not record["blockiert"]:
+            # Schutz: Portalbuchungen müssen im Portal storniert werden;
+            # Direktbuchungen nur mit ausdrücklicher Freigabe (allow_booking).
+            if record["gruppe"] != "Direkt":
+                raise ServiceValidationError(
+                    f"Buchung {rid} kommt über {record['kanal']} und muss dort storniert werden"
+                )
+            if not call.data.get(ATTR_ALLOW_BOOKING):
+                raise ServiceValidationError(
+                    f"Buchung {rid} ist eine Gästebuchung. Zum Stornieren allow_booking: true setzen"
+                )
+        try:
+            await coordinator.client.delete_reservation(rid)
+        except SmoobuError as err:
+            raise HomeAssistantError(str(err)) from err
+        await _after_write(coordinator)
+
+    async def set_rates(call: ServiceCall) -> None:
+        coordinator = _get_coordinator(hass, call)
+        apt = _apartment(coordinator, call)
+        price, min_stay = call.data.get(ATTR_PRICE), call.data.get(ATTR_MIN_STAY)
+        if price is None and min_stay is None:
+            raise ServiceValidationError("Preis und/oder Mindestaufenthalt angeben")
+        start, end = call.data[ATTR_START], call.data[ATTR_END]
+        if end < start:
+            raise ServiceValidationError("Enddatum liegt vor dem Startdatum")
+        try:
+            await coordinator.client.set_rates(apt, start.isoformat(), end.isoformat(), price, min_stay)
+        except SmoobuError as err:
+            raise HomeAssistantError(str(err)) from err
+        await _after_write(coordinator)
+
+    async def update_reservation(call: ServiceCall) -> None:
+        coordinator = _get_coordinator(hass, call)
+        body: dict[str, Any] = {}
+        if call.data.get(ATTR_ARRIVAL_TIME):
+            body["arrivalTime"] = call.data[ATTR_ARRIVAL_TIME].strftime("%H:%M")
+        if call.data.get(ATTR_DEPARTURE_TIME):
+            body["departureTime"] = call.data[ATTR_DEPARTURE_TIME].strftime("%H:%M")
+        if ATTR_NOTICE in call.data:
+            body["notice"] = call.data[ATTR_NOTICE]
+        if not body:
+            raise ServiceValidationError("Nichts zu ändern angegeben")
+        try:
+            await coordinator.client.update_reservation(call.data[ATTR_RESERVATION_ID], body)
+        except SmoobuError as err:
+            raise HomeAssistantError(str(err)) from err
+        await _after_write(coordinator)
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_BLOCK_PERIOD,
+        block_period,
+        vol.Schema(
+            {
+                **entry_field,
+                vol.Optional(ATTR_APARTMENT_ID): vol.Coerce(int),
+                vol.Required(ATTR_START): cv.date,
+                vol.Required(ATTR_END): cv.date,
+                vol.Optional(ATTR_NOTICE): cv.string,
+            }
+        ),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_RESERVATION,
+        delete_reservation,
+        vol.Schema(
+            {
+                **entry_field,
+                vol.Required(ATTR_RESERVATION_ID): vol.Coerce(int),
+                vol.Optional(ATTR_ALLOW_BOOKING, default=False): cv.boolean,
+            }
+        ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_RATES,
+        set_rates,
+        vol.Schema(
+            {
+                **entry_field,
+                vol.Optional(ATTR_APARTMENT_ID): vol.Coerce(int),
+                vol.Required(ATTR_START): cv.date,
+                vol.Required(ATTR_END): cv.date,
+                vol.Optional(ATTR_PRICE): vol.All(vol.Coerce(float), vol.Range(min=1)),
+                vol.Optional(ATTR_MIN_STAY): vol.All(vol.Coerce(int), vol.Range(min=1, max=90)),
+            }
+        ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_RESERVATION,
+        update_reservation,
+        vol.Schema(
+            {
+                **entry_field,
+                vol.Required(ATTR_RESERVATION_ID): vol.Coerce(int),
+                vol.Optional(ATTR_ARRIVAL_TIME): cv.time,
+                vol.Optional(ATTR_DEPARTURE_TIME): cv.time,
+                vol.Optional(ATTR_NOTICE): cv.string,
+            }
+        ),
+    )
 
     hass.services.async_register(DOMAIN, SERVICE_REFRESH, refresh, vol.Schema({}))
     hass.services.async_register(
