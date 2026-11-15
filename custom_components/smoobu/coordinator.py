@@ -40,6 +40,7 @@ from .const import (
 )
 from .models import (
     SmoobuData,
+    revenue_by_month,
     booking_end,
     booking_release,
     booking_start,
@@ -55,6 +56,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # Wohnungsdetails ändern sich selten → nur alle 24 h neu laden.
 APARTMENT_REFRESH = timedelta(hours=24)
+# Umsatzdaten (Vorjahr + laufendes Jahr) stündlich bzw. nach Webhook neu laden.
+REVENUE_REFRESH = timedelta(hours=1)
 
 
 class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
@@ -78,6 +81,10 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         # Einzelabruf; per Cache wird nur bei Änderung neu geladen.
         self._detail_cache: dict[int, tuple[Any, dict[str, Any]]] = {}
         self._pii_warned = False
+        # Umsatz-Cache: Zeitpunkt der letzten Jahresabfrage + Merker für Webhook
+        self._revenue_loaded: Any = None
+        self._revenue_bookings: list[dict[str, Any]] = []
+        self.force_revenue_refresh = False
         # Zeitraum (von, bis) der zuletzt geladenen Buchungen.
         self.window: tuple[Any, Any] = (None, None)
 
@@ -121,6 +128,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             apartments = await self._async_load_apartments(previous)
             bookings = await self._async_load_bookings()
             bookings = await self._async_enrich(bookings)
+            revenue_bookings = await self._async_load_revenue_bookings()
         except SmoobuAuthError as err:
             # Löst in HA den Reauth-Dialog aus (neuer Schlüssel/Secret).
             raise ConfigEntryAuthFailed(str(err)) from err
@@ -151,13 +159,45 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
                 )
                 self._pii_warned = True
 
+        # Umsatz je Wohnung und Monat (anteilig nach Nächten)
+        today = dt_util.now().date()
+        revenue: dict[int, dict[str, float]] = {}
+        earned: dict[int, dict[str, float]] = {}
+        for apt_id in apartments:
+            items = [
+                b for b in revenue_bookings if (b.get("apartment") or {}).get("id") == apt_id
+            ]
+            revenue[apt_id] = revenue_by_month(items)
+            earned[apt_id] = revenue_by_month(items, until=today)
+
         return SmoobuData(
             apartments=apartments,
             bookings=grouped,
             pii_available=pii,
             last_update=dt_util.utcnow(),
             last_event=previous.last_event,
+            revenue=revenue,
+            revenue_earned=earned,
         )
+
+    async def _async_load_revenue_bookings(self) -> list[dict[str, Any]]:
+        """Alle Buchungen mit Nächten im Vorjahr oder laufenden Jahr (gecacht 1 h)."""
+        now = dt_util.utcnow()
+        if (
+            self._revenue_loaded
+            and not self.force_revenue_refresh
+            and now - self._revenue_loaded < REVENUE_REFRESH
+        ):
+            return self._revenue_bookings
+        year = dt_util.now().year
+        self._revenue_bookings = await self.client.get_reservations(
+            departureFrom=f"{year - 1}-01-02",  # mind. eine Nacht im Vorjahr
+            arrivalTo=f"{year}-12-31",
+            showCancellation=False,
+        )
+        self._revenue_loaded = now
+        self.force_revenue_refresh = False
+        return self._revenue_bookings
 
     async def _async_load_apartments(self, previous: SmoobuData) -> dict[int, dict[str, Any]]:
         now = dt_util.utcnow()

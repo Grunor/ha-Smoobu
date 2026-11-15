@@ -142,6 +142,21 @@
           "manuell": "Manuell eintragen",
           "aus": "Aus"
         }
+      },
+      "preis_aktueller_gast": {
+        "name": "Preis aktueller Gast"
+      },
+      "preis_naechster_gast": {
+        "name": "Preis nächster Gast"
+      },
+      "umsatz_monat": {
+        "name": "Umsatz Monat"
+      },
+      "umsatz_jahr": {
+        "name": "Umsatz Jahr"
+      },
+      "umsatz_vorjahr": {
+        "name": "Umsatz Vorjahr"
       }
     }
   },

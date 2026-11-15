@@ -50,7 +50,7 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 - 📅 **Belegungskalender je Wohnung** mit vollem Gastnamen, Kanal, Personen, Preis und Kontaktdaten
 - 👤 **Sensoren für aktuelle und nächste Buchung:** Gastname, Vorname, Personenzahl, Anreise, Abreise
 - 🏠 **Binärsensoren:** belegt, Anreise heute, Abreise heute, Gästewechsel heute, Hund beim aktuellen/nächsten Gast
-- 📊 **Statistik für 30 Tage:** Buchungen, Auslastung, Umsatz, offene Zahlungen
+- 📊 **Statistik:** Buchungen, Auslastung und Umsatz 30 Tage, Umsatz Monat/Jahr/Vorjahr (anteilig nach Nächten), Preis je Buchung, offene Zahlungen
 - ⚡ **Echtzeit-Webhook:** Nabu Casa Cloudhook oder externe HTTPS-URL, wird automatisch bei Smoobu registriert
 - 🔔 **Event `smoobu_event`** bei neuer, geänderter oder stornierter Buchung und bei neuer Gastnachricht
 - 🛠️ **Aktionen:** Buchungen abfragen, einzelne Buchung abrufen, Nachrichten lesen, Nachrichten senden
@@ -164,6 +164,11 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 | Buchungen 30 Tage | `sensor.smoobu_ferienwohnung_buchungen_30_tage` | Anzahl Anreisen in den nächsten 30 Tagen, Liste im Attribut `buchungen` |
 | Auslastung 30 Tage | `sensor.smoobu_ferienwohnung_auslastung_30_tage` | Belegte Nächte in % (inkl. Blockierungen) |
 | Umsatz 30 Tage | `sensor.smoobu_ferienwohnung_umsatz_30_tage` | Summe der Buchungspreise der Anreisen in den nächsten 30 Tagen |
+| Preis aktueller Gast | `sensor.smoobu_ferienwohnung_preis_aktueller_gast` | Buchungspreis der laufenden Buchung. Attribute: `aufschluesselung` (Preiselemente), `preis_pro_nacht`, `anzahlung`, `offen`, `kurtaxe` … |
+| Preis nächster Gast | `sensor.smoobu_ferienwohnung_preis_nachster_gast` | Wie oben für die nächste Buchung |
+| Umsatz Monat | `sensor.smoobu_ferienwohnung_umsatz_monat` | Umsatz des laufenden Monats, Buchungspreis **anteilig nach Nächten**. Attribute: `davon_bis_heute`, `vormonat`, `vorjahresmonat` |
+| Umsatz Jahr | `sensor.smoobu_ferienwohnung_umsatz_jahr` | Umsatz des laufenden Jahres (gebucht). Attribute: `davon_bis_heute`, `gebucht_ab_heute`, `monate`, `monate_vorjahr`, `vorjahr_gesamt` |
+| Umsatz Vorjahr | `sensor.smoobu_ferienwohnung_umsatz_vorjahr` | Umsatz des Vorjahres |
 | Offene Zahlungen | `sensor.smoobu_ferienwohnung_offene_zahlungen` | Laufende/kommende Buchungen mit offenem Betrag (Preis − bezahlte Anzahlung). Portal-Kanäle aus den Optionen (Standard Airbnb, Booking.com) zählen nicht. Attribute: `buchungen` (mit `offen`), `offener_betrag` |
 
 #### Konto (Diagnose)
@@ -507,7 +512,7 @@ This integration handles the signing and exposes all data natively in Home Assis
 - 📅 **Occupancy calendar per apartment** with full guest name, channel, guests, price and contact details
 - 👤 **Sensors for the current and next booking:** guest name, first name, number of guests, arrival, departure
 - 🏠 **Binary sensors:** occupied, arrival today, departure today, changeover today, dog with current/next guest
-- 📊 **30-day statistics:** bookings, occupancy rate, revenue, unpaid bookings
+- 📊 **Statistics:** 30-day bookings, occupancy and revenue, revenue month/year/previous year (split by nights), price per booking, unpaid bookings
 - ⚡ **Real-time webhook:** Nabu Casa cloudhook or external HTTPS URL, registered with Smoobu automatically
 - 🔔 **Event `smoobu_event`** for new, changed or cancelled bookings and new guest messages
 - 🛠️ **Actions:** query bookings, get a single booking, read messages, send messages
@@ -621,6 +626,11 @@ Each Smoobu apartment becomes a device **"Smoobu &lt;apartment name&gt;"**, plus
 | Bookings 30 days | `sensor.smoobu_apartment_bookings_30_days` | Number of arrivals in the next 30 days, list in attribute `buchungen` |
 | Occupancy rate 30 days | `sensor.smoobu_apartment_occupancy_rate_30_days` | Booked nights in % (incl. blocked periods) |
 | Revenue 30 days | `sensor.smoobu_apartment_revenue_30_days` | Sum of booking prices of arrivals in the next 30 days |
+| Price current guest | `sensor.smoobu_apartment_price_current_guest` | Booking price of the current booking. Attributes: `aufschluesselung` (price elements), `preis_pro_nacht`, `anzahlung`, `offen`, `kurtaxe` … |
+| Price next guest | `sensor.smoobu_apartment_price_next_guest` | Same for the next booking |
+| Revenue month | `sensor.smoobu_apartment_revenue_month` | Revenue of the current month, booking price **split by nights**. Attributes: `davon_bis_heute`, `vormonat`, `vorjahresmonat` |
+| Revenue year | `sensor.smoobu_apartment_revenue_year` | Revenue of the current year (booked). Attributes: `davon_bis_heute`, `gebucht_ab_heute`, `monate`, `monate_vorjahr`, `vorjahr_gesamt` |
+| Revenue previous year | `sensor.smoobu_apartment_revenue_previous_year` | Revenue of the previous year |
 | Unpaid bookings | `sensor.smoobu_apartment_unpaid_bookings` | Current/upcoming bookings with an open amount (price − paid prepayment). Portal channels from the options (default Airbnb, Booking.com) are excluded. Attributes: `buchungen` (with `offen`), `offener_betrag` |
 
 #### Account (diagnostic)

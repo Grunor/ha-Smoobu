@@ -310,6 +310,9 @@ async def _handle_webhook(
     coordinator.set_last_event({**event_data, "received": dt_util.now().isoformat()})
     # Preisänderungen betreffen keine Buchungsdaten → kein Neuladen nötig.
     if action != "updateRates":
+        # Buchung neu/geändert/storniert → auch Umsatzdaten sofort neu laden
+        if action in ("newReservation", "updateReservation", "cancelReservation", "deleteReservation"):
+            coordinator.force_revenue_refresh = True
         await coordinator.async_request_refresh()
     return web.Response(status=200)
 
@@ -341,6 +344,7 @@ def _register_services(hass: HomeAssistant) -> None:
     async def refresh(call: ServiceCall) -> None:
         for entry in hass.config_entries.async_entries(DOMAIN):
             if entry.state is ConfigEntryState.LOADED:
+                entry.runtime_data.force_revenue_refresh = True  # auch Umsatzdaten
                 await entry.runtime_data.async_request_refresh()
 
     async def get_reservations(call: ServiceCall) -> ServiceResponse:

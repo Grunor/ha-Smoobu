@@ -142,6 +142,21 @@
           "manuell": "Manual",
           "aus": "Off"
         }
+      },
+      "preis_aktueller_gast": {
+        "name": "Price current guest"
+      },
+      "preis_naechster_gast": {
+        "name": "Price next guest"
+      },
+      "umsatz_monat": {
+        "name": "Revenue month"
+      },
+      "umsatz_jahr": {
+        "name": "Revenue year"
+      },
+      "umsatz_vorjahr": {
+        "name": "Revenue previous year"
       }
     }
   },
