@@ -6,6 +6,14 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.12.0 – 2026-11-15
+
+**Deutsch**
+- Neuer Binärsensor „Anreise morgen“ (`binary_sensor.…_anreise_morgen`): an, wenn morgen ein Gast anreist; Attribute wie „Anreise heute“ (u. a. `gastname`, `anreise`, `hund`, `hund_hinweis`). Ermöglicht Vorabend-Automationen ohne Datums-Templates
+
+**English**
+- New binary sensor "Arrival tomorrow" (`binary_sensor.…_anreise_morgen`): on when a guest arrives tomorrow; same attributes as "Arrival today" (incl. `gastname`, `anreise`, `hund`, `hund_hinweis`). Enables evening-before automations without date templates
+
 ## 1.11.0 – 2026-11-15
 
 **Deutsch**

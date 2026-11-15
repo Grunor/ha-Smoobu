@@ -154,6 +154,7 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 | Kalender | `calendar.smoobu_ferienwohnung_belegung` | Alle Buchungen. Titel = Gastname, mit 🐕 bei Hund (blockierte Zeiträume: „Blockiert“). Beginn = Anreise + Check-in-Zeit, Ende = Abreise + Check-out-Zeit. |
 | Belegt | `binary_sensor.smoobu_ferienwohnung_belegt` | An von der Check-in-Zeit bis zur Freigabe (Abreisezeit bzw. Standard-Check-out + Wartezeit) |
 | Anreise heute | `binary_sensor.smoobu_ferienwohnung_anreise_heute` | Heute reist ein Gast an |
+| Anreise morgen | `binary_sensor.smoobu_ferienwohnung_anreise_morgen` | Morgen reist ein Gast an (Attribute wie „Anreise heute“, u. a. `hund`) |
 | Abreise heute | `binary_sensor.smoobu_ferienwohnung_abreise_heute` | Heute reist ein Gast ab |
 | Gästewechsel heute | `binary_sensor.smoobu_ferienwohnung_gastewechsel_heute` | Abreise und Anreise am selben Tag |
 | Hund aktueller Gast | `binary_sensor.smoobu_ferienwohnung_hund_aktueller_gast` | Laufende Buchung erwähnt einen Hund/ein Haustier (Zusatzleistung oder Notiz). Attribut `hund_hinweis` = Fundstelle |
@@ -736,6 +737,7 @@ Each Smoobu apartment becomes a device **"Smoobu &lt;apartment name&gt;"**, plus
 | Calendar | `calendar.smoobu_apartment_occupancy` | All bookings. Title = guest name, with 🐕 for dogs (blocked periods: "Blockiert"). Start = arrival + check-in time, end = departure + check-out time. |
 | Occupied | `binary_sensor.smoobu_apartment_occupied` | On from check-in time until release (departure time or default check-out + waiting time) |
 | Arrival today | `binary_sensor.smoobu_apartment_arrival_today` | A guest arrives today |
+| Arrival tomorrow | `binary_sensor.smoobu_apartment_arrival_tomorrow` | A guest arrives tomorrow (same attributes as "Arrival today", incl. `hund`) |
 | Departure today | `binary_sensor.smoobu_apartment_departure_today` | A guest leaves today |
 | Changeover today | `binary_sensor.smoobu_apartment_changeover_today` | Departure and arrival on the same day |
 | Dog current guest | `binary_sensor.smoobu_apartment_dog_current_guest` | Current booking mentions a dog/pet (add-on or note). Attribute `hund_hinweis` = where it was found |
