@@ -32,6 +32,9 @@ class SmoobuData:
     revenue: dict[int, dict[str, float]] = field(default_factory=dict)
     # Wohnungs-ID → {"YYYY-MM": Umsatz} nur bereits vergangener Nächte (bis gestern)
     revenue_earned: dict[int, dict[str, float]] = field(default_factory=dict)
+    # Wohnungs-ID → {"YYYY-MM": Gäste-Nächte} bzw. blockierte Nächte
+    guest_nights: dict[int, dict[str, int]] = field(default_factory=dict)
+    blocked_nights: dict[int, dict[str, int]] = field(default_factory=dict)
 
 
 def parse_time(value: Any, fallback: time | None) -> time | None:
@@ -188,6 +191,32 @@ def revenue_by_month(
             result[key] = result.get(key, 0.0) + per_night
             day += timedelta(days=1)
     return {k: round(v, 2) for k, v in sorted(result.items())}
+
+
+def nights_by_month(bookings: list[dict[str, Any]], blocked: bool = False) -> dict[str, int]:
+    """Belegte Nächte je Monat: Gästebuchungen (blocked=False) oder Sperrzeiten (True)."""
+    result: dict[str, int] = {}
+    for b in bookings:
+        if is_blocked(b) != blocked:
+            continue
+        arrival = parse_date(b.get("arrival"))
+        departure = parse_date(b.get("departure"))
+        if arrival is None or departure is None:
+            continue
+        day = arrival
+        while day < departure:
+            key = f"{day.year:04d}-{day.month:02d}"
+            result[key] = result.get(key, 0) + 1
+            day += timedelta(days=1)
+    return dict(sorted(result.items()))
+
+
+def days_in_month(key: str) -> int:
+    """'2026-02' → 28."""
+    year, month = int(key[:4]), int(key[5:7])
+    first = date(year, month, 1)
+    nxt = date(year + (month == 12), month % 12 + 1, 1)
+    return (nxt - first).days
 
 
 def is_blocked(booking: dict[str, Any]) -> bool:

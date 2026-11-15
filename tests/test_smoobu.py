@@ -248,3 +248,19 @@ def test_revenue_split():
     from custom_components.smoobu.models import revenue_by_month
     r = revenue_by_month([{"arrival": "2026-12-27", "departure": "2027-01-06", "price": 552.6}])
     assert r == {"2026-12": 276.3, "2027-01": 276.3}
+
+
+async def test_month_compare_occupancy_blocked(hass, setup):
+    """Vor-/Folgemonat, Monats-Auslastung (nur Gäste) und gesperrte Nächte separat."""
+    occ = hass.states.get("sensor.smoobu_ferienwohnung_auslastung_monat")
+    # Gäste-Nächte November: 13.–15. (3) + 18.–20. (3) = 6 von 30 → 20 %
+    assert float(occ.state) == 20.0
+    assert occ.attributes["gaeste_naechte"] == 6
+    blk = hass.states.get("sensor.smoobu_ferienwohnung_gesperrte_nachte_monat")
+    # Sperrzeit 25.–26.11. = 2 Nächte
+    assert int(blk.state) == 2
+    assert blk.attributes["monate"]["2026-11"] == 2
+    vm = hass.states.get("sensor.smoobu_ferienwohnung_umsatz_vormonat")
+    assert vm.attributes["monat"] == "2026-10"
+    fm = hass.states.get("sensor.smoobu_ferienwohnung_umsatz_folgemonat")
+    assert fm.attributes["monat"] == "2026-12"

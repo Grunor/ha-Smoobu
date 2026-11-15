@@ -6,6 +6,22 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.4.0 – 2026-11-15
+
+**Deutsch**
+- Neue Sensoren „Umsatz Vormonat“ und „Umsatz Folgemonat“ mit Vorjahresvergleich (absolut und in %), Auslastung und Nächten
+- Neuer Sensor „Auslastung Monat“ (nur Gäste-Nächte) mit Monatswerten für Jahr und Vorjahr
+- Neuer Sensor „Gesperrte Nächte Monat“ – Sperrzeiten separat, mit Monatswerten (Nächte und %)
+- „Umsatz Monat“: zusätzlich Folgemonat und Veränderung zu Vormonat/Vorjahresmonat in %
+- Umsatzdaten reichen bis Januar des Folgejahres (für den Folgemonat im Dezember)
+
+**English**
+- New sensors "Revenue previous month" and "Revenue next month" with year-over-year comparison (absolute and %), occupancy and nights
+- New sensor "Occupancy rate month" (guest nights only) with monthly values for current and previous year
+- New sensor "Blocked nights month" – blocked periods separately, with monthly values (nights and %)
+- "Revenue month": additionally next month and change vs. previous month/previous year in %
+- Revenue data now extends to January of the next year (for the next month in December)
+
 ## 1.3.0 – 2026-11-15
 
 **Deutsch**

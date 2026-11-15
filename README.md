@@ -168,6 +168,9 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 | Preis nächster Gast | `sensor.smoobu_ferienwohnung_preis_nachster_gast` | Wie oben für die nächste Buchung |
 | Umsatz Monat | `sensor.smoobu_ferienwohnung_umsatz_monat` | Umsatz des laufenden Monats, Buchungspreis **anteilig nach Nächten**. Attribute: `davon_bis_heute`, `vormonat`, `vorjahresmonat` |
 | Umsatz Jahr | `sensor.smoobu_ferienwohnung_umsatz_jahr` | Umsatz des laufenden Jahres (gebucht). Attribute: `davon_bis_heute`, `gebucht_ab_heute`, `monate`, `monate_vorjahr`, `vorjahr_gesamt` |
+| Umsatz Vormonat / Folgemonat | `sensor.smoobu_ferienwohnung_umsatz_vormonat` / `…_umsatz_folgemonat` | Umsatz des Vor- bzw. Folgemonats. Attribute: `vorjahresmonat`, `veraenderung_vorjahr_prozent`, `auslastung`, `auslastung_vorjahr`, `gaeste_naechte`, `gesperrt_naechte` |
+| Auslastung Monat | `sensor.smoobu_ferienwohnung_auslastung_monat` | Auslastung des laufenden Monats in %, **nur Gäste-Nächte**. Attribute: `vormonat`, `folgemonat`, `vorjahresmonat`, `monate`, `monate_vorjahr` |
+| Gesperrte Nächte Monat | `sensor.smoobu_ferienwohnung_gesperrte_nachte_monat` | Vom Gastgeber gesperrte Nächte im laufenden Monat (separat von der Auslastung). Attribute: `monate`, `monate_vorjahr`, `monate_prozent`, `jahr_gesamt`, `vorjahr_gesamt` |
 | Umsatz Vorjahr | `sensor.smoobu_ferienwohnung_umsatz_vorjahr` | Umsatz des Vorjahres |
 | Offene Zahlungen | `sensor.smoobu_ferienwohnung_offene_zahlungen` | Laufende/kommende Buchungen mit offenem Betrag (Preis − bezahlte Anzahlung). Portal-Kanäle aus den Optionen (Standard Airbnb, Booking.com) zählen nicht. Attribute: `buchungen` (mit `offen`), `offener_betrag` |
 
@@ -630,6 +633,9 @@ Each Smoobu apartment becomes a device **"Smoobu &lt;apartment name&gt;"**, plus
 | Price next guest | `sensor.smoobu_apartment_price_next_guest` | Same for the next booking |
 | Revenue month | `sensor.smoobu_apartment_revenue_month` | Revenue of the current month, booking price **split by nights**. Attributes: `davon_bis_heute`, `vormonat`, `vorjahresmonat` |
 | Revenue year | `sensor.smoobu_apartment_revenue_year` | Revenue of the current year (booked). Attributes: `davon_bis_heute`, `gebucht_ab_heute`, `monate`, `monate_vorjahr`, `vorjahr_gesamt` |
+| Revenue previous / next month | `sensor.smoobu_apartment_revenue_previous_month` / `…_revenue_next_month` | Revenue of the previous/next month. Attributes: `vorjahresmonat`, `veraenderung_vorjahr_prozent`, `auslastung`, `auslastung_vorjahr`, `gaeste_naechte`, `gesperrt_naechte` |
+| Occupancy rate month | `sensor.smoobu_apartment_occupancy_rate_month` | Occupancy of the current month in %, **guest nights only**. Attributes: `vormonat`, `folgemonat`, `vorjahresmonat`, `monate`, `monate_vorjahr` |
+| Blocked nights month | `sensor.smoobu_apartment_blocked_nights_month` | Nights blocked by the host this month (separate from occupancy). Attributes: `monate`, `monate_vorjahr`, `monate_prozent`, `jahr_gesamt`, `vorjahr_gesamt` |
 | Revenue previous year | `sensor.smoobu_apartment_revenue_previous_year` | Revenue of the previous year |
 | Unpaid bookings | `sensor.smoobu_apartment_unpaid_bookings` | Current/upcoming bookings with an open amount (price − paid prepayment). Portal channels from the options (default Airbnb, Booking.com) are excluded. Attributes: `buchungen` (with `offen`), `offener_betrag` |
 

@@ -41,6 +41,7 @@ from .models import (
     nights,
     open_amount,
     parse_date,
+    days_in_month,
     pet_hint,
     price_breakdown,
     stay_overlap_nights,
@@ -187,12 +188,100 @@ def _revenue_month_attrs(c: C, apt: int) -> dict[str, Any]:
     now = dt_util.now()
     prev = (now.replace(day=1) - timedelta(days=1))
     last_year = now.replace(year=now.year - 1, day=1)
+    current = round(_rev(c, apt).get(_month_key(now), 0.0), 2)
+    vormonat = round(_rev(c, apt).get(_month_key(prev), 0.0), 2)
+    vorjahr = round(_rev(c, apt).get(_month_key(last_year), 0.0), 2)
     return {
         "monat": _month_key(now),
         "davon_bis_heute": round(_rev(c, apt, True).get(_month_key(now), 0.0), 2),
-        "vormonat": round(_rev(c, apt).get(_month_key(prev), 0.0), 2),
-        "vorjahresmonat": round(_rev(c, apt).get(_month_key(last_year), 0.0), 2),
+        "vormonat": vormonat,
+        "folgemonat": round(_rev(c, apt).get(_shift_month(_month_key(now), 1), 0.0), 2),
+        "vorjahresmonat": vorjahr,
+        "veraenderung_vormonat_prozent": _pct_change(current, vormonat),
+        "veraenderung_vorjahr_prozent": _pct_change(current, vorjahr),
         "berechnung": "Buchungspreis anteilig nach Nächten, ohne Sperrzeiten/Stornos",
+    }
+
+
+def _shift_month(key: str, months: int) -> str:
+    """'2026-11', +1 → '2026-12'; −12 → '2025-11'."""
+    year, month = int(key[:4]), int(key[5:7])
+    total = year * 12 + (month - 1) + months
+    return f"{total // 12:04d}-{total % 12 + 1:02d}"
+
+
+def _pct_change(new: float, old: float) -> float | None:
+    return round((new - old) / old * 100, 1) if old else None
+
+
+def _occ(c: C, apt: int, key: str) -> float:
+    """Auslastung eines Monats in % (nur Gäste-Nächte)."""
+    nights_ = (c.data.guest_nights.get(apt, {}) if c.data else {}).get(key, 0)
+    return round(min(nights_, days_in_month(key)) / days_in_month(key) * 100, 1)
+
+
+def _month_compare(c: C, apt: int, offset: int) -> dict[str, Any]:
+    """Vergleichsdaten für Monat (heute + offset) gegen Vorjahresmonat."""
+    key = _shift_month(_month_key(dt_util.now()), offset)
+    prev_year = _shift_month(key, -12)
+    rev = _rev(c, apt)
+    value = round(rev.get(key, 0.0), 2)
+    last = round(rev.get(prev_year, 0.0), 2)
+    return {
+        "monat": key,
+        "umsatz": value,
+        "vorjahresmonat": last,
+        "veraenderung_vorjahr_prozent": _pct_change(value, last),
+        "auslastung": _occ(c, apt, key),
+        "auslastung_vorjahr": _occ(c, apt, prev_year),
+        "gaeste_naechte": (c.data.guest_nights.get(apt, {}) if c.data else {}).get(key, 0),
+        "gesperrt_naechte": (c.data.blocked_nights.get(apt, {}) if c.data else {}).get(key, 0),
+    }
+
+
+def _occupancy_month_attrs(c: C, apt: int) -> dict[str, Any]:
+    now = dt_util.now()
+    key = _month_key(now)
+    year = now.year
+    return {
+        "monat": key,
+        "vormonat": _occ(c, apt, _shift_month(key, -1)),
+        "folgemonat": _occ(c, apt, _shift_month(key, 1)),
+        "vorjahresmonat": _occ(c, apt, _shift_month(key, -12)),
+        "gaeste_naechte": (c.data.guest_nights.get(apt, {}) if c.data else {}).get(key, 0),
+        "gesperrt_naechte": (c.data.blocked_nights.get(apt, {}) if c.data else {}).get(key, 0),
+        "monate": {f"{year:04d}-{i:02d}": _occ(c, apt, f"{year:04d}-{i:02d}") for i in range(1, 13)},
+        "monate_vorjahr": {f"{year - 1:04d}-{i:02d}": _occ(c, apt, f"{year - 1:04d}-{i:02d}") for i in range(1, 13)},
+        "berechnung": "Gäste-Nächte ÷ Tage im Monat, Sperrzeiten zählen nicht",
+    }
+
+
+def _blocked(c: C, apt: int, key: str) -> int:
+    """Vom Gastgeber gesperrte Nächte eines Monats."""
+    return (c.data.blocked_nights.get(apt, {}) if c.data else {}).get(key, 0)
+
+
+def _blocked_month_attrs(c: C, apt: int) -> dict[str, Any]:
+    now = dt_util.now()
+    key = _month_key(now)
+    year = now.year
+    months = [f"{year:04d}-{i:02d}" for i in range(1, 13)]
+    months_prev = [f"{year - 1:04d}-{i:02d}" for i in range(1, 13)]
+    return {
+        "monat": key,
+        "prozent": round(_blocked(c, apt, key) / days_in_month(key) * 100, 1),
+        "vormonat": _blocked(c, apt, _shift_month(key, -1)),
+        "folgemonat": _blocked(c, apt, _shift_month(key, 1)),
+        "vorjahresmonat": _blocked(c, apt, _shift_month(key, -12)),
+        "jahr_gesamt": sum(_blocked(c, apt, m) for m in months),
+        "vorjahr_gesamt": sum(_blocked(c, apt, m) for m in months_prev),
+        "monate": {m: _blocked(c, apt, m) for m in months},
+        "monate_vorjahr": {m: _blocked(c, apt, m) for m in months_prev},
+        "monate_prozent": {m: round(_blocked(c, apt, m) / days_in_month(m) * 100, 1) for m in months},
+        "monate_vorjahr_prozent": {
+            m: round(_blocked(c, apt, m) / days_in_month(m) * 100, 1) for m in months_prev
+        },
+        "berechnung": "Gesperrte Nächte (Blockierungen in Smoobu), getrennt von der Auslastung",
     }
 
 
@@ -335,6 +424,38 @@ APARTMENT_SENSORS: tuple[SmoobuSensorDescription, ...] = (
         reset="year",
         value_fn=_revenue_year,
         attrs_fn=_revenue_year_attrs,
+    ),
+    SmoobuSensorDescription(
+        key="umsatz_vormonat",
+        icon="mdi:calendar-arrow-left",
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=lambda c, a: _month_compare(c, a, -1)["umsatz"],
+        attrs_fn=lambda c, a: _month_compare(c, a, -1),
+    ),
+    SmoobuSensorDescription(
+        key="umsatz_folgemonat",
+        icon="mdi:calendar-arrow-right",
+        device_class=SensorDeviceClass.MONETARY,
+        suggested_display_precision=2,
+        value_fn=lambda c, a: _month_compare(c, a, 1)["umsatz"],
+        attrs_fn=lambda c, a: _month_compare(c, a, 1),
+    ),
+    SmoobuSensorDescription(
+        key="auslastung_monat",
+        icon="mdi:chart-donut-variant",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda c, a: _occ(c, a, _month_key(dt_util.now())),
+        attrs_fn=_occupancy_month_attrs,
+    ),
+    SmoobuSensorDescription(
+        key="gesperrte_naechte_monat",
+        icon="mdi:calendar-lock",
+        native_unit_of_measurement="Nächte",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda c, a: _blocked(c, a, _month_key(dt_util.now())),
+        attrs_fn=_blocked_month_attrs,
     ),
     SmoobuSensorDescription(
         key="umsatz_vorjahr",

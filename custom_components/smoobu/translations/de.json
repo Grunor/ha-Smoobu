@@ -157,6 +157,18 @@
       },
       "umsatz_vorjahr": {
         "name": "Umsatz Vorjahr"
+      },
+      "umsatz_vormonat": {
+        "name": "Umsatz Vormonat"
+      },
+      "umsatz_folgemonat": {
+        "name": "Umsatz Folgemonat"
+      },
+      "auslastung_monat": {
+        "name": "Auslastung Monat"
+      },
+      "gesperrte_naechte_monat": {
+        "name": "Gesperrte Nächte Monat"
       }
     }
   },
