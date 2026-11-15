@@ -58,7 +58,9 @@ PERIODS = [
     "naechste_12_monate",
     "gesamt",
 ]
-COMPARES = ["vorjahr", "vorperiode", "kein"]
+# „vorjahr_stand“ (ab v1.10.2): Vorjahreszeitraum, aber nur mit den Buchungen, die am
+# gleichen Kalendertag des Vorjahres schon bestanden (fairer Vergleich für laufende Monate)
+COMPARES = ["vorjahr", "vorjahr_stand", "vorperiode", "kein"]
 
 STATUS_CANCELLED = "storniert"
 STATUS_BLOCKED = "blockiert"
@@ -112,7 +114,7 @@ def period_range(key: str, today: date, first: date | None = None) -> tuple[date
 
 def compare_range(start: date, end: date, mode: str) -> tuple[date, date] | None:
     """Vergleichszeitraum: gleicher Zeitraum im Vorjahr oder direkt davor."""
-    if mode == "vorjahr":
+    if mode in ("vorjahr", "vorjahr_stand"):
         return _prev_year(start), _prev_year(end)
     if mode == "vorperiode":
         # Ganze Monate → um dieselbe Monatszahl verschieben (Feb hat sonst andere Länge)
@@ -496,6 +498,28 @@ COMPARE_KEYS = [
 ]
 
 
+def as_of(records: list[dict[str, Any]], day: date) -> list[dict[str, Any]]:
+    """Buchungsstand am Ende von `day` (für den Vergleich „Buchungsstand Vorjahr“).
+
+    - Buchungen, die erst NACH `day` angelegt wurden, fallen weg.
+    - Ohne Erstellungsdatum gilt die Buchung als vorher angelegt (wie bei der Prognose).
+    - Stornos: Smoobu liefert kein Stornodatum. Näherung über das Änderungsdatum
+      (modifiedAt): wurde die Buchung nach `day` geändert, war sie an `day` noch aktiv
+      und zählt als normale Buchung. Ohne Änderungsdatum bleibt sie ein Storno.
+    """
+    out: list[dict[str, Any]] = []
+    for r in records:
+        created = datetime.fromisoformat(r["erstellt"]).date() if r["erstellt"] else None
+        if created is not None and created > day:
+            continue
+        if r["storniert"]:
+            changed = parse_datetime(r["geaendert"])
+            if changed is not None and changed.date() > day:
+                r = {**r, "storniert": False}
+        out.append(r)
+    return out
+
+
 def analyze_with_compare(
     records: list[dict[str, Any]],
     start: date,
@@ -503,14 +527,23 @@ def analyze_with_compare(
     selection: str | Iterable[str] | None,
     mode: str,
     series: bool = True,
+    today: date | None = None,
 ) -> dict[str, Any]:
-    """Auswertung + Vergleichszeitraum + Veränderungen je Kennzahl."""
+    """Auswertung + Vergleichszeitraum + Veränderungen je Kennzahl.
+
+    `today` wird nur für „vorjahr_stand“ gebraucht (Stichtag = gleicher Tag im Vorjahr).
+    """
     result = analyze(records, start, end, selection, series)
     rng = compare_range(start, end, mode)
     if rng is None:
         result["vergleich"] = None
         return result
-    cmp = analyze(records, rng[0], rng[1], selection, series)
+    base = records
+    if mode == "vorjahr_stand":
+        stichtag = _prev_year(today or date.today())
+        base = as_of(records, stichtag)
+        result["stichtag_vergleich"] = stichtag.isoformat()
+    cmp = analyze(base, rng[0], rng[1], selection, series)
     result["vergleich"] = cmp
     result["veraenderung_prozent"] = {k: change(result.get(k), cmp.get(k)) for k in COMPARE_KEYS}
     # Prozentwerte (Auslastung, Kostenquote, Stornoquote) zusätzlich als Punkte

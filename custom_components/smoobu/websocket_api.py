@@ -177,7 +177,7 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         connection.send_error(msg["id"], "invalid_range", "Ende muss nach dem Start liegen")
         return
     channels = msg.get("channels") or None
-    result = analyze_with_compare(recs, start, end, channels, msg["compare"])
+    result = analyze_with_compare(recs, start, end, channels, msg["compare"], today=today)
     result["prognose"] = forecast_year(recs, today, channels)
     result["farben"] = channel_colors([ch["name"] for ch in channels_of(recs)])
     connection.send_result(msg["id"], result)

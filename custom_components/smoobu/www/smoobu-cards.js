@@ -29,6 +29,9 @@ const SMOOBU_CARDS_VERSION = "1.10.1";
 const EN = {
   "Übersicht": "Overview", "Belegt": "Occupied", "Frei": "Vacant", "frei ab": "free from",
   "Anreise heute": "Arrival today", "Abreise heute": "Departure today", "Gästewechsel heute": "Changeover today",
+  "Reinigung heute": "Cleaning today", "Buchungsstand Vorjahr": "Previous year booking status",
+  "Vergleich": "Comparison", "Monat ggü. Buchungsstand am": "Month vs. booking status on", "Jahr ggü.": "Year vs.",
+  "PP = Prozentpunkte": "PP = percentage points",
   "Aktueller Gast": "Current guest", "Nächster Gast": "Next guest", "Nächste Anreisen": "Upcoming arrivals",
   "Lücken": "Gaps", "Offene Zahlungen": "Open payments", "keine": "none", "Nächte": "nights",
   "Nacht": "night", "Personen": "guests", "Brutto": "Gross", "Netto": "Net", "Kosten": "Costs",
@@ -103,7 +106,7 @@ const PERIOD_LABEL = {
   jahr_bis_heute: "Jahr bis heute", vorjahr: "Vorjahr", letzte_12_monate: "Letzte 12 Monate",
   naechste_12_monate: "Nächste 12 Monate", gesamt: "Gesamter Zeitraum",
 };
-const COMPARE_LABEL = { vorjahr: "Vorjahr", vorperiode: "Vorperiode", kein: "Kein Vergleich" };
+const COMPARE_LABEL = { vorjahr: "Vorjahr", vorjahr_stand: "Buchungsstand Vorjahr", vorperiode: "Vorperiode", kein: "Kein Vergleich" };
 const STATUS_ICON = { kommend: "mdi:calendar-arrow-right", laufend: "mdi:home-account", vergangen: "mdi:check",
   storniert: "mdi:cancel", blockiert: "mdi:lock" };
 
@@ -396,6 +399,9 @@ class SmoobuOverviewCard extends SmoobuCard {
     .status.off { background: color-mix(in srgb, var(--sm-good) 20%, transparent); color: var(--sm-good); }
     .today { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 4px 24px; }
+    /* v1.10.2: Abstand nach oben – in Panel-Ansichten klebt die Karte sonst an der Kopfzeile */
+    :host { padding-top: 8px; }
+    .cmpnote { font-size: .72rem; color: var(--sm-muted); margin-top: 6px; }
     .ent { display: inline-flex; gap: 6px; align-items: center; font-size: .82rem; padding: 4px 10px; border-radius: 14px;
       background: var(--secondary-background-color, rgba(127,127,127,.1)); cursor: pointer; }
   `;
@@ -405,7 +411,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     const today = info.heute;
     const tg = this.target;
     const [month, ytd, list, rates] = await Promise.all([
-      this.store.ws("smoobu/analytics", { ...tg, period: "monat", compare: "vorjahr" }),
+      this.store.ws("smoobu/analytics", { ...tg, period: "monat", compare: "vorjahr_stand" }),
       this.store.ws("smoobu/analytics", { ...tg, period: "jahr_bis_heute", compare: "vorjahr" }),
       this.store.ws("smoobu/bookings", { ...tg, start: iso(addDays(D(today), -1)), end: iso(addDays(D(today), 180)) }),
       this.store.ws("smoobu/rates", { ...tg, start: today, end: iso(addDays(D(today), this._config.gap_days + 21)) }).catch(() => ({ preise: {} })),
@@ -426,7 +432,6 @@ class SmoobuOverviewCard extends SmoobuCard {
     const freeFrom = current ? current.abreise : null;
     const gaps = findGaps(bookings, rates, today, this._config.gap_days);
     const unpaid = guests.filter((b) => b.offen > 0 && b.status !== "vergangen");
-    const dogs = guests.filter((b) => b.hund && b.abreise >= today).slice(0, 3);
     const days = (b) => nightsBetween(today, b.anreise);
     const guestCard = (b, label) => b ? `<div class="guest" data-id="${b.id}" style="--c:${colorOf(apt, b.kanal)}">
         <div class="sub">${t(label)}</div><div class="n">${esc(b.gast || "–")}${b.hund ? " 🐕" : ""}</div>
@@ -447,10 +452,11 @@ class SmoobuOverviewCard extends SmoobuCard {
       <div class="row"><h2 class="grow">${esc(this._config.title || apt.name)}</h2>
         <span class="status ${occupied ? "on" : "off"}">${occupied ? `${t("Belegt")} · ${t("frei ab")} ${fdate(freeFrom)}` : t("Frei")}</span></div>
       <div class="today">
-        ${arrivals.length ? `<span class="badge warn">🛬 ${t("Anreise heute")}: ${arrivals.map((b) => esc(b.gast)).join(", ")}</span>` : ""}
+        ${/* v1.10.2: nur noch Ereignisse von heute (Anreise, Abreise, Reinigung); Hund als 🐕 am Namen */ ""}
+        ${arrivals.length ? `<span class="badge warn">🛬 ${t("Anreise heute")}: ${arrivals.map((b) => esc(b.gast) + (b.hund ? " 🐕" : "") + (b.check_in ? ` ${esc(b.check_in)}` : "")).join(", ")}</span>` : ""}
         ${departures.length ? `<span class="badge warn">🛫 ${t("Abreise heute")}: ${departures.map((b) => esc(b.gast)).join(", ")}</span>` : ""}
+        ${departures.length ? `<span class="badge ${arrivals.length ? "bad" : ""}">🧹 ${t("Reinigung heute")}${arrivals.length && arrivals[0].check_in ? ` ${t("bis")} ${esc(arrivals[0].check_in)}` : ""}</span>` : ""}
         ${arrivals.length && departures.length ? `<span class="badge bad">🔄 ${t("Gästewechsel heute")}</span>` : ""}
-        ${dogs.map((b) => `<span class="badge">🐕 ${esc(b.gast)} (${fdate(b.anreise)})</span>`).join("")}
         ${ents}
       </div>
       <div class="hero">${guestCard(current, staying ? "Aktueller Gast" : "Heute abgereist")}${guestCard(nextGuest, "Nächster Gast")}</div>
@@ -462,6 +468,8 @@ class SmoobuOverviewCard extends SmoobuCard {
         ${tile(t("Netto/Nacht"), money(y.netto_pro_nacht, cur), `${t("Vorjahr")} ${money(y.vergleich?.netto_pro_nacht, cur)}`)}
         ${tile(t("Direktanteil"), pct(y.direktanteil_prozent, 0), delta(y.veraenderung_punkte?.direktanteil_prozent, "pp"))}
       </div>
+      <div class="cmpnote">${t("Vergleich")}: ${t("Monat ggü. Buchungsstand am")} ${fdate(m.stichtag_vergleich)} ·
+        ${t("Jahr ggü.")} ${fdate(y.vergleich?.von)} – ${fdate(iso(addDays(D(y.vergleich?.bis || today), -1)))} · ${t("PP = Prozentpunkte")}</div>
       <div class="cols">
         <div><h3>${t("Nächste Anreisen")}</h3><div class="list">
           ${next.map((b) => `<div class="click" data-id="${b.id}"><span class="dot" style="background:${colorOf(apt, b.kanal)}"></span>

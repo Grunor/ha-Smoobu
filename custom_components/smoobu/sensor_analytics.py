@@ -203,7 +203,7 @@ def selected(c: C, apt: int) -> dict[str, Any]:
         recs = c.records(apt)
         first = min((date.fromisoformat(r["anreise"]) for r in recs), default=None)
         start, end = period_range(sel["zeitraum"], _today(), first)
-        result = analyze_with_compare(recs, start, end, sel["kanal"], sel["vergleich"])
+        result = analyze_with_compare(recs, start, end, sel["kanal"], sel["vergleich"], today=_today())
         result["auswahl"] = dict(sel)
         return result
 

@@ -517,6 +517,7 @@
         "name": "Auswertung Vergleich",
         "state": {
           "vorjahr": "Vorjahr (gleicher Zeitraum)",
+          "vorjahr_stand": "Buchungsstand Vorjahr (gleicher Stichtag)",
           "vorperiode": "Vorperiode",
           "kein": "Kein Vergleich"
         }

@@ -6,6 +6,18 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.10.2 – 2026-11-15
+
+**Deutsch**
+- Übersicht: Abstand nach oben (Panel-Ansicht), Chip-Zeile zeigt nur noch Ereignisse von heute (Anreise mit 🐕/Ankunftszeit, Abreise, 🧹 Reinigung heute, Gästewechsel); Hunde-Chips künftiger Gäste entfernt (🐕 steht am Namen)
+- Neuer Vergleich „Buchungsstand Vorjahr“ (`vorjahr_stand`): Vorjahreszeitraum nur mit Buchungen, die am gleichen Kalendertag schon bestanden (Stornos über Änderungsdatum angenähert); auch in der Auswahl „Auswertung Vergleich“
+- Übersicht: Monatskacheln vergleichen mit dem Buchungsstand Vorjahr; Hinweiszeile erklärt Vergleichszeiträume und PP (Prozentpunkte)
+
+**English**
+- Overview: top spacing (panel view), chip row shows only today's events (arrival with 🐕/check-in time, departure, 🧹 cleaning today, changeover); dog chips for future guests removed (🐕 shown at the name)
+- New comparison "previous year booking status" (`vorjahr_stand`): previous-year period limited to bookings that existed on the same calendar day (cancellations approximated via modification date); also in the "Analysis comparison" select
+- Overview: month tiles compare against the previous year's booking status; note line explains comparison periods and PP (percentage points)
+
 ## 1.10.1 – 2026-11-15
 
 **Deutsch**
