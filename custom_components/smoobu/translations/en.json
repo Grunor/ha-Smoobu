@@ -47,14 +47,16 @@
           "default_checkout": "Default check-out",
           "days_back": "Days back",
           "days_ahead": "Days ahead",
-          "enrich_count": "Fetch details for next n bookings"
+          "enrich_count": "Fetch details for next n bookings",
+          "checkout_buffer": "Buffer after Smoobu departure time"
         },
         "data_description": {
           "scan_interval": "Fallback polling in addition to the webhook.",
           "use_webhook": "Smoobu pushes booking changes instantly via Nabu Casa.",
           "default_checkin": "Used when the booking has no arrival time.",
-          "default_checkout": "Used when the booking has no departure time.",
-          "enrich_count": "Enrich current + next n bookings per apartment with first/last name, city tax etc."
+          "default_checkout": "Used when the booking has no departure time (release time, no buffer).",
+          "enrich_count": "Enrich current + next n bookings per apartment with first/last name, city tax etc.",
+          "checkout_buffer": "If the booking has a departure time, the apartment counts as vacant only after that time + buffer. Without a departure time the default check-out applies."
         }
       }
     }

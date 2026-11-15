@@ -47,14 +47,16 @@
           "default_checkout": "Standard-Check-out",
           "days_back": "Rückblick (Tage)",
           "days_ahead": "Vorschau (Tage)",
-          "enrich_count": "Detaildaten für die nächsten n Buchungen"
+          "enrich_count": "Detaildaten für die nächsten n Buchungen",
+          "checkout_buffer": "Puffer nach Smoobu-Abreisezeit"
         },
         "data_description": {
           "scan_interval": "Rückfall-Abfrage zusätzlich zum Webhook.",
           "use_webhook": "Smoobu meldet Buchungsänderungen sofort über Nabu Casa.",
           "default_checkin": "Gilt, wenn in der Buchung keine Ankunftszeit steht.",
-          "default_checkout": "Gilt, wenn in der Buchung keine Abreisezeit steht.",
-          "enrich_count": "Laufende + nächste n Buchungen je Wohnung mit Vor-/Nachname, Kurtaxe usw. ergänzen."
+          "default_checkout": "Gilt, wenn in der Buchung keine Abreisezeit steht (Freigabezeit, ohne Puffer).",
+          "enrich_count": "Laufende + nächste n Buchungen je Wohnung mit Vor-/Nachname, Kurtaxe usw. ergänzen.",
+          "checkout_buffer": "Steht in der Buchung eine Abreisezeit, gilt die Wohnung erst nach dieser Zeit + Puffer als frei. Ohne Abreisezeit gilt der Standard-Check-out."
         }
       }
     }

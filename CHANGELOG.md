@@ -6,6 +6,18 @@ Format per version: German, then English. Versioning follows [SemVer](https://se
 Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
 A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
 
+## 1.1.0 – 2026-11-15
+
+**Deutsch**
+- Neue Option „Puffer nach Smoobu-Abreisezeit“: Steht in der Buchung eine Abreisezeit, gilt die Wohnung erst nach dieser Zeit + Puffer als frei; ohne Abreisezeit gilt der Standard-Check-out
+- „Belegt“, „Aktueller Gast“ und „Nächste Abreise“ nutzen diese Freigabezeit; neues Attribut `freigabe`
+- Kalender und Attribut `abreise` zeigen weiter die echte Abreisezeit
+
+**English**
+- New option "Buffer after Smoobu departure time": if the booking has a departure time, the apartment counts as vacant only after that time + buffer; without one the default check-out applies
+- "Occupied", "Current guest" and "Next departure" use this release time; new attribute `freigabe`
+- Calendar and attribute `abreise` still show the real departure time
+
 ## 1.0.2 – 2026-11-15
 
 **Deutsch**

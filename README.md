@@ -125,7 +125,8 @@ Unter **Einstellungen → Geräte & Dienste → Smoobu → Konfigurieren**:
 | Abfrageintervall | 10 min | Regelmäßige Abfrage als Rückfall zum Webhook |
 | Echtzeit-Webhook verwenden | an | Webhook anlegen und bei Smoobu registrieren. Abschalten entfernt die Registrierung. |
 | Standard-Check-in | 16:00 | Gilt, wenn in der Buchung keine Ankunftszeit steht |
-| Standard-Check-out | 11:00 | Gilt, wenn in der Buchung keine Abreisezeit steht |
+| Standard-Check-out | 11:00 | Gilt, wenn in der Buchung keine Abreisezeit steht (Freigabezeit, ohne Puffer) |
+| Puffer nach Smoobu-Abreisezeit | 0 min | Steht in der Buchung eine Abreisezeit, gilt die Wohnung erst nach dieser Zeit + Puffer als frei |
 | Rückblick | 30 Tage | Wie weit zurück Buchungen geladen werden |
 | Vorschau | 365 Tage | Wie weit voraus Buchungen geladen werden |
 | Detaildaten für die nächsten n Buchungen | 3 | Laufende und nächste n Buchungen je Wohnung werden zusätzlich einzeln abgerufen (Vor-/Nachname, Kurtaxe, Preisdetails) |
@@ -145,7 +146,7 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 | Entität | Beispiel-ID | Inhalt |
 |---|---|---|
 | Kalender | `calendar.smoobu_ferienwohnung_belegung` | Alle Buchungen. Titel = Gastname (blockierte Zeiträume: „Blockiert“). Beginn = Anreise + Check-in-Zeit, Ende = Abreise + Check-out-Zeit. |
-| Belegt | `binary_sensor.smoobu_ferienwohnung_belegt` | An zwischen Check-in- und Check-out-Zeit einer Gästebuchung |
+| Belegt | `binary_sensor.smoobu_ferienwohnung_belegt` | An von der Check-in-Zeit bis zur Freigabe (Abreisezeit + Puffer bzw. Standard-Check-out) |
 | Anreise heute | `binary_sensor.smoobu_ferienwohnung_anreise_heute` | Heute reist ein Gast an |
 | Abreise heute | `binary_sensor.smoobu_ferienwohnung_abreise_heute` | Heute reist ein Gast ab |
 | Gästewechsel heute | `binary_sensor.smoobu_ferienwohnung_gastewechsel_heute` | Abreise und Anreise am selben Tag |
@@ -156,7 +157,7 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 | Nächster Vorname | `sensor.smoobu_ferienwohnung_nachster_vorname` | Vorname des nächsten Gastes |
 | Nächste Personen | `sensor.smoobu_ferienwohnung_nachste_personen` | Personenzahl der nächsten Buchung |
 | Nächste Anreise | `sensor.smoobu_ferienwohnung_nachste_anreise` | Zeitstempel der nächsten Anreise |
-| Nächste Abreise | `sensor.smoobu_ferienwohnung_nachste_abreise` | Abreise der laufenden Buchung, sonst der nächsten |
+| Nächste Abreise | `sensor.smoobu_ferienwohnung_nachste_abreise` | Freigabe der laufenden Buchung, sonst der nächsten |
 | Buchungen 30 Tage | `sensor.smoobu_ferienwohnung_buchungen_30_tage` | Anzahl Anreisen in den nächsten 30 Tagen, Liste im Attribut `buchungen` |
 | Auslastung 30 Tage | `sensor.smoobu_ferienwohnung_auslastung_30_tage` | Belegte Nächte in % (inkl. Blockierungen) |
 | Umsatz 30 Tage | `sensor.smoobu_ferienwohnung_umsatz_30_tage` | Summe der Buchungspreise der Anreisen in den nächsten 30 Tagen |
@@ -183,6 +184,7 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 | `kanal`, `kanal_id` | Buchungskanal (Airbnb, Booking.com, Direkt …) |
 | `wohnung`, `wohnung_id` | Wohnung |
 | `anreise`, `abreise` | ISO-Zeitstempel inkl. Check-in-/Check-out-Zeit |
+| `freigabe` | Ab hier gilt die Wohnung als frei (Abreisezeit + Puffer bzw. Standard-Check-out) |
 | `check_in_zeit`, `check_out_zeit` | Zeiten laut Smoobu (leer = Standard aus den Optionen) |
 | `naechte`, `erwachsene`, `kinder`, `personen` | Aufenthalt |
 | `preis`, `preis_bezahlt` | Gesamtpreis und Zahlungsstatus |
@@ -576,7 +578,8 @@ Under **Settings → Devices & services → Smoobu → Configure**:
 | Polling interval | 10 min | Regular polling as a fallback to the webhook |
 | Use real-time webhook | on | Create the webhook and register it with Smoobu. Turning it off removes the registration. |
 | Default check-in | 16:00 | Used when the booking has no arrival time |
-| Default check-out | 11:00 | Used when the booking has no departure time |
+| Default check-out | 11:00 | Used when the booking has no departure time (release time, no buffer) |
+| Buffer after Smoobu departure time | 0 min | If the booking has a departure time, the apartment counts as vacant only after that time + buffer |
 | Days back | 30 days | How far back bookings are loaded |
 | Days ahead | 365 days | How far ahead bookings are loaded |
 | Fetch details for next n bookings | 3 | The current and next n bookings per apartment are additionally fetched one by one (first/last name, city tax, price details) |
@@ -596,7 +599,7 @@ Each Smoobu apartment becomes a device **"Smoobu &lt;apartment name&gt;"**, plus
 | Entity | Example ID | Content |
 |---|---|---|
 | Calendar | `calendar.smoobu_apartment_occupancy` | All bookings. Title = guest name (blocked periods: "Blockiert"). Start = arrival + check-in time, end = departure + check-out time. |
-| Occupied | `binary_sensor.smoobu_apartment_occupied` | On between check-in and check-out time of a guest booking |
+| Occupied | `binary_sensor.smoobu_apartment_occupied` | On from check-in time until release (departure time + buffer, or default check-out) |
 | Arrival today | `binary_sensor.smoobu_apartment_arrival_today` | A guest arrives today |
 | Departure today | `binary_sensor.smoobu_apartment_departure_today` | A guest leaves today |
 | Changeover today | `binary_sensor.smoobu_apartment_changeover_today` | Departure and arrival on the same day |
@@ -607,7 +610,7 @@ Each Smoobu apartment becomes a device **"Smoobu &lt;apartment name&gt;"**, plus
 | Next first name | `sensor.smoobu_apartment_next_first_name` | First name of the next guest |
 | Next guests count | `sensor.smoobu_apartment_next_guests_count` | Number of guests of the next booking |
 | Next arrival | `sensor.smoobu_apartment_next_arrival` | Timestamp of the next arrival |
-| Next departure | `sensor.smoobu_apartment_next_departure` | Departure of the current booking, otherwise of the next one |
+| Next departure | `sensor.smoobu_apartment_next_departure` | Release time of the current booking, otherwise of the next one |
 | Bookings 30 days | `sensor.smoobu_apartment_bookings_30_days` | Number of arrivals in the next 30 days, list in attribute `buchungen` |
 | Occupancy rate 30 days | `sensor.smoobu_apartment_occupancy_rate_30_days` | Booked nights in % (incl. blocked periods) |
 | Revenue 30 days | `sensor.smoobu_apartment_revenue_30_days` | Sum of booking prices of arrivals in the next 30 days |
@@ -634,6 +637,7 @@ Each Smoobu apartment becomes a device **"Smoobu &lt;apartment name&gt;"**, plus
 | `kanal`, `kanal_id` | Booking channel (Airbnb, Booking.com, direct …) |
 | `wohnung`, `wohnung_id` | Apartment |
 | `anreise`, `abreise` | Arrival/departure as ISO timestamp incl. check-in/check-out time |
+| `freigabe` | Release: apartment counts as vacant from here (departure time + buffer, or default check-out) |
 | `check_in_zeit`, `check_out_zeit` | Times from Smoobu (empty = default from options) |
 | `naechte`, `erwachsene`, `kinder`, `personen` | Nights, adults, children, total guests |
 | `preis`, `preis_bezahlt` | Total price and payment status |

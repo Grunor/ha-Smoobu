@@ -29,7 +29,7 @@ class SmoobuData:
     last_event: dict[str, Any] | None = None
 
 
-def parse_time(value: Any, fallback: time) -> time:
+def parse_time(value: Any, fallback: time | None) -> time | None:
     """'16:00' / '16:00:00' → time; leer/ungültig → fallback."""
     if not value or not isinstance(value, str):
         return fallback
@@ -86,6 +86,23 @@ def booking_end(booking: dict[str, Any], default_checkout: time) -> datetime | N
     )
 
 
+def booking_release(
+    booking: dict[str, Any], default_checkout: time, buffer_minutes: int
+) -> datetime | None:
+    """Zeitpunkt, ab dem die Wohnung als frei gilt („Freigabe“).
+
+    - Abreisezeit in Smoobu angegeben → diese Zeit + Puffer
+    - keine Abreisezeit → Standard-Check-out (ohne Puffer)
+    """
+    end = booking_end(booking, default_checkout)
+    if end is None:
+        return None
+    # parse_time mit fallback=None → None, wenn Smoobu keine gültige Zeit liefert
+    if parse_time(booking.get("check-out"), None) is not None:
+        return end + timedelta(minutes=buffer_minutes)
+    return end
+
+
 def is_blocked(booking: dict[str, Any]) -> bool:
     """Vom Gastgeber blockierter Zeitraum (keine echte Gästebuchung)."""
     return bool(booking.get("is-blocked-booking"))
@@ -130,7 +147,10 @@ def is_yes(value: Any) -> bool:
 
 
 def booking_attributes(
-    booking: dict[str, Any] | None, default_checkin: time, default_checkout: time
+    booking: dict[str, Any] | None,
+    default_checkin: time,
+    default_checkout: time,
+    buffer_minutes: int = 0,
 ) -> dict[str, Any]:
     """Aufbereitete Attribute einer Buchung für Sensoren.
 
@@ -142,6 +162,7 @@ def booking_attributes(
         return {}
     start = booking_start(booking, default_checkin)
     end = booking_end(booking, default_checkout)
+    release = booking_release(booking, default_checkout, buffer_minutes)
     channel = booking.get("channel") or {}
     apartment = booking.get("apartment") or {}
     return {
@@ -162,6 +183,8 @@ def booking_attributes(
         "kanal_id": channel.get("id"),
         "anreise": start.isoformat() if start else None,
         "abreise": end.isoformat() if end else None,
+        # Ab hier gilt die Wohnung als frei (Abreisezeit + Puffer bzw. Standard-Check-out)
+        "freigabe": release.isoformat() if release else None,
         "check_in_zeit": booking.get("check-in"),
         "check_out_zeit": booking.get("check-out"),
         "naechte": nights(booking),

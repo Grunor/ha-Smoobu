@@ -52,7 +52,7 @@ APARTMENT_BINARY: tuple[SmoobuBinaryDescription, ...] = (
         device_class=BinarySensorDeviceClass.OCCUPANCY,
         value_fn=lambda c, a: c.current_booking(a) is not None,
         attrs_fn=lambda c, a: booking_attributes(
-            c.current_booking(a), c.default_checkin, c.default_checkout
+            c.current_booking(a), c.default_checkin, c.default_checkout, c.checkout_buffer
         ),
     ),
     SmoobuBinaryDescription(
@@ -63,6 +63,7 @@ APARTMENT_BINARY: tuple[SmoobuBinaryDescription, ...] = (
             next(iter(_guest_bookings_on(c, a, "arrival")), None),
             c.default_checkin,
             c.default_checkout,
+            c.checkout_buffer,
         ),
     ),
     SmoobuBinaryDescription(
@@ -73,6 +74,7 @@ APARTMENT_BINARY: tuple[SmoobuBinaryDescription, ...] = (
             next(iter(_guest_bookings_on(c, a, "departure")), None),
             c.default_checkin,
             c.default_checkout,
+            c.checkout_buffer,
         ),
     ),
     SmoobuBinaryDescription(

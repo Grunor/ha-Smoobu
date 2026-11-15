@@ -31,6 +31,10 @@ CONF_DEFAULT_CHECKIN = "default_checkin"  # "HH:MM", wenn Smoobu keine Zeit lief
 CONF_DEFAULT_CHECKOUT = "default_checkout"  # "HH:MM"
 CONF_USE_WEBHOOK = "use_webhook"
 CONF_ENRICH_COUNT = "enrich_count"  # Wie viele kommende Buchungen je Wohnung Detaildaten bekommen
+# Puffer in Minuten nach einer in Smoobu angegebenen Abreisezeit, bis die
+# Wohnung als frei gilt (Gast verlässt die Wohnung oft später als angegeben).
+# Gilt NICHT für den Standard-Check-out (der ist bereits die Freigabezeit).
+CONF_CHECKOUT_BUFFER = "checkout_buffer"
 
 DEFAULT_SCAN_INTERVAL = 10
 DEFAULT_DAYS_BACK = 30
@@ -41,6 +45,7 @@ DEFAULT_CHECKIN = "16:00"
 DEFAULT_CHECKOUT = "11:00"
 DEFAULT_USE_WEBHOOK = True
 DEFAULT_ENRICH_COUNT = 3
+DEFAULT_CHECKOUT_BUFFER = 0
 
 FALLBACK_CHECKIN = time(16, 0)
 FALLBACK_CHECKOUT = time(11, 0)

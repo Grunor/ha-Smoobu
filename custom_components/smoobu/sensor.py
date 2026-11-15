@@ -58,13 +58,13 @@ def _next(c: C, apt: int) -> dict[str, Any] | None:
 
 
 def _attrs(booking: dict[str, Any] | None, c: C) -> dict[str, Any]:
-    return booking_attributes(booking, c.default_checkin, c.default_checkout)
+    return booking_attributes(booking, c.default_checkin, c.default_checkout, c.checkout_buffer)
 
 
 def _next_departure(c: C, apt: int) -> datetime | None:
-    """Abreise der laufenden Buchung, sonst der nächsten."""
+    """Freigabe (Abreise + Puffer) der laufenden Buchung, sonst der nächsten."""
     booking = _current(c, apt) or _next(c, apt)
-    return booking_end(booking, c.default_checkout) if booking else None
+    return c.release(booking) if booking else None
 
 
 def _upcoming_in_window(c: C, apt: int) -> list[dict[str, Any]]:
