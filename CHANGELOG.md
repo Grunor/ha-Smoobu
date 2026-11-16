@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.17.0b1 – 2026-11-16
+
+> Beta / Pre-release
+
 **Deutsch**
 - Release-Ablauf: Änderungen werden auf `develop` gesammelt; Beta-Versionen als Pre-Release
 - **Buchungsliste:** Standard-Sortierung jetzt Anreise **absteigend** (neueste zuerst); Datumsspalten starten beim Anklicken immer absteigend, übrige Spalten aufsteigend. Sortierbar nach jeder Spalte; Status in logischer Reihenfolge (laufend, kommend, vergangen, gesperrt, storniert), leere Werte immer am Ende, Gleichstand nach Anreise
