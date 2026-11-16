@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.17.1b1";
+const SMOOBU_CARDS_VERSION = "1.17.1b2";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -74,7 +74,8 @@ const EN = {
   "gebucht": "booked", "Gesperrt": "Blocked", "Monate": "months", "Diagramm": "Chart", "Sperrzeit": "Block",
   "Preis/Nacht": "Price/night", "Ersparnis Direkt": "Direct savings", "Kanaltabelle": "Channel table",
   "Neu laden": "Reload", "morgen": "tomorrow", "Heute abgereist": "Departed today", "Heute": "Today", "Ankunft": "Check-in", "Abfahrt": "Check-out", "Gäste": "Guests",
-  "Details": "Details", "In Smoobu öffnen": "Open in Smoobu", "Smoobu öffnen": "Open Smoobu",
+  "Details": "Details", "In Smoobu öffnen": "Open in Smoobu", "Smoobu öffnen": "Open Smoobu", "Zurück zu": "Back to", "Anpassen": "Adjust",
+  "Im Belegungsplan Mindestaufenthalt oder Preis setzen": "Set minimum stay or price in the occupancy plan",
   "Smoobu-Anmeldung öffnen – Buchung dort über die ID suchen": "Opens the Smoobu login – search the booking there by ID",
   "in Smoobu speichern": "save in Smoobu", "Nicht als erhalten markiert": "Not marked as received", "DRINGEND": "URGENT",
   "Antwort": "Reply", "Willkommen": "Welcome", "Anreisetag": "Arrival day", "Abreisetag": "Departure day", "Bitte um Bewertung": "Review request",
@@ -127,6 +128,30 @@ const PRICE_DE = { basePrice: ["Base price", "Grundpreis"], cleaningFee: ["Clean
   longStayDiscount: ["Long stay discount", "Langzeitrabatt"], extraGuestFee: ["Extra guest fee", "Zusatzgast"],
   discount: ["Discount", "Rabatt"], cityTax: ["City tax", "Kurtaxe"] };
 const priceName = (p) => { const m = PRICE_DE[p.typ]; return LANG === "de" && m && (!p.name || p.name === m[0]) ? m[1] : p.name || p.typ || ""; };
+// v1.17.1: Abkürzungen kurz erklärt – als Legendenzeile unter Kennzahlen/Diagrammen (gloss([...]))
+const GLOSSARY = {
+  ADR: "Ø Preis je belegter Nacht (brutto)",
+  RevPAR: "Umsatz je verfügbarer Nacht = ADR × Auslastung",
+  "Netto-RevPAR": "Netto (nach Provision und Gebühren) je verfügbarer Nacht",
+  PP: "Prozentpunkte – Veränderung einer Quote",
+  n: "Anzahl Buchungen, auf denen der Wert beruht",
+  "Vgl.": "Vergleichszeitraum",
+  "Ø": "Durchschnitt",
+  N: "Nächte",
+  "Δ": "Veränderung zum Vergleich",
+  Pace: "Buchungstempo: Buchungsstand am gleichen Tag vor dem Aufenthalt",
+  "P10–P90": "Spanne, in der 80 % der Vorjahres-Nachbuchungen lagen",
+  KW: "Kalenderwoche",
+};
+const GLOSSARY_EN = {
+  ADR: "average price per occupied night (gross)", RevPAR: "revenue per available night = ADR × occupancy",
+  "Netto-RevPAR": "net (after commission and fees) per available night", PP: "percentage points – change of a rate",
+  n: "number of bookings the value is based on", "Vgl.": "comparison period", "Ø": "average", N: "nights",
+  "Δ": "change vs. comparison", Pace: "booking pace: bookings on hand the same day before the stay",
+  "P10–P90": "range covering 80 % of prior years' late bookings", KW: "calendar week",
+};
+const gloss = (keys) => `<div class="legend gloss">${keys.filter((k) => GLOSSARY[k]).map((k) =>
+  `<span><b>${esc(k)}</b> = ${esc(LANG === "de" ? GLOSSARY[k] : GLOSSARY_EN[k])}</span>`).join("")}</div>`;
 const OCCASION_LABEL = { antwort: "Antwort", willkommen: "Willkommen", anreise: "Anreisetag", abreise: "Abreisetag", bewertung: "Bitte um Bewertung" };
 const SOURCE_LABEL = { verlauf: "aus dem Verlauf", smoobu: "aus Smoobu-Vorlage", gesendet: "gesendet", vorschlag: "KI-Vorschlag",
   bearbeitet: "bearbeitet", wissensluecke: "Wissenslücke", manuell: "manuell" };
@@ -209,6 +234,14 @@ const CSS_VARS = (p) => `--sm-bg:${p.bg};--sm-surf:${p.surf};--sm-surf2:${p.surf
   --sm-line:${p.line};--sm-accent:${p.acc};--sm-acc-ink:${p.accInk};--sm-good:${p.good};--sm-bad:${p.bad};--sm-warn:${p.warn};
   --sm-block:${p.block};`;
 
+// v1.17.1: Übergabe Übersicht → Belegungsplan (nur für diesen Tab, wird beim Lesen gelöscht)
+const Preselect = {
+  set(v) { try { sessionStorage.setItem("smoobu-preselect", JSON.stringify(v)); } catch (e) { /* privat/gesperrt */ } },
+  take() {
+    try { const v = JSON.parse(sessionStorage.getItem("smoobu-preselect") || "null"); sessionStorage.removeItem("smoobu-preselect"); return v; }
+    catch (e) { return null; }
+  },
+};
 function lsGet(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* privates Fenster o. Ä. */ } }
 
@@ -258,6 +291,13 @@ const AptSel = {
   set value(v) { lsSet(APT_KEY, String(v)); this.listeners.forEach((l) => l()); },
 };
 
+// v1.17.1: Zeigt eine Kopfzeile auf dieser Seite schon die Wohnungsauswahl? Dann blendet die
+// Statistik ihre eigene (gleiche Einstellung AptSel) aus – keine doppelte Auswahl auf einer Seite
+const HeaderApts = {
+  n: 0, listeners: new Set(),
+  add() { this.n++; this.listeners.forEach((l) => l()); },
+  remove() { this.n = Math.max(0, this.n - 1); this.listeners.forEach((l) => l()); },
+};
 // Virtuelle „Wohnung“ für die Gesamtansicht: Kanäle aller Wohnungen, Währung der ersten
 function allApartment(info) {
   const ws = info.wohnungen;
@@ -353,6 +393,8 @@ const BASE_CSS = `
   h3 { margin: 18px 0 8px; font-size: .95rem; font-weight: 650; color: var(--sm-ink); }
   .sub { color: var(--sm-muted); font-size: .84rem; }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .legend.gloss { margin-top: 6px; font-size: .78rem; color: var(--sm-muted); gap: 4px 14px; }
+  .legend.gloss b { color: var(--sm-ink); font-weight: 600; }
   .grow { flex: 1 1 auto; min-width: 0; }
   .head { display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; margin-bottom: 12px; }
   .head h2 { flex: 1 1 auto; }
@@ -716,7 +758,8 @@ function stayStatus(apt, bookings, today, now = "00:00") {
 // Übersicht (v1.15.0 neu gestaltet)
 // ===========================================================================
 class SmoobuOverviewCard extends SmoobuCard {
-  static defaults = { title: "", entities: [], upcoming: 5, gap_days: 60, band_days: 42 };
+  // belegung_path (v1.17.1): Seite mit dem Belegungsplan für „Anpassen“ bei nicht buchbaren Lücken; "" = kein Button
+  static defaults = { title: "", entities: [], upcoming: 5, gap_days: 60, band_days: 42, belegung_path: "smoobu-belegung" };
   // v1.17.1: Status hängt jetzt an der Uhrzeit (Check-in/-out). Ohne neue Daten zeichnet die Karte nicht neu –
   // ein offenes Tablet bliebe sonst bis zum nächsten Datenabruf auf „Anreise um 17:30“ stehen. Daher jede
   // Minute prüfen und nur neu zeichnen, wenn sich aktueller/nächster Gast einer Wohnung tatsächlich ändert.
@@ -1094,6 +1137,8 @@ class SmoobuOverviewCard extends SmoobuCard {
       const pr = prices.length ? (lo === hi ? money(lo, cur) : `${num(lo)}–${money(hi, cur)}`) : "";
       return `<div class="li"><div class="m"><b>${fdowLong(g.von)} bis ${fdowLong(g.bis)}${this.multi ? codeTag(g.w.kuerzel) : ""}</b>
         <span>${plural(g.naechte, t("Nacht"), t("Nächte"))} frei${g.buchbar ? (pr ? `, ${pr}` : "") : `, ${t("Mindestaufenthalt")} ${g.min}`}</span></div>
+        ${g.buchbar || !this._config.belegung_path ? "" : `<button class="lnk" data-fix="${g.w.apartment_id}|${g.von}|${iso(addDays(D(g.bis), -1))}|${g.naechte}"
+          title="${t("Im Belegungsplan Mindestaufenthalt oder Preis setzen")}">${t("Anpassen")}</button>`}
         <span class="badge ${g.buchbar ? "good" : "bad"}">${t(g.buchbar ? "buchbar" : "nicht buchbar")}</span></div>`;
     }).join("");
     const open = guests.filter((b) => status[b.id]?.offen);
@@ -1167,6 +1212,15 @@ class SmoobuOverviewCard extends SmoobuCard {
       if (!(await markPayment(this.store, b, el.dataset.pay, true, this._payCur))) el.disabled = false;
     }));
     root.querySelectorAll("[data-apt]").forEach((el) => el.addEventListener("click", () => { AptSel.value = Number(el.dataset.apt); }));
+    // v1.17.1: nicht buchbare Lücke → Belegungsplan mit markierten Tagen und vorausgefülltem Mindestaufenthalt
+    root.querySelectorAll("[data-fix]").forEach((el) => el.addEventListener("click", () => {
+      const [apt, von, bis, n] = el.dataset.fix.split("|");
+      Preselect.set({ apt: Number(apt), von, bis, min: Number(n) });
+      const path = this._config.belegung_path;
+      const parts = location.pathname.split("/").filter(Boolean);
+      history.pushState(null, "", path.startsWith("/") ? path : `/${parts[0] || "lovelace"}/${path}`);
+      window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+    }));
     root.querySelectorAll("[data-entity]").forEach((el) => el.addEventListener("click", () => {
       this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.entity }, bubbles: true, composed: true }));
     }));
@@ -1238,6 +1292,12 @@ class SmoobuTimelineCard extends SmoobuCard {
   }
   body({ apt, apts, today, start, end, bookings, ratesBy }) {
     const cur = apt.currency;
+    // v1.17.1: Vorauswahl aus der Übersicht („Anpassen“ bei nicht buchbarer Lücke) einmalig übernehmen
+    const pre = this._config.actions ? Preselect.take() : null;
+    if (pre && apts.some((w) => w.apartment_id === pre.apt || !this.multi)) {
+      Object.assign(this._state, { selStart: pre.von, selEnd: pre.bis, selApt: this.multi ? pre.apt : null, panel: "rate", preMin: pre.min });
+      if (pre.von < iso(start) || pre.von >= iso(end)) Preselect.set(pre); // außerhalb der angezeigten Monate: nicht verbrauchen
+    }
     const { selStart, selEnd, selApt } = this._state;
     const lo = selStart && selEnd ? (selStart < selEnd ? selStart : selEnd) : selStart;
     const hi = selStart && selEnd ? (selStart < selEnd ? selEnd : selStart) : selStart;
@@ -1295,7 +1355,7 @@ class SmoobuTimelineCard extends SmoobuCard {
         ${p === "block" ? `<input data-k="notice" placeholder="${t("Grund (optional)")}" style="width:180px">
             <button class="btn" data-act="do-block">${t("Sperren")}</button>`
           : p === "rate" ? `<label>${t("Preis/Nacht")} <input data-k="price" type="number" min="1" step="1"></label>
-            <label>${t("Mindestaufenthalt")} <input data-k="min" type="number" min="1" max="90" style="width:70px"></label>
+            <label>${t("Mindestaufenthalt")} <input data-k="min" type="number" min="1" max="90" style="width:70px" value="${this._state.preMin || ""}"></label>
             <button class="btn" data-act="do-rate">${t("Speichern")}</button>`
           : `<button class="btn" data-act="block">🔒 ${t("Sperren")}</button><button class="btn" data-act="rate">€ ${t("Preis setzen")}</button>`}
         <button class="btn flat" data-act="clear">${t("Abbrechen")}</button></div>`
@@ -1333,7 +1393,7 @@ class SmoobuTimelineCard extends SmoobuCard {
     if (a === "prev") return this.setState({ offset: off - 1 }, true);
     if (a === "next") return this.setState({ offset: off + 1 }, true);
     if (a === "now") return this.setState({ offset: 0 }, true);
-    if (a === "clear") return this.setState({ selStart: null, selEnd: null, panel: null });
+    if (a === "clear") return this.setState({ selStart: null, selEnd: null, panel: null, preMin: null });
     if (a === "block" || a === "rate") return this.setState({ panel: a });
     const [lo, hi] = this.range();
     // Aktionen gehören immer zu genau einer Wohnung: der markierten Zeile
@@ -1351,7 +1411,7 @@ class SmoobuTimelineCard extends SmoobuCard {
           ...(price ? { price: Number(price) } : {}), ...(min ? { min_stay: Number(min) } : {}) });
       }
       toast(t("Gespeichert"));
-      this.setState({ selStart: null, selEnd: null, selApt: null, panel: null }, true);
+      this.setState({ selStart: null, selEnd: null, selApt: null, panel: null, preMin: null }, true);
     } catch (e) {
       toast(`${t("Fehler")}: ${e.message || e}`);
     }
@@ -1927,7 +1987,8 @@ class SmoobuAnalyticsCard extends SmoobuCard {
         <tfoot><tr><td>${t("Summe")}</td><td class="n">${money(r.brutto, cur)}</td><td class="n">100 %</td><td class="n">${delta(dp.brutto)}</td>
           <td class="n">${money(r.netto, cur)}</td><td class="n">${money(r.kosten, cur)} ${delta(dp.kosten, "%", true)}</td><td class="n">${pct(r.kostenquote_prozent)}</td><td class="n">${r.naechte}</td>
           <td class="n">${money(r.netto_pro_nacht, cur)}</td><td class="n">${r.buchungen}</td><td class="n">${pct(r.stornoquote_prozent, 0)}</td>
-          <td class="n">${num(r.aufenthalt_schnitt, 1)}</td><td class="n">${num(r.vorlauf_schnitt)}</td><td class="n">${num(r.personen_schnitt, 1)}</td></tr></tfoot></table></div>`;
+          <td class="n">${num(r.aufenthalt_schnitt, 1)}</td><td class="n">${num(r.vorlauf_schnitt)}</td><td class="n">${num(r.personen_schnitt, 1)}</td></tr></tfoot></table></div>
+      ${gloss(["PP", "Δ", "Ø", "N"])}`;
   }
   bind(root) {
     const s = this._state;
@@ -2430,15 +2491,14 @@ class SmoobuAssistantCard extends SmoobuCard {
           : `<span class="badge ${st.aktiv ? "good" : "bad"}" title="Automatische Antwortvorschläge">${st.aktiv ? "aktiv" : "aus"}</span>`}
         <span class="badge" title="${esc(st.ki || "")}">${esc((st.ki && this._hass?.states[st.ki]?.attributes?.friendly_name) || st.ki || t("keine KI"))}</span></div>
       ${st.ki_erlaubt === false ? `<div class="lockinfo">🔒 ${esc(st.ki_sperre || t("KI in den Integrationsoptionen deaktiviert"))}.
-        Wissensdatenbank, Lernen, Import, Tagesbriefing und Lücken funktionieren weiter – es gehen keine Daten an einen KI-Anbieter.</div>` : ""}
+        Wissensdatenbank, Lernen, Import und Tagesbriefing funktionieren weiter – es gehen keine Daten an einen KI-Anbieter.</div>` : ""}
       ${st.fehler && st.ki_erlaubt !== false ? `<div class="err">Letzter Fehler: ${esc(st.fehler)}</div>` : ""}
       <div class="grid" style="margin-top:8px">
         ${tile("Offene Vorschläge", num(st.offen.length))}
         ${tile("Wissen", num(st.wissen.filter((w) => w.status === "aktiv").length), `${st.wissen.filter((w) => w.status === "vorschlag").length} zur Freigabe`)}
         ${tile("Lernbeispiele", num(st.beispiele_anzahl))}
-        ${tile("Nicht buchbare Lücken", num(st.luecken.length))}
       </div>
-      <div class="tabs">${[["wissen", "📚 Wissen"], ["vorschlaege", "✨ Vorschläge"], ["beispiele", "🎓 Gelernt"], ["luecken", "📅 Lücken"], ["import", "⬇ Import"]]
+      <div class="tabs">${[["wissen", "📚 Wissen"], ["vorschlaege", "✨ Vorschläge"], ["beispiele", "🎓 Gelernt"], ["import", "⬇ Import"]]
         .map(([k, l]) => `<button class="chip" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join("")}</div>`;
     let body = "";
     if (tab === "wissen") body = this.knowledge(st);
@@ -2674,7 +2734,13 @@ function statsLayout() {
   const order = (Array.isArray(l.order) ? l.order : []).filter((id) => known.includes(id));
   for (const id of known) if (!order.includes(id)) order.push(id); // neue Module hinten anhängen
   const hidden = (Array.isArray(l.hidden) ? l.hidden : []).filter((id) => known.includes(id));
-  return { order, hidden, custom };
+  // v1.17.1: Datentabelle doppelt die Seite „Buchungen“ (inkl. CSV) → einmalig ausblenden; über ↺ wieder einblendbar
+  if ((l.defaults || 0) < 2) {
+    if (!hidden.includes("tabelle")) hidden.push("tabelle");
+    try { lsSet(STATS_LAYOUT_KEY, JSON.stringify({ ...l, order, hidden, custom, defaults: 2 })); } catch (e) { /* egal */ }
+  }
+  // defaults mitgeben, sonst blendet ein späteres saveLayout() die bewusst eingeblendete Tabelle wieder aus
+  return { order, hidden, custom, defaults: 2 };
 }
 const saveLayout = (l) => lsSet(STATS_LAYOUT_KEY, JSON.stringify(l));
 
@@ -2860,7 +2926,7 @@ const STATS_MODULES = {
       return panel(t("Belegung nach Wochentag"), `${t("Nacht von … auf …, je Kalenderwoche")}`,
         `<div class="split2"><div class="scroll"><div class="hm" style="${cols}">${html}</div>
           <div class="legend"><span class="scale"><i style="background:linear-gradient(90deg, color-mix(in srgb, var(--sm-accent) 6%, var(--sm-surf2)), var(--sm-accent))"></i>0 – 100 %</span>
-          <span>${t("Zahlen oben = Kalenderwoche")}</span></div></div>
+          <span>${t("Zahlen oben = Kalenderwoche")}</span></div>${gloss(["ADR", "n"])}</div>
           <div><div class="kl" style="margin-bottom:6px">${t("Auslastung je Wochentag")}</div>${bars}</div></div>`);
     },
   },
@@ -3190,7 +3256,7 @@ class SmoobuStatsCard extends SmoobuCard {
   // Optionen: period (monat|quartal|saison|jahr), compare (stichtag|vorjahr|vorperiode),
   // matrix_exclude_years (aus dem Ø der Saison-Matrix ausgenommene Jahre, Standard 2020 = Lockdown),
   // matrix_since (erstes Jahr der Matrix, Standard = erste Anreise in den Daten)
-  static defaults = { title: "", period: "jahr", compare: "stichtag", matrix_exclude_years: [2020], matrix_since: null };
+  static defaults = { title: "", period: "jahr", compare: "stichtag", matrix_exclude_years: [2020], matrix_since: null, simple_users: [] };
   static initialState = (c) => ({ ptype: c.period, anchor: null, from: null, to: null, compare: c.compare, channels: [],
     raster: "auto", focus: "umsatz", matrix: "auslastung", paceYear: null, edit: false, builder: false, tableAll: false,
     bzMeasure: "naechte", bzBasis: "alle", bzView: "kalender", // Standard „Gebucht im → für“ (Wunsch Betreiber 16.11.2026)
@@ -3336,11 +3402,23 @@ class SmoobuStatsCard extends SmoobuCard {
       .fc .big { font-size: 1.8rem; }
     }
   `;
-  // Werkbank oder Einfach (je Gerät; ohne gespeicherte Wahl: schmale Fenster = Einfach)
+  // Werkbank oder Einfach (je Gerät; ohne gespeicherte Wahl: Nutzer aus simple_users oder schmale Fenster = Einfach)
+  // v1.17.1: simple_users = Liste von HA-Benutzernamen oder -IDs, die ohne eigene Wahl mit „Einfach“ starten
   get mode() {
     const m = lsGet(STATS_MODE_KEY, "");
     if (m === "werkbank" || m === "einfach") return m;
+    const u = this._hass?.user || {};
+    const su = (this._config.simple_users || []).map((x) => String(x).toLowerCase());
+    if (su.includes(String(u.name || "").toLowerCase()) || su.includes(String(u.id || "").toLowerCase())) return "einfach";
     return (window.innerWidth || 1200) < 700 ? "einfach" : "werkbank";
+  }
+  // v1.17.1: neu zeichnen, wenn eine Kopfzeile mit Wohnungsauswahl erscheint/verschwindet
+  _listen() {
+    super._listen();
+    const onHdr = () => { if (this._data) this.render(); };
+    HeaderApts.listeners.add(onHdr);
+    const base = this._unsub;
+    this._unsub = () => { base?.(); HeaderApts.listeners.delete(onHdr); };
   }
   async load() {
     const info = await this.store.getInfo();
@@ -3496,7 +3574,7 @@ class SmoobuStatsCard extends SmoobuCard {
     if (simple) return `<div class="fbar">${period}${anchor}${cmp}</div>`;
     const ws = d.info.wohnungen;
     const sel = this.target.apartment_id;
-    const apts = ws.length > 1 && !this._config.apartment_id
+    const apts = ws.length > 1 && !this._config.apartment_id && !HeaderApts.n
       ? `<span class="sep"></span><span class="grp"><span class="lbl">${t("Wohnung")}</span><div class="seg">
           <button data-apt="${ALL}" aria-pressed="${sel === ALL}">${t("Alle")}</button>${ws.map((w) =>
           `<button data-apt="${w.apartment_id}" aria-pressed="${sel === w.apartment_id}" title="${esc(w.name)}">${esc(w.kuerzel || w.name)}</button>`).join("")}</div></span>` : "";
@@ -3522,7 +3600,7 @@ class SmoobuStatsCard extends SmoobuCard {
         <div class="kl">${esc(t(k.label))}</div><div class="kv">${this.fmt(k.id, v, cur)}${this.dlt(k, v, c)}</div>
         <div class="ks">${t("Vgl.")} ${this.fmt(k.id, c, cur)} · n = ${num(n)}${low ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>
         ${sparkline(x.ser.map((p) => p.wert), x.serC.map((p) => p.wert))}</button>`;
-    }).join("")}</section>`;
+    }).join("")}</section>${gloss([...list.map((k) => k.label).filter((l) => GLOSSARY[l]), ...(list.some((k) => k.pp) ? ["PP"] : []), "Vgl.", "n"])}`;
   }
   // Großer Verlauf der Fokus-Kennzahl: Balken = Zeitraum, gestrichelte Linie = Vergleich (gleiche Achse)
   focusChart(d) {
@@ -3564,7 +3642,8 @@ class SmoobuStatsCard extends SmoobuCard {
       <svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t(k.label))}">${svg}</svg>
       <div class="legend"><span><i style="background:var(--sm-accent)"></i><b>${esc(statsLabel(this._state.ptype, d.range))}</b> ${this.fmt(k.id, x.tot.wert, cur)}</span>
         <span><i class="ln"></i>${esc(this.cmpName(d))} ${this.fmt(k.id, x.cmp.wert, cur)}</span>
-        <span><i style="background:var(--sm-accent);opacity:.38"></i>${t("blass = weniger als 5 Buchungen")}</span></div></div>`;
+        <span><i style="background:var(--sm-accent);opacity:.38"></i>${t("blass = weniger als 5 Buchungen")}</span></div>
+      ${GLOSSARY[k.label] ? gloss([k.label]) : ""}</div>`;
   }
 
   // ---- Modul 2: Buchungstempo (Pace) ----
@@ -3645,7 +3724,8 @@ class SmoobuStatsCard extends SmoobuCard {
       <div class="legend"><span><i class="ln solid" style="color:var(--sm-accent)"></i><b>${esc(target)}</b></span>
         ${years[1] ? `<span><i class="ln solid" style="opacity:.6"></i>${esc(years[1])}</span>` : ""}
         ${older.length ? `<span><i class="ln" style="opacity:.4"></i>${esc(older.join(", "))}</span>` : ""}
-        ${p.prognose ? `<span><i style="background:var(--sm-accent);opacity:.3"></i>${t("Prognose-Spanne")} P10–P90</span>` : ""}</div></div>`;
+        ${p.prognose ? `<span><i style="background:var(--sm-accent);opacity:.3"></i>${t("Prognose-Spanne")} P10–P90</span>` : ""}</div>
+      ${gloss(p.prognose ? ["Pace", "P10–P90"] : ["Pace"])}</div>`;
   }
   paceYearSel(d) {
     const ty = D(d.today).getFullYear();
@@ -3754,7 +3834,8 @@ class SmoobuStatsCard extends SmoobuCard {
         <span><i style="border:1px dashed currentColor;background:none"></i>${t("noch nicht abgeschlossen")}</span>
         <span><i style="box-shadow:inset 0 0 0 2px var(--sm-ink);background:none"></i>${t("gewählter Zeitraum")}</span>
         <span><i style="background:var(--sm-warn);width:6px;height:6px;border-radius:50%"></i><em>${t("kursiv")}</em> = ${t("weniger als 5 Buchungen")}</span>
-        <span>${exShown.length ? `* Ø ${t("ohne")} ${exShown.join(", ")}, ` : "Ø "}${t("nur abgeschlossene Monate")}</span></div></div>`;
+        <span>${exShown.length ? `* Ø ${t("ohne")} ${exShown.join(", ")}, ` : "Ø "}${t("nur abgeschlossene Monate")}</span></div>
+      ${gloss([...(id === "adr" ? ["ADR"] : id === "revpar" ? ["RevPAR"] : []), "Ø"])}</div>`;
   }
 
   body(d) {
@@ -3959,7 +4040,8 @@ const ICON_SVG = {
   system: `<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>`,
 };
 class SmoobuHeaderCard extends SmoobuCard {
-  static defaults = { pages: DEFAULT_PAGES, show_apartments: true, page_background: true };
+  // home (v1.17.1): optionaler Rücksprung vor den Reitern, z. B. { name: "Host", path: "/dashboard-ferienwohnung/host" }
+  static defaults = { pages: DEFAULT_PAGES, show_apartments: true, page_background: true, home: null };
   static css = `
     ha-card { background: none; border: 0; padding: 14px 0 2px; overflow: visible; } /* Abstand zur HA-Kopfzeile */
     .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -3968,6 +4050,8 @@ class SmoobuHeaderCard extends SmoobuCard {
       display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
     .tabs a:hover { color: var(--sm-ink); background: color-mix(in srgb, var(--sm-ink) 6%, transparent); }
     .tabs a.on { background: var(--sm-accent); color: var(--sm-acc-ink); font-weight: 600; }
+    .tabs a.home { color: var(--sm-ink); font-weight: 600; }
+    .tabs .hsep { width: 1px; align-self: stretch; margin: 6px 4px; background: var(--sm-line); }
     .tabs i { font-style: normal; font-size: .7rem; font-weight: 700; background: var(--sm-bad); color: #fff; border-radius: 9px; padding: 0 6px; line-height: 1.5; }
     .right { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .seg button { display: inline-flex; gap: 6px; align-items: center; }
@@ -4031,10 +4115,13 @@ class SmoobuHeaderCard extends SmoobuCard {
     const here = location.pathname.split("/").filter(Boolean).pop();
     const known = this.viewPaths();
     const pages = (this._config.pages || []).filter((p) => !p.optional || !known || known.has(p.path));
-    const tabs = pages.map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
+    const home = this._config.home?.path ? `<a class="home" data-href="${esc(this.href(this._config.home.path))}" title="${esc(t("Zurück zu"))} ${esc(this._config.home.name || "")}">← ${esc(t(this._config.home.name || "Zurück"))}</a><span class="hsep"></span>` : "";
+    const tabs = home + pages.map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
     const ws = info.wohnungen;
     const sel = this.target.apartment_id;
-    const apts = this._config.show_apartments && ws.length > 1 && !this._config.apartment_id
+    const showApts = this._config.show_apartments && ws.length > 1 && !this._config.apartment_id;
+    if (showApts !== !!this._aptReg) { this._aptReg = showApts; showApts ? HeaderApts.add() : HeaderApts.remove(); }
+    const apts = showApts
       ? `<div class="seg" role="group" aria-label="${t("Wohnung")}"><button data-apt="${ALL}" aria-pressed="${sel === ALL}">${t("Alle")}<span class="n">${ws.length}</span></button>
         ${ws.map((w) => `<button data-apt="${w.apartment_id}" aria-pressed="${sel === w.apartment_id}" title="${esc(w.name)}">${esc(w.name)}</button>`).join("")}</div>` : "";
     const mode = Theme.mode;
@@ -4059,7 +4146,10 @@ class SmoobuHeaderCard extends SmoobuCard {
     view.style.background = PAL[DARK ? "dark" : "light"].bg;
   }
   _restoreBg() { if (this._view) { this._view.style.background = this._prevBg || ""; this._view = null; } }
-  disconnectedCallback() { this._restoreBg(); super.disconnectedCallback(); }
+  disconnectedCallback() {
+    if (this._aptReg) { this._aptReg = false; HeaderApts.remove(); }
+    this._restoreBg(); super.disconnectedCallback();
+  }
   bind(root) {
     root.querySelectorAll("[data-href]").forEach((el) => el.addEventListener("click", () => {
       history.pushState(null, "", el.dataset.href);

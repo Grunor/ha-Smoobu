@@ -8,6 +8,25 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.17.1b2 – 2026-11-16
+
+> Beta / Pre-release
+
+**Deutsch**
+- **Abkürzungen erklärt:** kurze Legendenzeile mit ADR (Ø Preis je belegter Nacht), RevPAR (Umsatz je verfügbarer Nacht = ADR × Auslastung), Netto-RevPAR, PP (Prozentpunkte), n, Vgl., Ø, N, Δ, Pace, P10–P90 und KW – unter der Kennzahlenleiste und dem Verlauf der Statistik, in Saison-Matrix, Wochentag-Belegung, Buchungstempo und unter der Kanaltabelle der Finanzen
+- **Lücken an einer Stelle bearbeiten:** in der Übersicht bei „nicht buchbar“ neuer Button „Anpassen“ → öffnet den Belegungsplan mit markierten Tagen und vorausgefülltem Mindestaufenthalt (Option `belegung_path`, Standard `smoobu-belegung`, leer = ohne Button); Reiter und Kachel „Lücken“ im Assistenten entfallen (Auswertung bleibt in Statistik → Verlorene Nächte)
+- **Keine doppelte Wohnungsauswahl:** die Statistik blendet ihre eigene Auswahl aus, sobald die Kopfzeile eine zeigt (gleiche Einstellung)
+- **Statistik:** Modul „Datentabelle“ standardmäßig ausgeblendet (doppelt die Seite Buchungen inkl. CSV), über ↺ wieder einblendbar; neue Option `simple_users` (Benutzername oder -ID) – diese Nutzer starten ohne eigene Wahl in „Einfach“
+- **Kopfzeile:** optionaler Rücksprung vor den Reitern (`home: {name, path}`), z. B. „← Host“
+
+**English**
+- **Abbreviations explained:** short legend line for ADR, RevPAR, net RevPAR, PP, n, Vgl., Ø, N, Δ, pace, P10–P90 and KW – below the statistics KPI bar and trend, in season matrix, weekday occupancy, booking pace and below the finance channel table
+- **Fix gaps in one place:** in the overview "not bookable" gaps get an "Adjust" button → opens the occupancy plan with the days selected and minimum stay prefilled (option `belegung_path`, default `smoobu-belegung`, empty = no button); the assistant's "Gaps" tab and tile are gone (analysis stays in statistics → lost nights)
+- **No duplicate apartment picker:** statistics hides its own picker when the header shows one (same setting)
+- **Statistics:** "Data table" module hidden by default (duplicates the bookings page incl. CSV), can be restored via ↺; new option `simple_users` (user name or ID) – these users start in "Simple" without a stored choice
+- **Header:** optional back link before the tabs (`home: {name, path}`), e.g. "← Host"
+
+
 ## 1.17.1b1 – 2026-11-16
 
 > Beta / Pre-release

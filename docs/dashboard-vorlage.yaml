@@ -17,6 +17,8 @@
 # Aufbau: Jede Seite ist eine „panel“-Ansicht (volle Breite) mit einem vertical-stack:
 #   1. custom:smoobu-header-card – Seiten-Navigation, Wohnungsauswahl (ab 2 Wohnungen) und
 #      Hell/Dunkel/System. Die Seitenpfade sind relativ zum Dashboard → die URL ist frei wählbar.
+#      Optional Rücksprung vor den Reitern, z. B. zu einer eigenen Startseite:
+#        home: { name: "Start", path: /dashboard-ferienwohnung/start }
 #   2. die Smoobu-Karte(n)
 # Die Unterseiten sind „subview“ (kein eigener Tab, Zurück-Pfeil zur Übersicht).
 # Die Karten werden von der Integration automatisch geladen – keine Ressource nötig.
@@ -97,6 +99,8 @@ views:
         cards:
           - type: custom:smoobu-header-card
           - type: custom:smoobu-stats-card
+            # Optional: diese Benutzer starten ohne eigene Wahl in der vereinfachten Ansicht
+            # simple_users: [Name oder Benutzer-ID]
 
   # --- Seite 6: Posteingang (Antwort offen, keine Antwort nötig, KI-Vorschlag) --
   - title: Nachrichten
