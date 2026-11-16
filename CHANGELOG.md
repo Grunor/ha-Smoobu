@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+**Deutsch**
+- **Datumsanzeige mit Jahr:** Buchungsliste (Anreise/Abreise), Buchungsdetails, Belegungsplan-Auswahl, freie Zeiträume und Status-Satz der Übersicht zeigen das Jahr jetzt zweistellig (z. B. „Di., 17.08.27“); Kopfzeile der Übersicht mit vollem Jahr; Zeitstempel von Nachrichten und Antwortvorschlägen ebenfalls mit Jahr. Achsenbeschriftungen der Tagesdiagramme bleiben kurz (Jahr im Tooltip)
+
+**English**
+- **Dates with year:** booking list (arrival/departure), booking details, occupancy plan selection, free periods and the overview status sentence now show a two-digit year (e.g. "Tue, 17/08/27"); overview header with full year; message and reply suggestion timestamps include the year as well. Daily chart axis labels stay short (year in tooltip)
+
 ## 1.17.0b2 – 2026-11-16
 
 > Beta / Pre-release
