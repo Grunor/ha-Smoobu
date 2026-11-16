@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
@@ -32,6 +32,7 @@ from .const import (
     CONF_DIRECT_CHANNELS,
     CONF_PAYMENT_EXCLUDED_CHANNELS,
     CONF_SCAN_INTERVAL,
+    CONF_HISTORY_SINCE,
     CONF_HISTORY_YEARS,
     DEFAULT_HISTORY_YEARS,
     DEFAULT_COMMISSION_OTHER,
@@ -183,6 +184,23 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
     def history_years(self) -> int:
         """Wie viele Jahre vor dem laufenden für Auswertungen geladen werden."""
         return max(int(self.config_entry.options.get(CONF_HISTORY_YEARS, DEFAULT_HISTORY_YEARS)), 1)
+
+    @property
+    def history_start(self) -> date:
+        """Erster Tag, ab dem Buchungen für Auswertungen geladen werden.
+
+        „Daten abrufen seit“ hat Vorrang vor „Jahre Historie“. Ein Datum nach dem 01.01. des
+        Vorjahres wird auf diesen vorgezogen – Jahr- und Vorjahresvergleiche brauchen beides.
+        """
+        year = dt_util.now().year
+        latest = date(year - 1, 1, 1)
+        since = self.config_entry.options.get(CONF_HISTORY_SINCE)
+        if since:
+            try:
+                return min(date.fromisoformat(str(since)[:10]), latest)
+            except ValueError:
+                _LOGGER.warning("Ungültiges Datum in „Daten abrufen seit“: %s – nutze „Jahre Historie“", since)
+        return date(year - self.history_years, 1, 1)
 
     def records(self, apartment_id: int) -> list[dict[str, Any]]:
         """Aufbereitete Buchungsdatensätze (inkl. Stornos/Sperrzeiten) einer Wohnung."""
@@ -532,7 +550,8 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
     async def _async_load_revenue_bookings(self) -> list[dict[str, Any]]:
         """Alle Buchungen für Umsatz und Auswertungen. Gecacht 1 h.
 
-        Zeitraum: ab 01.01. vor `history_years` Jahren bis zum Ende der Vorschau,
+        Zeitraum: ab `history_start` („Daten abrufen seit“ bzw. 01.01. vor `history_years`
+        Jahren) bis zum Ende der Vorschau,
         mindestens bis Ende Januar des Folgejahres (für „Folgemonat“ im Dezember).
         Sperrzeiten und Stornos inklusive – Stornos zählen nur für die Stornoquote,
         alle Umsatzwerte filtern sie wieder heraus.
@@ -549,7 +568,8 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         days_ahead = int(self.config_entry.options.get(CONF_DAYS_AHEAD, DEFAULT_DAYS_AHEAD))
         until = max(f"{year + 1}-01-31", (today + timedelta(days=days_ahead)).isoformat())
         self._revenue_bookings = await self.client.get_reservations(
-            departureFrom=f"{year - self.history_years}-01-02",  # mind. eine Nacht im Startjahr
+            # Abreise frühestens am Folgetag = mindestens eine Nacht ab dem Starttag
+            departureFrom=(self.history_start + timedelta(days=1)).isoformat(),
             arrivalTo=until,
             showCancellation=True,
             includePriceElements=True,  # Hunde-Erkennung in den Datensätzen

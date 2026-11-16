@@ -50,7 +50,8 @@
           "enrich_count": "Fetch details for next n bookings",
           "checkout_buffer": "Waiting time after check-out (minutes)",
           "payment_excluded_channels": "Channels paid via the portal",
-          "history_years": "Analysis: years of history"
+          "history_years": "Analysis: years of history",
+          "history_since": "Analysis: load data since"
         },
         "data_description": {
           "scan_interval": "Fallback polling in addition to the webhook.",
@@ -60,7 +61,8 @@
           "enrich_count": "Enrich current + next n bookings per apartment with first/last name, city tax etc.",
           "checkout_buffer": "Time after check-out until the actual release, e.g. until cleaning starts. Release = departure time (from Smoobu, else default check-out) + waiting time, e.g. 11:00 + 30 min = 11:30. Used by \"Occupied\", \"Release\" and automations based on them.",
           "payment_excluded_channels": "Bookings from these channels do not count as unpaid (the portal collects payment, Smoobu still reports \"unpaid\").",
-          "history_years": "Years before the current year loaded for analyses and comparisons."
+          "history_years": "Years before the current year loaded for analyses and comparisons. Ignored if “Load data since” is set.",
+          "history_since": "Alternative to the years: load bookings from this date. Leave empty = “Years of history” applies. At least from 1 January of the previous year (for year-on-year comparisons)."
         }
       },
       "provisionen": {

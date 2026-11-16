@@ -38,7 +38,9 @@ _LOGGER = logging.getLogger(__name__)
 EMPTY_BODY_HASH = hashlib.sha256(b"").hexdigest()
 
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=30)
-MAX_PAGES = 20  # Schutz gegen Endlosschleifen bei der Seitenabfrage
+# Schutz gegen Endlosschleifen bei der Seitenabfrage: 100 × 100 = 10.000 Einträge je Abfrage.
+# (bis v1.17.0b2: 20 Seiten = 2.000 – bei vielen Jahren Historie oder mehreren Wohnungen zu knapp)
+MAX_PAGES = 100
 PAGE_SIZE = 100  # Maximum laut API
 
 
@@ -226,6 +228,14 @@ class SmoobuClient:
             bookings.extend(data.get("bookings", []))
             page_count = int(data.get("page_count") or 1)
             if page >= page_count:
+                break
+            if page >= MAX_PAGES:
+                # Nie still abschneiden: sonst fehlen Umsätze/Buchungen, ohne dass es auffällt
+                _LOGGER.warning(
+                    "Smoobu liefert %s Seiten (à %s) für %s – nur die ersten %s wurden geladen, "
+                    "ältere Buchungen fehlen in den Auswertungen. Historie in den Optionen verkürzen.",
+                    page_count, PAGE_SIZE, filters, MAX_PAGES,
+                )
                 break
             page += 1
         return bookings

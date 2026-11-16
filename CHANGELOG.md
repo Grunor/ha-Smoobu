@@ -9,9 +9,13 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 ## Unveröffentlicht / Unreleased
 
 **Deutsch**
+- **Option „Auswertung: Daten abrufen seit“:** fester Startpunkt für Auswertungen und Vergleiche als Alternative zu „Jahre Historie“ (hat Vorrang; leer = Jahre gelten). Wird höchstens auf den 01.01. des Vorjahres gesetzt, damit Vorjahresvergleiche immer Daten haben
+- **Absicherung Buchungsabruf:** Seitenlimit von 2.000 auf 10.000 Einträge je Abfrage angehoben; wird es trotzdem erreicht, steht eine Warnung im Log statt stillem Abschneiden
 - **Datumsanzeige mit Jahr:** Buchungsliste (Anreise/Abreise), Buchungsdetails, Belegungsplan-Auswahl, freie Zeiträume und Status-Satz der Übersicht zeigen das Jahr jetzt zweistellig (z. B. „Di., 17.08.27“); Kopfzeile der Übersicht mit vollem Jahr; Zeitstempel von Nachrichten und Antwortvorschlägen ebenfalls mit Jahr. Achsenbeschriftungen der Tagesdiagramme bleiben kurz (Jahr im Tooltip)
 
 **English**
+- **Option "Analysis: load data since":** fixed start date for analyses and comparisons as an alternative to "Years of history" (takes precedence; empty = years apply). Never later than 1 January of the previous year, so year-on-year comparisons always have data
+- **Booking fetch safeguard:** page limit raised from 2,000 to 10,000 entries per query; if it is still reached, a warning is logged instead of silently truncating
 - **Dates with year:** booking list (arrival/departure), booking details, occupancy plan selection, free periods and the overview status sentence now show a two-digit year (e.g. "Tue, 17/08/27"); overview header with full year; message and reply suggestion timestamps include the year as well. Daily chart axis labels stay short (year in tooltip)
 
 ## 1.17.0b2 – 2026-11-16
