@@ -124,3 +124,13 @@ def test_antwortzeiten_und_service():
     res = service(G, {"11": {"minuten": [45.0, 180.0]}}, date(2026, 5, 1), date(2026, 6, 1))
     assert res["gesamt"]["median"] == 112.5 and res["gesamt"]["unter_1h"] == 50.0
     assert res["buchungen"] == 3 and res["geladen"] == 1  # Stornos haben auch Nachrichten
+
+
+def test_buchungszeitpunkt_matrix():
+    """Aufenthaltsmonat × Monate vorher (Wunsch Betreiber): Nächte im März 2026, gebucht im Januar → „2 Monate“."""
+    res = query(R, "naechte", "monat_im_jahr", date(2026, 1, 1), date(2027, 1, 1), split="vorlauf_monate")
+    maerz = next(z for z in res["zeilen"] if z["fach"] == "03")
+    assert maerz["werte"]["2 Monate"]["wert"] == 3
+    res = query(R, "buchungen", "buchungsmonat_im_jahr", date(2025, 1, 1), date(2027, 1, 1))
+    werte = {z["fach"]: z["werte"]["Gesamt"]["wert"] for z in res["zeilen"]}
+    assert werte["02"] == 1 and werte["12"] == 1 and werte["01"] == 1

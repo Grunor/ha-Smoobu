@@ -58,6 +58,8 @@ DIMENSIONS = (
     "gesamt", "jahr", "monat", "monat_im_jahr", "woche", "wochentag", "saison",
     "kanal", "gruppe", "wohnung", "aufenthalt", "vorlauf", "personen", "hund",
     "sprache", "stammgast", "buchungsmonat",
+    # Buchungszeitpunkt-Matrix (Wunsch Betreiber 16.11.2026): wann wird für welchen Zeitraum gebucht
+    "vorlauf_monate", "buchungsmonat_im_jahr",
 )
 # Zeit-Dimensionen: Fach = Zeitraum im Kalender → verfügbare Nächte je Fach
 TIME_DIMS = {"jahr", "monat", "monat_im_jahr", "woche", "wochentag", "saison"}
@@ -75,7 +77,10 @@ ORDER = {
     "aufenthalt": [b[1] for b in STAY_BUCKETS] + ["7+"],
     "hund": ["mit Hund", "ohne Hund"],
     "stammgast": ["Stammgast", "Neukunde"],
+    "vorlauf_monate": ["gleicher Monat", "1 Monat", "2 Monate", "3 Monate", "4–6 Monate", "7–12 Monate", "> 12 Monate", "unbekannt"],
 }
+# Monate zwischen Buchungsmonat und Aufenthaltsmonat → Klasse (0 = im selben Monat gebucht)
+LEAD_MONTHS = ((0, "gleicher Monat"), (1, "1 Monat"), (2, "2 Monate"), (3, "3 Monate"), (6, "4–6 Monate"), (12, "7–12 Monate"))
 
 MIN_N = 5  # darunter gilt eine Zelle als „wenig Daten“
 
@@ -137,6 +142,16 @@ def _key(dim: str, r: dict[str, Any], day: date, repeat: set[str]) -> str:
         return "Stammgast" if _guest_keys(r) & repeat else "Neukunde"
     if dim == "buchungsmonat":
         return (r["erstellt"] or "unbekannt")[:7]
+    if dim == "buchungsmonat_im_jahr":
+        return r["erstellt"][5:7] if r.get("erstellt") else "unbekannt"
+    if dim == "vorlauf_monate":
+        # Bezug: Nacht-Kennzahlen die einzelne Nacht, Buchungs-Kennzahlen die Anreise (day)
+        created = r.get("erstellt")
+        if not created:
+            return "unbekannt"
+        cy, cm = int(created[:4]), int(created[5:7])
+        diff = max((day.year * 12 + day.month) - (cy * 12 + cm), 0)
+        return _bucket(diff, LEAD_MONTHS, "> 12 Monate")
     raise ValueError(f"Unbekannte Dimension: {dim}")
 
 

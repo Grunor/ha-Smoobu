@@ -2565,10 +2565,10 @@ function binLabel(fach, long = false) {
 // Anordnung (Reihenfolge, ausgeblendete Module, eigene Baukasten-Module) je Gerät in localStorage –
 // Entscheidung Betreiber: „speichern je Gerät“ (kein Server-Speicher, kein Abgleich zwischen Geräten).
 const STATS_LAYOUT_KEY = "smoobu-statistik-layout";
-const STATS_BUILTIN = ["kennzahlen", "tempo", "saison", "belegung", "kanaele", "fenster", "luecken", "stornos", "gaeste", "service", "tabelle"];
+const STATS_BUILTIN = ["kennzahlen", "tempo", "saison", "belegung", "kanaele", "fenster", "buchungszeit", "luecken", "stornos", "gaeste", "service", "tabelle"];
 const STATS_TITLES = {
   kennzahlen: "Kennzahlen", tempo: "Buchungstempo & Prognose", saison: "Saison-Matrix", belegung: "Belegung nach Wochentag",
-  kanaele: "Kanal-Wirtschaftlichkeit", fenster: "Buchungsfenster & Aufenthalt", luecken: "Verlorene Nächte", stornos: "Stornos",
+  kanaele: "Kanal-Wirtschaftlichkeit", fenster: "Buchungsfenster & Aufenthalt", buchungszeit: "Buchungszeitpunkt", luecken: "Verlorene Nächte", stornos: "Stornos",
   gaeste: "Gäste", service: "Service", tabelle: "Datentabelle",
 };
 // Dimensionen des Baukastens (stats.DIMENSIONS) mit Anzeigenamen
@@ -2576,6 +2576,7 @@ const DIM_LABEL = {
   gesamt: "Gesamt", jahr: "Jahr", monat: "Monat", monat_im_jahr: "Monat im Jahr", woche: "Kalenderwoche", wochentag: "Wochentag",
   saison: "Saison", kanal: "Kanal", gruppe: "Direkt/Portal", wohnung: "Wohnung", aufenthalt: "Aufenthalt (Nächte)",
   vorlauf: "Vorlauf (Tage)", personen: "Personen", hund: "Hund", sprache: "Sprache", stammgast: "Stammgast", buchungsmonat: "Buchungsmonat",
+  vorlauf_monate: "Vorlauf (Monate)", buchungsmonat_im_jahr: "Buchungsmonat im Jahr",
 };
 // Summierbare Kennzahlen (Legende zeigt die Summe; bei Quoten/Medianen/Durchschnitten wäre sie sinnlos)
 const ADDITIVE = new Set(["umsatz", "netto", "kosten", "naechte", "buchungen", "stornos"]);
@@ -2814,6 +2815,71 @@ const STATS_MODULES = {
           ${vbars(items(stay, ns, t("Nächte")), { W })}</div></div>`);
     },
   },
+  // Buchungszeitpunkt (Wunsch Betreiber 16.11.2026): Aufenthaltsmonat × „wie viele Monate vorher gebucht“.
+  // Zeile = Monat des Aufenthalts (Jan–Dez über mehrere Jahre), Spalte = Abstand Buchungsmonat → Aufenthaltsmonat,
+  // Zelle = Anteil der Zeile; Tooltip mit Anzahl und kumuliertem Anteil („bis dahin gebucht“).
+  // Basis standardmäßig alle abgeschlossenen Monate ab dem ersten nicht ausgenommenen Jahr (ohne 2020), weil
+  // laufende/künftige Monate noch Kurzfrist-Buchungen fehlen und das Bild Richtung „früh gebucht“ verzerren würden.
+  buchungszeit: {
+    load: async (c) => {
+      const s = c.s;
+      const ty = D(c.today).getFullYear();
+      const ex = (c.card._config.matrix_exclude_years || []).map(Number);
+      let from = Math.max(Number((c.apt.erster_tag || c.today).slice(0, 4)), ty - 6);
+      while (ex.includes(from) && from < ty) from += 1;
+      const range = s.bzBasis === "filter" ? c.range : [new Date(from, 0, 1), new Date(D(c.today).getFullYear(), D(c.today).getMonth(), 1)];
+      const m = s.bzMeasure || "naechte";
+      const [rows, total] = await Promise.all([c.q(m, "monat_im_jahr", range, { split: "vorlauf_monate" }), c.q(m, "gesamt", range, { split: "vorlauf_monate" })]);
+      return { rows, total, range, measure: m };
+    },
+    render: (card, d, m) => {
+      const s = card._state;
+      const cur = d.apt.currency;
+      // früh → kurzfristig, damit die Zeile von links nach rechts „bis dahin gebucht“ liest
+      const order = ["> 12 Monate", "7–12 Monate", "4–6 Monate", "3 Monate", "2 Monate", "1 Monat", "gleicher Monat", "unbekannt"];
+      const cols = order.filter((k) => (m.total.serien || []).includes(k) && (k !== "unbekannt" || m.total.zeilen?.[0]?.werte?.[k]?.wert));
+      const fmtV = (v) => (m.measure === "umsatz" ? money(v, cur) : num(v));
+      const unitWord = { naechte: "Nächte", buchungen: "Buchungen", umsatz: "Umsatz" }[m.measure];
+      const line = (label, werte, bold = false) => {
+        const vals = cols.map((k) => werte?.[k]?.wert || 0);
+        const sum = vals.reduce((a, b) => a + b, 0);
+        const n = cols.reduce((a, k) => a + (werte?.[k]?.n || 0), 0);
+        let cum = 0, half = null;
+        const cells = cols.map((k, i) => {
+          const share = sum ? (vals[i] / sum) * 100 : null;
+          cum += vals[i];
+          const cumShare = sum ? (cum / sum) * 100 : null;
+          if (half === null && cumShare !== null && cumShare >= 50) half = k;
+          if (share === null) return `<div class="c none">–</div>`;
+          const a = 0.06 + 0.84 * Math.min(1, share / 60);
+          return `<div class="c${n < 5 ? " low" : ""}${bold ? " tot" : ""}" style="background:color-mix(in srgb, var(--sm-accent) ${Math.round(a * 100)}%, var(--sm-surf));${a > 0.55 ? "color:var(--sm-acc-ink);" : ""}"
+            data-tip="${esc(`${label} · ${t(k)} ${k === "gleicher Monat" || k === "unbekannt" ? "" : t("vorher")}\n${fmtV(vals[i])} ${t(unitWord)} = ${pct(share, 1)} ${t("der Zeile")}\n${t("bis dahin gebucht")}: ${pct(cumShare, 0)}`)}">${pct(share, 0)}</div>`;
+        }).join("");
+        return `<div class="rl"${bold ? ' style="color:var(--sm-ink)"' : ""}>${esc(label)}</div>${cells}
+          <div class="c avg${bold ? " tot" : ""}" data-tip="${esc(`${label}: ${fmtV(sum)} ${t(unitWord)} · n = ${n} ${t("Buchungen")}`)}">${fmtV(sum)}</div>
+          <div class="c avg${bold ? " tot" : ""}">${half ? esc(t(half)) : "–"}</div>`;
+      };
+      const byMonth = new Map((m.rows.zeilen || []).map((z) => [z.fach, z.werte]));
+      let html = `<div></div>${cols.map((k) => `<div class="h">${esc(t(k))}</div>`).join("")}<div class="h">Σ ${esc(t(unitWord))}</div><div class="h">${t("Hälfte gebucht bis")}</div>`;
+      for (let mo = 1; mo <= 12; mo++) html += line(t(MONTHS_SHORT[mo - 1]), byMonth.get(String(mo).padStart(2, "0")));
+      html += `<div class="gap"></div>${line(t("Alle"), m.total.zeilen?.[0]?.werte, true)}`;
+      // Kernaussage: Anteil kurzfristig (gleicher Monat + 1 Monat vorher)
+      const tw = m.total.zeilen?.[0]?.werte || {};
+      const all = cols.reduce((a, k) => a + (tw[k]?.wert || 0), 0);
+      const short = (tw["gleicher Monat"]?.wert || 0) + (tw["1 Monat"]?.wert || 0);
+      const early = (tw["> 12 Monate"]?.wert || 0) + (tw["7–12 Monate"]?.wert || 0) + (tw["4–6 Monate"]?.wert || 0);
+      const lede = all ? `<b>${pct((short / all) * 100, 0)}</b> ${t("der")} ${t(unitWord)} ${t("werden im selben oder im Vormonat gebucht")}, <b>${pct((early / all) * 100, 0)}</b> ${t("mindestens 4 Monate vorher")}.` : "";
+      const grid = `grid-template-columns: 44px repeat(${cols.length}, minmax(58px, 1fr)) minmax(80px, 1fr) minmax(96px, 1fr)`;
+      const seg = (key, opts, val) => `<div class="seg">${opts.map(([k, l]) => `<button data-bz="${key}:${k}" aria-pressed="${val === k}">${t(l)}</button>`).join("")}</div>`;
+      return panel(t("Buchungszeitpunkt"), `${t("Wann wird für welchen Aufenthaltsmonat gebucht?")} · ${fdate(iso(m.range[0]))} – ${fdate(iso(addDays(m.range[1], -1)))}`,
+        `${lede ? `<p style="margin:0 0 10px">${lede}</p>` : ""}<div class="scroll"><div class="mx" style="${grid}">${html}</div></div>
+          <div class="legend"><span class="scale"><i style="background:linear-gradient(90deg, color-mix(in srgb, var(--sm-accent) 6%, var(--sm-surf)), var(--sm-accent))"></i>${t("Anteil der Zeile")} 0 – 60 %+</span>
+          <span>${t("Spalte = Abstand Buchungsmonat → Aufenthaltsmonat")}</span><span>${t("Nächte: je Nacht im jeweiligen Monat")}</span>
+          <span><i style="background:var(--sm-warn);width:6px;height:6px;border-radius:50%"></i><em>${t("kursiv")}</em> = ${t("weniger als 5 Buchungen")}</span></div>`,
+        `${seg("m", [["naechte", "Nächte"], ["buchungen", "Buchungen"], ["umsatz", "Umsatz"]], s.bzMeasure || "naechte")}
+         ${seg("b", [["alle", "Alle Jahre"], ["filter", "Zeitraum"]], s.bzBasis || "alle")}`);
+    },
+  },
   // 7: Verlorene Nächte (Lücken zwischen Buchungen) + Vorschläge
   luecken: {
     load: (c) => c.ws("gaps"),
@@ -2985,6 +3051,7 @@ class SmoobuStatsCard extends SmoobuCard {
   static defaults = { title: "", period: "jahr", compare: "stichtag", matrix_exclude_years: [2020], matrix_since: null };
   static initialState = (c) => ({ ptype: c.period, anchor: null, from: null, to: null, compare: c.compare, channels: [],
     raster: "auto", focus: "umsatz", matrix: "auslastung", paceYear: null, edit: false, builder: false, tableAll: false,
+    bzMeasure: "naechte", bzBasis: "alle",
     draft: { title: "", measure: "umsatz", dimension: "monat", split: "", view: "balken" } });
   static css = `
     ha-card { background: none; border: 0; padding: 0; overflow: visible; position: relative; }
@@ -3648,6 +3715,10 @@ class SmoobuStatsCard extends SmoobuCard {
     }));
     // Teilschritte 3/4: Tabelle, CSV, Anordnen, Baukasten
     root.querySelectorAll("[data-open]").forEach((el) => el.addEventListener("click", () => this.openBooking(Number(el.dataset.open))));
+    root.querySelectorAll("[data-bz]").forEach((el) => el.addEventListener("click", () => {
+      const [key, val] = el.dataset.bz.split(":");
+      this.setState(key === "m" ? { bzMeasure: val } : { bzBasis: val }, true);
+    }));
     root.querySelector('[data-k="tableall"]')?.addEventListener("click", () => this.setState({ tableAll: !s.tableAll }));
     root.querySelector('[data-k="csv"]')?.addEventListener("click", () => this.exportCsv());
     root.querySelectorAll('[data-k="edit"]').forEach((el) => el.addEventListener("click", () => this.setState({ edit: !s.edit }, true)));
