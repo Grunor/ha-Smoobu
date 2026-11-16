@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.17.1b3 – 2026-11-16
+
+> Beta / Pre-release
+
 **Deutsch**
 - **Kommunikationsaufwand je Kanal (Statistik → Service):** welche Portal-Gäste generell die meiste Kommunikation brauchen – je Kanal Anliegen je Buchung (Gastnachrichten bis zur nächsten Antwort, mehrere am Stück zählen einmal), Gastnachrichten je Buchung, Anteil Buchungen mit Nachricht und Index (Ø aller Kanäle = 100), mit Hinweis auf den aufwendigsten Kanal. Eigene und automatische Nachrichten zählen nicht (Smoobu kennzeichnet Vorlagen nicht). Die Zähler entstehen beim gedrosselten Nachrichtenabruf; bereits ausgewertete Buchungen werden dafür einmalig im Hintergrund nachgeladen. Buchungen ganz ohne Nachrichtenverlauf (Smoobu liefert für ältere Buchungen oft keinen) zählen nicht als „0 Anliegen“
 - **Saison-Matrix:** Spalte Ø jetzt ganz links, danach die Jahre absteigend (aktuelles bzw. kommendes Jahr vorne) – am Handy ist das Wichtigste ohne Wischen sichtbar; gilt auch für die Jahreszeile; Legende erklärt ADR, RevPAR und Ø immer (nicht nur bei gewählter Kennzahl)
