@@ -94,7 +94,7 @@
         },
         "data_description": {
           "ai_enabled": "Aus = KI vollständig gesperrt: keine Vorschläge, kein „Wissen erzeugen“, keine Daten an einen KI-Anbieter. Die KI-Buttons in den Karten werden ausgegraut.",
-          "assistant": "Wirkt nur, wenn die KI erlaubt ist. Vorschläge auf Abruf (✨ in der Karte) gehen auch ohne diese Option.",
+          "assistant": "Standard an. Wirkt nur, wenn die KI erlaubt ist. Vorschläge auf Abruf (✨ in der Karte) gehen auch ohne diese Option.",
           "ai_entity": "z. B. Google Gemini. Wird über ai_task.generate_data aufgerufen.",
           "assist_status": "z. B. Heizung, Tür, Außentemperatur – hilft bei Problemmeldungen.",
           "assist_path": "z. B. /dashboard-ferienwohnung/smoobu-nachrichten"

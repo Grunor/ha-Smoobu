@@ -94,7 +94,7 @@
         },
         "data_description": {
           "ai_enabled": "Off = AI fully locked: no suggestions, no \"build knowledge\", no data sent to an AI provider. The AI buttons in the cards are greyed out.",
-          "assistant": "Only works when AI is allowed. On-demand suggestions (✨ in the card) work without this option.",
+          "assistant": "On by default. Only works when AI is allowed. On-demand suggestions (✨ in the card) work without this option.",
           "ai_entity": "e.g. Google Gemini, called via ai_task.generate_data.",
           "assist_status": "e.g. heating, door, outdoor temperature – helps with problem reports.",
           "assist_path": "e.g. /dashboard-apartment/smoobu-messages"

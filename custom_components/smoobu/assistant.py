@@ -223,7 +223,8 @@ class SmoobuAssistant:
     @property
     def enabled(self) -> bool:
         """Automatische Vorschläge bei neuen Gästenachrichten – nur mit erlaubter KI."""
-        return self.ai_allowed and bool(self.opts.get(CONF_ASSISTANT))
+        # v1.17.0: nie gespeichert → an (sobald die KI erlaubt ist); bewusst ausgeschaltet bleibt aus
+        return self.ai_allowed and bool(self.opts.get(CONF_ASSISTANT, True))
 
     def _require_ai(self) -> None:
         """Vor jeder KI-Funktion: gesperrt → verständlicher Fehler statt stillem Nichtstun."""

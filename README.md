@@ -184,7 +184,7 @@ Schritt **Provisionen**: Provision je Kanal in %, Direktkanäle. Schritt **KI-As
 | Option | Standard | Bedeutung |
 |---|---|---|
 | **KI-Funktionen erlauben** | aus (bei Installationen vor 1.14.0 mit gewählter KI: an) | Hauptschalter. Aus = KI **gesperrt**: kein Aufruf von `ai_task`, keine Daten an einen KI-Anbieter, KI-Buttons in den Karten ausgegraut. Gilt für Karten, Aktionen, WebSocket, Push-Buttons und Webhook |
-| Automatische Antwortvorschläge | aus | Bei jeder neuen Gästenachricht einen Vorschlag erzeugen und per Push senden (nur mit erlaubter KI) |
+| Automatische Antwortvorschläge | an (wirkt nur mit erlaubter KI) | Bei jeder neuen Gästenachricht einen Vorschlag erzeugen und per Push senden (nur mit erlaubter KI) |
 | KI (KI-Aufgabe) | – | `ai_task`-Entität, z. B. Google Gemini; Pflicht, wenn die KI erlaubt ist |
 | HA-Entitäten als Kontext | – | z. B. Heizung, Tür, Außentemperatur |
 | Dashboard-Seite für „Bearbeiten“ | `/lovelace` | z. B. `/dashboard-ferienwohnung/smoobu-nachrichten` |
@@ -856,7 +856,7 @@ Step **Commissions**: commission per channel in %, direct channels. Step **AI as
 | Option | Default | Meaning |
 |---|---|---|
 | **Allow AI features** | off (installations before 1.14.0 with an AI selected: on) | Master switch. Off = AI **locked**: no `ai_task` call, no data sent to an AI provider, AI buttons in the cards greyed out. Applies to cards, actions, WebSocket, push buttons and webhook |
-| Automatic reply suggestions | off | Create a suggestion for every new guest message and push it (only with AI allowed) |
+| Automatic reply suggestions | on (only effective with AI allowed) | Create a suggestion for every new guest message and push it (only with AI allowed) |
 | AI (AI task) | – | `ai_task` entity, e.g. Google Gemini; required when AI is allowed |
 | HA entities as context | – | e.g. heating, door, outdoor temperature |
 | Dashboard page for "Edit" | `/lovelace` | e.g. `/dashboard-ferienwohnung/smoobu-nachrichten` |

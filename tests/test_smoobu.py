@@ -824,3 +824,21 @@ async def test_suggestion_delete_and_ignore(hass, setup, hass_ws_client):
     await ws.send_json({"id": 2, "type": "smoobu/assistant/delete", "kind": "vorschlag", "item_id": "3"})
     assert (await ws.receive_json())["success"]
     assert "3" not in a.data["vorschlaege"]
+
+
+async def test_assistant_default_on(hass, setup):
+    """v1.17.0: automatische Vorschläge ohne gespeicherte Option an – aber nur mit erlaubter KI."""
+    a = hass.config_entries.async_get_entry(setup.entry_id).runtime_data.assistant
+    base = {k: v for k, v in setup.options.items() if k not in ("assistant", "ai_enabled", "ai_entity")}
+    hass.config_entries.async_update_entry(setup, options={**base, "ai_enabled": True, "ai_entity": "ai_task.x"})
+    await hass.async_block_till_done()
+    a = hass.config_entries.async_get_entry(setup.entry_id).runtime_data.assistant
+    assert a.enabled is True
+    hass.config_entries.async_update_entry(setup, options={**base, "ai_enabled": False, "ai_entity": "ai_task.x"})
+    await hass.async_block_till_done()
+    a = hass.config_entries.async_get_entry(setup.entry_id).runtime_data.assistant
+    assert a.enabled is False
+    hass.config_entries.async_update_entry(setup, options={**base, "ai_enabled": True, "ai_entity": "ai_task.x", "assistant": False})
+    await hass.async_block_till_done()
+    a = hass.config_entries.async_get_entry(setup.entry_id).runtime_data.assistant
+    assert a.enabled is False

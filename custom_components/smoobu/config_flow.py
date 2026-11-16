@@ -363,7 +363,8 @@ class SmoobuOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_AI_ENABLED, default=opts.get(CONF_AI_ENABLED, bool(opts.get(CONF_AI_ENTITY)))
                 ): BooleanSelector(),
-                vol.Required(CONF_ASSISTANT, default=opts.get(CONF_ASSISTANT, False)): BooleanSelector(),
+                # v1.17.0: Standard an – wirkt ohnehin nur, wenn die KI erlaubt ist („Standard an, wenn KI an“)
+                vol.Required(CONF_ASSISTANT, default=opts.get(CONF_ASSISTANT, True)): BooleanSelector(),
                 vol.Optional(CONF_AI_ENTITY, description={"suggested_value": opts.get(CONF_AI_ENTITY)}): EntitySelector(
                     EntitySelectorConfig(domain="ai_task")
                 ),
