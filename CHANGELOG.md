@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.17.0b6 – 2026-11-16
+
+> Beta / Pre-release
+
 **Deutsch**
 - **Buchungszeitpunkt – Ansicht „Gebucht im → für“:** zusätzliche Matrix Buchungsmonat × Aufenthaltsmonat (Zeile = 100 %), Diagonale = gleicher Monat umrandet, Spalte „vor allem für“ (Top 3) und Hinweise auf auffällige Vorausbuchungen (z. B. „Im Juni wird schon für August gebucht“); Tooltip zusätzlich mit Anteil am Aufenthaltsmonat
 
