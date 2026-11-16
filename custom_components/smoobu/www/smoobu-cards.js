@@ -2695,6 +2695,60 @@ const tilesRow = (items) => `<div class="mt">${items.map(([l, v, s, tip, low]) =
   `<div class="mtile${low ? " low" : ""}"${tip ? ` data-tip="${esc(tip)}"` : ""}><div class="kl">${l}</div><div class="kv">${v}</div>${s ? `<div class="ks">${s}</div>` : ""}</div>`).join("")}</div>`;
 const panel = (title, sub, inner, extra = "") => `<div class="panel"><div class="ph"><h2>${title}</h2>${sub ? `<span class="sub">${sub}</span>` : ""}${extra}</div>${inner}</div>`;
 
+// Buchungszeitpunkt, Ansicht „Gebucht im → für“: Zeile = Monat, in dem gebucht wurde; Spalte = Monat des Aufenthalts.
+// Zelle = Anteil an allem, was in diesem Monat gebucht wurde (Zeile = 100 %); Tooltip zusätzlich mit dem Anteil am
+// Aufenthaltsmonat (Spalte). Diagonale (gleicher Monat) umrandet; Hinweise listen auffällige Vorausbuchungen
+// (mindestens 2 Monate voraus, ≥ 12 % der Zeile), z. B. „Im Oktober wird schon für August gebucht“.
+function bookingCalendar(card, d, m, controls) {
+  const cur = d.apt.currency;
+  const unitWord = { naechte: "Nächte", buchungen: "Buchungen", umsatz: "Umsatz" }[m.measure];
+  const fmtV = (v) => (m.measure === "umsatz" ? money(v, cur) : num(v));
+  const months = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
+  const MON_LONG = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const byRow = new Map((m.cal.zeilen || []).map((z) => [z.fach, z.werte]));
+  const val = (r, c) => byRow.get(r)?.[c]?.wert || 0;
+  const nOf = (r, c) => byRow.get(r)?.[c]?.n || 0;
+  const rowSum = Object.fromEntries(months.map((r) => [r, months.reduce((a, c) => a + val(r, c), 0)]));
+  const colSum = Object.fromEntries(months.map((c) => [c, months.reduce((a, r) => a + val(r, c), 0)]));
+  const all = months.reduce((a, r) => a + rowSum[r], 0);
+  const ahead = (r, c) => (Number(c) - Number(r) + 12) % 12; // Monate voraus (über den Jahreswechsel)
+  let html = `<div class="h" style="text-align:left">${t("gebucht im")} ↓ / ${t("für")} →</div>${months.map((c, i) => `<div class="h">${t(MONTHS_SHORT[i])}</div>`).join("")}
+    <div class="h">Σ ${esc(t(unitWord))}</div><div class="h">${t("vor allem für")}</div>`;
+  const hints = [];
+  months.forEach((r, ri) => {
+    html += `<div class="rl">${t(MONTHS_SHORT[ri])}</div>`;
+    months.forEach((c, ci) => {
+      const v = val(r, c);
+      const share = rowSum[r] ? (v / rowSum[r]) * 100 : null;
+      const colShare = colSum[c] ? (v / colSum[c]) * 100 : null;
+      const diag = r === c ? " sel" : "";
+      if (!v) { html += `<div class="c none${diag}">–</div>`; return; }
+      const a = 0.06 + 0.84 * Math.min(1, share / 50);
+      const dist = ahead(r, c);
+      if (dist >= 2 && share >= 12 && nOf(r, c) >= 2) hints.push({ r: ri, c: ci, share, dist, colShare });
+      html += `<div class="c${nOf(r, c) < 5 ? " low" : ""}${diag}" style="background:color-mix(in srgb, var(--sm-accent) ${Math.round(a * 100)}%, var(--sm-surf));${a > 0.55 ? "color:var(--sm-acc-ink);" : ""}"
+        data-tip="${esc(`${t("Gebucht im")} ${t(MON_LONG[ri])} ${t("für")} ${t(MON_LONG[ci])}${dist ? ` (${dist} ${dist === 1 ? t("Monat") : t("Monate")} ${t("voraus")})` : ` (${t("gleicher Monat")})`}\n${fmtV(v)} ${t(unitWord)} · n = ${nOf(r, c)}\n= ${pct(share, 0)} ${t("von allem, was im")} ${t(MON_LONG[ri])} ${t("gebucht wird")}\n= ${pct(colShare, 0)} ${t("aller")} ${t(unitWord)} ${t("im")} ${t(MON_LONG[ci])}`)}">${pct(share, 0)}</div>`;
+    });
+    const top = months.map((c, ci) => [ci, val(r, c)]).filter(([, v]) => v).sort((x, y) => y[1] - x[1]).slice(0, 3)
+      .map(([ci, v]) => `${t(MONTHS_SHORT[ci])} ${pct((v / rowSum[r]) * 100, 0)}`).join(", ");
+    html += `<div class="c avg">${fmtV(rowSum[r])}</div><div class="c avg" style="font-weight:500;white-space:normal">${top || "–"}</div>`;
+  });
+  html += `<div class="gap"></div><div class="rl" style="color:var(--sm-ink)">Σ</div>${months.map((c) => `<div class="c avg tot">${fmtV(colSum[c])}</div>`).join("")}
+    <div class="c avg tot">${fmtV(all)}</div><div></div>`;
+  hints.sort((x, y) => y.share - x.share);
+  const lede = hints.length
+    ? `<ul class="ins">${hints.slice(0, 4).map((h) => `<li>${t("Im")} <b>${t(MON_LONG[h.r])}</b> ${t("wird schon für")} <b>${t(MON_LONG[h.c])}</b> ${t("gebucht")}: ${pct(h.share, 0)} ${t("der dort gebuchten")} ${t(unitWord)} (${h.dist} ${t("Monate voraus")}, ${pct(h.colShare, 0)} ${t("aller")} ${t(MON_LONG[h.c])}-${t(unitWord)})</li>`).join("")}</ul>`
+    : `<p class="sub" style="margin:0 0 8px">${t("Keine auffälligen Vorausbuchungen (≥ 2 Monate voraus, mindestens 12 % eines Buchungsmonats).")}</p>`;
+  const grid = `grid-template-columns: 96px repeat(12, minmax(46px, 1fr)) minmax(70px, 1fr) minmax(150px, 1.6fr)`;
+  return panel(t("Buchungszeitpunkt"), `${t("In welchem Monat wird für welchen Monat gebucht?")} · ${t("Aufenthalte")} ${fdate(iso(m.range[0]))} – ${fdate(iso(addDays(m.range[1], -1)))}`,
+    `${lede}<div class="scroll"><div class="mx" style="${grid};min-width:900px">${html}</div></div>
+      <div class="legend"><span>${t("Zeile = Buchungsmonat (100 %)")}</span><span>${t("Spalte = Aufenthaltsmonat")}</span>
+      <span><i style="box-shadow:inset 0 0 0 1.5px var(--sm-ink);background:none"></i>${t("gleicher Monat")}</span>
+      <span>${t("Tooltip: Anteil am Aufenthaltsmonat")}</span>
+      <span><i style="background:var(--sm-warn);width:6px;height:6px;border-radius:50%"></i><em>${t("kursiv")}</em> = ${t("weniger als 5 Buchungen")}</span></div>`,
+    controls);
+}
+
 // Module 4–11: load(ctx) holt die Daten (parallel), render(card, d, data) baut das HTML
 const STATS_MODULES = {
   // 4: Belegungs-Heatmap Wochentag × KW + Auslastung/ADR je Wochentag
@@ -2829,12 +2883,22 @@ const STATS_MODULES = {
       while (ex.includes(from) && from < ty) from += 1;
       const range = s.bzBasis === "filter" ? c.range : [new Date(from, 0, 1), new Date(D(c.today).getFullYear(), D(c.today).getMonth(), 1)];
       const m = s.bzMeasure || "naechte";
+      if (s.bzView === "kalender") {
+        // Ansicht „Buchungsmonat → Aufenthaltsmonat“ (Wunsch Betreiber: „im Oktober wird für August gebucht“)
+        const cal = await c.q(m, "buchungsmonat_im_jahr", range, { split: "monat_im_jahr" });
+        return { cal, range, measure: m, view: "kalender" };
+      }
       const [rows, total] = await Promise.all([c.q(m, "monat_im_jahr", range, { split: "vorlauf_monate" }), c.q(m, "gesamt", range, { split: "vorlauf_monate" })]);
-      return { rows, total, range, measure: m };
+      return { rows, total, range, measure: m, view: "vorlauf" };
     },
     render: (card, d, m) => {
       const s = card._state;
       const cur = d.apt.currency;
+      const seg = (key, opts, val) => `<div class="seg">${opts.map(([k, l]) => `<button data-bz="${key}:${k}" aria-pressed="${val === k}">${t(l)}</button>`).join("")}</div>`;
+      const controls = `${seg("v", [["vorlauf", "Monate vorher"], ["kalender", "Gebucht im → für"]], m.view)}
+        ${seg("m", [["naechte", "Nächte"], ["buchungen", "Buchungen"], ["umsatz", "Umsatz"]], s.bzMeasure || "naechte")}
+        ${seg("b", [["alle", "Alle Jahre"], ["filter", "Zeitraum"]], s.bzBasis || "alle")}`;
+      if (m.view === "kalender") return bookingCalendar(card, d, m, controls);
       // früh → kurzfristig, damit die Zeile von links nach rechts „bis dahin gebucht“ liest
       const order = ["> 12 Monate", "7–12 Monate", "4–6 Monate", "3 Monate", "2 Monate", "1 Monat", "gleicher Monat", "unbekannt"];
       const cols = order.filter((k) => (m.total.serien || []).includes(k) && (k !== "unbekannt" || m.total.zeilen?.[0]?.werte?.[k]?.wert));
@@ -2870,14 +2934,12 @@ const STATS_MODULES = {
       const early = (tw["> 12 Monate"]?.wert || 0) + (tw["7–12 Monate"]?.wert || 0) + (tw["4–6 Monate"]?.wert || 0);
       const lede = all ? `<b>${pct((short / all) * 100, 0)}</b> ${t("der")} ${t(unitWord)} ${t("werden im selben oder im Vormonat gebucht")}, <b>${pct((early / all) * 100, 0)}</b> ${t("mindestens 4 Monate vorher")}.` : "";
       const grid = `grid-template-columns: 44px repeat(${cols.length}, minmax(58px, 1fr)) minmax(80px, 1fr) minmax(96px, 1fr)`;
-      const seg = (key, opts, val) => `<div class="seg">${opts.map(([k, l]) => `<button data-bz="${key}:${k}" aria-pressed="${val === k}">${t(l)}</button>`).join("")}</div>`;
       return panel(t("Buchungszeitpunkt"), `${t("Wann wird für welchen Aufenthaltsmonat gebucht?")} · ${fdate(iso(m.range[0]))} – ${fdate(iso(addDays(m.range[1], -1)))}`,
         `${lede ? `<p style="margin:0 0 10px">${lede}</p>` : ""}<div class="scroll"><div class="mx" style="${grid}">${html}</div></div>
           <div class="legend"><span class="scale"><i style="background:linear-gradient(90deg, color-mix(in srgb, var(--sm-accent) 6%, var(--sm-surf)), var(--sm-accent))"></i>${t("Anteil der Zeile")} 0 – 60 %+</span>
           <span>${t("Spalte = Abstand Buchungsmonat → Aufenthaltsmonat")}</span><span>${t("Nächte: je Nacht im jeweiligen Monat")}</span>
           <span><i style="background:var(--sm-warn);width:6px;height:6px;border-radius:50%"></i><em>${t("kursiv")}</em> = ${t("weniger als 5 Buchungen")}</span></div>`,
-        `${seg("m", [["naechte", "Nächte"], ["buchungen", "Buchungen"], ["umsatz", "Umsatz"]], s.bzMeasure || "naechte")}
-         ${seg("b", [["alle", "Alle Jahre"], ["filter", "Zeitraum"]], s.bzBasis || "alle")}`);
+        controls);
     },
   },
   // 7: Verlorene Nächte (Lücken zwischen Buchungen) + Vorschläge
@@ -3051,7 +3113,7 @@ class SmoobuStatsCard extends SmoobuCard {
   static defaults = { title: "", period: "jahr", compare: "stichtag", matrix_exclude_years: [2020], matrix_since: null };
   static initialState = (c) => ({ ptype: c.period, anchor: null, from: null, to: null, compare: c.compare, channels: [],
     raster: "auto", focus: "umsatz", matrix: "auslastung", paceYear: null, edit: false, builder: false, tableAll: false,
-    bzMeasure: "naechte", bzBasis: "alle",
+    bzMeasure: "naechte", bzBasis: "alle", bzView: "vorlauf",
     draft: { title: "", measure: "umsatz", dimension: "monat", split: "", view: "balken" } });
   static css = `
     ha-card { background: none; border: 0; padding: 0; overflow: visible; position: relative; }
@@ -3717,7 +3779,7 @@ class SmoobuStatsCard extends SmoobuCard {
     root.querySelectorAll("[data-open]").forEach((el) => el.addEventListener("click", () => this.openBooking(Number(el.dataset.open))));
     root.querySelectorAll("[data-bz]").forEach((el) => el.addEventListener("click", () => {
       const [key, val] = el.dataset.bz.split(":");
-      this.setState(key === "m" ? { bzMeasure: val } : { bzBasis: val }, true);
+      this.setState(key === "m" ? { bzMeasure: val } : key === "v" ? { bzView: val } : { bzBasis: val }, true);
     }));
     root.querySelector('[data-k="tableall"]')?.addEventListener("click", () => this.setState({ tableAll: !s.tableAll }));
     root.querySelector('[data-k="csv"]')?.addEventListener("click", () => this.exportCsv());
