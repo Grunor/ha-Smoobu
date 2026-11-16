@@ -40,6 +40,7 @@ const EN = {
   "Prognose Jahr": "Forecast year", "Netto/Nacht": "Net/night", "Brutto/Nacht": "Gross/night", "Tage": "days",
   "Monat": "Month", "Jahr bis heute": "Year to date", "Kanal": "Channel", "Kanäle": "Channels", "Zeitraum": "Period",
   "Vergleich": "Comparison", "Alle": "All", "Direkt": "Direct", "Portale": "Portals", "Suche": "Search",
+  "Anstehend": "Upcoming", "Aktuell": "Current", "Vergangen": "Past",
   "Status": "Status", "kommend": "upcoming", "laufend": "current", "vergangen": "past", "storniert": "cancelled",
   "blockiert": "blocked", "Anreise": "Arrival", "Abreise": "Departure", "Gast": "Guest", "Offen": "Open",
   "Summe": "Total", "Export CSV": "Export CSV", "Belegungsplan": "Occupancy plan", "Preise": "Prices",
@@ -1258,13 +1259,27 @@ const BOOKING_COLS = [
   ["personen", "Personen", "n"], ["kanal", "Kanal"], ["brutto", "Brutto", "n"], ["kosten", "Kosten", "n"],
   ["netto", "Netto", "n"], ["netto_pro_nacht", "Netto/Nacht", "n"], ["offen", "Offen", "n"], ["vorlauf_tage", "Vorlauf", "n"],
 ];
+// Datumsspalten starten beim Sortieren immer absteigend (neueste zuerst), alle übrigen aufsteigend
+const BOOKING_DATE_COLS = new Set(["anreise", "abreise"]);
+// Logische Reihenfolge für die Status-Spalte (statt alphabetisch)
+const BOOKING_STATUS_ORDER = { laufend: 0, kommend: 1, vergangen: 2, blockiert: 3, storniert: 4 };
+// Zeitliche Gruppen der Buchungsliste. Einteilung nach Datum wie im Backend (analytics.py):
+// Abreise ≤ heute → vergangen, Anreise ≤ heute → aktuell, sonst anstehend – gilt auch für Sperren/Stornos
+const BOOKING_GROUPS = [["anstehend", "Anstehend", "mdi:calendar-arrow-right"], ["aktuell", "Aktuell", "mdi:home-account"],
+  ["vergangen", "Vergangen", "mdi:check"]];
+const bookingGroup = (b, today) => (b.abreise <= today ? "vergangen" : b.anreise <= today ? "aktuell" : "anstehend");
 class SmoobuBookingsCard extends SmoobuCard {
   static defaults = { title: "", period: "jahr", status: [] };
+  // Standard: nach Anreise, absteigend (dir −1)
   static initialState = (c) => ({ period: c.period || "jahr", from: null, to: null, channels: [], status: c.status || [],
-    search: "", sort: "anreise", dir: 1 });
+    search: "", sort: "anreise", dir: -1 });
   static css = `.toolbar input[type=search] { min-width: 180px; flex: 1 1 180px; }
     td .dot { margin-right: 6px; } td.st ha-icon { color: var(--sm-muted); } tr.cx td { text-decoration: line-through; opacity: .6; }
-    tr.bl td { color: var(--sm-muted); font-style: italic; }`;
+    tr.bl td { color: var(--sm-muted); font-style: italic; }
+    tr.grp td { background: var(--sm-surf2); color: var(--sm-ink); font-weight: 600; font-size: .8rem; letter-spacing: .02em;
+      border-top: 2px solid var(--sm-line); padding-top: 10px; cursor: default; }
+    tr.grp td ha-icon { --mdc-icon-size: 16px; color: var(--sm-accent); margin-right: 6px; vertical-align: -2px; }
+    tr.grp td .cnt { color: var(--sm-muted); font-weight: 400; margin-left: 6px; }`;
   async load() {
     const apt = await this.apartment();
     const info = await this.store.getInfo();
@@ -1288,11 +1303,24 @@ class SmoobuBookingsCard extends SmoobuCard {
     });
     const k = s.sort;
     rows = rows.map((b) => ({ ...b, kosten: Math.round((b.provision + b.zahlungsgebuehr) * 100) / 100, wohnung: aptCode(this.store.info, b.wohnung_id) }));
+    const val = (r) => (k === "status" ? BOOKING_STATUS_ORDER[r.status] ?? 9 : k === "gast" ? (r.blockiert ? r.notiz || "" : r.gast || "") : r[k]);
     rows.sort((a, b) => {
-      const x = a[k] ?? "", y = b[k] ?? "";
-      return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * s.dir;
+      const x = val(a), y = val(b);
+      // Leere Werte immer ans Ende, unabhängig von der Richtung
+      const ex = x === null || x === undefined || x === "", ey = y === null || y === undefined || y === "";
+      if (ex || ey) return ex === ey ? b.anreise.localeCompare(a.anreise) : ex ? 1 : -1;
+      const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true });
+      // Gleichstand: nach Anreise absteigend als stabiler Zweitschlüssel
+      return c * s.dir || b.anreise.localeCompare(a.anreise);
     });
-    return rows;
+    // Trennung vergangen / aktuell / anstehend. Gruppenreihenfolge folgt der Zeitrichtung:
+    // absteigend (Standard) und bei Nicht-Datumsspalten Anstehend → Aktuell → Vergangen, bei Datum aufsteigend umgekehrt
+    const today = this.store.info?.heute || iso(new Date());
+    const order = BOOKING_DATE_COLS.has(k) && s.dir > 0 ? [...BOOKING_GROUPS].reverse() : BOOKING_GROUPS;
+    const groups = order.map(([key, label, icon]) => ({ key, label, icon, rows: rows.filter((r) => bookingGroup(r, today) === key) }))
+      .filter((g) => g.rows.length);
+    this._groups = groups;
+    return groups.flatMap((g) => g.rows);
   }
   body(data) {
     const { apt } = data;
@@ -1306,7 +1334,7 @@ class SmoobuBookingsCard extends SmoobuCard {
       `<button class="chip" data-st="${st}" aria-pressed="${s.status.includes(st)}"><ha-icon icon="${STATUS_ICON[st]}"></ha-icon>${t(st)}</button>`).join("");
     const cols = this.multi ? [BOOKING_COLS[0], ["wohnung", "Wohnung"], ...BOOKING_COLS.slice(1)] : BOOKING_COLS;
     const head = cols.map(([k, l, n]) => `<th class="${n || ""}" data-sort="${k}">${t(l)}${s.sort === k ? (s.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("");
-    const body = rows.map((b) => `<tr class="click ${b.storniert ? "cx" : ""} ${b.blockiert ? "bl" : ""}" data-id="${b.id}">
+    const row = (b) => `<tr class="click ${b.storniert ? "cx" : ""} ${b.blockiert ? "bl" : ""}" data-id="${b.id}">
       <td class="st"><ha-icon icon="${STATUS_ICON[b.status]}" title="${t(b.status)}"></ha-icon></td>
       ${this.multi ? `<td>${codeTag(b.wohnung)}</td>` : ""}<td>${fdow(b.anreise)}</td><td>${fdow(b.abreise)}</td><td class="n">${b.naechte}</td>
       <td>${b.blockiert ? `🔒 ${esc(b.notiz || t("Gesperrt"))}` : esc(b.gast)}${b.hund ? " 🐕" : ""}</td>
@@ -1315,7 +1343,14 @@ class SmoobuBookingsCard extends SmoobuCard {
       <td class="n">${b.blockiert ? "" : money(b.brutto, cur, 2)}</td><td class="n">${b.blockiert ? "" : money(b.kosten, cur, 2)}</td>
       <td class="n">${b.blockiert ? "" : money(b.netto, cur, 2)}</td><td class="n">${b.netto_pro_nacht ? money(b.netto_pro_nacht, cur) : ""}</td>
       <td class="n">${b.offen > 0 ? `<span class="badge bad">${money(b.offen, cur, 2)}</span>` : ""}</td>
-      <td class="n">${b.vorlauf_tage ?? ""}</td></tr>`).join("");
+      <td class="n">${b.vorlauf_tage ?? ""}</td></tr>`;
+    // Je Gruppe eine Trennzeile mit Anzahl gültiger Buchungen (ohne Sperren/Stornos) und Nächten
+    const body = (this._groups || []).map((g) => {
+      const ok = g.rows.filter((b) => !b.storniert && !b.blockiert);
+      const n = ok.reduce((a, b) => a + (b.naechte || 0), 0);
+      return `<tr class="grp"><td colspan="${cols.length}"><ha-icon icon="${g.icon}"></ha-icon>${t(g.label)}`
+        + `<span class="cnt">${ok.length} ${t("Buchungen")} · ${num(n)} ${t("Nächte")}</span></td></tr>${g.rows.map(row).join("")}`;
+    }).join("");
     return `
       <div class="head"><h2>${esc(this._config.title || t("Buchungen"))}</h2>
         <button class="btn flat" data-act="csv">⬇ ${t("Export CSV")}</button></div>
@@ -1337,7 +1372,8 @@ class SmoobuBookingsCard extends SmoobuCard {
     root.querySelectorAll("tr[data-id]").forEach((el) => el.addEventListener("click", () => this.openBooking(Number(el.dataset.id))));
     root.querySelectorAll("th[data-sort]").forEach((el) => el.addEventListener("click", () => {
       const k = el.dataset.sort;
-      this.setState({ sort: k, dir: s.sort === k ? -s.dir : 1 });
+      // gleiche Spalte: Richtung umkehren; neue Spalte: Datum absteigend, sonst aufsteigend
+      this.setState({ sort: k, dir: s.sort === k ? -s.dir : BOOKING_DATE_COLS.has(k) ? -1 : 1 });
     }));
     root.querySelectorAll("[data-st]").forEach((el) => el.addEventListener("click", () => this.setState({ status: toggleChannel(s.status, el.dataset.st) })));
     root.querySelectorAll("[data-ch]").forEach((el) => el.addEventListener("click", () => this.setState({ channels: toggleChannel(s.channels, el.dataset.ch) })));

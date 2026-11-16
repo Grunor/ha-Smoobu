@@ -10,9 +10,13 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 **Deutsch**
 - Release-Ablauf: Änderungen werden auf `develop` gesammelt; Beta-Versionen als Pre-Release
+- **Buchungsliste:** Standard-Sortierung jetzt Anreise **absteigend** (neueste zuerst); Datumsspalten starten beim Anklicken immer absteigend, übrige Spalten aufsteigend. Sortierbar nach jeder Spalte; Status in logischer Reihenfolge (laufend, kommend, vergangen, gesperrt, storniert), leere Werte immer am Ende, Gleichstand nach Anreise
+- **Buchungsliste:** Trennung in **Anstehend / Aktuell / Vergangen** mit Trennzeile je Gruppe (Anzahl Buchungen und Nächte); Reihenfolge der Gruppen folgt der Datumsrichtung. CSV-Export übernimmt die angezeigte Reihenfolge
 
 **English**
 - Release process: changes are collected on `develop`; beta versions as pre-releases
+- **Booking list:** default sort is now arrival **descending** (newest first); date columns always start descending when clicked, other columns ascending. Sortable by every column; status in logical order, empty values always last, ties by arrival
+- **Booking list:** split into **Upcoming / Current / Past** with a separator row per group (bookings and nights); group order follows the date direction. CSV export keeps the displayed order
 
 ## 1.16.0 – 2026-11-16
 
