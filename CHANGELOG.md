@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.17.0b3 – 2026-11-16
+
+> Beta / Pre-release
+
 **Deutsch**
 - **Option „Auswertung: Daten abrufen seit“:** fester Startpunkt für Auswertungen und Vergleiche als Alternative zu „Jahre Historie“ (hat Vorrang; leer = Jahre gelten). Wird höchstens auf den 01.01. des Vorjahres gesetzt, damit Vorjahresvergleiche immer Daten haben
 - **Absicherung Buchungsabruf:** Seitenlimit von 2.000 auf 10.000 Einträge je Abfrage angehoben; wird es trotzdem erreicht, steht eine Warnung im Log statt stillem Abschneiden
