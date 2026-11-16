@@ -3,8 +3,16 @@
 Format je Version: deutsch, dann englisch. Versionierung nach [SemVer](https://semver.org/lang/de/): MAJOR = inkompatible Änderung (z. B. Entitäts-IDs), MINOR = neue Funktion, PATCH = Korrektur.
 Format per version: German, then English. Versioning follows [SemVer](https://semver.org/): MAJOR = breaking change (e.g. entity IDs), MINOR = new feature, PATCH = fix.
 
-Ein Release wird automatisch erstellt, sobald die Version in `custom_components/smoobu/manifest.json` erhöht wird.
-A release is created automatically as soon as the version in `custom_components/smoobu/manifest.json` is increased.
+Änderungen werden auf dem Branch `develop` unter „Unveröffentlicht“ gesammelt. Ein Release entsteht, sobald die Version in `custom_components/smoobu/manifest.json` erhöht und nach `main` übernommen wird. Beta-Versionen (z. B. `1.17.0b1`) werden direkt von `develop` als Pre-Release veröffentlicht.
+Changes are collected on the `develop` branch under "Unreleased". A release is created as soon as the version in `custom_components/smoobu/manifest.json` is increased and merged into `main`. Beta versions (e.g. `1.17.0b1`) are published from `develop` as pre-releases.
+
+## Unveröffentlicht / Unreleased
+
+**Deutsch**
+- Release-Ablauf: Änderungen werden auf `develop` gesammelt; Beta-Versionen als Pre-Release
+
+**English**
+- Release process: changes are collected on `develop`; beta versions as pre-releases
 
 ## 1.16.0 – 2026-11-16
 

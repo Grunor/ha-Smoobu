@@ -1,7 +1,12 @@
 # Automatischer Release / automatic release
 #
-# Zweck: Sobald die Version in manifest.json erhöht und auf main gepusht wird,
+# Zweck: Sobald die Version in manifest.json erhöht und gepusht wird,
 # legt dieser Workflow Tag + GitHub-Release "v<version>" an.
+# Branch-Modell (ab 16.11.2026):
+# - develop: sammelt alle Änderungen (CHANGELOG-Abschnitt "## Unveröffentlicht").
+#   Ein Release entsteht hier NUR bei einer Beta-Version (z. B. 1.17.0b1) → Pre-Release.
+# - main: nur nach Release-Freigabe (Merge develop → main) → stabiler Release.
+#   Beta-Versionen auf main werden abgelehnt.
 # - Release-Text = Abschnitt "## <version>" aus CHANGELOG.md
 # - Anhang smoobu.zip (Inhalt von custom_components/smoobu) für die manuelle Installation
 # - Existiert der Tag schon, passiert nichts (kein Doppel-Release).
@@ -10,7 +15,7 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - "custom_components/smoobu/manifest.json"
       - ".github/workflows/release.yml"
@@ -32,9 +37,33 @@ jobs:
           VERSION=$(jq -r .version custom_components/smoobu/manifest.json)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Version: $VERSION"
+          # Beta/Vorabversion = Version enthält a, b oder rc (PEP 440, wie von HA/HACS ausgewertet)
+          if echo "$VERSION" | grep -Eq '(a|b|rc)[0-9]+$'; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Branch und Versionsart abgleichen
+        id: gate
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+          PRE="${{ steps.version.outputs.prerelease }}"
+          if [ "$BRANCH" = "main" ] && [ "$PRE" = "true" ]; then
+            echo "Beta-Version auf main ist nicht erlaubt – vor dem Merge finale Version setzen." >&2
+            exit 1
+          fi
+          if [ "$BRANCH" = "develop" ] && [ "$PRE" = "false" ]; then
+            # Normale Sammel-Commits auf develop: kein Release (wartet auf Freigabe)
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "develop ohne Beta-Version – kein Release."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Prüfen, ob der Release schon existiert
         id: exists
+        if: steps.gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -46,7 +75,7 @@ jobs:
           fi
 
       - name: Release-Text aus CHANGELOG.md extrahieren
-        if: steps.exists.outputs.exists == 'false'
+        if: steps.gate.outputs.run == 'true' && steps.exists.outputs.exists == 'false'
         run: |
           # Alles zwischen "## <version>" und der nächsten "## "-Überschrift
           awk -v v="${{ steps.version.outputs.version }}" '
@@ -61,17 +90,18 @@ jobs:
           cat release_notes.md
 
       - name: ZIP für die manuelle Installation bauen
-        if: steps.exists.outputs.exists == 'false'
+        if: steps.gate.outputs.run == 'true' && steps.exists.outputs.exists == 'false'
         run: |
           cd custom_components/smoobu
           zip -r ../../smoobu.zip . -x "__pycache__/*"
 
       - name: Tag und Release anlegen
-        if: steps.exists.outputs.exists == 'false'
+        if: steps.gate.outputs.run == 'true' && steps.exists.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v${{ steps.version.outputs.version }}" smoobu.zip \
             --target "${{ github.sha }}" \
             --title "v${{ steps.version.outputs.version }}" \
-            --notes-file release_notes.md
+            --notes-file release_notes.md \
+            $( [ "${{ steps.version.outputs.prerelease }}" = "true" ] && echo --prerelease )
