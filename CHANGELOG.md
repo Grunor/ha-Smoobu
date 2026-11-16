@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+**Deutsch**
+- **Korrektur Übersicht – aktueller Gast am Anreisetag:** Status und Gästekarten rechnen jetzt mit Uhrzeit (wie die Sensoren). Ab der Check-in-Zeit ist der anreisende Gast „Aktueller Gast“, ab der Check-out-Zeit ist der abreisende Gast weg. Vorher blieb der Gast am Anreisetag bis Mitternacht „Nächster Gast, heute“ und die Karte „Aktueller Gast“ zeigte „keine“. Gilt auch für Gästewechsel und Abreise; Uhrzeit in der Zeitzone von Home Assistant. Die Übersicht prüft jede Minute und zeichnet bei Statuswechsel neu (offenes Tablet)
+
+**English**
+- **Fix overview – current guest on arrival day:** status and guest cards now use the time of day (like the sensors). From the check-in time the arriving guest is the "Current guest", from the check-out time the departing guest is gone. Previously the guest stayed "Next guest, today" until midnight and "Current guest" showed "none". Also applies to changeover and departure days; time in Home Assistant's time zone. The overview checks every minute and re-renders when the status changes (open tablet)
+
 ## 1.17.0 – 2026-11-16
 
 **Deutsch**

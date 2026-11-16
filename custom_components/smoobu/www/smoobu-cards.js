@@ -636,8 +636,24 @@ function sparkline(values, compare = null) {
     <polyline points="${line(v)}"/><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="2.6"/></svg>`;
 }
 
+// „9:00“ / „17:30:00“ → „09:00“ (vergleichbar als Text); leer → Ersatzwert
+const hm = (s, dflt) => {
+  const [h, m] = String(s || dflt || "00:00").slice(0, 5).split(":");
+  return `${String(Number(h) || 0).padStart(2, "0")}:${String(Number(m) || 0).padStart(2, "0")}`;
+};
+// Aktuelle Uhrzeit „HH:MM“ in der Zeitzone von Home Assistant (nicht der des Browsers – Handy auf Reisen)
+function nowHM(hass) {
+  try {
+    return new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", hour12: false,
+      timeZone: hass?.config?.time_zone || undefined }).format(new Date());
+  } catch (e) { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
+}
+
 // Status einer Wohnung heute → kurze, präzise Sätze für den Kopf
-function stayStatus(apt, bookings, today) {
+// v1.17.1: uhrzeitgenau wie die Sensoren – ab Check-in-Zeit ist der anreisende Gast „aktuell“,
+// ab Check-out-Zeit ist der abreisende Gast weg (vorher nur nach Datum: am Anreisetag blieb der Gast
+// bis Mitternacht „Nächster Gast, heute“, Fall Olaf König 16.11.2026, Anreise 17:30)
+function stayStatus(apt, bookings, today, now = "00:00") {
   const guests = bookings.filter((b) => !b.blockiert && !b.storniert).sort((a, b) => a.anreise.localeCompare(b.anreise));
   const staying = guests.find((b) => b.anreise < today && b.abreise > today);
   const arr = guests.find((b) => b.anreise === today);
@@ -652,12 +668,20 @@ function stayStatus(apt, bookings, today) {
     return n === 0 ? `Direkt danach kommt ${esc(b.gast)}.`
       : `Danach ${plural(n, "Nacht", "Nächte")} frei, nächste Anreise ${fdowLong(b.anreise)} (${esc(b.gast)}).`;
   };
-  if (arr && dep) return { key: "chg", pill: t("Gästewechsel"), title: t("Gästewechsel heute"), current: dep, next: arr,
-    text: `${esc(dep.gast)} reist bis ${co(dep)} ab, ${esc(arr.gast)}${arr.hund ? " 🐕" : ""} kommt um ${ci(arr)}. Reinigung dazwischen.` };
-  if (dep) return { key: "dep", pill: t("Abreise"), title: t("Abreise heute"), current: dep, next,
-    text: `${esc(dep.gast)} reist bis ${co(dep)} ab. ${after(today, next)}` };
-  if (arr) return { key: "arr", pill: t("Anreise"), title: t("Anreise heute"), current: null, next: arr,
-    text: `${esc(arr.gast)}${arr.hund ? " 🐕" : ""} kommt um ${ci(arr)}, ${plural(arr.naechte, "Nacht", "Nächte")} bis ${fdowLong(arr.abreise)}.` };
+  // Uhrzeit-Grenzen (Standard wie oben: Check-in 16:00, Check-out 11:00)
+  const arrived = arr && now >= hm(arr.check_in || apt.check_in, "16:00");
+  const departed = dep && now >= hm(dep.check_out || apt.check_out, "11:00");
+  const stay = (b) => `${plural(b.naechte, "Nacht", "Nächte")} bis ${fdowLong(b.abreise)}`;
+  if (arr && dep) return { key: "chg", pill: t("Gästewechsel"), title: t("Gästewechsel heute"),
+    current: arrived ? arr : departed ? null : dep, next: arrived ? next : arr,
+    text: arrived ? `${esc(dep.gast)} ist abgereist, ${esc(arr.gast)}${arr.hund ? " 🐕" : ""} ist seit ${ci(arr)} da, ${stay(arr)}.`
+      : departed ? `${esc(dep.gast)} ist abgereist, ${esc(arr.gast)}${arr.hund ? " 🐕" : ""} kommt um ${ci(arr)}. Reinigung dazwischen.`
+      : `${esc(dep.gast)} reist bis ${co(dep)} ab, ${esc(arr.gast)}${arr.hund ? " 🐕" : ""} kommt um ${ci(arr)}. Reinigung dazwischen.` };
+  if (dep) return { key: "dep", pill: t("Abreise"), title: t("Abreise heute"), current: departed ? null : dep, next,
+    text: `${esc(dep.gast)} ${departed ? "ist abgereist" : `reist bis ${co(dep)} ab`}. ${after(today, next)}` };
+  if (arr) return { key: "arr", pill: t("Anreise"), title: t("Anreise heute"), current: arrived ? arr : null, next: arrived ? next : arr,
+    text: arrived ? `${esc(arr.gast)}${arr.hund ? " 🐕" : ""} ist seit ${ci(arr)} da, ${stay(arr)}.`
+      : `${esc(arr.gast)}${arr.hund ? " 🐕" : ""} kommt um ${ci(arr)}, ${stay(arr)}.` };
   if (staying) return { key: "occ", pill: t("Belegt"), title: `${t("Belegt bis")} ${fdowLong(staying.abreise)}`, current: staying, next,
     text: `${esc(staying.gast)} reist am ${fdowLong(staying.abreise)} bis ${co(staying)} ab. ${after(staying.abreise, next)}` };
   if (next) return { key: "free", pill: t("Frei"), title: `${t("Frei bis")} ${fdowLong(next.anreise)}`, current: null, next,
@@ -670,6 +694,28 @@ function stayStatus(apt, bookings, today) {
 // ===========================================================================
 class SmoobuOverviewCard extends SmoobuCard {
   static defaults = { title: "", entities: [], upcoming: 5, gap_days: 60, band_days: 42 };
+  // v1.17.1: Status hängt jetzt an der Uhrzeit (Check-in/-out). Ohne neue Daten zeichnet die Karte nicht neu –
+  // ein offenes Tablet bliebe sonst bis zum nächsten Datenabruf auf „Anreise um 17:30“ stehen. Daher jede
+  // Minute prüfen und nur neu zeichnen, wenn sich aktueller/nächster Gast einer Wohnung tatsächlich ändert.
+  _statusSig() {
+    const d = this._data;
+    if (!d?.apts) return "";
+    const now = nowHM(this._hass);
+    return d.apts.map((w) => {
+      const s = stayStatus(w, (d.bookings || []).filter((b) => !d.apts[1] || b.wohnung_id === w.apartment_id), d.today, now);
+      return `${s.key}:${s.current?.id || ""}:${s.next?.id || ""}:${!!s.text && s.text.length}`;
+    }).join("|");
+  }
+  _listen() {
+    super._listen();
+    let last = this._statusSig();
+    const timer = setInterval(() => {
+      const sig = this._statusSig();
+      if (sig && sig !== last) { last = sig; this.render(); }
+    }, 60000);
+    const base = this._unsub;
+    this._unsub = () => { base?.(); clearInterval(timer); };
+  }
   static css = `
     :host { padding-top: 4px; }
     ha-card { background: none; border: 0; padding: 0; overflow: visible; }
@@ -827,7 +873,7 @@ class SmoobuOverviewCard extends SmoobuCard {
   heroSingle(d) {
     const { apt, today, bookings, month, status } = d;
     const cur = apt.currency;
-    const s = stayStatus(apt, bookings, today);
+    const s = stayStatus(apt, bookings, today, nowHM(this._hass));
     const open = bookings.filter((b) => status[b.id]?.offen);
     const dm = month.veraenderung_prozent?.brutto;
     const lead2 = `${monthName(today)}: ${money(month.brutto, cur)} gebucht${dm !== null && dm !== undefined ? `, ${dm >= 0 ? "+" : "−"}${num(Math.abs(dm), 0)} % ggü. dem Buchungsstand des Vorjahres` : ""}. Auslastung ${pct(month.auslastung_prozent, 0)}.`;
@@ -854,7 +900,7 @@ class SmoobuOverviewCard extends SmoobuCard {
   }
   heroMulti(d) {
     const { apts, today, bookings, status } = d;
-    const per = apts.map((w) => ({ w, s: stayStatus(w, bookings.filter((b) => b.wohnung_id === w.apartment_id), today) }));
+    const per = apts.map((w) => ({ w, s: stayStatus(w, bookings.filter((b) => b.wohnung_id === w.apartment_id), today, nowHM(this._hass)) }));
     // „belegt“ = für die kommende Nacht ist ein Gast da (bleibt, reist an oder Wechsel)
     const busy = per.filter((p) => ["occ", "arr", "chg"].includes(p.s.key)).length;
     const arrN = bookings.filter((b) => !b.blockiert && b.anreise === today).length;
