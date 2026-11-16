@@ -209,10 +209,29 @@ async def test_options_and_unload(hass, setup):
         "commission_airbnb": 20, "commission_booking": 15, "commission_fewo": 8, "commission_website": 0,
         "commission_direct": 0, "commission_other": 15, "commission_custom": "Expedia=18", "direct_channels": ["Direct booking", "Website"]})
     assert result["type"] == "form" and result["step_id"] == "assistent"
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"assistant": False})
+    # v1.17.0: Benachrichtigungen (Abschnitte je Push-Art) und Wohnungskürzel
+    assert result["type"] == "form" and result["step_id"] == "benachrichtigungen"
     result = await hass.config_entries.options.async_configure(result["flow_id"], {
-        "assistant": False, "assist_briefing": False, "assist_briefing_time": "07:30:00", "assist_gaps": False})
+        "buchung": {"aktiv": True, "empfaenger": ["notify.mobile_app_test"]},
+        "storno": {"aktiv": True, "empfaenger": []}, "nachricht": {"aktiv": True, "empfaenger": []},
+        "vorschlag": {"aktiv": True, "empfaenger": []},
+        "zahlung": {"aktiv": True, "empfaenger": [], "tage": 5, "uhrzeit": "08:15:00"},
+        "briefing": {"aktiv": False, "empfaenger": [], "uhrzeit": "07:30:00"},
+        "luecken": {"aktiv": False, "empfaenger": [], "uhrzeit": "09:05:00"},
+        "ruhezeit": {"aktiv": True, "von": "22:00:00", "bis": "06:30:00", "nachrichten_sofort": True}})
+    assert result["type"] == "form" and result["step_id"] == "wohnungen"
+    label = next(str(k) for k in result["data_schema"].schema)
+    bad = await hass.config_entries.options.async_configure(result["flow_id"], {label: "#!"})
+    assert bad["errors"] == {label: "invalid_code"}
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {label: "fw1x"})
     assert result["type"] == "create_entry"
-    assert setup.options["commissions"]["Airbnb"] == 20 and setup.options["commissions"]["Expedia"] == 18
+    o = setup.options
+    assert o["commissions"]["Airbnb"] == 20 and o["commissions"]["Expedia"] == 18
+    assert o["notify_buchung"] is True and o["notify_buchung_to"] == ["notify.mobile_app_test"]
+    assert o["notify_zahlung_days"] == 5 and o["notify_zahlung_time"] == "08:15"
+    assert o["notify_quiet"] is True and o["notify_quiet_from"] == "22:00" and o["notify_quiet_to"] == "06:30"
+    assert list(o["apartment_codes"].values()) == ["FW1X"]
     await hass.async_block_till_done()
     assert setup.options["default_checkin"] == "15:00"
     assert await hass.config_entries.async_unload(setup.entry_id)
@@ -576,12 +595,17 @@ async def test_options_ai_switch(hass, setup):
     while result["step_id"] != "assistent":
         result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={})
     assert "ai_enabled" in {str(k) for k in result["data_schema"].schema}
-    base = {"ai_enabled": True, "assistant": False, "assist_briefing": False, "assist_briefing_time": "07:30:00",
-            "assist_gaps": False}
+    base = {"ai_enabled": True, "assistant": False}
     result = await hass.config_entries.options.async_configure(result["flow_id"], user_input=base)
     assert result["errors"] == {"ai_entity": "ai_entity_required"}
     result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={**base, "ai_enabled": False})
+    # Benachrichtigungen und Wohnungen mit Standardwerten übernehmen
+    while result["type"] == "form":
+        result = await hass.config_entries.options.async_configure(result["flow_id"], user_input={})
     assert result["type"] == "create_entry" and result["data"]["ai_enabled"] is False
+    # Durchklicken übernimmt die bisherigen Werte (Vorschlag-Push bleibt an, neue Arten aus)
+    assert result["data"]["notify_vorschlag"] is True and result["data"]["notify_buchung"] is False
+    assert result["data"]["notify_quiet_messages"] is True
 
 
 async def test_no_reply_and_guest_message(hass, setup, hass_ws_client, aioclient_mock):
@@ -714,3 +738,74 @@ async def test_message_status_subscription(hass, setup, hass_ws_client):
     c.invalidate_message_status(2)
     ev = await ws.receive_json()
     assert ev["type"] == "event" and ev["event"]["art"] == "nachrichten"
+
+
+
+async def test_notifications(hass, setup, freezer):
+    """v1.17.0: neue Buchung/Storno/Änderung aus dem Datenabgleich, Ruhezeit-Warteschlange, Kürzel."""
+    from datetime import time as dtime
+
+    from custom_components.smoobu.notifications import in_quiet, opt_enabled, opt_recipients
+
+    assert in_quiet(dtime(23, 0), dtime(21, 0), dtime(7, 0)) and in_quiet(dtime(6, 59), dtime(21, 0), dtime(7, 0))
+    assert not in_quiet(dtime(7, 0), dtime(21, 0), dtime(7, 0)) and not in_quiet(dtime(12, 0), dtime(12, 0), dtime(12, 0))
+    # Rückwärtskompatibel: ohne neue Optionen Vorschlag an, Empfänger aus dem Assistenten
+    old = {"assist_recipients": ["notify.mobile_app_a"], "assist_briefing": True}
+    assert opt_enabled(old, "vorschlag") and opt_enabled(old, "briefing") and not opt_enabled(old, "buchung")
+    assert opt_recipients(old, "buchung") == ["notify.mobile_app_a"]
+
+    hass.config_entries.async_update_entry(setup, options={**setup.options, "notify_buchung": True, "notify_storno": True,
+                                                            "notify_buchung_to": ["notify.mobile_app_x"],
+                                                            "notify_storno_to": ["notify.mobile_app_x"]})
+    await hass.async_block_till_done()
+    c = hass.config_entries.async_get_entry(setup.entry_id).runtime_data
+    calls = []
+
+    async def fake_deliver(kind, title, message, data):
+        calls.append((kind, title, message))
+
+    c.notifier._deliver = fake_deliver
+    recs = c.records_all()
+    base = next(r for r in recs if not r["blockiert"] and not r["storniert"])
+    # Änderung: Abreise verschoben
+    changed = {**base, "abreise": "2026-12-31"}
+    c.records_all = lambda: [changed if r is base else r for r in recs]
+    c.notifier._on_data()
+    await hass.async_block_till_done()
+    assert calls and calls[-1][0] == "storno" and "Abreise" in calls[-1][2] and "31.12." in calls[-1][2]
+    # Storno
+    c.records_all = lambda: [{**changed, "storniert": True} if r is base else r for r in recs]
+    c.notifier._on_data()
+    await hass.async_block_till_done()
+    assert calls[-1][1].startswith("❌")
+    # Neue Buchung (angelegt heute) in der Ruhezeit → gesammelt, nicht zugestellt
+    hass.config_entries.async_update_entry(setup, options={**setup.options, "notify_quiet": True,
+                                                            "notify_quiet_from": "00:00", "notify_quiet_to": "23:59"})
+    await hass.async_block_till_done()
+    c = hass.config_entries.async_get_entry(setup.entry_id).runtime_data
+    calls.clear()
+    c.notifier._deliver = fake_deliver
+    new = {**base, "id": 999999, "erstellt": "2026-11-15T10:00:00", "storniert": False}
+    recs2 = c.records_all()
+    c.records_all = lambda: [*recs2, new]
+    c.notifier._on_data()
+    await hass.async_block_till_done()
+    assert not calls and c.notifier.data["warteschlange"][-1]["art"] == "buchung"
+    await c.notifier._flush(None)
+    assert calls and calls[0][1].startswith("🆕") and not c.notifier.data["warteschlange"]
+
+
+async def test_apartment_codes(hass, setup, hass_ws_client):
+    """v1.17.0: eigenes Kürzel aus den Optionen hat Vorrang vor dem automatischen."""
+    from custom_components.smoobu.codes import clean_code, short_codes
+
+    assert clean_code(" fw-2 ") == "FW2" and clean_code("abcdef") == "ABCD"
+    assert short_codes(["Haus Sonnenhang"], taken={"HS"}) == ["HS2"]
+    c = hass.config_entries.async_get_entry(setup.entry_id).runtime_data
+    apt = next(iter(c.data.apartments))
+    hass.config_entries.async_update_entry(setup, options={**setup.options, "apartment_codes": {str(apt): "SEE"}})
+    await hass.async_block_till_done()
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "smoobu/info"})
+    info = (await ws.receive_json())["result"]
+    assert info["wohnungen"][0]["kuerzel"] == "SEE"

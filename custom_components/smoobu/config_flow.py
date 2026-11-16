@@ -9,6 +9,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.data_entry_flow import section
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
@@ -28,48 +29,64 @@ from homeassistant.helpers.selector import (
 )
 
 from .api import SmoobuAuthError, SmoobuClient, SmoobuError
+from .codes import all_codes, clean_code
+from .notifications import opt_enabled, opt_recipients
 from .const import (
+    COMMISSION_FIELDS,
     CONF_AI_ENABLED,
     CONF_AI_ENTITY,
+    CONF_APARTMENT_CODES,
+    CONF_API_KEY,
+    CONF_API_SECRET,
     CONF_ASSISTANT,
     CONF_ASSIST_BRIEFING,
     CONF_ASSIST_BRIEFING_TIME,
     CONF_ASSIST_GAPS,
     CONF_ASSIST_PATH,
-    CONF_ASSIST_RECIPIENTS,
     CONF_ASSIST_STATUS,
-    CONF_API_KEY,
-    CONF_API_SECRET,
     CONF_CHECKOUT_BUFFER,
+    CONF_COMMISSIONS,
     CONF_COMMISSION_CUSTOM,
     CONF_COMMISSION_OTHER,
-    CONF_COMMISSIONS,
-    CONF_DIRECT_CHANNELS,
-    COMMISSION_FIELDS,
-    DEFAULT_COMMISSION_OTHER,
-    DEFAULT_COMMISSIONS,
-    DEFAULT_DIRECT_CHANNELS,
     CONF_DAYS_AHEAD,
     CONF_DAYS_BACK,
     CONF_DEFAULT_CHECKIN,
     CONF_DEFAULT_CHECKOUT,
+    CONF_DIRECT_CHANNELS,
     CONF_ENRICH_COUNT,
     CONF_HISTORY_YEARS,
+    CONF_NOTIFY_GAPS_TIME,
+    CONF_NOTIFY_PAYMENT_DAYS,
+    CONF_NOTIFY_PAYMENT_TIME,
+    CONF_NOTIFY_QUIET,
+    CONF_NOTIFY_QUIET_FROM,
+    CONF_NOTIFY_QUIET_MESSAGES,
+    CONF_NOTIFY_QUIET_TO,
     CONF_PAYMENT_EXCLUDED_CHANNELS,
     CONF_SCAN_INTERVAL,
-    CONF_USE_WEBHOOK,
     CONF_USER_ID,
+    CONF_USE_WEBHOOK,
     DEFAULT_CHECKIN,
     DEFAULT_CHECKOUT,
     DEFAULT_CHECKOUT_BUFFER,
+    DEFAULT_COMMISSIONS,
+    DEFAULT_COMMISSION_OTHER,
     DEFAULT_DAYS_AHEAD,
     DEFAULT_DAYS_BACK,
+    DEFAULT_DIRECT_CHANNELS,
     DEFAULT_ENRICH_COUNT,
     DEFAULT_HISTORY_YEARS,
+    DEFAULT_NOTIFY_GAPS_TIME,
+    DEFAULT_NOTIFY_PAYMENT_DAYS,
+    DEFAULT_NOTIFY_PAYMENT_TIME,
+    DEFAULT_NOTIFY_QUIET_FROM,
+    DEFAULT_NOTIFY_QUIET_TO,
     DEFAULT_PAYMENT_EXCLUDED_CHANNELS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_USE_WEBHOOK,
     DOMAIN,
+    MAX_CODE_LEN,
+    NOTIFY_TYPES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -336,17 +353,9 @@ class SmoobuOptionsFlow(OptionsFlow):
             if user_input.get(CONF_AI_ENABLED) and not user_input.get(CONF_AI_ENTITY):
                 errors[CONF_AI_ENTITY] = "ai_entity_required"
             else:
-                # Ohne Auswahl entfernt der Selektor den Schlüssel nicht → explizit leeren,
-                # damit eine abgewählte KI-Entität nicht aus den alten Optionen weiterlebt.
-                merged = {**opts, **self._general, **self._prov, **user_input}
-                if not user_input.get(CONF_AI_ENTITY):
-                    merged.pop(CONF_AI_ENTITY, None)
-                return self.async_create_entry(data=merged)
-        # Push-Empfänger: nur mobile_app-Dienste können Buttons (Senden/Ignorieren)
-        notify = sorted(
-            f"notify.{svc}" for svc in self.hass.services.async_services().get("notify", {})
-            if svc.startswith("mobile_app_")
-        )
+                # Weiter zu „Benachrichtigungen“ und „Wohnungen“; gespeichert wird am Ende alles zusammen.
+                self._assist = user_input
+                return await self.async_step_benachrichtigungen()
         schema = vol.Schema(
             {
                 # Hauptschalter zuerst. Standard: bisheriges Verhalten (KI-Entität gewählt = erlaubt);
@@ -358,19 +367,133 @@ class SmoobuOptionsFlow(OptionsFlow):
                 vol.Optional(CONF_AI_ENTITY, description={"suggested_value": opts.get(CONF_AI_ENTITY)}): EntitySelector(
                     EntitySelectorConfig(domain="ai_task")
                 ),
-                vol.Optional(CONF_ASSIST_RECIPIENTS, default=opts.get(CONF_ASSIST_RECIPIENTS, [])): SelectSelector(
-                    SelectSelectorConfig(options=notify, multiple=True, custom_value=True, mode=SelectSelectorMode.DROPDOWN)
-                ),
+                # v1.17.0: Empfänger, Tagesbriefing und Lücken stehen jetzt im Schritt „Benachrichtigungen“
                 vol.Optional(CONF_ASSIST_STATUS, default=opts.get(CONF_ASSIST_STATUS, [])): EntitySelector(
                     EntitySelectorConfig(multiple=True)
                 ),
                 vol.Optional(CONF_ASSIST_PATH, default=opts.get(CONF_ASSIST_PATH, "/lovelace")): TextSelector(),
-                vol.Required(CONF_ASSIST_BRIEFING, default=opts.get(CONF_ASSIST_BRIEFING, False)): BooleanSelector(),
-                vol.Required(
-                    CONF_ASSIST_BRIEFING_TIME, default=_time_default(opts.get(CONF_ASSIST_BRIEFING_TIME, "07:30"))
-                ): TimeSelector(),
-                vol.Required(CONF_ASSIST_GAPS, default=opts.get(CONF_ASSIST_GAPS, False)): BooleanSelector(),
             }
         )
         return self.async_show_form(step_id="assistent", data_schema=schema, errors=errors)
+
+    def _notify_services(self) -> list[str]:
+        """Push-Empfänger: mobile_app-Dienste (nur diese können Buttons wie Senden/Ignorieren)."""
+        return sorted(
+            f"notify.{svc}" for svc in self.hass.services.async_services().get("notify", {})
+            if svc.startswith("mobile_app_")
+        )
+
+    async def async_step_benachrichtigungen(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """v1.17.0: Welche Pushes an wen und wann (je Push-Art ein Abschnitt, dazu Ruhezeit)."""
+        opts = self.config_entry.options
+        if user_input is not None:
+            flat: dict[str, Any] = {}
+            for kind in NOTIFY_TYPES:
+                sec = user_input.get(kind) or {}
+                flat[f"notify_{kind}"] = bool(sec.get("aktiv"))
+                flat[f"notify_{kind}_to"] = list(sec.get("empfaenger") or [])
+            br, gp, pay, quiet = (user_input.get(k) or {} for k in ("briefing", "luecken", "zahlung", "ruhezeit"))
+            flat[CONF_ASSIST_BRIEFING_TIME] = str(br.get("uhrzeit") or "07:30")[:5]
+            flat[CONF_NOTIFY_GAPS_TIME] = str(gp.get("uhrzeit") or DEFAULT_NOTIFY_GAPS_TIME)[:5]
+            flat[CONF_NOTIFY_PAYMENT_TIME] = str(pay.get("uhrzeit") or DEFAULT_NOTIFY_PAYMENT_TIME)[:5]
+            flat[CONF_NOTIFY_PAYMENT_DAYS] = int(pay.get("tage") or DEFAULT_NOTIFY_PAYMENT_DAYS)
+            flat[CONF_NOTIFY_QUIET] = bool(quiet.get("aktiv"))
+            flat[CONF_NOTIFY_QUIET_FROM] = str(quiet.get("von") or DEFAULT_NOTIFY_QUIET_FROM)[:5]
+            flat[CONF_NOTIFY_QUIET_TO] = str(quiet.get("bis") or DEFAULT_NOTIFY_QUIET_TO)[:5]
+            flat[CONF_NOTIFY_QUIET_MESSAGES] = bool(quiet.get("nachrichten_sofort", True))
+            # Alte Schalter mitführen, damit ältere Versionen nach einem Downgrade dasselbe tun
+            flat[CONF_ASSIST_BRIEFING] = flat["notify_briefing"]
+            flat[CONF_ASSIST_GAPS] = flat["notify_luecken"]
+            self._notify = flat
+            return await self.async_step_wohnungen()
+
+        services = self._notify_services()
+        recipients = SelectSelector(
+            SelectSelectorConfig(options=services, multiple=True, custom_value=True, mode=SelectSelectorMode.DROPDOWN)
+        )
+        hhmm = TimeSelector()
+
+        def kind_section(kind: str, extra: dict | None = None, collapsed: bool = True) -> section:
+            fields = {
+                vol.Required("aktiv", default=opt_enabled(opts, kind)): BooleanSelector(),
+                vol.Optional("empfaenger", default=opt_recipients(opts, kind)): recipients,
+                **(extra or {}),
+            }
+            return section(vol.Schema(fields), {"collapsed": collapsed})
+
+        schema = vol.Schema(
+            {
+                vol.Required("buchung", default={}): kind_section("buchung", collapsed=False),
+                vol.Required("storno", default={}): kind_section("storno"),
+                vol.Required("nachricht", default={}): kind_section("nachricht"),
+                vol.Required("vorschlag", default={}): kind_section("vorschlag"),
+                vol.Required("zahlung", default={}): kind_section("zahlung", {
+                    vol.Required("tage", default=int(opts.get(CONF_NOTIFY_PAYMENT_DAYS, DEFAULT_NOTIFY_PAYMENT_DAYS))): NumberSelector(
+                        NumberSelectorConfig(min=1, max=60, step=1, unit_of_measurement="d", mode=NumberSelectorMode.BOX)
+                    ),
+                    vol.Required("uhrzeit", default=_time_default(opts.get(CONF_NOTIFY_PAYMENT_TIME, DEFAULT_NOTIFY_PAYMENT_TIME))): hhmm,
+                }),
+                vol.Required("briefing", default={}): kind_section("briefing", {
+                    vol.Required("uhrzeit", default=_time_default(opts.get(CONF_ASSIST_BRIEFING_TIME, "07:30"))): hhmm,
+                }),
+                vol.Required("luecken", default={}): kind_section("luecken", {
+                    vol.Required("uhrzeit", default=_time_default(opts.get(CONF_NOTIFY_GAPS_TIME, DEFAULT_NOTIFY_GAPS_TIME))): hhmm,
+                }),
+                vol.Required("ruhezeit", default={}): section(vol.Schema({
+                    vol.Required("aktiv", default=bool(opts.get(CONF_NOTIFY_QUIET, False))): BooleanSelector(),
+                    vol.Required("von", default=_time_default(opts.get(CONF_NOTIFY_QUIET_FROM, DEFAULT_NOTIFY_QUIET_FROM))): hhmm,
+                    vol.Required("bis", default=_time_default(opts.get(CONF_NOTIFY_QUIET_TO, DEFAULT_NOTIFY_QUIET_TO))): hhmm,
+                    vol.Required("nachrichten_sofort", default=bool(opts.get(CONF_NOTIFY_QUIET_MESSAGES, True))): BooleanSelector(),
+                }), {"collapsed": False}),
+            }
+        )
+        return self.async_show_form(step_id="benachrichtigungen", data_schema=schema)
+
+    async def async_step_wohnungen(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """v1.17.0: Kürzel je Wohnung anpassen (leer = automatisch); eindeutig über alle Smoobu-Konten."""
+        entry = self.config_entry
+        coordinator = getattr(entry, "runtime_data", None)
+        apts = list((coordinator.data.apartments if coordinator and coordinator.data else {}).items())
+        # Feldname = Wohnungsname (wird ohne Übersetzung direkt angezeigt); bei gleichen Namen mit ID
+        names = [a.get("name") or str(i) for i, a in apts]
+        labels = [n if names.count(n) == 1 else f"{n} ({i})" for (i, _a), n in zip(apts, names, strict=True)]
+        stored = dict(entry.options.get(CONF_APARTMENT_CODES) or {})
+        errors: dict[str, str] = {}
+        if user_input is not None or not apts:
+            own: dict[str, str] = {}
+            for (apt_id, _a), label in zip(apts, labels, strict=True):
+                raw = (user_input or {}).get(label, "")
+                code = clean_code(raw)
+                if str(raw or "").strip() and not code:
+                    errors[label] = "invalid_code"
+                elif code:
+                    own[str(apt_id)] = code
+            # Eindeutig: untereinander und gegenüber den Kürzeln der anderen Konten
+            others = {v for (eid, _a), v in all_codes(self.hass, {entry.entry_id: own}).items() if eid != entry.entry_id}
+            seen: set[str] = set()
+            for (apt_id, _a), label in zip(apts, labels, strict=True):
+                code = own.get(str(apt_id))
+                if code and (code in seen or code in others):
+                    errors[label] = "duplicate_code"
+                if code:
+                    seen.add(code)
+            if not errors:
+                merged = {**entry.options, **self._general, **self._prov, **self._assist, **self._notify,
+                          CONF_APARTMENT_CODES: own}
+                # Ohne Auswahl entfernt der Selektor den Schlüssel nicht → explizit leeren,
+                # damit eine abgewählte KI-Entität nicht aus den alten Optionen weiterlebt.
+                if not self._assist.get(CONF_AI_ENTITY):
+                    merged.pop(CONF_AI_ENTITY, None)
+                return self.async_create_entry(data=merged)
+        auto = all_codes(self.hass, {entry.entry_id: {}})
+        schema = vol.Schema(
+            {
+                vol.Optional(label, description={"suggested_value": stored.get(str(apt_id), "")}): TextSelector()
+                for (apt_id, _a), label in zip(apts, labels, strict=True)
+            }
+        )
+        hint = ", ".join(f"{label}: {auto.get((entry.entry_id, int(apt_id)), '?')}"
+                         for (apt_id, _a), label in zip(apts, labels, strict=True))
+        return self.async_show_form(step_id="wohnungen", data_schema=schema, errors=errors,
+                                    description_placeholders={"auto": hint, "max": str(MAX_CODE_LEN)})
 

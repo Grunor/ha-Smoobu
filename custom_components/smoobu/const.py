@@ -92,6 +92,25 @@ CONF_ASSIST_PATH = "assist_path"  # Dashboard-Pfad für „Bearbeiten“
 CONF_ASSIST_BRIEFING = "assist_briefing"
 CONF_ASSIST_BRIEFING_TIME = "assist_briefing_time"
 CONF_ASSIST_GAPS = "assist_gaps"
+# Benachrichtigungen (v1.17.0): je Push-Art notify_<art> (an/aus) und notify_<art>_to (Empfänger)
+NOTIFY_TYPES = ["buchung", "storno", "nachricht", "vorschlag", "zahlung", "briefing", "luecken"]
+CONF_NOTIFY_QUIET = "notify_quiet"  # Ruhezeit an/aus
+CONF_NOTIFY_QUIET_FROM = "notify_quiet_from"
+CONF_NOTIFY_QUIET_TO = "notify_quiet_to"
+CONF_NOTIFY_QUIET_MESSAGES = "notify_quiet_messages"  # Gästenachrichten auch in der Ruhezeit sofort
+CONF_NOTIFY_PAYMENT_DAYS = "notify_zahlung_days"
+CONF_NOTIFY_PAYMENT_TIME = "notify_zahlung_time"
+CONF_NOTIFY_GAPS_TIME = "notify_luecken_time"
+DEFAULT_NOTIFY_QUIET_FROM = "21:00"
+DEFAULT_NOTIFY_QUIET_TO = "07:00"
+DEFAULT_NOTIFY_PAYMENT_DAYS = 7
+DEFAULT_NOTIFY_PAYMENT_TIME = "09:00"
+DEFAULT_NOTIFY_GAPS_TIME = "09:05"  # bisher fest 09:05
+
+# Wohnungskürzel (v1.17.0): {apartment_id (Text): Kürzel}; fehlt eine Wohnung → automatisch
+CONF_APARTMENT_CODES = "apartment_codes"
+MAX_CODE_LEN = 4
+
 SERVICE_ASSIST_SUGGEST = "assistant_suggest"
 SERVICE_ASSIST_IMPORT = "assistant_import"
 SERVICE_ASSIST_KNOWLEDGE = "assistant_build_knowledge"

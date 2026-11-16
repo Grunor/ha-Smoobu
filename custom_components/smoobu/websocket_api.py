@@ -23,7 +23,6 @@ weil Preise immer zu genau einer Wohnung gehören.
 
 from __future__ import annotations
 
-import re
 
 from datetime import date, timedelta
 from typing import Any
@@ -35,6 +34,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
+from .codes import all_codes, short_codes  # noqa: F401  (short_codes: Rückwärtskompatibilität)
 from .analytics import (
     COMPARES,
     PERIODS,
@@ -122,38 +122,6 @@ def _apt_id(value: Any) -> Any:
     return vol.Coerce(int)(value)
 
 
-# Allgemeine Wörter, die im Kürzel nichts unterscheiden („Ferienwohnung Seeblick“ → „SE“)
-_GENERIC = {"ferienwohnung", "fewo", "wohnung", "apartment", "appartement", "ferienhaus", "studio", "zimmer"}
-
-
-def short_codes(names: list[str]) -> list[str]:
-    """Automatische, eindeutige Kürzel je Wohnung (v1.15.0), z. B. „Haus Sonnenhang“ → „HS“.
-
-    Mehrere Wörter → Anfangsbuchstaben der ersten beiden (Zahlen ganz),
-    ein Wort → die ersten zwei Buchstaben. Allgemeine Wörter (Ferienwohnung …)
-    zählen nur, wenn sonst nichts übrig bleibt. Doppelte Kürzel bekommen 2, 3 …
-    """
-    out: list[str] = []
-    for name in names:
-        words = re.findall(r"[0-9]+|[^\W\d_]+", name or "")
-        useful = [w for w in words if w.casefold() not in _GENERIC] or words
-        if useful and all(w.isdigit() for w in useful) and useful != words:
-            useful = [words[0], *useful]  # „Wohnung 2“ → „W2“ statt nur „2“
-        if not useful:
-            code = "?"
-        elif len(useful) == 1:
-            code = useful[0][:2] if not useful[0].isdigit() else useful[0]
-        else:
-            code = "".join(w if w.isdigit() else w[0] for w in useful[:2])
-        code = code.upper()
-        base, n = code, 2
-        while code in out:
-            code = f"{base}{n}"
-            n += 1
-        out.append(code)
-    return out
-
-
 def channel_colors(names: list[str]) -> dict[str, str]:
     out, i = {}, 0
     for name in names:
@@ -216,8 +184,10 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
                     "aktualisiert": c.data.last_update.isoformat() if c.data and c.data.last_update else None,
                 }
             )
-    for apt, code in zip(result, short_codes([w["name"] or str(w["apartment_id"]) for w in result])):
-        apt["kuerzel"] = code
+    # v1.17.0: eigene Kürzel aus den Optionen, sonst automatisch (eindeutig über alle Konten)
+    codes = all_codes(hass)
+    for apt in result:
+        apt["kuerzel"] = codes.get((apt["entry_id"], apt["apartment_id"]), "?")
     connection.send_result(
         msg["id"],
         {"wohnungen": result, "zeitraeume": PERIODS, "vergleiche": COMPARES, "sperr_farbe": BLOCKED_COLOR,

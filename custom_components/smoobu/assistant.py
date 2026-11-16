@@ -54,16 +54,16 @@ from .api import SmoobuError
 from .const import (
     CONF_AI_ENTITY,
     CONF_ASSISTANT,
-    CONF_ASSIST_BRIEFING,
     CONF_ASSIST_BRIEFING_TIME,
-    CONF_ASSIST_GAPS,
     CONF_ASSIST_PATH,
-    CONF_ASSIST_RECIPIENTS,
     CONF_ASSIST_STATUS,
+    CONF_NOTIFY_GAPS_TIME,
+    DEFAULT_NOTIFY_GAPS_TIME,
     DOMAIN,
     ai_allowed,
 )
 from .models import free_gaps, strip_html
+from .notifications import opt_enabled, opt_recipients
 
 if TYPE_CHECKING:
     from .coordinator import SmoobuCoordinator
@@ -240,14 +240,17 @@ class SmoobuAssistant:
         self._unsubs.append(
             self.hass.bus.async_listen("mobile_app_notification_action", self._on_push_action)
         )
-        if self.opts.get(CONF_ASSIST_BRIEFING):
+        # v1.17.0: an/aus und Uhrzeiten aus dem Optionsschritt „Benachrichtigungen“
+        # (ohne neue Optionen gelten Tagesbriefing/Lücken wie bisher)
+        if opt_enabled(self.opts, "briefing"):
             hh, mm = (self.opts.get(CONF_ASSIST_BRIEFING_TIME) or "07:30")[:5].split(":")
             self._unsubs.append(
                 async_track_time_change(self.hass, self._briefing, hour=int(hh), minute=int(mm), second=0)
             )
-        if self.opts.get(CONF_ASSIST_GAPS):
+        if opt_enabled(self.opts, "luecken"):
+            hh, mm = (self.opts.get(CONF_NOTIFY_GAPS_TIME) or DEFAULT_NOTIFY_GAPS_TIME)[:5].split(":")
             self._unsubs.append(
-                async_track_time_change(self.hass, self._gap_check, hour=9, minute=5, second=0)
+                async_track_time_change(self.hass, self._gap_check, hour=int(hh), minute=int(mm), second=0)
             )
 
     async def async_unload(self) -> None:
@@ -581,20 +584,19 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
             sug = self.data["vorschlaege"].get(str(rid))
             if sug and sug["status"] == "offen":
                 sug["status"] = "erledigt"
-                await self._clear_push(rid)
                 self._changed()
+            # v1.17.0: auch einen reinen Nachrichten-Push (ohne Vorschlag) entfernen – beantwortet
+            await self._clear_push(rid)
             return
-        if not self.enabled:
-            return
-        try:
-            await self.suggest(rid, "antwort", notify=True, msgs=msgs)
-        except SmoobuError as err:
-            _LOGGER.warning("Smoobu-Assistent: Vorschlag für %s fehlgeschlagen: %s", rid, err)
-            await self._notify(
-                "⚠️ Smoobu-Assistent",
-                f"Neue Gästenachricht (Buchung {rid}), aber kein Vorschlag möglich: {err}",
-                {"tag": f"smoobu_vorschlag_{rid}", "url": self.opts.get(CONF_ASSIST_PATH) or "/lovelace"},
-            )
+        # v1.17.0: Mit automatischem Vorschlag (KI erlaubt, Vorschlag-Push an) kommt der Vorschlag,
+        # der die Gästenachricht enthält. Sonst – oder wenn der Vorschlag scheitert – der Nachrichten-Push.
+        if self.enabled and opt_enabled(self.opts, "vorschlag"):
+            try:
+                await self.suggest(rid, "antwort", notify=True, msgs=msgs)
+                return
+            except SmoobuError as err:
+                _LOGGER.warning("Smoobu-Assistent: Vorschlag für %s fehlgeschlagen: %s", rid, err)
+        await self._push_message(rid, latest)
 
     # --- Senden / Push-Aktionen -------------------------------------------------
     async def send(self, rid: int, text: str, source: str = "gesendet") -> None:
@@ -628,9 +630,9 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
         if kind == "LUECKE":
             try:
                 await self.apply_gap(sid)
-                await self._notify("✅ Lücke angepasst", "Mindestaufenthalt/Preis in Smoobu gesetzt.", {"tag": "smoobu_luecke_ok"})
+                await self._notify("✅ Lücke angepasst", "Mindestaufenthalt/Preis in Smoobu gesetzt.", {"tag": "smoobu_luecke_ok"}, kind="luecken", always=True)
             except SmoobuError as err:
-                await self._notify("⚠️ Smoobu-Assistent", f"Lücke nicht angepasst: {err}", {"tag": "smoobu_luecke_ok"})
+                await self._notify("⚠️ Smoobu-Assistent", f"Lücke nicht angepasst: {err}", {"tag": "smoobu_luecke_ok"}, kind="luecken", always=True)
             return
         sug = self.data["vorschlaege"].get(str(rid))
         if not sug or sug["id"] != sid:
@@ -639,7 +641,7 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
             if kind == "SENDEN":
                 text = event.data.get("reply_text") or sug["antwort"]
                 await self.send(rid, text)
-                await self._notify("✅ Gesendet", f"Antwort an {sug['gast']} gesendet.", {"tag": f"smoobu_vorschlag_{rid}"})
+                await self._notify("✅ Gesendet", f"Antwort an {sug['gast']} gesendet.", {"tag": f"smoobu_vorschlag_{rid}"}, always=True)
             elif kind == "IGNORIEREN":
                 sug["status"] = "ignoriert"
                 self._changed()
@@ -649,9 +651,9 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
                 await self.c.async_request_refresh()
                 await self._notify("🕘 Ankunftszeit übernommen",
                                    f"{sug['gast']}: Ankunft {sug['ankunftszeit']} in Smoobu gespeichert.",
-                                   {"tag": f"smoobu_zeit_{rid}"})
+                                   {"tag": f"smoobu_zeit_{rid}"}, always=True)
         except SmoobuError as err:
-            await self._notify("⚠️ Smoobu-Assistent", f"Aktion fehlgeschlagen: {err}", {"tag": f"smoobu_fehler_{rid}"})
+            await self._notify("⚠️ Smoobu-Assistent", f"Aktion fehlgeschlagen: {err}", {"tag": f"smoobu_fehler_{rid}"}, always=True)
 
     async def _push_suggestion(self, sug: dict[str, Any], rec: dict[str, Any]) -> None:
         rid, sid = sug["buchung_id"], sug["id"]
@@ -676,21 +678,35 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
             data["push"] = {"interruption-level": "time-sensitive"}
             data["ttl"] = 0
             data["priority"] = "high"
-        await self._notify(f"{head}{rec.get('gast')} ({rec.get('kanal')})", body, data)
+        await self._notify(f"{head}{rec.get('gast')} ({rec.get('kanal')})", body, data, kind="vorschlag", urgent=sug["dringend"])
+
+    async def _push_message(self, rid: int, msg: dict[str, Any]) -> None:
+        """v1.17.0: Neue Gästenachricht ohne KI-Vorschlag (Push-Art „nachricht“)."""
+        rec = next((r for r in self.c.records_all() if r["id"] == rid), {}) or {}
+        text = strip_quote(self._text(msg))[:400]
+        prefix = ""
+        if self.c.data and len(self.c.data.apartments) > 1:
+            prefix = f"[{self.c.apartment_code(rec.get('wohnung_id'))}] "
+        path = self.opts.get(CONF_ASSIST_PATH) or "/lovelace"
+        await self._notify(f"💬 {prefix}{rec.get('gast') or 'Gast'}" + (f" ({rec['kanal']})" if rec.get("kanal") else ""),
+                           f"„{text}“", {"tag": f"smoobu_vorschlag_{rid}", "url": path, "clickAction": path},
+                           kind="nachricht")
 
     async def _clear_push(self, rid: int) -> None:
-        await self._notify(None, "clear_notification", {"tag": f"smoobu_vorschlag_{rid}"})
+        # Vorschlag und Nachricht teilen sich die Kennung → beide Empfängerkreise aufräumen
+        for kind in ("vorschlag", "nachricht"):
+            await self._notify(None, "clear_notification", {"tag": f"smoobu_vorschlag_{rid}"}, kind=kind, always=True)
 
-    async def _notify(self, title: str | None, message: str, data: dict[str, Any]) -> None:
-        for svc in self.opts.get(CONF_ASSIST_RECIPIENTS) or []:
-            name = svc.removeprefix("notify.")
-            payload: dict[str, Any] = {"message": message, "data": data}
-            if title:
-                payload["title"] = title
-            try:
-                await self.hass.services.async_call("notify", name, payload, blocking=False)
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.warning("Push an %s fehlgeschlagen: %s", name, err)
+    async def _notify(self, title: str | None, message: str, data: dict[str, Any], *,
+                      kind: str = "vorschlag", urgent: bool = False, always: bool = False) -> None:
+        """Zustellung über die Benachrichtigungen (v1.17.0): Empfänger, an/aus und Ruhezeit je Art.
+
+        always=True: Bestätigungen/Fehler auf eigene Aktionen – unabhängig von an/aus, sofort.
+        """
+        notifier = getattr(self.c, "notifier", None)
+        if notifier is None:
+            return
+        await notifier.send(kind, title, message, data, urgent=urgent or always, check_enabled=not always)
 
     # --- Zusatzaufgaben ---------------------------------------------------------
     def briefing_text(self) -> str | None:
@@ -718,7 +734,8 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
     async def _briefing(self, _now: datetime) -> None:
         text = self.briefing_text()
         if text:
-            await self._notify("☀️ Haus heute", text, {"tag": "smoobu_briefing", "url": self.opts.get(CONF_ASSIST_PATH) or "/lovelace"})
+            await self._notify("☀️ Haus heute", text, {"tag": "smoobu_briefing", "url": self.opts.get(CONF_ASSIST_PATH) or "/lovelace"},
+                               kind="briefing")
 
     def gap_suggestions(self) -> list[dict[str, Any]]:
         """Lücken (≤ 30 Tage), die wegen Mindestaufenthalt nicht buchbar sind."""
@@ -750,7 +767,7 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
             await self._notify("📅 Nicht buchbare Lücke", msg, {
                 "tag": f"smoobu_luecke_{g['von']}",
                 "actions": [{"action": f"{ACTION_PREFIX}LUECKE_{g['wohnung']}_{gid}", "title": f"Mindestaufenthalt {g['naechte']} setzen"}],
-            })
+            }, kind="luecken")
             self._changed()
 
     async def apply_gap(self, gid: str) -> None:
@@ -875,7 +892,8 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
             "ki_erlaubt": self.ai_allowed,
             "ki_sperre": None if self.ai_allowed else (AI_LOCKED if self.opts.get(CONF_AI_ENTITY) else "Keine KI ausgewählt"),
             "ki": self.opts.get(CONF_AI_ENTITY),
-            "empfaenger": self.opts.get(CONF_ASSIST_RECIPIENTS) or [],
+            # v1.17.0: Empfänger der Vorschlag-Pushes (aus „Benachrichtigungen“, sonst bisherige)
+            "empfaenger": opt_recipients(self.opts, "vorschlag"),
             "status_entitaeten": self.opts.get(CONF_ASSIST_STATUS) or [],
             "fehler": self.last_error,
             "wissen": self.data["wissen"],

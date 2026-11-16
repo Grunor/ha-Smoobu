@@ -186,11 +186,23 @@ Schritt **Provisionen**: Provision je Kanal in %, Direktkanäle. Schritt **KI-As
 | **KI-Funktionen erlauben** | aus (bei Installationen vor 1.14.0 mit gewählter KI: an) | Hauptschalter. Aus = KI **gesperrt**: kein Aufruf von `ai_task`, keine Daten an einen KI-Anbieter, KI-Buttons in den Karten ausgegraut. Gilt für Karten, Aktionen, WebSocket, Push-Buttons und Webhook |
 | Automatische Antwortvorschläge | aus | Bei jeder neuen Gästenachricht einen Vorschlag erzeugen und per Push senden (nur mit erlaubter KI) |
 | KI (KI-Aufgabe) | – | `ai_task`-Entität, z. B. Google Gemini; Pflicht, wenn die KI erlaubt ist |
-| Pushes an | – | `notify.mobile_app_*` (Buttons Senden/Bearbeiten/Ignorieren) |
 | HA-Entitäten als Kontext | – | z. B. Heizung, Tür, Außentemperatur |
 | Dashboard-Seite für „Bearbeiten“ | `/lovelace` | z. B. `/dashboard-ferienwohnung/smoobu-nachrichten` |
-| Tagesbriefing per Push, Uhrzeit | aus, 07:30 | funktioniert ohne KI |
-| Nicht buchbare Lücken melden | aus | täglich 09:05, funktioniert ohne KI |
+
+Schritt **Benachrichtigungen** (ab 1.17.0) – je Push-Art an/aus und eigene Empfänger (`notify.mobile_app_*`; leer = bisherige Empfänger des Assistenten):
+
+| Push-Art | Standard | Wann |
+|---|---|---|
+| Neue Buchung | aus | sofort (Ruhezeit beachtet) |
+| Storno / Änderung | aus | sofort, mit Vorher → Nachher (Zeitraum, Personen, Ankunftszeit, Preis) |
+| Neue Gästenachricht | aus | sofort, wenn kein KI-Vorschlag kommt; verschwindet nach Antwort/Abhaken |
+| KI-Antwortvorschlag | an | sofort, nicht dringende in der Ruhezeit gesammelt |
+| Zahlungserinnerung | aus, 7 Tage, 09:00 | täglich zur Uhrzeit: offener Betrag X Tage vor und am Anreisetag |
+| Tagesbriefing | aus, 07:30 | täglich zur Uhrzeit, funktioniert ohne KI |
+| Nicht buchbare Lücken | aus, 09:05 | täglich zur Uhrzeit, funktioniert ohne KI |
+| **Ruhezeit** | aus, 21:00–07:00 | Buchungen, Stornos/Änderungen und nicht dringende Vorschläge werden gesammelt und zum Ende zugestellt (je Buchung der neueste Stand). „Gästenachrichten trotzdem sofort“ (Standard an) |
+
+Schritt **Wohnungskürzel** (ab 1.17.0): eigenes Kürzel je Wohnung (bis 4 Zeichen, Buchstaben/Ziffern, eindeutig über alle Konten); leer = automatisch. Gilt für Dashboard und Pushes.
 
 Nach dem Speichern wird die Integration automatisch neu geladen.
 
@@ -846,11 +858,23 @@ Step **Commissions**: commission per channel in %, direct channels. Step **AI as
 | **Allow AI features** | off (installations before 1.14.0 with an AI selected: on) | Master switch. Off = AI **locked**: no `ai_task` call, no data sent to an AI provider, AI buttons in the cards greyed out. Applies to cards, actions, WebSocket, push buttons and webhook |
 | Automatic reply suggestions | off | Create a suggestion for every new guest message and push it (only with AI allowed) |
 | AI (AI task) | – | `ai_task` entity, e.g. Google Gemini; required when AI is allowed |
-| Push to | – | `notify.mobile_app_*` (Send/Edit/Ignore buttons) |
 | HA entities as context | – | e.g. heating, door, outdoor temperature |
 | Dashboard page for "Edit" | `/lovelace` | e.g. `/dashboard-ferienwohnung/smoobu-nachrichten` |
-| Daily briefing push, time | off, 07:30 | works without AI |
-| Report unbookable gaps | off | daily at 09:05, works without AI |
+
+Step **Notifications** (since 1.17.0) – per push type on/off and own recipients (`notify.mobile_app_*`; empty = previous assistant recipients):
+
+| Push type | Default | When |
+|---|---|---|
+| New booking | off | immediately (quiet hours respected) |
+| Cancellation / change | off | immediately, before → after (dates, guests, arrival time, price) |
+| New guest message | off | immediately when no AI suggestion is sent; removed after reply/mark done |
+| AI reply suggestion | on | immediately, non-urgent ones collected during quiet hours |
+| Payment reminder | off, 7 days, 09:00 | daily at the time: open amount X days before and on the arrival day |
+| Daily briefing | off, 07:30 | daily at the time, works without AI |
+| Unbookable gaps | off, 09:05 | daily at the time, works without AI |
+| **Quiet hours** | off, 21:00–07:00 | bookings, cancellations/changes and non-urgent suggestions are collected and delivered at the end (latest state per booking). "Guest messages immediately anyway" (default on) |
+
+Step **Property codes** (since 1.17.0): own code per property (up to 4 characters, letters/digits, unique across accounts); empty = automatic. Used in dashboard and pushes.
 
 The integration reloads automatically after saving.
 

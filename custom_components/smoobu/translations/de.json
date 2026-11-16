@@ -89,27 +89,127 @@
           "ai_enabled": "KI-Funktionen erlauben",
           "assistant": "Automatische Antwortvorschläge bei neuen Gästenachrichten",
           "ai_entity": "KI (KI-Aufgabe)",
-          "assist_recipients": "Pushes an (mobile App)",
           "assist_status": "HA-Entitäten als Kontext",
-          "assist_path": "Dashboard-Seite für „Bearbeiten“",
-          "assist_briefing": "Tagesbriefing per Push",
-          "assist_briefing_time": "Uhrzeit Tagesbriefing",
-          "assist_gaps": "Nicht buchbare Lücken melden"
+          "assist_path": "Dashboard-Seite für „Bearbeiten“"
         },
         "data_description": {
           "ai_enabled": "Aus = KI vollständig gesperrt: keine Vorschläge, kein „Wissen erzeugen“, keine Daten an einen KI-Anbieter. Die KI-Buttons in den Karten werden ausgegraut.",
           "assistant": "Wirkt nur, wenn die KI erlaubt ist. Vorschläge auf Abruf (✨ in der Karte) gehen auch ohne diese Option.",
           "ai_entity": "z. B. Google Gemini. Wird über ai_task.generate_data aufgerufen.",
-          "assist_recipients": "Nur mobile_app-Dienste können Buttons (Senden, Ignorieren, Ankunftszeit übernehmen).",
           "assist_status": "z. B. Heizung, Tür, Außentemperatur – hilft bei Problemmeldungen.",
-          "assist_path": "z. B. /dashboard-ferienwohnung/smoobu-nachrichten",
-          "assist_gaps": "Täglich 09:05: Lücken ≤ 30 Tage, die wegen Mindestaufenthalt nicht buchbar sind, mit Button zum Anpassen."
+          "assist_path": "z. B. /dashboard-ferienwohnung/smoobu-nachrichten"
         }
+      },
+      "benachrichtigungen": {
+        "title": "Benachrichtigungen",
+        "description": "Welche Pushes an wen und wann. Check-in-, Reinigungs- oder Hunde-Hinweise aus eigenen Automationen sind davon unabhängig.",
+        "sections": {
+          "buchung": {
+            "name": "Neue Buchung",
+            "description": "Gast, Zeitraum, Nächte, Personen, Kanal, Preis und 🐕 – sobald die Buchung in Smoobu angelegt ist.",
+            "data": {
+              "aktiv": "Aktiv",
+              "empfaenger": "Empfänger"
+            },
+            "data_description": {
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+            }
+          },
+          "storno": {
+            "name": "Storno / Änderung",
+            "description": "Storniert oder Zeitraum, Personen, Ankunftszeit bzw. Preis geändert (mit Vorher → Nachher).",
+            "data": {
+              "aktiv": "Aktiv",
+              "empfaenger": "Empfänger"
+            },
+            "data_description": {
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+            }
+          },
+          "nachricht": {
+            "name": "Neue Gästenachricht",
+            "description": "Text der Nachricht, wenn kein KI-Vorschlag kommt (KI aus, Vorschlag-Push aus oder Vorschlag fehlgeschlagen). Verschwindet, sobald geantwortet oder abgehakt wurde.",
+            "data": {
+              "aktiv": "Aktiv",
+              "empfaenger": "Empfänger"
+            },
+            "data_description": {
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+            }
+          },
+          "vorschlag": {
+            "name": "KI-Antwortvorschlag",
+            "description": "Vorschlag mit Buttons Senden/Bearbeiten/Ignorieren (nur mit erlaubter KI und automatischen Vorschlägen). Dringende Vorschläge kommen auch in der Ruhezeit.",
+            "data": {
+              "aktiv": "Aktiv",
+              "empfaenger": "Empfänger"
+            },
+            "data_description": {
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+            }
+          },
+          "zahlung": {
+            "name": "Zahlungserinnerung",
+            "description": "Offener Betrag einer Buchung X Tage vor der Anreise und am Anreisetag (ohne Kanäle mit Zahlung über das Portal).",
+            "data": {
+              "aktiv": "Aktiv",
+              "empfaenger": "Empfänger",
+              "tage": "Tage vor Anreise",
+              "uhrzeit": "Uhrzeit"
+            },
+            "data_description": {
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+            }
+          },
+          "briefing": {
+            "name": "Tagesbriefing",
+            "description": "An-/Abreisen, Gästewechsel und unbeantwortete Nachrichten des Tages.",
+            "data": {
+              "aktiv": "Aktiv",
+              "empfaenger": "Empfänger",
+              "uhrzeit": "Uhrzeit"
+            },
+            "data_description": {
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+            }
+          },
+          "luecken": {
+            "name": "Nicht buchbare Lücken",
+            "description": "Lücken ≤ 30 Tage, die wegen des Mindestaufenthalts nicht buchbar sind, mit Button zum Anpassen.",
+            "data": {
+              "aktiv": "Aktiv",
+              "empfaenger": "Empfänger",
+              "uhrzeit": "Uhrzeit"
+            },
+            "data_description": {
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+            }
+          },
+          "ruhezeit": {
+            "name": "Ruhezeit",
+            "description": "Neue Buchungen, Stornos/Änderungen und nicht dringende Vorschläge werden in der Ruhezeit gesammelt und zum Ende zugestellt (je Buchung nur der neueste Stand). Briefing, Lücken und Zahlungen kommen zu ihrer Uhrzeit.",
+            "data": {
+              "aktiv": "Ruhezeit aktiv",
+              "von": "Von",
+              "bis": "Bis",
+              "nachrichten_sofort": "Gästenachrichten trotzdem sofort"
+            },
+            "data_description": {
+              "nachrichten_sofort": "Ein Gast, der nachts nicht in die Wohnung kommt, soll nicht bis morgens warten."
+            }
+          }
+        }
+      },
+      "wohnungen": {
+        "title": "Wohnungskürzel",
+        "description": "Kürzel je Wohnung für Dashboard und Pushes (bis {max} Zeichen, Buchstaben/Ziffern, eindeutig über alle Smoobu-Konten). Leer = automatisch. Automatisch wären: {auto}."
       }
     },
     "error": {
       "invalid_custom": "Format: Kanal=Prozent; Kanal=Prozent",
-      "ai_entity_required": "Bitte eine KI auswählen oder „KI-Funktionen erlauben“ ausschalten."
+      "ai_entity_required": "Bitte eine KI auswählen oder „KI-Funktionen erlauben“ ausschalten.",
+      "invalid_code": "Nur Buchstaben und Ziffern.",
+      "duplicate_code": "Kürzel bereits vergeben."
     }
   },
   "entity": {

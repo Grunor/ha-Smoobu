@@ -132,6 +132,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         self._no_reply: dict[str, int] | None = None  # None = noch nicht geladen
         # KI-Assistent (assistant.py), gesetzt in __init__.async_setup_entry
         self.assistant: Any = None
+        self.notifier: Any = None  # v1.17.0: Benachrichtigungen (notifications.SmoobuNotifier)
 
     # --- Optionen bequem lesbar ----------------------------------------
     @property
@@ -188,6 +189,15 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         if not self.data:
             return []
         return self.data.records.get(apartment_id, [])
+
+    def apartment_code(self, apartment_id: Any) -> str:
+        """Kürzel einer Wohnung (v1.17.0: eigenes aus den Optionen, sonst automatisch)."""
+        from .codes import all_codes  # noqa: PLC0415 – vermeidet Importzyklus
+
+        try:
+            return all_codes(self.hass).get((self.config_entry.entry_id, int(apartment_id)), "?")
+        except (TypeError, ValueError):
+            return "?"
 
     def records_all(self) -> list[dict[str, Any]]:
         """Datensätze aller Wohnungen des Kontos."""

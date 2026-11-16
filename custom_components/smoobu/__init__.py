@@ -38,6 +38,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.network import NoURLAvailableError
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
@@ -89,6 +90,7 @@ from .const import (
 )
 from .analytics import block_channel_id
 from .assistant import SmoobuAssistant
+from .notifications import SmoobuNotifier
 from .coordinator import SmoobuCoordinator
 from .frontend import async_register_frontend
 from .websocket_api import async_register as async_register_websocket
@@ -125,6 +127,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> bo
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     # KI-Assistent (Wissensdatenbank, Beispiele, Push-Aktionen); ohne KI-Option inaktiv
+    # v1.17.0: Benachrichtigungen (Push-Arten, Empfänger, Ruhezeit) – vor dem Assistenten,
+    # weil dessen Pushes darüber laufen
+    coordinator.notifier = SmoobuNotifier(hass, coordinator)
+    await coordinator.notifier.async_setup()
     coordinator.assistant = SmoobuAssistant(hass, coordinator)
     await coordinator.assistant.async_setup()
 
@@ -145,6 +151,8 @@ async def _async_reload(hass: HomeAssistant, entry: SmoobuConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> bool:
     if getattr(entry, "runtime_data", None) and entry.runtime_data.assistant:
         await entry.runtime_data.assistant.async_unload()
+    if getattr(entry, "runtime_data", None) and entry.runtime_data.notifier:
+        await entry.runtime_data.notifier.async_unload()
     if webhook_id := entry.data.get(CONF_WEBHOOK_ID):
         webhook.async_unregister(hass, webhook_id)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
@@ -156,6 +164,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> N
         async_get_clientsession(hass), entry.data[CONF_API_KEY], entry.data[CONF_API_SECRET]
     )
     await _async_remove_remote_webhook(hass, entry, client, update_entry=False)
+    # v1.17.0: Warteschlange/Erinnerungsstand der Benachrichtigungen entfernen
+    await Store(hass, 1, f"{DOMAIN}_notify_{entry.entry_id}").async_remove()
 
 
 # ===========================================================================

@@ -89,27 +89,127 @@
           "ai_enabled": "KI-Funktionen erlauben",
           "assistant": "Automatische Antwortvorschläge bei neuen Gästenachrichten",
           "ai_entity": "KI (KI-Aufgabe)",
-          "assist_recipients": "Pushes an (mobile App)",
           "assist_status": "HA-Entitäten als Kontext",
-          "assist_path": "Dashboard-Seite für „Bearbeiten“",
-          "assist_briefing": "Tagesbriefing per Push",
-          "assist_briefing_time": "Uhrzeit Tagesbriefing",
-          "assist_gaps": "Nicht buchbare Lücken melden"
+          "assist_path": "Dashboard-Seite für „Bearbeiten“"
         },
         "data_description": {
           "ai_enabled": "Aus = KI vollständig gesperrt: keine Vorschläge, kein „Wissen erzeugen“, keine Daten an einen KI-Anbieter. Die KI-Buttons in den Karten werden ausgegraut.",
           "assistant": "Wirkt nur, wenn die KI erlaubt ist. Vorschläge auf Abruf (✨ in der Karte) gehen auch ohne diese Option.",
           "ai_entity": "z. B. Google Gemini. Wird über ai_task.generate_data aufgerufen.",
-          "assist_recipients": "Nur mobile_app-Dienste können Buttons (Senden, Ignorieren, Ankunftszeit übernehmen).",
           "assist_status": "z. B. Heizung, Tür, Außentemperatur – hilft bei Problemmeldungen.",
-          "assist_path": "z. B. /dashboard-ferienwohnung/smoobu-nachrichten",
-          "assist_gaps": "Täglich 09:05: Lücken ≤ 30 Tage, die wegen Mindestaufenthalt nicht buchbar sind, mit Button zum Anpassen."
+          "assist_path": "z. B. /dashboard-ferienwohnung/smoobu-nachrichten"
         }
+      },
+      "benachrichtigungen": {
+        "title": "Notifications",
+        "description": "Which pushes go to whom and when. Check-in, cleaning or dog notices from your own automations are independent of this.",
+        "sections": {
+          "buchung": {
+            "name": "New booking",
+            "description": "Guest, dates, nights, guests, channel, price and 🐕 – as soon as the booking exists in Smoobu.",
+            "data": {
+              "aktiv": "Enabled",
+              "empfaenger": "Recipients"
+            },
+            "data_description": {
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+            }
+          },
+          "storno": {
+            "name": "Cancellation / change",
+            "description": "Cancelled, or dates, guests, arrival time or price changed (before → after).",
+            "data": {
+              "aktiv": "Enabled",
+              "empfaenger": "Recipients"
+            },
+            "data_description": {
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+            }
+          },
+          "nachricht": {
+            "name": "New guest message",
+            "description": "Message text when no AI suggestion is sent (AI off, suggestion push off or suggestion failed). Disappears once answered or marked done.",
+            "data": {
+              "aktiv": "Enabled",
+              "empfaenger": "Recipients"
+            },
+            "data_description": {
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+            }
+          },
+          "vorschlag": {
+            "name": "AI reply suggestion",
+            "description": "Suggestion with Send/Edit/Ignore buttons (only with AI allowed and automatic suggestions). Urgent suggestions also arrive during quiet hours.",
+            "data": {
+              "aktiv": "Enabled",
+              "empfaenger": "Recipients"
+            },
+            "data_description": {
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+            }
+          },
+          "zahlung": {
+            "name": "Payment reminder",
+            "description": "Open amount of a booking X days before arrival and on the arrival day (excluding channels paid via the portal).",
+            "data": {
+              "aktiv": "Enabled",
+              "empfaenger": "Recipients",
+              "tage": "Days before arrival",
+              "uhrzeit": "Time"
+            },
+            "data_description": {
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+            }
+          },
+          "briefing": {
+            "name": "Daily briefing",
+            "description": "Arrivals, departures, changeovers and unanswered messages of the day.",
+            "data": {
+              "aktiv": "Enabled",
+              "empfaenger": "Recipients",
+              "uhrzeit": "Time"
+            },
+            "data_description": {
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+            }
+          },
+          "luecken": {
+            "name": "Unbookable gaps",
+            "description": "Gaps ≤ 30 days that cannot be booked because of the minimum stay, with a button to adjust.",
+            "data": {
+              "aktiv": "Enabled",
+              "empfaenger": "Recipients",
+              "uhrzeit": "Time"
+            },
+            "data_description": {
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+            }
+          },
+          "ruhezeit": {
+            "name": "Quiet hours",
+            "description": "New bookings, cancellations/changes and non-urgent suggestions are collected during quiet hours and delivered at the end (latest state per booking only). Briefing, gaps and payments arrive at their time.",
+            "data": {
+              "aktiv": "Quiet hours enabled",
+              "von": "From",
+              "bis": "Until",
+              "nachrichten_sofort": "Guest messages immediately anyway"
+            },
+            "data_description": {
+              "nachrichten_sofort": "A guest who cannot get in at night should not wait until morning."
+            }
+          }
+        }
+      },
+      "wohnungen": {
+        "title": "Property codes",
+        "description": "Code per property for dashboard and pushes (up to {max} characters, letters/digits, unique across all Smoobu accounts). Empty = automatic. Automatic codes: {auto}."
       }
     },
     "error": {
       "invalid_custom": "Format: Channel=percent; Channel=percent",
-      "ai_entity_required": "Please select an AI or turn off \"Allow AI features\"."
+      "ai_entity_required": "Please select an AI or turn off \"Allow AI features\".",
+      "invalid_code": "Letters and digits only.",
+      "duplicate_code": "Code already in use."
     }
   },
   "entity": {
