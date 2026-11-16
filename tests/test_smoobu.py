@@ -421,6 +421,13 @@ async def test_websocket(hass, setup, hass_ws_client, aioclient_mock):
     assert res["buchung"]["gast"] == "Max Mustermann" and res["nachrichten"][0]["text"] == "Hallo"
     await ws.send_json({"id": 5, "type": "smoobu/subscribe"})
     assert (await ws.receive_json())["success"]
+    # Statistik-Werkbank: Stichtag-Abfrage (Teil 2) wird angenommen, ungültiges Datum abgelehnt
+    await ws.send_json({"id": 6, "type": "smoobu/stats", "mode": "query", "measure": "umsatz", "dimension": "gesamt",
+                        "start": "2026-11-01", "end": "2026-12-01", "as_of": "2026-11-15"})
+    res = await ws.receive_json()
+    assert res["success"] and res["result"]["zeilen"][0]["fach"] == "Gesamt"
+    await ws.send_json({"id": 7, "type": "smoobu/stats", "mode": "query", "measure": "umsatz", "as_of": "kein-datum"})
+    assert (await ws.receive_json())["error"]["code"] == "invalid_format"
 
 
 async def test_write_services(hass, setup, aioclient_mock):

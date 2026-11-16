@@ -11,6 +11,7 @@
  *                                 markieren → sperren oder Preise setzen
  *   custom:smoobu-bookings-card   Buchungsliste: Suche, Filter, Sortierung, Summen, CSV-Export
  *   custom:smoobu-analytics-card  Finanzen & Kanäle: frei filterbar, Vergleich, Diagramm, Prognose
+ *   custom:smoobu-stats-card      Statistik-Werkbank: Kennzahlenleiste, Buchungstempo/Prognose, Saison-Matrix
  *   custom:smoobu-inbox-card      Nachrichten der laufenden/kommenden Buchungen, antworten
  * Ein Klick auf eine Buchung öffnet überall dieselbe Detailansicht
  * (Gast, Preis, Kosten, Notiz, Zeiten ändern, Nachrichten, Sperre löschen).
@@ -100,6 +101,12 @@ const EN = {
   "In Smoobu gespeichert": "Saved in Smoobu", "offen": "open",
   // v1.17.0: Portal-Buchungen als erhalten markieren
   "über": "via", "Portal": "Portal", "Weitere ohne Markierung": "More not yet marked",
+  // Statistik-Werkbank (Teilschritt 2)
+  "Statistik": "Statistics", "Werkbank": "Workbench", "Einfach": "Simple", "Quartal": "Quarter", "Saison": "Season",
+  "Raster": "Grid", "Woche": "Week", "Stichtag Vorjahr": "Same day last year", "Ganzes Vorjahr": "Full previous year",
+  "Buchungstempo": "Booking pace", "Saison-Matrix": "Season matrix", "Prognose": "Forecast", "Spanne": "Range",
+  "wahrscheinlich": "likely", "wenig Daten": "low data", "Treiber": "Driver", "Größter Hebel": "Biggest lever",
+  "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
 };
 let LANG = "de";
 const t = (s) => (LANG === "de" ? s : EN[s] || s);
@@ -2464,6 +2471,678 @@ class SmoobuAssistantCard extends SmoobuCard {
 }
 
 // ===========================================================================
+// Statistik-Werkbank (Teilschritt 2): custom:smoobu-stats-card
+// ===========================================================================
+// Eine Karte für die Seite „smoobu-statistik“. Daten aus smoobu/stats (Baukasten-
+// Abfrage + Pace-Modell, stats.py) und für freie Nächte aus smoobu/analytics.
+// Aufbau: Aussage-Satz → Filterleiste (sticky) → Modul 1 Kennzahlenleiste (+ Fokus-
+// Verlauf) → Modul 2 Buchungstempo/Prognose → Modul 3 Saison-Matrix.
+// Weitere Module (4–11, Baukasten) folgen in den Teilschritten 3 und 4.
+//
+// Statistik-Regeln (Konzept 16.11.2026): Median für Vorlauf, n bei jeder Zahl,
+// n < 5 blass („wenig Daten“), Prognose als Spanne, eine y-Achse je Diagramm,
+// immer Legende oder Direktbeschriftung.
+//
+// Entscheidungen:
+// - Eigene SVG-Grafiken statt ApexCharts (wie alle Smoobu-Karten: kein Build, keine
+//   Abhängigkeit, Farben aus dem Design A).
+// - Werkbank/Einfach je Gerät (localStorage), Standard nach Fensterbreite: < 700 px Einfach.
+// - Vergleich „Stichtag Vorjahr“ rechnet mit dem Buchungsstand vor genau einem Jahr
+//   (smoobu/stats `as_of`), sonst wäre ein laufender Zeitraum gegen ein fertiges Vorjahr
+//   immer schlechter.
+// - Die Pace-Kurve arbeitet mit Umsatz brutto (Pace-Modell im Backend). Die Fokus-Kennzahl
+//   aus der Kennzahlenleiste steuert den großen Verlauf direkt unter der Leiste und – wo
+//   möglich – die Saison-Matrix.
+const STATS_MODE_KEY = "smoobu-statistik-modus";
+// Kennzahlenleiste: id = Kennzahl aus stats.MEASURES; pp = Veränderung in Prozentpunkten;
+// invert = höher ist schlecht
+const STATS_KPIS = [
+  { id: "umsatz", label: "Umsatz", hint: "Umsatz brutto, anteilig nach Nächten" },
+  { id: "auslastung", label: "Auslastung", pp: true, hint: "Belegte Nächte ÷ verfügbare Nächte" },
+  { id: "adr", label: "ADR", hint: "Ø Preis je belegter Nacht (brutto)" },
+  { id: "revpar", label: "RevPAR", hint: "Umsatz je verfügbarer Nacht = ADR × Auslastung" },
+  { id: "netto_revpar", label: "Netto-RevPAR", hint: "Netto (nach Provision und Gebühren) je verfügbarer Nacht" },
+  { id: "vorlauf", label: "Vorlauf", hint: "Median der Tage zwischen Buchung und Anreise (Anreisen im Zeitraum)" },
+  { id: "stornoquote", label: "Stornoquote", pp: true, invert: true, hint: "Stornos ÷ alle Buchungen mit Anreise im Zeitraum" },
+];
+const STATS_EINFACH = ["umsatz", "auslastung", "adr", "stornoquote"];
+const MATRIX_MEASURES = [["auslastung", "Auslastung"], ["umsatz", "Umsatz"], ["adr", "ADR"], ["revpar", "RevPAR"], ["netto", "Netto"]];
+const PERIOD_TYPES = [["monat", "Monat"], ["quartal", "Quartal"], ["saison", "Saison"], ["jahr", "Jahr"], ["frei", "Frei"]];
+const PERIOD_MONTHS = { monat: 1, quartal: 3, saison: 3, jahr: 12 };
+const STATS_COMPARE = [["stichtag", "Stichtag Vorjahr"], ["vorjahr", "Ganzes Vorjahr"], ["vorperiode", "Vorperiode"]];
+const RASTER = [["auto", "Auto"], ["woche", "Woche"], ["monat", "Monat"]];
+const SEASON_NAME = { 12: "Winter", 3: "Frühling", 6: "Sommer", 9: "Herbst" };
+const MONTHS_SHORT = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+
+// Beginn des Zeitraums, der `d` enthält (Saison wie stats.SEASONS: Winter = Dez–Feb)
+function statsStart(type, d) {
+  const y = d.getFullYear(), m = d.getMonth();
+  if (type === "monat") return new Date(y, m, 1);
+  if (type === "quartal") return new Date(y, m - (m % 3), 1);
+  if (type === "saison") return m === 11 ? new Date(y, 11, 1) : m < 2 ? new Date(y - 1, 11, 1) : new Date(y, m - ((m - 2) % 3), 1);
+  return new Date(y, 0, 1);
+}
+// Zeitraum [start, ende) aus dem Kartenzustand
+function statsRange(s, todayIso) {
+  if (s.ptype === "frei") {
+    const a = s.from ? D(s.from) : new Date(D(todayIso).getFullYear(), 0, 1);
+    const b = s.to ? addDays(D(s.to), 1) : addDays(D(todayIso), 1);
+    return b > a ? [a, b] : [a, addDays(a, 1)];
+  }
+  const a = statsStart(s.ptype, D(s.anchor || todayIso));
+  return [a, addMonths(a, PERIOD_MONTHS[s.ptype])];
+}
+// Vergleichszeitraum + Stichtag (nur „Stichtag Vorjahr“)
+function statsCompare(s, [a, b], todayIso) {
+  const yearBack = (d) => new Date(d.getFullYear() - 1, d.getMonth(), d.getDate());
+  if (s.compare === "vorperiode") {
+    if (s.ptype === "frei") { const n = Math.round((b - a) / 86400000); return { range: [addDays(a, -n), a], asOf: null }; }
+    return { range: [addMonths(a, -PERIOD_MONTHS[s.ptype]), a], asOf: null };
+  }
+  return { range: [yearBack(a), yearBack(b)], asOf: s.compare === "stichtag" ? iso(yearBack(D(todayIso))) : null };
+}
+// Kurzname: „November 2026“, „Q4 2026“, „Winter 2025/26“, „2026“, „01.03.26 – 31.03.26“
+function statsLabel(type, [a, b]) {
+  const y = a.getFullYear();
+  if (type === "monat") return a.toLocaleDateString(locale(), { month: "long", year: "numeric" });
+  if (type === "quartal") return `Q${Math.floor(a.getMonth() / 3) + 1} ${y}`;
+  if (type === "saison") return a.getMonth() === 11 ? `${t("Winter")} ${y}/${String(y + 1).slice(-2)}` : `${t(SEASON_NAME[a.getMonth()])} ${y}`;
+  if (type === "jahr") return String(y);
+  return `${fdate(iso(a))} – ${fdate(iso(addDays(b, -1)))}`;
+}
+// Wert einer Zelle aus einer stats-Abfrage (eine Zeile „Gesamt“)
+const statCell = (res, row = 0) => res?.zeilen?.[row]?.werte?.Gesamt || { wert: null, n: 0 };
+const statSeries = (res) => (res?.zeilen || []).map((z) => ({ fach: z.fach, ...(z.werte?.Gesamt || { wert: null, n: 0 }) }));
+// Fach-Beschriftung einer Zeit-Dimension: „2026-03“ → „Mär 26“, „2026-W45“ → „KW 45“
+function binLabel(fach, long = false) {
+  if (/^\d{4}-W\d{2}$/.test(fach)) return `${t("KW")} ${Number(fach.slice(6))}${long ? ` ${fach.slice(0, 4)}` : ""}`;
+  if (/^\d{4}-\d{2}$/.test(fach)) return long ? D(`${fach}-01`).toLocaleDateString(locale(), { month: "long", year: "numeric" })
+    : `${t(MONTHS_SHORT[Number(fach.slice(5)) - 1])} ${fach.slice(2, 4)}`;
+  return fach;
+}
+
+class SmoobuStatsCard extends SmoobuCard {
+  // Optionen: period (monat|quartal|saison|jahr), compare (stichtag|vorjahr|vorperiode),
+  // matrix_exclude_years (aus dem Ø der Saison-Matrix ausgenommene Jahre, Standard 2020 = Lockdown),
+  // matrix_since (erstes Jahr der Matrix, Standard = erste Anreise in den Daten)
+  static defaults = { title: "", period: "jahr", compare: "stichtag", matrix_exclude_years: [2020], matrix_since: null };
+  static initialState = (c) => ({ ptype: c.period, anchor: null, from: null, to: null, compare: c.compare, channels: [],
+    raster: "auto", focus: "umsatz", matrix: "auslastung", paceYear: null });
+  static css = `
+    ha-card { background: none; border: 0; padding: 0; overflow: visible; position: relative; }
+    .panel { background: var(--sm-surf); border: 1px solid var(--sm-line); border-radius: var(--sm-r); padding: 18px 20px; min-width: 0; }
+    .panel + .panel, .two { margin-top: var(--sm-gap); }
+    .ph { display: flex; justify-content: space-between; align-items: baseline; gap: 10px 14px; margin-bottom: 10px; flex-wrap: wrap; }
+    .ph h2 { font-size: 1rem; }
+    .ph .sub { flex: 1 1 auto; }
+    .ph .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+    /* Kopf: Aussage-Satz */
+    .lede { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin: 4px 2px 14px; }
+    .lede h1 { margin: 0; font-size: clamp(24px, 2.6vw, 34px); line-height: 1.12; font-weight: 650; letter-spacing: -.022em; max-width: 30ch; }
+    .lede p { margin: 8px 0 0; font-size: 1.02rem; line-height: 1.5; max-width: 72ch; color: var(--sm-ink); }
+    .lede p.m { color: var(--sm-muted); font-size: .92rem; margin-top: 4px; }
+    .kick { font-size: .8rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--sm-accent); margin-bottom: 6px; }
+    /* Filterleiste: bleibt beim Scrollen oben (unter der HA-Kopfzeile) */
+    .fbar { position: sticky; top: var(--header-height, 0px); z-index: 4; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center;
+      padding: 10px 12px; margin: 0 0 var(--sm-gap); background: color-mix(in srgb, var(--sm-surf) 94%, transparent);
+      border: 1px solid var(--sm-line); border-radius: var(--sm-r); backdrop-filter: blur(6px); }
+    .fbar .grp { display: inline-flex; align-items: center; gap: 6px; }
+    .fbar .lbl { font-size: .74rem; color: var(--sm-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .fbar .sep { width: 1px; align-self: stretch; background: var(--sm-line); }
+    .fbar .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .fbar .chip { padding: 4px 10px; font-size: .8rem; }
+    .step { border: 1px solid var(--sm-line); background: var(--sm-surf); color: var(--sm-ink); border-radius: 999px; width: 30px; height: 30px;
+      cursor: pointer; font: inherit; font-size: 1rem; line-height: 1; }
+    .step:hover { border-color: var(--sm-accent); }
+    .plabel { font-weight: 650; min-width: 9ch; text-align: center; white-space: nowrap; }
+    .seg button { white-space: nowrap; }
+    /* Modul 1: Kennzahlenleiste */
+    .kpis { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--sm-surf); border: 1px solid var(--sm-line);
+      border-radius: var(--sm-r); overflow: hidden; }
+    @media (max-width: 1250px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    @media (max-width: 700px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .kpi { padding: 12px 16px 10px; border-right: 1px solid var(--sm-line); border-bottom: 1px solid var(--sm-line); margin: 0 -1px -1px 0;
+      min-width: 0; cursor: pointer; background: none; text-align: left; font: inherit; color: inherit; border-top: 0; border-left: 0;
+      position: relative; }
+    .kpi:hover { background: var(--sm-surf2); }
+    .kpi[aria-pressed="true"] { background: color-mix(in srgb, var(--sm-accent) 9%, var(--sm-surf)); }
+    .kpi[aria-pressed="true"]::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--sm-accent); }
+    .kpi.low .kv, .kpi.low .spark { opacity: .45; }
+    .kl { font-size: .82rem; color: var(--sm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kv { font-size: 1.5rem; font-weight: 650; letter-spacing: -.025em; margin: 3px 0 1px; display: flex; align-items: baseline; gap: 6px 8px; flex-wrap: wrap; }
+    .ks { font-size: .76rem; color: var(--sm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .spark { width: 100%; height: 28px; margin-top: 6px; display: block; }
+    .spark polyline { fill: none; stroke: var(--sm-accent); stroke-width: 1.7; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+    .spark circle { fill: var(--sm-accent); }
+    .spark polyline.cmp { stroke: var(--sm-muted); stroke-opacity: .5; stroke-width: 1.4; stroke-dasharray: 3 2; }
+    .lowtag { font-size: .68rem; font-weight: 650; color: var(--sm-warn); }
+    .focus { margin-top: var(--sm-gap); }
+    /* Diagramme */
+    svg.ch { display: block; width: 100%; height: auto; color: var(--sm-ink); font-family: inherit; overflow: visible; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .8rem; margin-top: 8px; color: var(--sm-muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .legend i { width: 12px; height: 10px; border-radius: 3px; display: inline-block; }
+    .legend i.ln { height: 0; border-top: 2px dashed currentColor; border-radius: 0; width: 18px; }
+    .legend i.ln.solid { border-top-style: solid; border-top-width: 3px; }
+    .legend b { color: var(--sm-ink); font-weight: 600; }
+    /* Modul 2: Pace + Prognose */
+    .two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: var(--sm-gap); }
+    @media (max-width: 1000px) { .two { grid-template-columns: 1fr; } }
+    .two > .panel { margin-top: 0; }
+    .fc .big { font-size: 2.1rem; font-weight: 650; letter-spacing: -.03em; margin: 4px 0 0; }
+    .fc .range { font-size: .92rem; color: var(--sm-muted); margin-bottom: 12px; }
+    .fc .bandbar { position: relative; height: 10px; border-radius: 5px; background: var(--sm-surf2); margin: 6px 0 16px; border: 1px solid var(--sm-line); }
+    .fc .bandbar .b { position: absolute; top: -1px; bottom: -1px; border-radius: 5px; background: color-mix(in srgb, var(--sm-accent) 30%, transparent); }
+    .fc .bandbar .g { position: absolute; top: -1px; bottom: -1px; left: 0; border-radius: 5px 0 0 5px; background: var(--sm-accent); }
+    .fc .bandbar .m { position: absolute; top: -5px; width: 3px; height: 18px; border-radius: 2px; background: var(--sm-ink); transform: translateX(-1px); }
+    .fc dl { display: grid; grid-template-columns: 1fr auto; gap: 7px 12px; margin: 0; font-size: .9rem; }
+    .fc dt { color: var(--sm-muted); } .fc dd { margin: 0; text-align: right; font-weight: 600; white-space: nowrap; }
+    .fc .note { font-size: .78rem; color: var(--sm-muted); margin-top: 12px; line-height: 1.4; }
+    .fc.low .big { opacity: .5; }
+    /* Modul 3: Saison-Matrix */
+    .mx { display: grid; gap: 3px; font-size: .8rem; min-width: 560px; }
+    .mx .h { color: var(--sm-muted); font-weight: 600; text-align: center; padding: 2px 0 4px; font-size: .76rem; }
+    .mx .rl { color: var(--sm-muted); font-weight: 600; display: flex; align-items: center; font-size: .78rem; }
+    .mx .c { border-radius: 6px; padding: 7px 4px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; cursor: default;
+      border: 1px solid transparent; }
+    /* wenig Daten: Farbe bleibt lesbar (sonst wäre die Matrix bei ~4 Buchungen/Monat fast ganz blass), Zahl kursiv + Punkt */
+    .mx .c.low { font-style: italic; position: relative; }
+    .mx .c.low::after { content: ""; position: absolute; top: 4px; right: 4px; width: 5px; height: 5px; border-radius: 50%; background: var(--sm-warn); }
+    .mx .c.open { border: 1px dashed color-mix(in srgb, var(--sm-ink) 45%, transparent); }
+    .mx .c.sel { box-shadow: inset 0 0 0 1.5px var(--sm-ink); }
+    .mx .c.none { color: var(--sm-muted); background: var(--sm-surf2); }
+    .mx .avg { background: var(--sm-surf2); font-weight: 650; }
+    .mx .tot { font-weight: 650; }
+    .mx .gap { grid-column: 1 / -1; height: 4px; }
+    .scale { display: inline-flex; align-items: center; gap: 6px; }
+    .scale i { width: 84px; height: 10px; border-radius: 3px; display: inline-block; }
+    /* Tooltip */
+    .tt { position: absolute; z-index: 9; pointer-events: none; background: var(--sm-ink); color: var(--sm-surf); font-size: .8rem; line-height: 1.4;
+      padding: 7px 10px; border-radius: 8px; white-space: pre-line; max-width: 300px; box-shadow: 0 6px 20px rgba(0,0,0,.22); }
+    .tt[hidden] { display: none; }
+    .hint { margin-top: var(--sm-gap); text-align: center; font-size: .86rem; color: var(--sm-muted); }
+    @media (max-width: 700px) {
+      .panel { padding: 14px 14px; }
+      /* am Handy nicht mitlaufen lassen: die Leiste wäre höher als ein Drittel des Bildschirms */
+      .fbar { padding: 8px 10px; gap: 6px 8px; position: static; }
+      .fbar .sep { display: none; }
+      .kpi { padding: 10px 12px 8px; }
+      .kv { font-size: 1.3rem; }
+      .fc .big { font-size: 1.8rem; }
+    }
+  `;
+  // Werkbank oder Einfach (je Gerät; ohne gespeicherte Wahl: schmale Fenster = Einfach)
+  get mode() {
+    const m = lsGet(STATS_MODE_KEY, "");
+    if (m === "werkbank" || m === "einfach") return m;
+    return (window.innerWidth || 1200) < 700 ? "einfach" : "werkbank";
+  }
+  async load() {
+    const info = await this.store.getInfo();
+    const apt = await this.apartment();
+    const s = this._state;
+    const today = info.heute;
+    const range = statsRange(s, today);
+    const cmp = statsCompare(s, range, today);
+    const simple = this.mode === "einfach";
+    const base = { ...this.target, mode: "query" };
+    if (s.channels.length) base.channels = s.channels;
+    const q = (measure, dimension, [a, b], extra = {}) =>
+      this.store.ws("smoobu/stats", { ...base, measure, dimension, start: iso(a), end: iso(b), ...extra });
+    const days = Math.round((range[1] - range[0]) / 86400000);
+    const raster = s.raster === "auto" ? (days <= 100 ? "woche" : "monat") : s.raster;
+    const cmpExtra = cmp.asOf ? { as_of: cmp.asOf } : {};
+    // Modul 1: je Kennzahl Gesamtwert (Zeitraum + Vergleich) und Verlauf im Raster (Zeitraum + Vergleich)
+    const kpiIds = simple ? STATS_EINFACH : STATS_KPIS.map((k) => k.id);
+    const kpis = Object.fromEntries(await Promise.all(kpiIds.map(async (id) => {
+      const [tot, totC, ser, serC] = await Promise.all([q(id, "gesamt", range), q(id, "gesamt", cmp.range, cmpExtra),
+        q(id, raster, range), q(id, raster, cmp.range, cmpExtra)]);
+      return [id, { tot: statCell(tot), cmp: statCell(totC), ser: statSeries(ser), serC: statSeries(serC), unit: tot.einheit }];
+    })));
+    // Modul 2: Pace für das Jahr des Zeitraums (zwischen erstem Vergleichsjahr und nächstem Jahr)
+    const ty = D(today).getFullYear();
+    const firstYear = Number((apt.erster_tag || today).slice(0, 4));
+    const paceYear = s.paceYear || Math.min(Math.max(range[0].getFullYear(), firstYear + 1), ty + 1);
+    const pace = await this.store.ws("smoobu/stats", { ...this.target, mode: "pace", year: paceYear,
+      ...(s.channels.length ? { channels: s.channels } : {}) });
+    // Freie Nächte von heute bis Jahresende (Zieljahr) – smoobu/analytics zieht Sperrzeiten ab
+    let free = null;
+    const yEnd = new Date(paceYear + 1, 0, 1);
+    const fStart = new Date(Math.max(D(today), new Date(paceYear, 0, 1)));
+    if (yEnd > fStart) {
+      free = await this.store.ws("smoobu/analytics", { ...this.target, start: iso(fStart), end: iso(yEnd), compare: "kein",
+        ...(s.channels.length ? { channels: s.channels } : {}) }).catch(() => null);
+    }
+    // Offene Nächte im gewählten Zeitraum (für den „größten Hebel“ im Aussage-Satz)
+    let freePeriod = null;
+    if (range[1] > D(today)) {
+      const a = new Date(Math.max(D(today), range[0]));
+      freePeriod = await this.store.ws("smoobu/analytics", { ...this.target, start: iso(a), end: iso(range[1]), compare: "kein",
+        ...(s.channels.length ? { channels: s.channels } : {}) }).catch(() => null);
+    }
+    // Modul 3: Saison-Matrix Monate × Jahre (nur Werkbank)
+    let matrix = null;
+    if (!simple) {
+      const since = Math.max(Number(this._config.matrix_since) || firstYear, ty - 10);
+      const mRange = [new Date(since, 0, 1), new Date(ty + 2, 0, 1)];
+      const [months, years] = await Promise.all([q(s.matrix, "monat", mRange), q(s.matrix, "jahr", mRange)]);
+      matrix = { since, months, years };
+    }
+    return { info, apt, today, range, cmp, raster, kpis, pace, paceYear, firstYear, free, freePeriod, matrix, simple };
+  }
+
+  // ---- Formatierung je Kennzahl ----
+  fmt(id, v, cur, long = false) {
+    if (v === null || v === undefined) return "–";
+    if (["auslastung", "stornoquote", "kostenquote", "hund_anteil"].includes(id)) return pct(v, long ? 1 : 0);
+    if (id === "vorlauf") return `${num(v)} ${t("Tage")}`;
+    if (id === "naechte") return `${num(v)} ${t("N.")}`;
+    return money(v, cur, long && v < 1000 ? 2 : 0);
+  }
+  dlt(k, a, b) {
+    if (a === null || a === undefined || b === null || b === undefined) return "";
+    if (k.pp) return delta(Math.round((a - b) * 10) / 10, "pp", !!k.invert);
+    if (!b) return "";
+    return delta(((a - b) / Math.abs(b)) * 100, "%", !!k.invert);
+  }
+
+  // ---- Kopf: Aussage-Satz (Ergebnis + Treiber + größter Hebel) ----
+  sentence(d) {
+    const cur = d.apt.currency;
+    const k = d.kpis;
+    const plabel = statsLabel(this._state.ptype, d.range);
+    const cmpName = this.cmpName(d);
+    const u = k.umsatz?.tot.wert, uc = k.umsatz?.cmp.wert;
+    if (!u && !uc) return { h: `${plabel}: ${t("noch keine Umsätze")}`, p: t("Für diesen Zeitraum liegen keine Buchungen vor."), m: "" };
+    const ch = uc ? ((u - uc) / uc) * 100 : null;
+    const dir = ch === null ? "" : Math.abs(ch) < 1 ? t("auf Vorjahresniveau") : ch > 0 ? `${num(ch, 0)} % ${LANG === "de" ? "über" : "above"}` : `${num(-ch, 0)} % ${LANG === "de" ? "unter" : "below"}`;
+    const h = `${plabel}: ${money(u, cur)} ${t("Umsatz")}${dir ? `, ${dir}${Math.abs(ch) < 1 ? "" : ` ${cmpName}`}` : ""}.`;
+    const parts = [];
+    // Treiber: RevPAR = ADR × Auslastung → welcher Faktor hat sich relativ stärker verändert?
+    const occ = k.auslastung?.tot.wert, occC = k.auslastung?.cmp.wert, adr = k.adr?.tot.wert, adrC = k.adr?.cmp.wert;
+    if (occ !== null && occC && adr && adrC) {
+      const rOcc = occ / occC - 1, rAdr = adr / adrC - 1;
+      const main = Math.abs(rOcc) >= Math.abs(rAdr)
+        ? `${t("Auslastung")} ${pct(occ, 0)} (${t("Vergleich")} ${pct(occC, 0)})`
+        : `${t("Preis je Nacht")} ${money(adr, cur)} (${t("Vergleich")} ${money(adrC, cur)})`;
+      const other = Math.abs(rOcc) >= Math.abs(rAdr)
+        ? `${t("Preis je Nacht")} ${rAdr >= 0 ? "+" : "−"}${num(Math.abs(rAdr) * 100, 0)} %`
+        : `${t("Auslastung")} ${occ - occC >= 0 ? "+" : "−"}${num(Math.abs(occ - occC), 0)} PP`;
+      parts.push(`${t("Treiber")}: <b>${main}</b>; ${other}.`);
+    }
+    // Größter Hebel in Euro: verlorene Auslastung × ADR, verlorener Preis × Nächte, offene Nächte im Zeitraum
+    const levers = [];
+    const rev = k.revpar?.tot.wert;
+    const avail = rev ? u / rev : null;
+    if (occ !== null && occC && occ < occC && avail && adr) levers.push([((occC - occ) / 100) * avail * adr,
+      `${t("Auslastung auf Vergleichsniveau")} ≈ +${money(((occC - occ) / 100) * avail * adr, cur)}`]);
+    if (adr && adrC && adr < adrC) levers.push([(adrC - adr) * (u / adr),
+      `${t("Preis je Nacht auf Vergleichsniveau")} ≈ +${money((adrC - adr) * (u / adr), cur)}`]);
+    const fp = d.freePeriod;
+    if (fp && fp.frei_kommend > 0 && fp.frei_potenzial_netto > 0) levers.push([fp.frei_potenzial_netto,
+      `${num(fp.frei_kommend)} ${t("freie Nächte im Zeitraum")} ≈ ${money(fp.frei_potenzial_netto, cur)} ${t("netto")}`]);
+    if (levers.length) parts.push(`${t("Größter Hebel")}: <b>${levers.sort((a, b) => b[0] - a[0])[0][1]}</b>.`);
+    const n = k.umsatz?.tot.n || 0;
+    return { h, p: parts.join(" "), m: `${t("Basis")}: ${num(n)} ${t("Buchungen")}${n < 5 ? ` · ${t("wenig Daten")}` : ""}` };
+  }
+  cmpName(d) {
+    const s = this._state;
+    if (s.compare === "stichtag") return `${t("Buchungsstand Vorjahr")} (${fdate(d.cmp.asOf)})`;
+    if (s.compare === "vorjahr") return `${t("Vorjahr")} ${statsLabel(s.ptype, d.cmp.range)}`;
+    return `${t("Vorperiode")} ${statsLabel(s.ptype, d.cmp.range)}`;
+  }
+
+  // ---- Filterleiste ----
+  filterBar(d) {
+    const s = this._state;
+    const simple = d.simple;
+    const ptypes = PERIOD_TYPES.filter(([k]) => !simple || k !== "frei");
+    const period = `<div class="seg" role="group" aria-label="${t("Zeitraum")}">${ptypes.map(([k, l]) =>
+      `<button data-ptype="${k}" aria-pressed="${s.ptype === k}">${k === "frei" && LANG !== "de" ? "Custom" : t(l)}</button>`).join("")}</div>`;
+    const anchor = s.ptype === "frei"
+      ? `<span class="grp"><input type="date" data-k="from" value="${iso(d.range[0])}"> – <input type="date" data-k="to" value="${iso(addDays(d.range[1], -1))}"></span>`
+      : `<span class="grp"><button class="step" data-step="-1" aria-label="${t("Zurück")}">‹</button><span class="plabel">${esc(statsLabel(s.ptype, d.range))}</span>
+          <button class="step" data-step="1" aria-label="${t("Weiter")}">›</button></span>`;
+    const cmp = `<select data-k="compare" aria-label="${t("Vergleich")}">${STATS_COMPARE.map(([k, l]) =>
+      `<option value="${k}" ${k === s.compare ? "selected" : ""}>${t("Vergleich")}: ${t(l)}</option>`).join("")}</select>`;
+    if (simple) return `<div class="fbar">${period}${anchor}${cmp}</div>`;
+    const ws = d.info.wohnungen;
+    const sel = this.target.apartment_id;
+    const apts = ws.length > 1 && !this._config.apartment_id
+      ? `<span class="sep"></span><span class="grp"><span class="lbl">${t("Wohnung")}</span><div class="seg">
+          <button data-apt="${ALL}" aria-pressed="${sel === ALL}">${t("Alle")}</button>${ws.map((w) =>
+          `<button data-apt="${w.apartment_id}" aria-pressed="${sel === w.apartment_id}" title="${esc(w.name)}">${esc(w.kuerzel || w.name)}</button>`).join("")}</div></span>` : "";
+    const raster = `<span class="grp"><span class="lbl">${t("Raster")}</span><div class="seg">${RASTER.map(([k, l]) =>
+      `<button data-raster="${k}" aria-pressed="${s.raster === k}">${t(l)}</button>`).join("")}</div></span>`;
+    return `<div class="fbar">${period}${anchor}${cmp}<span class="sep"></span>${raster}${apts}
+      <span class="sep"></span><div class="chips">${channelChips(d.apt, s.channels)}</div></div>`;
+  }
+
+  // ---- Modul 1: Kennzahlenleiste ----
+  kpiBar(d) {
+    const cur = d.apt.currency;
+    const list = STATS_KPIS.filter((k) => d.kpis[k.id]);
+    return `<section class="kpis" aria-label="${t("Kennzahlen")}">${list.map((k) => {
+      const x = d.kpis[k.id];
+      const v = x.tot.wert, c = x.cmp.wert;
+      const n = x.tot.n || 0;
+      const low = n < 5;
+      const tip = `${t(k.label)}: ${this.fmt(k.id, v, cur, true)} · n = ${n}\n${t("Vergleich")}: ${this.fmt(k.id, c, cur, true)} · n = ${x.cmp.n || 0}\n${t(k.hint)}`;
+      return `<button class="kpi${low ? " low" : ""}" data-focus="${k.id}" aria-pressed="${this._state.focus === k.id}" data-tip="${esc(tip)}">
+        <div class="kl">${esc(t(k.label))}</div><div class="kv">${this.fmt(k.id, v, cur)}${this.dlt(k, v, c)}</div>
+        <div class="ks">${t("Vgl.")} ${this.fmt(k.id, c, cur)} · n = ${num(n)}${low ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>
+        ${sparkline(x.ser.map((p) => p.wert), x.serC.map((p) => p.wert))}</button>`;
+    }).join("")}</section>`;
+  }
+  // Großer Verlauf der Fokus-Kennzahl: Balken = Zeitraum, gestrichelte Linie = Vergleich (gleiche Achse)
+  focusChart(d) {
+    const s = this._state;
+    const k = STATS_KPIS.find((x) => x.id === s.focus) || STATS_KPIS[0];
+    const x = d.kpis[k.id];
+    if (!x) return "";
+    const cur = d.apt.currency;
+    const cur_ = x.ser, cmp = x.serC;
+    const n = Math.max(cur_.length, 1);
+    const W = 800, H = 230, L = 58, R = 10, T = 12, B = 26;
+    const vals = [...cur_.map((p) => p.wert), ...cmp.map((p) => p.wert)].filter((v) => v !== null && v !== undefined);
+    const max = niceMax(Math.max(0, ...vals) * 1.08);
+    const y = (v) => T + (H - T - B) * (1 - (v || 0) / max);
+    const bw = (W - L - R) / n;
+    let svg = "";
+    for (let g = 0; g <= 4; g++) {
+      const v = (max / 4) * g;
+      svg += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity=".1"/>
+        <text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity=".6">${this.fmt(k.id, v, cur)}</text>`;
+    }
+    const step = Math.ceil(n / 14);
+    cur_.forEach((p, i) => {
+      const x0 = L + i * bw;
+      const low = (p.n || 0) < 5;
+      if (p.wert) svg += `<rect x="${x0 + bw * 0.18}" y="${y(p.wert)}" width="${bw * 0.64}" height="${Math.max(y(0) - y(p.wert), 0)}" rx="3"
+        fill="var(--sm-accent)" fill-opacity="${low ? 0.38 : 0.9}"/>`;
+      if (i % step === 0) svg += `<text x="${x0 + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".7">${esc(binLabel(p.fach))}</text>`;
+      const c = cmp[i];
+      const tip = `${binLabel(p.fach, true)}: ${this.fmt(k.id, p.wert, cur, true)} · n = ${p.n || 0}${low ? ` (${t("wenig Daten")})` : ""}` +
+        (c ? `\n${t("Vergleich")} ${binLabel(c.fach, true)}: ${this.fmt(k.id, c.wert, cur, true)} · n = ${c.n || 0}` : "");
+      svg += `<rect data-tip="${esc(tip)}" x="${x0}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"/>`;
+    });
+    const pts = cmp.slice(0, n).map((p, i) => (p.wert === null || p.wert === undefined ? null : `${L + i * bw + bw / 2},${y(p.wert)}`)).filter(Boolean);
+    if (pts.length > 1) svg += `<polyline points="${pts.join(" ")}" fill="none" stroke="currentColor" stroke-opacity=".55" stroke-width="2" stroke-dasharray="5 4" pointer-events="none"/>`;
+    svg += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="currentColor" stroke-opacity=".3"/>`;
+    const rLabel = d.raster === "woche" ? t("je Kalenderwoche") : t("je Monat");
+    return `<div class="panel focus"><div class="ph"><h2>${t("Verlauf")}: ${esc(t(k.label))}</h2><span class="sub">${rLabel} · ${t("Kennzahl oben anklicken zum Wechseln")}</span></div>
+      <svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t(k.label))}">${svg}</svg>
+      <div class="legend"><span><i style="background:var(--sm-accent)"></i><b>${esc(statsLabel(this._state.ptype, d.range))}</b> ${this.fmt(k.id, x.tot.wert, cur)}</span>
+        <span><i class="ln"></i>${esc(this.cmpName(d))} ${this.fmt(k.id, x.cmp.wert, cur)}</span>
+        <span><i style="background:var(--sm-accent);opacity:.38"></i>${t("blass = weniger als 5 Buchungen")}</span></div></div>`;
+  }
+
+  // ---- Modul 2: Buchungstempo (Pace) ----
+  paceChart(d) {
+    const p = d.pace;
+    const cur = d.apt.currency;
+    const target = String(p.zieljahr);
+    const years = Object.keys(p.kurven).sort().reverse(); // Zieljahr zuerst
+    const W = 800, H = 290, L = 62, R = 74, T = 14, B = 34;
+    const all = years.flatMap((y) => p.kurven[y].map((q) => q.wert));
+    if (p.prognose) all.push(p.prognose.oben);
+    const max = niceMax(Math.max(1, ...all) * 1.05);
+    const x = (i) => L + (i / 23) * (W - L - R);
+    const y = (v) => T + (H - T - B) * (1 - v / max);
+    let svg = "";
+    for (let g = 0; g <= 4; g++) {
+      const v = (max / 4) * g;
+      svg += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity=".1"/>
+        <text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity=".6">${money(v, cur)}</text>`;
+    }
+    // x-Achse: Buchungsdatum, Jan Vorjahr … Dez Zieljahr; Jahreswechsel markiert
+    for (let i = 0; i < 24; i += 2) svg += `<text x="${x(i)}" y="${H - 16}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".65">${t(MONTHS_SHORT[i % 12])}</text>`;
+    svg += `<line x1="${x(11.5)}" x2="${x(11.5)}" y1="${T}" y2="${H - B}" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="2 3"/>
+      <text x="${x(5.5)}" y="${H - 2}" text-anchor="middle" font-size="11" font-weight="600" fill="currentColor" fill-opacity=".55">${t("gebucht im Vorjahr")}</text>
+      <text x="${x(17.5)}" y="${H - 2}" text-anchor="middle" font-size="11" font-weight="600" fill="currentColor" fill-opacity=".55">${t("gebucht im Aufenthaltsjahr")}</text>`;
+    // Linien: Zieljahr kräftig (Akzent), Vorjahr mittel, ältere Jahre blasser
+    const style = (yr, idx) => (yr === target ? { c: "var(--sm-accent)", w: 3, o: 1, dash: "" }
+      : idx === 1 ? { c: "currentColor", w: 2, o: 0.6, dash: "" } : { c: "currentColor", w: 1.4, o: Math.max(0.14, 0.38 - (idx - 2) * 0.06), dash: "4 3" });
+    const labels = [];
+    [...years].reverse().forEach((yr) => {
+      const idx = years.indexOf(yr);
+      const st = style(yr, idx);
+      const pts = p.kurven[yr];
+      if (!pts.length) return;
+      svg += `<polyline points="${pts.map((q) => `${x(q.index)},${y(q.wert)}`).join(" ")}" fill="none" stroke="${st.c}" stroke-opacity="${st.o}"
+        stroke-width="${st.w}" stroke-dasharray="${st.dash}" stroke-linejoin="round" pointer-events="none"/>`;
+      const last = pts[pts.length - 1];
+      if (idx <= 1) labels.push({ yr, x: x(last.index), y: y(last.wert), c: st.c, o: st.o, heute: !!last.heute, wert: last.wert });
+    });
+    // Prognose-Spanne am Jahresende des Zieljahres
+    if (p.prognose) {
+      const f = p.prognose;
+      const px = x(23);
+      svg += `<line x1="${px}" x2="${px}" y1="${y(f.oben)}" y2="${y(f.unten)}" stroke="var(--sm-accent)" stroke-width="10" stroke-opacity=".25" stroke-linecap="round"/>
+        <circle cx="${px}" cy="${y(f.wahrscheinlich)}" r="5" fill="var(--sm-surf)" stroke="var(--sm-accent)" stroke-width="2.5"/>`;
+      const today = p.kurven[target]?.at(-1);
+      if (today && today.heute) svg += `<line x1="${x(today.index)}" x2="${px}" y1="${y(today.wert)}" y2="${y(f.wahrscheinlich)}" stroke="var(--sm-accent)"
+        stroke-width="2" stroke-dasharray="3 3" stroke-opacity=".8"/>`;
+      labels.push({ yr: t("Prognose"), x: px, y: y(f.wahrscheinlich), c: "var(--sm-accent)", o: 1, prog: true, wert: f.wahrscheinlich });
+    }
+    // „heute“-Markierung
+    const tp = p.kurven[target]?.find((q) => q.heute);
+    if (tp) svg += `<circle cx="${x(tp.index)}" cy="${y(tp.wert)}" r="4.5" fill="var(--sm-accent)"/>
+      <text x="${x(tp.index)}" y="${y(tp.wert) + 18}" text-anchor="middle" font-size="11" font-weight="650" fill="var(--sm-accent)">${t("heute")}</text>`;
+    // Direktbeschriftung rechts (Zieljahr, Vorjahr, Prognose), gegen Überlappung gestaffelt
+    labels.sort((a, b) => a.y - b.y);
+    let lastY = -99;
+    for (const l of labels) {
+      const ly = Math.max(l.y, lastY + 26);
+      lastY = ly;
+      svg += `<text x="${W - R + 8}" y="${ly}" font-size="11.5" font-weight="650" fill="${l.c}" fill-opacity="${Math.max(l.o, 0.75)}">${esc(l.yr)}</text>
+        <text x="${W - R + 8}" y="${ly + 12}" font-size="10.5" fill="currentColor" fill-opacity=".6">${money(l.wert, cur)}</text>`;
+    }
+    // Hover je Monat: Stand aller Jahre
+    for (let i = 0; i < 24; i++) {
+      const rows = years.map((yr) => {
+        const q = p.kurven[yr].find((z) => z.index === i);
+        return q ? `${yr}: ${money(q.wert, cur)}${q.heute ? ` (${t("heute")})` : ""}` : null;
+      }).filter(Boolean);
+      const tip = `${t("Buchungsstand Ende")} ${t(MONTHS_SHORT[i % 12])} ${t("des")} ${i < 12 ? t("Vorjahres") : t("Aufenthaltsjahres")}\n${rows.join("\n")}`;
+      svg += `<rect data-tip="${esc(tip)}" x="${x(i) - (W - L - R) / 46}" y="${T}" width="${(W - L - R) / 23}" height="${H - T - B}" fill="transparent"/>`;
+    }
+    const older = years.slice(2);
+    return `<div class="panel"><div class="ph"><h2>${t("Buchungstempo")} ${esc(target)}</h2>
+        <span class="sub">${t("Umsatz brutto der Nächte im Jahr nach Buchungsdatum, gleicher Tag wie in den Vorjahren")}</span>
+        ${this.paceYearSel(d)}</div>
+      <svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${t("Buchungstempo")}">${svg}</svg>
+      <div class="legend"><span><i class="ln solid" style="color:var(--sm-accent)"></i><b>${esc(target)}</b></span>
+        ${years[1] ? `<span><i class="ln solid" style="opacity:.6"></i>${esc(years[1])}</span>` : ""}
+        ${older.length ? `<span><i class="ln" style="opacity:.4"></i>${esc(older.join(", "))}</span>` : ""}
+        ${p.prognose ? `<span><i style="background:var(--sm-accent);opacity:.3"></i>${t("Prognose-Spanne")} P10–P90</span>` : ""}</div></div>`;
+  }
+  paceYearSel(d) {
+    const ty = D(d.today).getFullYear();
+    const ys = [];
+    for (let y = ty + 1; y >= Math.max(d.firstYear + 1, ty - 8); y--) ys.push(y);
+    return `<select data-k="paceyear" aria-label="${t("Zieljahr")}">${ys.map((y) => `<option value="${y}" ${y === d.paceYear ? "selected" : ""}>${y}</option>`).join("")}</select>`;
+  }
+  forecastCard(d) {
+    const p = d.pace;
+    const cur = d.apt.currency;
+    const f = p.prognose;
+    const fr = d.free;
+    const freeRow = fr ? `<dt>${t("Freie Nächte bis 31.12.")}</dt><dd>${num(fr.frei_kommend ?? fr.frei_naechte)}</dd>` : "";
+    const vj = p.vorjahr_stichtag !== null && p.vorjahr_stichtag !== undefined
+      ? `<dt>${t("Vorjahr am gleichen Tag")}</dt><dd>${money(p.vorjahr_stichtag, cur)} ${delta(p.veraenderung_prozent)}</dd>` : "";
+    if (!f) {
+      const last = p.kurven[String(p.zieljahr)]?.at(-1);
+      return `<div class="panel fc"><div class="ph"><h2>${t("Prognose")} ${p.zieljahr}</h2></div>
+        <div class="big">${money(last?.wert, cur)}</div><div class="range">${t("Endstand bzw. Buchungsstand – für eine Prognose fehlen Vorjahre")}</div>
+        <dl>${vj}${freeRow}</dl></div>`;
+    }
+    const low = f.jahre_basis < 5;
+    const span = Math.max(f.oben, 1);
+    const pos = (v) => `${Math.min(100, Math.max(0, (v / span) * 100)).toFixed(1)}%`;
+    return `<div class="panel fc${low ? " low" : ""}"><div class="ph"><h2>${t("Prognose")} ${p.zieljahr}</h2><span class="sub">${t("Umsatz brutto")}</span></div>
+      <div class="kl">${t("wahrscheinlich")}</div>
+      <div class="big" data-tip="${esc(`${t("Median der Nachbuchung aus")} ${f.jahre_basis} ${t("Vorjahren")}`)}">${money(f.wahrscheinlich, cur)}</div>
+      <div class="range">${f.oben > f.unten ? `${t("Spanne")} ${money(f.unten, cur)} – ${money(f.oben, cur)}` : t("Keine Spanne – zu wenige Vorjahre")}</div>
+      <div class="bandbar" data-tip="${esc(`${t("gebucht")} ${money(f.gebucht, cur)}\n${t("Spanne")} ${money(f.unten, cur)} – ${money(f.oben, cur)}\n${t("wahrscheinlich")} ${money(f.wahrscheinlich, cur)}`)}">
+        <div class="b" style="left:${pos(f.unten)};width:calc(${pos(f.oben)} - ${pos(f.unten)})"></div>
+        <div class="g" style="width:${pos(f.gebucht)}"></div><div class="m" style="left:${pos(f.wahrscheinlich)}"></div></div>
+      <dl><dt>${t("Gebucht (Stand heute)")}</dt><dd>${money(f.gebucht, cur)}</dd>
+        <dt>${t("Erwartete Nachbuchung")}</dt><dd>+${money(f.erwartete_nachbuchung, cur)}</dd>
+        ${vj}${freeRow}
+        <dt>${t("Basis")}</dt><dd>${f.jahre_basis} ${t(f.jahre_basis === 1 ? "Vorjahr" : "Vorjahre")}${low ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</dd></dl>
+      <div class="note">${t("Spanne = 10.–90. Perzentil der Nachbuchung (Endstand − Stand am gleichen Tag) der Vorjahre, kein Konfidenzintervall.")}</div></div>`;
+  }
+
+  // ---- Modul 3: Saison-Matrix ----
+  seasonMatrix(d) {
+    const m = d.matrix;
+    if (!m) return "";
+    const s = this._state;
+    const cur = d.apt.currency;
+    const id = s.matrix;
+    const today = D(d.today);
+    const ty = today.getFullYear();
+    const cells = new Map(statSeries(m.months).map((c) => [c.fach, c]));
+    const yearCells = new Map(statSeries(m.years).map((c) => [c.fach, c]));
+    // Jahre: ab erstem Jahr bis laufendes Jahr, nächstes Jahr nur mit Buchungen
+    const years = [];
+    for (let y = m.since; y <= ty + 1; y++) {
+      if (y === ty + 1 && !(yearCells.get(String(y))?.n > 0)) continue;
+      years.push(y);
+    }
+    // Aus dem Ø ausgenommene Jahre (Standard 2020 = Lockdown); Hinweis nur, wenn das Jahr in der Matrix steht
+    const exclude = new Set((this._config.matrix_exclude_years || []).map(Number).filter((y) => years.includes(y)));
+    const exShown = [...exclude];
+    const done = (y, mo) => new Date(y, mo, 1) <= today; // Monat abgeschlossen (Monatsende vor heute)
+    const vals = [...cells.values()].filter((c) => Number(c.fach.slice(0, 4)) >= m.since && c.wert !== null).map((c) => c.wert);
+    const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1);
+    const [selA, selB] = d.range;
+    const shade = (v) => {
+      if (v === null || v === undefined) return "";
+      const a = 0.08 + 0.8 * ((v - lo) / (hi - lo || 1));
+      return `background:color-mix(in srgb, var(--sm-accent) ${Math.round(a * 100)}%, var(--sm-surf));${a > 0.55 ? "color:var(--sm-acc-ink);" : ""}`;
+    };
+    const cell = (c, y, mo) => {
+      const key = `${y}-${String(mo + 1).padStart(2, "0")}`;
+      const open = !done(y, mo + 1);
+      const inSel = new Date(y, mo, 1) >= selA && new Date(y, mo, 1) < selB;
+      if (!c || (c.wert === null && !c.n)) return `<div class="c none${inSel ? " sel" : ""}" data-tip="${esc(`${binLabel(key, true)}: ${t("keine Daten")}`)}">–</div>`;
+      const low = (c.n || 0) < 5;
+      const tip = `${binLabel(key, true)}: ${this.fmt(id, c.wert, cur, true)} · n = ${c.n || 0}${low ? ` (${t("wenig Daten")})` : ""}${open ? `\n${t("noch nicht abgeschlossen – Buchungsstand heute")}` : ""}`;
+      return `<div class="c${low ? " low" : ""}${open ? " open" : ""}${inSel ? " sel" : ""}" style="${shade(c.wert)}" data-tip="${esc(tip)}">${this.fmt(id, c.wert, cur)}</div>`;
+    };
+    const cols = `grid-template-columns: 44px repeat(${years.length}, minmax(52px, 1fr)) minmax(62px, 1fr)`;
+    let html = `<div></div>${years.map((y) => `<div class="h">${y}${exclude.has(y) ? "*" : ""}</div>`).join("")}<div class="h">Ø${exclude.size ? "*" : ""}</div>`;
+    for (let mo = 0; mo < 12; mo++) {
+      html += `<div class="rl">${t(MONTHS_SHORT[mo])}</div>`;
+      const avgVals = [];
+      for (const y of years) {
+        const c = cells.get(`${y}-${String(mo + 1).padStart(2, "0")}`);
+        html += cell(c, y, mo);
+        if (!exclude.has(y) && done(y, mo + 1) && c && c.wert !== null) avgVals.push(c.wert);
+      }
+      const avg = avgVals.length ? avgVals.reduce((a, b) => a + b, 0) / avgVals.length : null;
+      html += `<div class="c avg" data-tip="${esc(`Ø ${t(MONTHS_SHORT[mo])}: ${this.fmt(id, avg, cur, true)}\n${t("aus")} ${avgVals.length} ${t("abgeschlossenen Jahren")}${exclude.size ? ` (${t("ohne")} ${[...exclude].join(", ")})` : ""}`)}">${this.fmt(id, avg, cur)}</div>`;
+    }
+    // Jahreszeile (eigene Abfrage je Jahr: Auslastung/ADR sind keine Summe der Monate)
+    html += `<div class="gap"></div><div class="rl">${t("Jahr")}</div>`;
+    const yAvg = [];
+    for (const y of years) {
+      const c = yearCells.get(String(y));
+      const open = y >= ty;
+      if (!exclude.has(y) && !open && c?.wert !== null && c?.wert !== undefined) yAvg.push(c.wert);
+      html += `<div class="c tot${open ? " open" : ""}${(c?.n || 0) < 5 ? " low" : ""}" data-tip="${esc(`${y}: ${this.fmt(id, c?.wert, cur, true)} · n = ${c?.n || 0}${open ? `\n${t("noch nicht abgeschlossen – Buchungsstand heute")}` : ""}`)}">${this.fmt(id, c?.wert, cur)}</div>`;
+    }
+    html += `<div class="c avg tot">${this.fmt(id, yAvg.length ? yAvg.reduce((a, b) => a + b, 0) / yAvg.length : null, cur)}</div>`;
+    const seg = `<div class="seg" role="group" aria-label="${t("Kennzahl")}">${MATRIX_MEASURES.map(([k, l]) =>
+      `<button data-matrix="${k}" aria-pressed="${id === k}">${t(l)}</button>`).join("")}</div>`;
+    return `<div class="panel"><div class="ph"><h2>${t("Saison-Matrix")}</h2><span class="sub">${t("Monate × Jahre seit")} ${m.since}</span>${seg}</div>
+      <div class="scroll"><div class="mx" style="${cols}">${html}</div></div>
+      <div class="legend"><span class="scale"><i style="background:linear-gradient(90deg, color-mix(in srgb, var(--sm-accent) 8%, var(--sm-surf)), var(--sm-accent))"></i>
+          ${this.fmt(id, lo, cur)} – ${this.fmt(id, hi, cur)}</span>
+        <span><i style="border:1px dashed currentColor;background:none"></i>${t("noch nicht abgeschlossen")}</span>
+        <span><i style="box-shadow:inset 0 0 0 2px var(--sm-ink);background:none"></i>${t("gewählter Zeitraum")}</span>
+        <span><i style="background:var(--sm-warn);width:6px;height:6px;border-radius:50%"></i><em>${t("kursiv")}</em> = ${t("weniger als 5 Buchungen")}</span>
+        <span>${exShown.length ? `* Ø ${t("ohne")} ${exShown.join(", ")}, ` : "Ø "}${t("nur abgeschlossene Monate")}</span></div></div>`;
+  }
+
+  body(d) {
+    const simple = d.simple;
+    const sen = this.sentence(d);
+    const modeSeg = `<div class="seg" role="group" aria-label="${t("Ansicht")}">${[["werkbank", "Werkbank"], ["einfach", "Einfach"]].map(([k, l]) =>
+      `<button data-mode="${k}" aria-pressed="${d.simple === (k === "einfach")}">${t(l)}</button>`).join("")}</div>`;
+    const head = `<div class="lede"><div><div class="kick">${esc(this._config.title || t("Statistik"))}${this.multi ? ` · ${t("Alle Wohnungen")}` : ""}</div>
+      <h1>${esc(sen.h)}</h1>${sen.p ? `<p>${sen.p}</p>` : ""}<p class="m">${esc(sen.m)} · ${t("Vergleich")}: ${esc(this.cmpName(d))}</p></div>${modeSeg}</div>`;
+    const tt = `<div class="tt" hidden></div>`;
+    if (simple) {
+      return `${head}${this.filterBar(d)}${this.kpiBar(d)}<div class="two">${this.forecastCard(d)}</div>
+        <div class="hint">${t("Buchungstempo, Verlauf und Saison-Matrix:")} <button class="lnk" data-mode="werkbank">${t("Werkbank öffnen")}</button></div>${tt}`;
+    }
+    return `${head}${this.filterBar(d)}${this.kpiBar(d)}${this.focusChart(d)}
+      <div class="two">${this.paceChart(d)}${this.forecastCard(d)}</div>${this.seasonMatrix(d)}${tt}`;
+  }
+  bind(root) {
+    const s = this._state;
+    const shift = (dir) => {
+      const [a] = statsRange(s, this._data.today);
+      this.setState({ anchor: iso(addMonths(a, dir * PERIOD_MONTHS[s.ptype])), paceYear: null }, true);
+    };
+    root.querySelectorAll("[data-ptype]").forEach((el) => el.addEventListener("click", () => {
+      const [a, b] = statsRange(s, this._data.today);
+      const p = el.dataset.ptype;
+      // Beim Wechsel auf „Frei“ den bisherigen Zeitraum übernehmen; sonst den Zeitraum, der heute bzw. den bisherigen Beginn enthält
+      if (p === "frei") this.setState({ ptype: p, from: iso(a), to: iso(addDays(b, -1)) }, true);
+      else this.setState({ ptype: p, anchor: iso(s.anchor ? a : D(this._data.today)) }, true);
+    }));
+    root.querySelectorAll("[data-step]").forEach((el) => el.addEventListener("click", () => shift(Number(el.dataset.step))));
+    root.querySelector('[data-k="compare"]')?.addEventListener("change", (e) => this.setState({ compare: e.target.value }, true));
+    root.querySelector('[data-k="from"]')?.addEventListener("change", (e) => this.setState({ from: e.target.value }, true));
+    root.querySelector('[data-k="to"]')?.addEventListener("change", (e) => this.setState({ to: e.target.value }, true));
+    root.querySelector('[data-k="paceyear"]')?.addEventListener("change", (e) => this.setState({ paceYear: Number(e.target.value) }, true));
+    root.querySelectorAll("[data-raster]").forEach((el) => el.addEventListener("click", () => this.setState({ raster: el.dataset.raster }, true)));
+    root.querySelectorAll("[data-ch]").forEach((el) => el.addEventListener("click", () => this.setState({ channels: toggleChannel(s.channels, el.dataset.ch) }, true)));
+    root.querySelectorAll("[data-apt]").forEach((el) => el.addEventListener("click", () => {
+      AptSel.value = el.dataset.apt === ALL ? ALL : Number(el.dataset.apt);
+    }));
+    root.querySelectorAll("[data-matrix]").forEach((el) => el.addEventListener("click", () => this.setState({ matrix: el.dataset.matrix }, true)));
+    // Fokus-Kennzahl: Verlauf darunter; Matrix folgt, wenn sie die Kennzahl kennt
+    root.querySelectorAll("[data-focus]").forEach((el) => el.addEventListener("click", () => {
+      const f = el.dataset.focus;
+      const mx = MATRIX_MEASURES.some(([k]) => k === f) ? f : s.matrix;
+      if (this._data.simple) { this.setState({ focus: f }); return; }
+      this.setState({ focus: f, matrix: mx }, mx !== s.matrix);
+    }));
+    root.querySelectorAll("[data-mode]").forEach((el) => el.addEventListener("click", () => {
+      lsSet(STATS_MODE_KEY, el.dataset.mode);
+      this._data = null; // anderes Datenpaket (Einfach lädt weniger)
+      this._reload();
+    }));
+    // Tooltips: ein schwebendes Kästchen für alle Elemente mit data-tip (Maus: Hover, Touch: Tippen)
+    const card = root.querySelector("ha-card");
+    const tt = root.querySelector(".tt");
+    if (!card || !tt) return;
+    const show = (e) => {
+      const el = e.target.closest?.("[data-tip]");
+      if (!el) { tt.hidden = true; return; }
+      tt.textContent = el.dataset.tip;
+      tt.hidden = false;
+      const r = card.getBoundingClientRect();
+      const w = tt.offsetWidth, h = tt.offsetHeight;
+      let x = e.clientX - r.left + 14, y = e.clientY - r.top + 14;
+      if (x + w > r.width) x = Math.max(0, e.clientX - r.left - w - 14);
+      if (y + h > r.height) y = Math.max(0, e.clientY - r.top - h - 14);
+      tt.style.left = `${x}px`;
+      tt.style.top = `${y}px`;
+    };
+    card.addEventListener("pointermove", show);
+    card.addEventListener("pointerdown", show);
+    card.addEventListener("pointerleave", () => { tt.hidden = true; });
+  }
+  getCardSize() { return 14; }
+}
+
+// ===========================================================================
 // Kopfleiste (v1.15.0): Seiten-Navigation, Wohnungsauswahl, Hell/Dunkel/System
 // ===========================================================================
 // Eine Karte oben auf jeder Smoobu-Seite. Die Seitenpfade sind relativ zum
@@ -2473,6 +3152,9 @@ class SmoobuAssistantCard extends SmoobuCard {
 const DEFAULT_PAGES = [
   { name: "Übersicht", path: "smoobu" }, { name: "Belegung", path: "smoobu-belegung" },
   { name: "Buchungen", path: "smoobu-buchungen" }, { name: "Finanzen", path: "smoobu-finanzen" },
+  // Statistik-Werkbank (Teilschritt 2): optional = Reiter erscheint nur, wenn das Dashboard eine Ansicht
+  // mit diesem Pfad hat (die Seite selbst kommt in Teilschritt 5) – so entsteht vorher kein toter Link
+  { name: "Statistik", path: "smoobu-statistik", optional: true },
   { name: "Nachrichten", path: "smoobu-nachrichten", badge: "nachrichten" }, { name: "Assistent", path: "smoobu-assistent" },
 ];
 const ICON_SVG = {
@@ -2539,9 +3221,21 @@ class SmoobuHeaderCard extends SmoobuCard {
     const parts = location.pathname.split("/").filter(Boolean);
     return `/${parts[0] || "lovelace"}/${path}`;
   }
+  // Pfade der Ansichten des aktuellen Dashboards (aus hui-root/hui-view); null = unbekannt (dann alle Reiter zeigen)
+  viewPaths() {
+    let n = this;
+    for (let i = 0; i < 80 && n; i++) {
+      n = n.parentNode || n.host;
+      const views = n?.lovelace?.config?.views;
+      if (Array.isArray(views)) return new Set(views.map((v, j) => String(v.path ?? j)));
+    }
+    return null;
+  }
   body({ info, open }) {
     const here = location.pathname.split("/").filter(Boolean).pop();
-    const tabs = (this._config.pages || []).map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
+    const known = this.viewPaths();
+    const pages = (this._config.pages || []).filter((p) => !p.optional || !known || known.has(p.path));
+    const tabs = pages.map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
     const ws = info.wohnungen;
     const sel = this.target.apartment_id;
     const apts = this._config.show_apartments && ws.length > 1 && !this._config.apartment_id
@@ -2592,6 +3286,7 @@ const CARDS = [
   ["smoobu-timeline-card", SmoobuTimelineCard, "Smoobu Belegungsplan", "Belegung mit Preisen und Mindestaufenthalt; sperren und Preise setzen"],
   ["smoobu-bookings-card", SmoobuBookingsCard, "Smoobu Buchungen", "Buchungsliste mit Suche, Filtern, Summen und CSV-Export"],
   ["smoobu-analytics-card", SmoobuAnalyticsCard, "Smoobu Finanzen", "Umsatz, Kosten und Kennzahlen je Kanal, frei filterbar mit Vergleich"],
+  ["smoobu-stats-card", SmoobuStatsCard, "Smoobu Statistik", "Analyse-Werkbank: Kennzahlen mit Vergleich, Buchungstempo mit Prognose, Saison-Matrix"],
   ["smoobu-inbox-card", SmoobuInboxCard, "Smoobu Posteingang", "Nachrichten der Gäste lesen und beantworten"],
   ["smoobu-assistant-card", SmoobuAssistantCard, "Smoobu Assistent", "KI-Assistent: Wissensdatenbank, Lernbeispiele, Vorschläge"],
 ];

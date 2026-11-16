@@ -41,7 +41,11 @@ PAGES = {
     "finanzen": [["smoobu-header-card", {}], ["smoobu-analytics-card", {}]],
     "nachrichten": [["smoobu-header-card", {}], ["smoobu-inbox-card", {"message_entity": "sensor.smoobu_letzte_gastenachricht"}]],
     "assistent": [["smoobu-header-card", {}], ["smoobu-assistant-card", {}]],
+    # Statistik-Werkbank (Teilschritt 2); Handy-Bilder mit SMOOBU_GERAETE=pc,handy
+    "statistik": [["smoobu-header-card", {}], ["smoobu-stats-card", {}]],
 }
+# Geräte: Breite des Fensters (Media-Queries und Standardansicht Werkbank/Einfach hängen daran)
+DEVICES = {"pc": (1440, 900, ""), "handy": (390, 844, "_handy")}
 
 
 def _shots(base: str, token: str) -> list[str]:
@@ -66,17 +70,22 @@ def _shots(base: str, token: str) -> list[str]:
         page.goto(HARNESS.as_uri())
         page.evaluate("([b, t]) => setup(b, t)", [base, token])
         variants = [("", None)] + ([("_alle", "alle")] if APTS > 1 else [])
-        for suffix, apt in variants:
-            for name, cards in pages.items():
-                for theme in themes:
-                    page.evaluate("([c, w, th, a]) => showPage(c, w, th, a)", [cards, 1440, theme, apt])
-                    page.wait_for_function(
-                        "() => [...document.querySelectorAll('#stage > *')].every(e => e.shadowRoot && e.shadowRoot.querySelector('ha-card')"
-                        " && !e.shadowRoot.textContent.includes('Laden …'))", timeout=30000)
-                    page.wait_for_timeout(700)
-                    path = OUT / f"seite_{name}{suffix}_{theme}.png"
-                    page.locator("#stage").screenshot(path=str(path))
-                    done.append(path.name)
+        devices = os.environ.get("SMOOBU_GERAETE", "pc").split(",")
+        combos = [(d, v, n, th) for d in devices for v in variants for n in pages for th in themes]
+        for dev, (suffix, apt), name, theme in combos:
+            width, height, dsuffix = DEVICES[dev]
+            page.set_viewport_size({"width": width, "height": height})
+            # Ansicht Werkbank/Einfach: Standard je Fensterbreite, mit SMOOBU_STATISTIK_MODUS=werkbank|einfach erzwingen
+            page.evaluate("(m) => m ? localStorage.setItem('smoobu-statistik-modus', m) : localStorage.removeItem('smoobu-statistik-modus')",
+                          os.environ.get("SMOOBU_STATISTIK_MODUS", ""))
+            page.evaluate("([c, w, th, a]) => showPage(c, w, th, a)", [pages[name], width, theme, apt])
+            page.wait_for_function(
+                "() => [...document.querySelectorAll('#stage > *')].every(e => e.shadowRoot && e.shadowRoot.querySelector('ha-card')"
+                " && !e.shadowRoot.textContent.includes('Laden …'))", timeout=30000)
+            page.wait_for_timeout(700)
+            path = OUT / f"seite_{name}{suffix}{dsuffix}_{theme}.png"
+            page.locator("#stage").screenshot(path=str(path))
+            done.append(path.name)
         browser.close()
     _optimize([OUT / f for f in done])
     if errors:

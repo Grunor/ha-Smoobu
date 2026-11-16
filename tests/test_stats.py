@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from custom_components.smoobu.analytics import build_records
+from custom_components.smoobu.analytics import as_of, build_records
 from custom_components.smoobu.stats import pace, query
 from tests.test_analytics import costs, bk
 
@@ -68,3 +68,11 @@ def test_pace_prognose_mit_nachbuchung():
     kurve = res["kurven"]["2026"]
     assert kurve[-1]["heute"] and kurve[-1]["wert"] == 300
     assert len(res["kurven"]["2025"]) == 24
+
+
+def test_query_mit_stichtag():
+    """Vergleich „Stichtag Vorjahr“ (Teil 2): Buchungsstand am 16.11.2025 kennt Buchung 2 noch nicht."""
+    voll = query(R, "umsatz", "gesamt", date(2025, 1, 1), date(2026, 1, 1))
+    stand = query(as_of(R, date(2025, 11, 16)), "umsatz", "gesamt", date(2025, 1, 1), date(2026, 1, 1))
+    assert voll["zeilen"][0]["werte"]["Gesamt"]["wert"] == 500
+    assert stand["zeilen"][0]["werte"]["Gesamt"]["wert"] == 200

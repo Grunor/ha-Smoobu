@@ -40,6 +40,7 @@ from .analytics import (
     COMPARES,
     PERIODS,
     analyze_with_compare,
+    as_of as stats_as_of,
     block_channel_id,
     channels_of,
     forecast_year,
@@ -252,6 +253,10 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         vol.Optional("channels"): [str],
         vol.Optional("filters"): dict,
         vol.Optional("year"): vol.Coerce(int),
+        # Teil 2 (Karte): Buchungsstand an diesem Tag statt heute – für den Vergleich
+        # „Stichtag Vorjahr“ (gleiche Rechnung wie analytics.as_of: später angelegte
+        # Buchungen fallen weg, Stornos über das Änderungsdatum angenähert)
+        vol.Optional("as_of"): str,
     }
 )
 @callback
@@ -279,6 +284,13 @@ def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
     if not msg.get("measure"):
         connection.send_error(msg["id"], "invalid_format", "measure fehlt")
         return
+    if msg.get("as_of"):
+        try:
+            stichtag = date.fromisoformat(msg["as_of"][:10])
+        except ValueError:
+            connection.send_error(msg["id"], "invalid_format", "as_of ungültig")
+            return
+        recs = stats_as_of(recs, stichtag)
     start = _date(msg.get("start"), date(today.year, 1, 1))
     end = _date(msg.get("end"), date(today.year + 1, 1, 1))
     if end <= start or (end - start).days > 3700:
