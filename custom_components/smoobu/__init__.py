@@ -336,6 +336,9 @@ async def _handle_webhook(
     coordinator.set_last_event({**event_data, "received": dt_util.now().isoformat()})
     # Neue Gästenachricht → Text nachladen (Webhook enthält nur IDs)
     if action == "newMessage" and reservation_id:
+        # v1.17.0: Antwortstatus sofort verwerfen (nicht erst im Task), damit das folgende
+        # Datenabo-Ereignis an die Karten schon den neuen Stand liefert (Zähler „Nachrichten“)
+        coordinator.invalidate_message_status(int(reservation_id))
         hass.async_create_task(
             coordinator.async_fetch_last_message(int(reservation_id), data.get("sender"))
         )

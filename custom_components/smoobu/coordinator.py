@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -122,6 +123,8 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         # 12 h gecacht; neue Nachricht (Webhook) oder Abruf des Antwortstatus aktualisiert.
         self._pet_msg: dict[int, tuple[Any, str | None]] = {}
         client.on_message_sent = self.invalidate_message_status
+        # v1.17.0: Abonnenten für „Antwortstatus geändert“ (Zähler „Nachrichten“ auf allen Geräten)
+        self._msg_listeners: list[Callable[[], None]] = []
         # „Keine Antwort erforderlich“ (v1.14.0): {reservation_id (Text): Nachrichten-ID}.
         # Gemerkt wird die Gastnachricht, die bewusst unbeantwortet bleibt – schreibt der
         # Gast danach erneut (höhere ID), ist die Buchung wieder offen. Dauerhaft in .storage.
@@ -354,10 +357,18 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         self.invalidate_message_status(rid)
         return (await self.async_message_status([rid]))[rid]
 
+    def add_message_listener(self, cb: Callable[[], None]) -> Callable[[], None]:
+        """Rückruf, sobald sich ein Antwortstatus ändern kann (v1.17.0)."""
+        self._msg_listeners.append(cb)
+        return lambda: self._msg_listeners.remove(cb)
+
     def invalidate_message_status(self, reservation_id: int) -> None:
-        """Antwortstatus einer Buchung neu laden lassen (neue/gesendete Nachricht)."""
+        """Antwortstatus einer Buchung neu laden lassen (neue/gesendete Nachricht, abgehakt)."""
         self._msg_status.pop(int(reservation_id), None)
         self._pet_msg.pop(int(reservation_id), None)
+        # Alle offenen Dashboards zählen ihre offenen Nachrichten neu (leichtgewichtig, kein Neuladen)
+        for cb in list(self._msg_listeners):
+            cb()
 
     async def async_message_status(self, reservation_ids: list[int]) -> dict[int, dict[str, Any]]:
         """Je Buchung: Ist die letzte Nachricht vom Gast und noch unbeantwortet?

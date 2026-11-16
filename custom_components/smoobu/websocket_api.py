@@ -438,8 +438,16 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
             websocket_api.event_message(msg["id"], {"zeit": dt_util.now().isoformat()})
         )
 
+    @callback
+    def messages() -> None:
+        # v1.17.0: nur Antwortstatus geändert → Karten zählen neu, ohne alles neu zu laden
+        connection.send_message(
+            websocket_api.event_message(msg["id"], {"zeit": dt_util.now().isoformat(), "art": "nachrichten"})
+        )
+
     for c in _coordinators(hass):
         removers.append(c.async_add_listener(changed))
+        removers.append(c.add_message_listener(messages))
         if c.assistant is not None:  # Wissensdatenbank/Vorschläge geändert
             removers.append(c.assistant.add_listener(changed))
 

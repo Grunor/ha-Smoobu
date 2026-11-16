@@ -703,3 +703,14 @@ async def test_pet_from_guest_messages(hass, setup):
     ]
     assert c._pet_from_messages(msgs).startswith("Gastnachricht: …")
     assert c._pet_from_messages(msgs[:1]) is None
+
+
+async def test_message_status_subscription(hass, setup, hass_ws_client):
+    """v1.17.0: Antwortstatus verworfen → Abo meldet „art: nachrichten“ (Zähler am Reiter sofort neu)."""
+    c = hass.config_entries.async_get_entry(setup.entry_id).runtime_data
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "smoobu/subscribe"})
+    assert (await ws.receive_json())["success"]
+    c.invalidate_message_status(2)
+    ev = await ws.receive_json()
+    assert ev["type"] == "event" and ev["event"]["art"] == "nachrichten"

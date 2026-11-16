@@ -236,6 +236,7 @@ class SmoobuStore {
   constructor(hass) {
     this.hass = hass;
     this.listeners = new Set();
+    this.msgListeners = new Set();
     this.info = null;
     this._sub = null;
     this._cache = new Map();
@@ -266,7 +267,9 @@ class SmoobuStore {
   subscribe(cb) {
     this.listeners.add(cb);
     if (!this._sub) {
-      this._sub = this.hass.connection.subscribeMessage(() => {
+      this._sub = this.hass.connection.subscribeMessage((ev) => {
+        // v1.17.0: nur Antwortstatus geändert (auch von anderem Gerät) → Zähler neu zählen
+        if (ev?.art === "nachrichten") { this.messagesChanged(); return; }
         // Neuer Datenstand → alle Zwischenergebnisse verwerfen und Karten neu laden
         this._cache.clear();
         this.info = null;
@@ -280,6 +283,13 @@ class SmoobuStore {
     this.info = null;
     this.listeners.forEach((l) => l());
   }
+  // v1.17.0: Antwortstatus geändert (keine Antwort nötig / rückgängig) → nur Zähler neu zählen,
+  // ohne alle Karten neu zu laden (Posteingang behält Auswahl und Entwurf)
+  onMessages(cb) {
+    this.msgListeners.add(cb);
+    return () => this.msgListeners.delete(cb);
+  }
+  messagesChanged() { this.msgListeners.forEach((l) => l()); }
   async service(service, data, returnResponse = false) {
     const r = await this.hass.callService("smoobu", service, data, undefined, true, returnResponse);
     this.invalidate();
@@ -2060,6 +2070,7 @@ class SmoobuInboxCard extends SmoobuCard {
     try {
       const r = await this.store.ws("smoobu/message_done", { ...this.target, reservation_id: id, done }, { cache: false });
       if (this._data?.status) this._data.status[id] = r.status;
+      this.store.messagesChanged(); // Zähler am Reiter „Nachrichten“ sofort mitziehen
       if (this._state.sel === id && done) this.setState({ sug: null });
       toast(t(done ? "Ohne Antwort erledigt" : "Gespeichert"));
       this.render();
@@ -2315,18 +2326,39 @@ class SmoobuHeaderCard extends SmoobuCard {
   `;
   async load() {
     const info = await this.store.getInfo();
-    let open = 0;
-    if ((this._config.pages || []).some((p) => p.badge === "nachrichten")) {
-      try {
-        const list = await this.store.ws("smoobu/bookings", { ...this.target, start: iso(addDays(D(info.heute), -14)), end: iso(addDays(D(info.heute), 60)) });
-        const ids = list.buchungen.filter((b) => !b.blockiert && !b.storniert && b.status !== "vergangen").slice(0, 60).map((b) => b.id);
-        if (ids.length) {
-          const st = (await this.store.ws("smoobu/message_status", { ...this.target, reservation_ids: ids })).status || {};
-          open = Object.values(st).filter((x) => x.offen).length;
-        }
-      } catch (e) { open = 0; }
-    }
-    return { info, open };
+    return { info, open: await this.countOpen(info) };
+  }
+  // Offene Gästenachrichten zählen. v1.17.0: Antwortstatus immer frisch (cache: false) – vorher kam er
+  // aus dem Seiten-Cache und blieb bis zum Neuladen der Seite stehen (das Backend cacht selbst 10 min
+  // und verwirft den Eintrag bei neuer Nachricht, eigenem Senden und „keine Antwort nötig“)
+  async countOpen(info) {
+    if (!(this._config.pages || []).some((p) => p.badge === "nachrichten")) return 0;
+    try {
+      const list = await this.store.ws("smoobu/bookings", { ...this.target, start: iso(addDays(D(info.heute), -14)), end: iso(addDays(D(info.heute), 60)) });
+      // Gleiche Auswahl wie der Posteingang (Standard 14 Tage zurück / 60 voraus, inkl. abgereister Gäste,
+      // Reihenfolge laufend → kommend → vergangen, höchstens 60), damit Badge und Posteingang dieselbe Zahl zeigen
+      const order = { laufend: 0, kommend: 1, vergangen: 2 };
+      const ids = list.buchungen.filter((b) => !b.blockiert && !b.storniert)
+        .sort((a, b) => order[a.status] - order[b.status] || (a.status === "vergangen" ? b.anreise.localeCompare(a.anreise) : a.anreise.localeCompare(b.anreise)))
+        .slice(0, 60).map((b) => b.id);
+      if (!ids.length) return 0;
+      const st = (await this.store.ws("smoobu/message_status", { ...this.target, reservation_ids: ids }, { cache: false })).status || {};
+      return Object.values(st).filter((x) => x.offen).length;
+    } catch (e) { return this._data?.open || 0; } // Fehler → letzten Stand behalten statt Badge zu verlieren
+  }
+  async recount() {
+    if (!this._data) return;
+    const open = await this.countOpen(this._data.info);
+    if (this._data && open !== this._data.open) { this._data.open = open; this.render(); }
+  }
+  // Zusätzlich zum Datenabo: Statusänderungen aus Posteingang/Buchungsdialog und Rückkehr in die App
+  _listen() {
+    super._listen();
+    const offMsg = this.store.onMessages(() => this.recount());
+    const onVis = () => { if (document.visibilityState === "visible") this.recount(); };
+    document.addEventListener("visibilitychange", onVis);
+    const base = this._unsub;
+    this._unsub = () => { base?.(); offMsg(); document.removeEventListener("visibilitychange", onVis); };
   }
   href(path) {
     if (path.startsWith("/")) return path;
