@@ -101,7 +101,11 @@ def build(today: date, apt: dict[str, Any] | None = None, seed: int = 2026, rid0
             "assistant-notice": "",
             "language": "de",
             "price": price,
-            "price-paid": "Yes" if arr < today or channel in ("Airbnb", "Booking.com") else "No",
+            # Portal-Buchungen (Airbnb/Booking.com): Portal kassiert, „price-paid“ markiert der Betreiber selbst, sobald die
+            # Rechnung an den Gast geschrieben ist → Anreisen der letzten 10 Tage inkl. heute noch ohne Markierung
+            # (zeigt „Zahlung offen“ mit Kanalname in „Wartet auf dich“ und „✓ Erhalten“ in den Buchungsdetails)
+            "price-paid": ("No" if today - timedelta(days=10) <= arr <= today else "Yes")
+            if channel in ("Airbnb", "Booking.com") else ("Yes" if arr < today else "No"),
             "prepayment": round(price * 0.3) if channel in ("Direct booking", "Website") else None,
             # v1.17.0: Anzahlung bei Anreisen in mehr als 14 Tagen noch offen (zeigt „✓ Anzahlung“)
             "prepayment-paid": "Yes" if arr <= today + timedelta(days=14) else "No",

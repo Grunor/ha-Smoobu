@@ -98,6 +98,8 @@ const EN = {
   "Als offen markieren": "Mark as open", "Anzahlung offen": "Prepayment open", "Restbetrag": "Balance",
   "Zahlung": "Payment", "als erhalten markieren": "mark as received", "wieder als offen markieren": "mark as open again",
   "In Smoobu gespeichert": "Saved in Smoobu", "offen": "open",
+  // v1.17.0: Portal-Buchungen als erhalten markieren
+  "über": "via", "Portal": "Portal", "Weitere ohne Markierung": "More not yet marked",
 };
 let LANG = "de";
 const t = (s) => (LANG === "de" ? s : EN[s] || s);
@@ -770,6 +772,9 @@ class SmoobuOverviewCard extends SmoobuCard {
     .todo .ta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .todo .ago { margin-left: auto; font-size: .78rem; color: var(--sm-muted); }
     .todo .amt { font-size: 1.15rem; font-weight: 650; margin-right: auto; }
+    /* v1.17.0 (Portal): Brutto nur zur Orientierung – gedämpft, da beim Portal kein Geld offen ist */
+    .todo .amt.muted { color: var(--sm-muted); font-weight: 500; font-size: 1rem; }
+    .todo p .dot { width: 8px; height: 8px; vertical-align: 1px; }
     .done { color: var(--sm-muted); padding: 14px 0; }
     .foot { font-size: .76rem; color: var(--sm-muted); margin: 10px 2px 0; }
   `;
@@ -781,12 +786,19 @@ class SmoobuOverviewCard extends SmoobuCard {
     const m0 = D(today.slice(0, 8) + "01");
     const apts = this.multi ? info.wohnungen.filter((w) => !tg.entry_id || w.entry_id === tg.entry_id) : [apt];
     const rateEnd = iso(addDays(D(today), Math.max(this._config.gap_days, this._config.band_days) + 21));
-    const [month, ytd, last12, prevYear, list, ...rates] = await Promise.all([
+    // v1.17.0 (Portal): eigener Abruf nur für „Wartet auf dich“ – Portal-Buchungen ohne price-paid ab dem Anreisetag.
+    // Das normale Fenster (ab gestern) enthält schon abgereiste Gäste nicht mehr; es zu verlängern würde Band,
+    // Status-Satz, Lücken und Antwortstatus mitverändern. Daher separat: 60 Tage zurück bis morgen, nur Portale
+    // (Backend-Filter „portale“ = Kanalgruppe Portal). 60 Tage = genug Puffer für Rechnungen, ohne Altlasten
+    // aus Jahren vor der Einführung der Markierung anzuzeigen.
+    const [month, ytd, last12, prevYear, list, portalList, ...rates] = await Promise.all([
       this.store.ws("smoobu/analytics", { ...tg, period: "monat", compare: "vorjahr_stand" }),
       this.store.ws("smoobu/analytics", { ...tg, period: "jahr_bis_heute", compare: "vorjahr" }),
       this.store.ws("smoobu/analytics", { ...tg, start: iso(addMonths(m0, -11)), end: iso(addMonths(m0, 1)), compare: "vorjahr" }),
       this.store.ws("smoobu/analytics", { ...tg, period: "vorjahr", compare: "kein" }).catch(() => null),
       this.store.ws("smoobu/bookings", { ...tg, start: iso(addDays(D(today), -1)), end: iso(addDays(D(today), 180)) }),
+      this.store.ws("smoobu/bookings", { ...tg, start: iso(addDays(D(today), -60)), end: iso(addDays(D(today), 1)), channels: ["portale"] })
+        .then((r) => r.buchungen).catch(() => []),
       ...apts.map((w) => this.store.ws("smoobu/rates", { ...tg, apartment_id: w.apartment_id, start: today, end: rateEnd })
         .then((r) => r.preise).catch(() => ({}))),
     ]);
@@ -799,7 +811,9 @@ class SmoobuOverviewCard extends SmoobuCard {
       catch (e) { status = {}; }
     }
     const ratesBy = Object.fromEntries(apts.map((w, i) => [w.apartment_id, rates[i] || {}]));
-    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy };
+    // Anreise ≤ heute, nicht storniert/gesperrt, ohne offenen Betrag (sonst normaler Weg) und noch nicht markiert
+    const portalOpen = portalList.filter((b) => !b.storniert && !b.blockiert && portalPay(b) && !b.bezahlt && b.anreise <= today);
+    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy, portalOpen };
   }
 
   // ---- Kopf ----------------------------------------------------------------
@@ -984,7 +998,7 @@ class SmoobuOverviewCard extends SmoobuCard {
 
   // ---- Listen --------------------------------------------------------------
   lists(d) {
-    const { apt, apts, today, bookings, status, ratesBy } = d;
+    const { apt, apts, today, bookings, status, ratesBy, portalOpen = [] } = d;
     const cur = apt.currency;
     const guests = bookings.filter((b) => !b.blockiert);
     const next = guests.filter((b) => b.anreise >= today && b.anreise > (this.multi ? "" : today)).slice(0, this._config.upcoming);
@@ -1008,8 +1022,13 @@ class SmoobuOverviewCard extends SmoobuCard {
     const unpaidAll = guests.filter((b) => b.offen > 0 && b.gruppe !== "Portal" && b.status !== "vergangen");
     const soon = iso(addDays(D(today), 30));
     const unpaid = unpaidAll.filter((b) => b.anreise <= soon).slice(0, 3);
+    // v1.17.0 (Portal): Portal-Buchungen ohne Markierung ab dem Anreisetag, älteste zuerst (Rechnung am längsten
+    // fällig), max. 3 – Rest als Anzahl/Summe-Zeile wie „Später fällig“
+    const portalAll = [...portalOpen].sort((a, b) => a.anreise.localeCompare(b.anreise) || a.id - b.id);
+    const portalShow = portalAll.slice(0, 3);
+    const portalRest = portalAll.slice(3);
     // v1.17.0: für die Buttons „✓ Erhalten“ / „✓ Anzahlung“ (bind sucht die Buchung per ID)
-    this._payBookings = new Map(unpaid.map((b) => [b.id, b]));
+    this._payBookings = new Map([...unpaid, ...portalShow].map((b) => [b.id, b]));
     this._payCur = cur;
     const later = unpaidAll.filter((b) => !unpaid.includes(b));
     const ago = (s) => {
@@ -1024,6 +1043,15 @@ class SmoobuOverviewCard extends SmoobuCard {
       ...open.map((b) => `<div class="todo msg"><div class="tt">${esc(b.gast)} ${t("wartet auf Antwort")}${this.code(b)}</div>
         ${status[b.id].letzte_text ? `<p>„${esc(status[b.id].letzte_text)}“</p>` : "<p></p>"}
         <div class="ta"><button class="btn" data-id="${b.id}">${t("Antworten")}</button><span class="ago">${ago(status[b.id].letzte_zeit)}</span></div></div>`),
+      // v1.17.0 (Portal): vor den Direkt-Zahlungen, weil schon fällig (Anreise erreicht) und damit „Später fällig“
+      // direkt unter den Direkt-Zahlungen bleibt, zu denen die Summe gehört. Kanalname statt rotem Betrag;
+      // Brutto gedämpft (.amt.muted), weil kein Geld offen ist, sondern nur die Markierung „erhalten“ fehlt
+      ...portalShow.map((b) => `<div class="todo"><div class="tt">${t("Zahlung offen")}${this.code(b)}
+        <button class="lnk" style="margin-left:auto" data-id="${b.id}">${t("Buchung öffnen")}</button></div>
+        <p>${esc(b.gast)}, ${t("Anreise")} ${fdowLong(b.anreise)} · <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span> ${esc(b.kanal)}</p>
+        <div class="ta"><span class="amt muted">${money(b.brutto, cur, 2)}</span>
+          <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t("Erhalten")}</button></div></div>`),
+      portalRest.length ? `<div class="sub" style="padding:4px 2px">${t("Weitere ohne Markierung")}: ${plural(portalRest.length, t("Buchung"), t("Buchungen"))}, ${money(portalRest.reduce((a, b) => a + (b.brutto || 0), 0), cur, 2)}</div>` : "",
       // v1.17.0: „✓ Erhalten“ (Gesamtbetrag) und ggf. „✓ Anzahlung“ direkt hier; „Buchung öffnen“ als Textlink,
       // damit Betrag + Buttons auch in der schmalen Spalte in eine Zeile passen
       ...unpaid.map((b) => { const p = payInfo(b); return `<div class="todo"><div class="tt">${t("Zahlung offen")}${this.code(b)}
@@ -1275,13 +1303,21 @@ function confirmDialog(text) {
 // Entscheidung: Bestätigung vor jedem Schreiben (wirkt direkt in Smoobu, auch für Mitbetreiber sichtbar)
 // und immer ein Rückweg („Als offen markieren“), falls versehentlich getippt.
 // ---------------------------------------------------------------------------
+// v1.17.0 (Portal): Portal-Buchungen (Airbnb, Booking.com, HomeToGo, Expedia …) haben im Backend immer
+// offen = 0, weil das Portal kassiert (Sensoren „Offene Zahlungen“ bleiben bewusst so). der Betreiber markiert sie
+// trotzdem als „erhalten“, sobald er die Rechnung an den Gast geschrieben hat → Status kommt hier allein aus
+// Smoobu „price-paid“ (b.bezahlt). portalPay = Portal-Buchung ohne offenen Betrag (Portal-Kanäle mit offenem
+// Betrag, z. B. FeWo-direkt ohne Ausnahme in den Optionen, laufen weiter über den normalen Weg mit Betrag).
+const portalPay = (b) => !!b && b.gruppe === "Portal" && !(b.offen > 0);
 const payInfo = (b) => {
   const live = b && !b.blockiert && !b.storniert;
   const pre = Number(b?.anzahlung) || 0;
   return {
-    // Gesamtzahlung offen: nur wenn das Backend einen offenen Betrag meldet (Portal-Kanäle haben nie einen)
-    canPay: live && b.offen > 0,
-    // Anzahlung separat nur, solange weder Anzahlung noch Gesamtbetrag bezahlt sind
+    // Gesamtzahlung offen: Backend meldet einen offenen Betrag – oder Portal-Buchung ohne price-paid
+    canPay: live && (b.offen > 0 || (portalPay(b) && !b.bezahlt)),
+    portal: portalPay(b),
+    // Anzahlung separat nur, solange weder Anzahlung noch Gesamtbetrag bezahlt sind (Portal: keine neue Logik –
+    // ohne offenen Betrag gibt es dort auch keinen Anzahlungs-Button, Rückweg canUnpre bleibt wie bisher)
     canPre: live && b.offen > 0 && pre > 0 && !b.anzahlung_bezahlt && !b.bezahlt,
     // Rückwege: in Smoobu als bezahlt markiert → wieder öffnen
     canUnpay: live && !!b.bezahlt,
@@ -1291,8 +1327,12 @@ const payInfo = (b) => {
 };
 async function markPayment(store, b, kind, paid, cur) {
   const pre = Number(b.anzahlung) || 0;
+  // Portal-Buchung ohne offenen Betrag: Brutto + Kanal nennen („Zahlung 412,00 € über Airbnb“), damit klar ist,
+  // dass hier kein Geld offen war, sondern nur der Status in Smoobu gesetzt wird
   const what = kind === "anzahlung" ? `${t("Anzahlung")} ${money(pre, cur, 2)}`
-    : `${t("Zahlung")}${b.offen > 0 ? " " + money(b.offen, cur, 2) : ""}`;
+    : b.offen > 0 ? `${t("Zahlung")} ${money(b.offen, cur, 2)}`
+    : portalPay(b) ? `${t("Zahlung")}${b.brutto ? " " + money(b.brutto, cur, 2) : ""} ${t("über")} ${b.kanal || t("Portal")}`
+    : t("Zahlung");
   const how = paid ? t("als erhalten markieren") : t("wieder als offen markieren");
   if (!(await confirmDialog(`${b.gast}: ${what} ${how}?`))) return false;
   const data = { reservation_id: b.id };
@@ -1955,7 +1995,11 @@ class SmoobuBookingDialog extends HTMLElement {
       <div class="row" style="margin-bottom:12px"><span class="badge"><span class="dot" style="background:${color}"></span> ${esc(b.kanal)}</span>
         <span class="badge"><ha-icon icon="${STATUS_ICON[b.status] || "mdi:help"}"></ha-icon> ${t(b.status || "")}</span>
         ${b.referenz ? `<span class="badge">#${esc(b.referenz)}</span>` : ""}<span class="badge">ID ${esc(b.id)}</span>
-        ${b.offen > 0 ? `<span class="badge bad">${t("Offen")} ${money(b.offen, cur, 2)}</span>` : b.blockiert ? "" : `<span class="badge good">✓ ${t("bezahlt")}</span>`}</div>
+        ${b.offen > 0 ? `<span class="badge bad">${t("Offen")} ${money(b.offen, cur, 2)}</span>` : b.blockiert ? ""
+          // v1.17.0 (Portal): ohne Markierung neutral „Bezahlt über <Kanal>“ – Geld ist beim Portal, aber noch nicht
+          // als erhalten markiert (kein Rot: nichts überfällig; kein Grün: der Betreiber hat es noch nicht abgehakt)
+          : portalPay(b) && !b.bezahlt ? `<span class="badge">${t("Bezahlt über")} ${esc(b.kanal)}</span>`
+          : `<span class="badge good">✓ ${t("bezahlt")}</span>`}</div>
       ${d.fehler ? `<div class="err">${esc(d.fehler)}</div>` : ""}
       <div class="sec">
         <div><h3>${t("Aufenthalt")}</h3>${kv([
