@@ -2895,7 +2895,7 @@ const STATS_MODULES = {
       const s = card._state;
       const cur = d.apt.currency;
       const seg = (key, opts, val) => `<div class="seg">${opts.map(([k, l]) => `<button data-bz="${key}:${k}" aria-pressed="${val === k}">${t(l)}</button>`).join("")}</div>`;
-      const controls = `${seg("v", [["vorlauf", "Monate vorher"], ["kalender", "Gebucht im → für"]], m.view)}
+      const controls = `${seg("v", [["kalender", "Gebucht im → für"], ["vorlauf", "Monate vorher"]], m.view)}
         ${seg("m", [["naechte", "Nächte"], ["buchungen", "Buchungen"], ["umsatz", "Umsatz"]], s.bzMeasure || "naechte")}
         ${seg("b", [["alle", "Alle Jahre"], ["filter", "Zeitraum"]], s.bzBasis || "alle")}`;
       if (m.view === "kalender") return bookingCalendar(card, d, m, controls);
@@ -3113,7 +3113,7 @@ class SmoobuStatsCard extends SmoobuCard {
   static defaults = { title: "", period: "jahr", compare: "stichtag", matrix_exclude_years: [2020], matrix_since: null };
   static initialState = (c) => ({ ptype: c.period, anchor: null, from: null, to: null, compare: c.compare, channels: [],
     raster: "auto", focus: "umsatz", matrix: "auslastung", paceYear: null, edit: false, builder: false, tableAll: false,
-    bzMeasure: "naechte", bzBasis: "alle", bzView: "vorlauf",
+    bzMeasure: "naechte", bzBasis: "alle", bzView: "kalender", // Standard „Gebucht im → für“ (Wunsch Betreiber 16.11.2026)
     draft: { title: "", measure: "umsatz", dimension: "monat", split: "", view: "balken" } });
   static css = `
     ha-card { background: none; border: 0; padding: 0; overflow: visible; position: relative; }

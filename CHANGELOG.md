@@ -8,6 +8,16 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.17.0 – 2026-11-16
+
+**Deutsch**
+- Stabiler Release mit allen Änderungen der Betas 1.17.0b1–1.17.0b6 (Einzelheiten in den Abschnitten unten): u. a. Statistik-Werkbank (neue Karte `custom:smoobu-stats-card` mit 12 Modulen, Baukasten und Prognose nach Buchungstempo), Zahlungseingang im Dashboard markieren (auch Portal-Buchungen), Benachrichtigungen mit Ruhezeit, Wohnungskürzel, Option „Daten abrufen seit“, Datumsanzeige mit Jahr
+- **Buchungszeitpunkt:** Ansicht „Gebucht im → für“ ist jetzt Standard, „Monate vorher“ per Umschalter
+
+**English**
+- Stable release with all changes of betas 1.17.0b1–1.17.0b6 (details in the sections below): including the statistics workbench (new card `custom:smoobu-stats-card` with 12 modules, builder and pace-based forecast), marking payments as received in the dashboard (portal bookings too), notifications with quiet hours, apartment codes, option "load data since", dates with year
+- **Booking timing:** view "Booked in → for" is now the default, "Months before" via the switch
+
 ## 1.17.0b6 – 2026-11-16
 
 > Beta / Pre-release
