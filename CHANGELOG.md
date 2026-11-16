@@ -12,11 +12,19 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 - Release-Ablauf: Änderungen werden auf `develop` gesammelt; Beta-Versionen als Pre-Release
 - **Buchungsliste:** Standard-Sortierung jetzt Anreise **absteigend** (neueste zuerst); Datumsspalten starten beim Anklicken immer absteigend, übrige Spalten aufsteigend. Sortierbar nach jeder Spalte; Status in logischer Reihenfolge (laufend, kommend, vergangen, gesperrt, storniert), leere Werte immer am Ende, Gleichstand nach Anreise
 - **Buchungsliste:** Trennung in **Anstehend / Aktuell / Vergangen** mit Trennzeile je Gruppe (Anzahl Buchungen und Nächte); Reihenfolge der Gruppen folgt der Datumsrichtung. CSV-Export übernimmt die angezeigte Reihenfolge
+- **Finanzen – 8 neue Kacheln:** Erlös je verfügbare Nacht (netto ÷ nicht gesperrte Nächte), Freie Nächte (buchbar + Potenzial, vergangen + entgangen, je × Ø Netto/Nacht), Storno-Volumen, Offene Zahlungen (inkl. überfällig), Teuerstes/günstigstes Portal, Bester/schwächster Kanal je Nacht, Stammgäste (wiedererkannt an Smoobu-Gast-ID, E-Mail oder vollem Namen), Wochenende Fr/Sa mit Verteilung je Wochentag
+- **Finanzen – Diagramm:** Legende mit Farbe, Kanal, Summe und Anteil (plus Vergleichslinie); Netto und Nächte jetzt ebenfalls je Kanal gestapelt; neue Ansicht **Provisionen** (Provision + Zahlungsgebühren je Portal und Monat, Ring mit Kostenverteilung und Kostenquote); Ring folgt der gewählten Kennzahl
+- **Finanzen – Kanaltabelle:** neue Spalte **Provision & Gebühren** (€, Gebühren separat ausgewiesen, Aufteilung im Tooltip), bisherige Spalte „Kosten“ heißt jetzt „Kostenquote“
+- Intern: WebSocket `smoobu/analytics` liefert zusätzlich Reihen je Kanal für Netto/Nächte/Kosten und die neuen Kennzahlen; Sensor-Attribute bleiben unverändert
 
 **English**
 - Release process: changes are collected on `develop`; beta versions as pre-releases
 - **Booking list:** default sort is now arrival **descending** (newest first); date columns always start descending when clicked, other columns ascending. Sortable by every column; status in logical order, empty values always last, ties by arrival
 - **Booking list:** split into **Upcoming / Current / Past** with a separator row per group (bookings and nights); group order follows the date direction. CSV export keeps the displayed order
+- **Finance – 8 new tiles:** revenue per available night, free nights (bookable + potential, past + lost), cancelled volume, open payments (incl. overdue), most expensive/cheapest portal, best/weakest channel per night, returning guests (guest ID, e-mail or full name), weekend Fri/Sat with per-weekday distribution
+- **Finance – chart:** legend with colour, channel, total and share (plus comparison line); net and nights now stacked per channel too; new **Commissions** view (commission + payment fees per portal and month, donut with cost split and cost ratio)
+- **Finance – channel table:** new **Commission & fees** column (€, fees shown separately); former "Costs" column is now "Cost ratio"
+- Internal: `smoobu/analytics` additionally returns per-channel series for net/nights/costs and the new figures; sensor attributes unchanged
 
 ## 1.16.0 – 2026-11-16
 

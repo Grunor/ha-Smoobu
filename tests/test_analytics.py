@@ -122,3 +122,28 @@ def test_release_waiting_time():
     assert (r.hour, r.minute) == (11, 30)
     r = booking_release({"departure": "2026-11-16", "check-out": "10:00"}, time(11, 0), 30)
     assert (r.hour, r.minute) == (10, 30)
+
+
+def test_extras_v117():
+    """v1.17.0: verfügbare/freie Nächte, Wochentage, Serien je Kanal, offene Zahlungen, Stammgäste."""
+    m = analyze(RECS, date(2026, 3, 1), date(2026, 4, 1), today=TODAY)
+    # 31 Tage − 3 (Booking) − 2 (Direkt) − 2 (Sperre) = 24 frei, alle vergangen
+    assert m["frei_naechte"] == 24 and m["frei_vergangen"] == 24 and m["frei_kommend"] == 0
+    assert m["verfuegbare_naechte"] == 29
+    assert m["erloes_verfuegbare_nacht"] == round(m["netto"] / 29, 2)
+    # 01.03.2026 ist ein Sonntag → Nächte So, Mo, Di + Di, Mi; keine Fr/Sa-Nacht
+    assert [w["naechte"] for w in m["wochentage"]] == [1, 2, 1, 0, 0, 0, 1]
+    assert m["wochenende_anteil_prozent"] == 0.0
+    s = m["reihe"]
+    assert sum(s["kanaele_naechte"]["Booking.com"]) == 3 and round(sum(s["kosten"]), 2) == 49.2
+    assert round(sum(s["kanaele_kosten"]["Booking.com"]), 2) == 49.2
+
+
+def test_returning_guests():
+    def g(i, arr, dep, mail):
+        return bk(i, arr, dep, "Direct booking", 100, email=mail, **{"guest-name": "Max Muster", "created-at": "2026-01-01 09:00"})
+    recs = build_records([g(1, "2025-05-01", "2025-05-03", "max@example.org"), g(2, "2026-05-01", "2026-05-03", "MAX@example.org"),
+                          g(3, "2026-06-01", "2026-06-03", None)], costs, [], TODAY)
+    r = analyze(recs, date(2026, 1, 1), date(2027, 1, 1), series=False, today=TODAY)
+    # Buchung 2 per E-Mail, Buchung 3 per vollem Namen wiedererkannt
+    assert r["stammgaeste"] == 2 and r["stammgaeste_prozent"] == 100.0

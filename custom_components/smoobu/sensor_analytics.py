@@ -28,6 +28,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
 from .analytics import (
+    EXTRA_KEYS,
     SEL_ALL,
     analyze,
     analyze_with_compare,
@@ -78,7 +79,8 @@ def selection(c: C, apt: int) -> dict[str, str]:
 
 def _strip(result: dict[str, Any]) -> dict[str, Any]:
     """Kennzahlen ohne Kanaltabelle/Reihe (für verschachtelte Attribute)."""
-    return {k: v for k, v in result.items() if k not in ("kanaele", "reihe")}
+    # v1.17.0: Zusatzkennzahlen der Finanzen-Karte ebenfalls nicht als Attribut
+    return {k: v for k, v in result.items() if k not in ("kanaele", "reihe", *EXTRA_KEYS)}
 
 
 # ---------------------------------------------------------------------------

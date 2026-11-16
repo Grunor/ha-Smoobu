@@ -177,6 +177,8 @@ def booking_record(
         "storniert": cancelled,
         "blockiert": blocked,
         "gast": guest_name(booking) if not blocked else None,
+        # v1.17.0: für die Stammgast-Erkennung (Smoobu-Gast-ID, sonst E-Mail/Name)
+        "gast_id": booking.get("guestId") if not blocked else None,
         "vorname": first_name(booking) if not blocked else None,
         "email": booking.get("email"),
         "telefon": booking.get("phone"),
@@ -401,8 +403,12 @@ def analyze(
     selection: str | Iterable[str] | None = None,
     series: bool = True,
     units: int = 1,
+    today: date | None = None,
 ) -> dict[str, Any]:
     """Kennzahlen gesamt, je Kanal und (optional) als Monats-/Tagesreihe.
+
+    `today` (v1.17.0) trennt freie Nächte in vergangen (entgangen) und kommend (Potenzial)
+    und markiert überfällige offene Zahlungen; ohne Angabe gilt das heutige Datum.
 
     `units` = Anzahl Wohnungen in `records` (v1.15.0, Ansicht „Alle Wohnungen“):
     verfügbare Nächte = Tage × Wohnungen, damit die Auslastung über alle
@@ -450,9 +456,99 @@ def analyze(
     result["bis"] = end.isoformat()
     result["tage"] = days // units
     result["einheiten"] = units
+    result.update(_extras(records, start, end, match, units, result, today or date.today()))
     if series:
         result["reihe"] = _series(records, start, end, match)
     return result
+
+
+def _guest_keys(r: dict[str, Any]) -> set[str]:
+    """Merkmale, an denen derselbe Gast wiedererkannt wird (Gast-ID, E-Mail, voller Name)."""
+    keys = set()
+    if r.get("gast_id"):
+        keys.add(f"id:{r['gast_id']}")
+    if r.get("email") and "@" in str(r["email"]):
+        keys.add(f"mail:{str(r['email']).strip().casefold()}")
+    if r.get("gast") and len(str(r["gast"]).split()) >= 2:
+        # nur Vor- + Nachname, damit einzelne Vornamen nicht fälschlich zusammenfallen
+        keys.add(f"name:{' '.join(str(r['gast']).casefold().split())}")
+    return keys
+
+
+# Schlüssel aus _extras – nur für die Finanzen-Karte, nicht als Sensor-Attribute (Recorder schlank halten)
+EXTRA_KEYS = (
+    "verfuegbare_naechte", "erloes_verfuegbare_nacht", "frei_naechte", "frei_vergangen", "frei_kommend",
+    "frei_entgangen_netto", "frei_potenzial_netto", "wochentage", "wochenende_anteil_prozent",
+    "wochenende_netto_pro_nacht", "wochentag_netto_pro_nacht", "offen_betrag", "offen_buchungen",
+    "offen_ueberfaellig", "stammgaeste", "stammgaeste_prozent",
+)
+
+
+def _extras(records, start: date, end: date, match, units: int, result: dict[str, Any], today: date) -> dict[str, Any]:
+    """Zusatzkennzahlen v1.17.0: verfügbare/freie Nächte, Wochentage, offene Zahlungen, Stammgäste."""
+    valid = [r for r in records if not r["blockiert"] and not r["storniert"]]
+    # --- Freie Nächte je Wohnung und Tag (unabhängig vom Kanalfilter: Leerstand gehört der Wohnung)
+    used: set[tuple[Any, date]] = set()
+    for r in records:
+        if r["storniert"]:
+            continue
+        d, dep = max(date.fromisoformat(r["anreise"]), start), min(date.fromisoformat(r["abreise"]), end)
+        while d < dep:
+            used.add((r.get("wohnung_id"), d))
+            d += timedelta(days=1)
+    total_days = max((end - start).days, 0)
+    past_days = max((min(today, end) - start).days, 0)
+    free = max(total_days * units - len(used), 0)
+    free_past = max(past_days * units - sum(1 for _, d in used if d < today), 0)
+    npn = result.get("netto_pro_nacht") or 0
+    available = max(total_days * units - result.get("gesperrt_naechte", 0), 0)
+    # --- Wochentage (Mo=0 … So=6): Nächte und Netto anteilig je Nacht (Kanalfilter gilt)
+    week = [{"naechte": 0, "netto": 0.0, "_pn": 0} for _ in range(7)]
+    for r in valid:
+        if not match(r) or not r["naechte"]:
+            continue
+        per = r["netto"] / r["naechte"]
+        d, dep = max(date.fromisoformat(r["anreise"]), start), min(date.fromisoformat(r["abreise"]), end)
+        while d < dep:
+            w = week[d.weekday()]
+            w["naechte"] += 1
+            if r["brutto"]:
+                w["netto"] += per
+                w["_pn"] += 1
+            d += timedelta(days=1)
+    wochentage = [{"naechte": w["naechte"], "netto": round(w["netto"], 2),
+                   "netto_pro_nacht": round(w["netto"] / w["_pn"], 2) if w["_pn"] else None} for w in week]
+    we = [week[4], week[5]]  # Freitag- und Samstagnacht
+    we_n, all_n = sum(w["naechte"] for w in we), sum(w["naechte"] for w in week)
+    we_pn, wd_pn = sum(w["_pn"] for w in we), sum(w["_pn"] for w in week) - sum(w["_pn"] for w in we)
+    we_net, all_net = sum(w["netto"] for w in we), sum(w["netto"] for w in week)
+    # --- Offene Zahlungen und Stammgäste: Buchungen mit Anreise im Zeitraum (Kanalfilter gilt)
+    in_period = [r for r in valid if match(r) and _in(r, start, end)]
+    open_ = [r for r in in_period if (r.get("offen") or 0) > 0]
+    seen_before: list[tuple[str, set[str]]] = [(r["anreise"], _guest_keys(r)) for r in valid]
+    returning = 0
+    for r in in_period:
+        keys = _guest_keys(r)
+        if keys and any(a < r["anreise"] and keys & k for a, k in seen_before):
+            returning += 1
+    return {
+        "verfuegbare_naechte": available,
+        "erloes_verfuegbare_nacht": round(result["netto"] / available, 2) if available else None,
+        "frei_naechte": free,
+        "frei_vergangen": free_past,
+        "frei_kommend": max(free - free_past, 0),
+        "frei_entgangen_netto": round(free_past * npn, 2),
+        "frei_potenzial_netto": round(max(free - free_past, 0) * npn, 2),
+        "wochentage": wochentage,
+        "wochenende_anteil_prozent": _pct(we_n, all_n),
+        "wochenende_netto_pro_nacht": round(we_net / we_pn, 2) if we_pn else None,
+        "wochentag_netto_pro_nacht": round((all_net - we_net) / wd_pn, 2) if wd_pn else None,
+        "offen_betrag": round(sum(r["offen"] for r in open_), 2),
+        "offen_buchungen": len(open_),
+        "offen_ueberfaellig": sum(1 for r in open_ if date.fromisoformat(r["anreise"]) <= today),
+        "stammgaeste": returning,
+        "stammgaeste_prozent": _pct(returning, len(in_period)),
+    }
 
 
 def _series(records, start: date, end: date, match) -> dict[str, Any]:
@@ -464,31 +560,43 @@ def _series(records, start: date, end: date, match) -> dict[str, Any]:
     else:
         buckets = _months(start, end)
         step = lambda b: _add_months(b, 1)  # noqa: E731
-    labels, brutto, netto, nights, by_channel = [], [], [], [], {}
-    for b in buckets:
+    labels, brutto, netto, nights, costs = [], [], [], [], []
+    # je Kanal: Brutto (bisheriges Feld „kanaele“) plus ab v1.17.0 Netto, Nächte und Kosten (Provision + Gebühren)
+    by = {"brutto": {}, "netto": {}, "naechte": {}, "kosten": {}}
+    for i, b in enumerate(buckets):
         lo, hi = max(b, start), min(step(b), end)
         acc = _empty()
-        chans: dict[str, float] = {}
         for r in records:
             if r["blockiert"] or r["storniert"] or not match(r):
                 continue
-            before = acc["brutto"]
+            one = _empty()
+            _add_nights(one, r, lo, hi)
+            if not one["naechte"]:
+                continue
             _add_nights(acc, r, lo, hi)
-            if acc["brutto"] != before:
-                chans[r["kanal"]] = chans.get(r["kanal"], 0.0) + acc["brutto"] - before
+            vals = {"brutto": one["brutto"], "netto": one["netto"], "naechte": one["naechte"],
+                    "kosten": one["provision"] + one["zahlungsgebuehren"]}
+            for key, v in vals.items():
+                if v:
+                    row = by[key].setdefault(r["kanal"], [0] * len(buckets))
+                    row[i] = row[i] + v
         labels.append(b.isoformat() if daily else b.strftime("%Y-%m"))
         brutto.append(round(acc["brutto"], 2))
         netto.append(round(acc["netto"], 2))
         nights.append(acc["naechte"])
-        for name, value in chans.items():
-            by_channel.setdefault(name, [0.0] * len(buckets))[len(labels) - 1] = round(value, 2)
+        costs.append(round(acc["provision"] + acc["zahlungsgebuehren"], 2))
+    rnd = lambda d: {k: [round(x, 2) for x in v] for k, v in d.items()}  # noqa: E731
     return {
         "einheit": "tag" if daily else "monat",
         "labels": labels,
         "brutto": brutto,
         "netto": netto,
         "naechte": nights,
-        "kanaele": by_channel,
+        "kosten": costs,
+        "kanaele": rnd(by["brutto"]),
+        "kanaele_netto": rnd(by["netto"]),
+        "kanaele_naechte": by["naechte"],
+        "kanaele_kosten": rnd(by["kosten"]),
     }
 
 
@@ -503,6 +611,9 @@ COMPARE_KEYS = [
     "brutto", "netto", "kosten", "naechte", "auslastung_prozent", "netto_pro_nacht",
     "brutto_pro_nacht", "buchungen", "stornos", "aufenthalt_schnitt", "vorlauf_schnitt",
     "personen_schnitt", "preis_pro_buchung",
+    # v1.17.0
+    "storno_volumen", "erloes_verfuegbare_nacht", "frei_naechte", "offen_betrag", "stammgaeste_prozent",
+    "wochenende_anteil_prozent",
 ]
 
 
@@ -542,7 +653,7 @@ def analyze_with_compare(
 
     `today` wird nur für „vorjahr_stand“ gebraucht (Stichtag = gleicher Tag im Vorjahr).
     """
-    result = analyze(records, start, end, selection, series, units)
+    result = analyze(records, start, end, selection, series, units, today)
     rng = compare_range(start, end, mode)
     if rng is None:
         result["vergleich"] = None
@@ -552,7 +663,7 @@ def analyze_with_compare(
         stichtag = _prev_year(today or date.today())
         base = as_of(records, stichtag)
         result["stichtag_vergleich"] = stichtag.isoformat()
-    cmp = analyze(base, rng[0], rng[1], selection, series, units)
+    cmp = analyze(base, rng[0], rng[1], selection, series, units, today)
     result["vergleich"] = cmp
     result["veraenderung_prozent"] = {k: change(result.get(k), cmp.get(k)) for k in COMPARE_KEYS}
     # Prozentwerte (Auslastung, Kostenquote, Stornoquote) zusätzlich als Punkte

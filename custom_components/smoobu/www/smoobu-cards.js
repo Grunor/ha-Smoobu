@@ -40,6 +40,13 @@ const EN = {
   "Prognose Jahr": "Forecast year", "Netto/Nacht": "Net/night", "Brutto/Nacht": "Gross/night", "Tage": "days",
   "Monat": "Month", "Jahr bis heute": "Year to date", "Kanal": "Channel", "Kanäle": "Channels", "Zeitraum": "Period",
   "Vergleich": "Comparison", "Alle": "All", "Direkt": "Direct", "Portale": "Portals", "Suche": "Search",
+  "Provisionen": "Commissions", "Provision & Gebühren": "Commission & fees", "Kostenquote": "Cost ratio",
+  "Zahlungsgebühren": "Payment fees", "davon Gebühren": "incl. fees",
+  "Erlös je verfügbare Nacht": "Revenue per available night", "verfügbar": "available", "Freie Nächte": "Free nights",
+  "Potenzial": "Potential", "buchbar": "bookable", "entgangen": "lost", "Storno-Volumen": "Cancelled volume", "überfällig": "overdue",
+  "Teuerstes Portal": "Most expensive portal", "günstigstes": "cheapest", "Bester Kanal je Nacht": "Best channel per night",
+  "schwächster": "weakest", "Stammgäste": "Returning guests", "Wochenende Fr/Sa": "Weekend Fri/Sat",
+  "So–Do": "Sun–Thu", "Mo": "Mo", "Di": "Tu", "Mi": "We", "Do": "Th", "Fr": "Fr", "Sa": "Sa", "So": "Su",
   "Anstehend": "Upcoming", "Aktuell": "Current", "Vergangen": "Past",
   "Status": "Status", "kommend": "upcoming", "laufend": "current", "vergangen": "past", "storniert": "cancelled",
   "blockiert": "blocked", "Anreise": "Arrival", "Abreise": "Departure", "Gast": "Guest", "Offen": "Open",
@@ -1460,6 +1467,8 @@ function donut(parts, center = "") {
 // ===========================================================================
 // Finanzen & Kanäle
 // ===========================================================================
+// Diagramm-Kennzahlen der Finanzen-Karte (v1.17.0: + Provisionen & Gebühren je Portal)
+const METRIC_LABEL = { brutto: "Brutto", netto: "Netto", naechte: "Nächte", kosten: "Provisionen" };
 class SmoobuAnalyticsCard extends SmoobuCard {
   static defaults = { title: "", period: "jahr", compare: "vorjahr" };
   static initialState = (c) => ({ period: c.period, compare: c.compare, channels: [], from: null, to: null, metric: "brutto" });
@@ -1471,6 +1480,18 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     .grid { margin-bottom: 4px; }
     .tip { min-height: 1.2em; font-size: .82rem; color: var(--sm-muted); margin-top: 4px; }
     .ins li { margin: 4px 0; } .ins { padding-left: 18px; margin: 4px 0; }
+    /* v1.17.0: Legende unter dem Balkendiagramm */
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; margin-top: 6px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+    .legend .ln { width: 16px; height: 0; border-top: 2px dashed currentColor; opacity: .55; border-radius: 0; }
+    .legend b { font-weight: 600; } .legend em { font-style: normal; color: var(--sm-muted); }
+    /* v1.17.0: Mini-Balken Wochentage in der Kachel */
+    .wk { display: flex; gap: 3px; align-items: flex-end; height: 26px; margin-top: 6px; }
+    .wk div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: .62rem; color: var(--sm-muted); }
+    .wk div i { display: block; width: 100%; border-radius: 2px; background: var(--sm-accent); opacity: .45; min-height: 2px; }
+    .wk div.we i { opacity: 1; }
+    td .sub2 { display: block; font-size: .72rem; color: var(--sm-muted); }
   `;
   async load() {
     const apt = await this.apartment();
@@ -1517,6 +1538,43 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     if (r.prognose) out.push(`Prognose ${new Date().getFullYear()}: <b>${money(r.prognose.prognose, cur)}</b> brutto (gebucht ${money(r.prognose.gebucht, cur)} + ${t("Nachbuchung wie Vorjahr")} ${money(r.prognose.nachbuchung_vorjahr, cur)}).`);
     return out;
   }
+  // v1.17.0: acht Zusatzkacheln
+  extraTiles(apt, r) {
+    const cur = apt.currency;
+    const c = r.vergleich;
+    const dp = r.veraenderung_prozent || {}, dpp = r.veraenderung_punkte || {};
+    if (r.frei_naechte === undefined) return ""; // älteres Backend ohne Zusatzkennzahlen
+    const chans = Object.entries(r.kanaele);
+    const portals = chans.filter(([, v]) => v.gruppe === "Portal" && v.brutto > 0).sort((a, b) => b[1].kostenquote_prozent - a[1].kostenquote_prozent);
+    const perNight = chans.filter(([, v]) => v.netto_pro_nacht).sort((a, b) => b[1].netto_pro_nacht - a[1].netto_pro_nacht);
+    const days = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+    const wmax = Math.max(1, ...(r.wochentage || []).map((w) => w.naechte));
+    // Mini-Balken je Wochentag (Nacht von … auf …); Fr/Sa kräftig = Wochenende
+    const wk = `<div class="wk">${(r.wochentage || []).map((w, i) => `<div class="${i === 4 || i === 5 ? "we" : ""}"
+      title="${t(days[i])}: ${w.naechte} ${t("Nächte")}${w.netto_pro_nacht ? ` · ${money(w.netto_pro_nacht, cur)}/${t("Nacht")}` : ""}">
+      <i style="height:${Math.round((w.naechte / wmax) * 18)}px"></i>${t(days[i])}</div>`).join("")}</div>`;
+    return [
+      tile(t("Erlös je verfügbare Nacht"), money(r.erloes_verfuegbare_nacht, cur),
+        `${t("netto")} · ${num(r.verfuegbare_naechte)} ${t("verfügbar")} ${delta(dp.erloes_verfuegbare_nacht)}`),
+      // Potenzial = noch buchbare freie Nächte × Ø Netto/Nacht; entgangen = vergangene freie Nächte × Ø Netto/Nacht
+      tile(t("Freie Nächte"), num(r.frei_naechte),
+        `${r.frei_kommend} ${t("buchbar")} · ${t("Potenzial")} ${money(r.frei_potenzial_netto, cur)}`
+        + (r.frei_vergangen ? `<br>${r.frei_vergangen} ${t("vergangen")} · ${t("entgangen")} ${money(r.frei_entgangen_netto, cur)}` : "")),
+      tile(t("Storno-Volumen"), money(r.storno_volumen, cur),
+        `${r.stornos} ${t("Stornos")} ${c ? `· ${t("Vergleich")} ${money(c.storno_volumen, cur)}` : ""} ${delta(dp.storno_volumen, "%", true)}`),
+      tile(t("Offene Zahlungen"), money(r.offen_betrag, cur),
+        `${r.offen_buchungen} ${t("Buchungen")}${r.offen_ueberfaellig ? ` · <span class="badge bad">${r.offen_ueberfaellig} ${t("überfällig")}</span>` : ""}`),
+      // Kanalname in die Unterzeile, damit lange Namen die Kachel nicht sprengen
+      tile(t("Teuerstes Portal"), portals.length ? pct(portals[0][1].kostenquote_prozent) : "–",
+        portals.length ? `<b>${esc(portals[0][0])}</b>${portals.length > 1 ? `<br>${t("günstigstes")}: ${esc(portals.at(-1)[0])} ${pct(portals.at(-1)[1].kostenquote_prozent)}` : ""}` : ""),
+      tile(t("Bester Kanal je Nacht"), perNight.length ? money(perNight[0][1].netto_pro_nacht, cur) : "–",
+        perNight.length ? `<b>${esc(perNight[0][0])}</b> ${t("netto")}${perNight.length > 1 ? `<br>${t("schwächster")}: ${esc(perNight.at(-1)[0])} ${money(perNight.at(-1)[1].netto_pro_nacht, cur)}` : ""}` : ""),
+      tile(t("Stammgäste"), pct(r.stammgaeste_prozent, 0),
+        `${r.stammgaeste} / ${r.buchungen} ${t("Buchungen")} ${delta(dpp.stammgaeste_prozent ?? null, "pp")}`),
+      tile(t("Wochenende Fr/Sa"), pct(r.wochenende_anteil_prozent, 0),
+        `Ø ${money(r.wochenende_netto_pro_nacht, cur)} · ${t("So–Do")} ${money(r.wochentag_netto_pro_nacht, cur)}${wk}`),
+    ].join("");
+  }
   body({ apt, r, per = [] }) {
     const cur = apt.currency;
     const s = this._state;
@@ -1526,18 +1584,32 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     const m = s.metric;
     const reihe = r.reihe;
     const colors = Object.fromEntries(Object.keys(r.farben || {}).map((n) => [n, chColor(n)]));
-    const stacks = m === "brutto"
-      ? Object.entries(reihe.kanaele).map(([name, values]) => ({ name, values, color: colors[name] || colorOf(apt, name) }))
-      : [{ name: t(m === "netto" ? "Netto" : "Nächte"), values: reihe[m], color: PAL[DARK ? "dark" : "light"].acc }];
+    // v1.17.0: alle Kennzahlen gestapelt je Kanal (Brutto, Netto, Nächte, Provisionen/Gebühren);
+    // ältere Backends ohne Kanalreihe → eine Gesamtreihe in Akzentfarbe
+    const SERIES_KEY = { brutto: "kanaele", netto: "kanaele_netto", naechte: "kanaele_naechte", kosten: "kanaele_kosten" };
+    const byCh = reihe[SERIES_KEY[m]];
+    const stacks = byCh
+      ? Object.entries(byCh).map(([name, values]) => ({ name, values, color: colors[name] || colorOf(apt, name) }))
+        .filter((st) => st.values.some((v) => v > 0))
+        .sort((a, b) => b.values.reduce((x, y) => x + y, 0) - a.values.reduce((x, y) => x + y, 0))
+      : [{ name: t(METRIC_LABEL[m]), values: reihe[m] || [], color: PAL[DARK ? "dark" : "light"].acc }];
     const fmt = m === "naechte" ? (v) => num(v) : (v) => money(v, cur);
-    const line = c?.reihe ? { values: c.reihe[m], label: t(COMPARE_LABEL[s.compare]) } : null;
+    // Legende: Farbe, Kanal, Summe im Zeitraum, Anteil; dazu die gestrichelte Vergleichslinie
+    const stackTotal = stacks.reduce((a, st) => a + st.values.reduce((x, y) => x + y, 0), 0);
+    const legendHtml = `<div class="legend">${stacks.map((st) => {
+      const v = st.values.reduce((x, y) => x + y, 0);
+      return `<span><i style="background:${st.color}"></i>${esc(st.name)} <b>${fmt(v)}</b><em>${stackTotal ? pct((v / stackTotal) * 100, 0) : ""}</em></span>`;
+    }).join("")}</div>`;
+    const line = c?.reihe?.[m] ? { values: c.reihe[m], label: t(COMPARE_LABEL[s.compare]) } : null;
     const chans = Object.entries(r.kanaele);
     const cmpCh = c?.kanaele || {};
     const table = chans.map(([n, v]) => `<tr><td><span class="dot" style="background:${colors[n] || colorOf(apt, n)}"></span> ${esc(n)}</td>
       <td class="n">${money(v.brutto, cur)}</td><td class="n" style="min-width:90px">${pct(v.anteil_prozent, 0)}
         <div class="bar-in" style="width:${v.anteil_prozent}%;background:${colors[n] || colorOf(apt, n)}"></div></td>
       <td class="n">${cmpCh[n] ? delta(((v.brutto - cmpCh[n].brutto) / (cmpCh[n].brutto || 1)) * 100) : c ? `<span class="badge">neu</span>` : ""}</td>
-      <td class="n">${money(v.netto, cur)}</td><td class="n">${pct(v.kostenquote_prozent)}</td><td class="n">${v.naechte}</td>
+      <td class="n">${money(v.netto, cur)}</td>
+      <td class="n" title="${t("Provision")} ${money(v.provision, cur, 2)} · ${t("Zahlungsgebühren")} ${money(v.zahlungsgebuehren, cur, 2)}">${v.kosten ? money(v.kosten, cur) : "–"}${v.zahlungsgebuehren ? `<span class="sub2">${t("davon Gebühren")} ${money(v.zahlungsgebuehren, cur)}</span>` : ""}</td>
+      <td class="n">${pct(v.kostenquote_prozent)}</td><td class="n">${v.naechte}</td>
       <td class="n">${money(v.netto_pro_nacht, cur)}</td><td class="n">${v.buchungen}</td><td class="n">${v.stornos ? pct(v.stornoquote_prozent, 0) : "–"}</td>
       <td class="n">${num(v.aufenthalt_schnitt, 1)}</td><td class="n">${num(v.vorlauf_schnitt)}</td><td class="n">${num(v.personen_schnitt, 1)}</td></tr>`).join("");
     const ins = this.insights(apt, r);
@@ -1561,13 +1633,20 @@ class SmoobuAnalyticsCard extends SmoobuCard {
         ${tile(t("Ø Personen"), num(r.personen_schnitt, 1), `${r.hunde} × 🐕 · ${money(r.preis_pro_buchung, cur)} je Buchung`)}
         ${tile(t("Direktanteil"), pct(r.direktanteil_prozent, 0), delta(dpp.direktanteil_prozent, "pp"))}
         ${r.prognose ? tile(t("Prognose Jahr"), money(r.prognose.prognose, cur), `${t("Netto")} ${money(r.prognose.prognose_netto, cur)}`) : ""}
+        ${this.extraTiles(apt, r)}
       </div>
       <h3>${t("Diagramm")}</h3>
-      <div class="row"><div class="seg">${["brutto", "netto", "naechte"].map((k) => `<button data-metric="${k}" aria-pressed="${m === k}">${t(k === "brutto" ? "Brutto" : k === "netto" ? "Netto" : "Nächte")}</button>`).join("")}</div>
+      <div class="row"><div class="seg">${Object.keys(METRIC_LABEL).map((k) => `<button data-metric="${k}" aria-pressed="${m === k}">${t(METRIC_LABEL[k])}</button>`).join("")}</div>
         ${line ? `<span class="sub">┄ ${esc(line.label)}</span>` : ""}</div>
-      <div class="split"><div>${barChart({ labels: reihe.labels, stacks, line, fmt, daily: reihe.einheit === "tag" })}<div class="tip" data-k="tip"></div></div>
-        <div class="share">${donut(chans.map(([n, v]) => ({ name: n, value: v.brutto, color: colors[n] || colorOf(apt, n) })), pct(r.direktanteil_prozent, 0))}
-          <span class="sub">${t("Direktanteil")}</span></div></div>
+      <div class="split"><div>${barChart({ labels: reihe.labels, stacks, line, fmt, daily: reihe.einheit === "tag" })}
+          ${legendHtml.replace("</div>", line ? `<span><i class="ln"></i><em>${esc(line.label)} ${fmt((line.values || []).reduce((x, y) => x + (y || 0), 0))}</em></span></div>` : "</div>")}
+          <div class="tip" data-k="tip"></div></div>
+        ${m === "kosten"
+          // Provisionen: Verteilung der Kosten je Portal, in der Mitte die Kostenquote gesamt
+          ? `<div class="share">${donut(chans.filter(([, v]) => v.kosten > 0).map(([n, v]) => ({ name: n, value: v.kosten, color: colors[n] || colorOf(apt, n) })), pct(r.kostenquote_prozent, 1))}
+              <span class="sub">${t("Kostenquote")} · ${money(r.kosten, cur)}</span></div>`
+          : `<div class="share">${donut(chans.map(([n, v]) => ({ name: n, value: m === "naechte" ? v.naechte : v[m], color: colors[n] || colorOf(apt, n) })).filter((p) => p.value > 0), pct(r.direktanteil_prozent, 0))}
+              <span class="sub">${t("Direktanteil")}</span></div>`}</div>
       ${per.length > 1 ? `<h3>${t("Wohnungen im Vergleich")}</h3>
       <div class="scroll"><table><thead><tr><th>${t("Wohnung")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
         <th class="n">${t("Netto")}</th><th class="n">${t("Auslastung")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Netto/Nacht")}</th>
@@ -1580,11 +1659,11 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       ${ins.length ? `<h3>${t("Erkenntnisse")}</h3><ul class="ins">${ins.map((i) => `<li>${i}</li>`).join("")}</ul>` : ""}
       <h3>${t("Kanaltabelle")}</h3>
       <div class="scroll"><table><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
-        <th class="n">${t("Netto")}</th><th class="n">${t("Kosten")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Netto/Nacht")}</th>
+        <th class="n">${t("Netto")}</th><th class="n">${t("Provision & Gebühren")}</th><th class="n">${t("Kostenquote")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Netto/Nacht")}</th>
         <th class="n">${t("Buchungen")}</th><th class="n">${t("Stornoquote")}</th><th class="n">${t("Ø Aufenthalt")}</th><th class="n">${t("Ø Vorlauf")}</th><th class="n">${t("Ø Personen")}</th></tr></thead>
-        <tbody>${table || `<tr><td colspan="13" class="empty">${t("Keine Daten")}</td></tr>`}</tbody>
+        <tbody>${table || `<tr><td colspan="14" class="empty">${t("Keine Daten")}</td></tr>`}</tbody>
         <tfoot><tr><td>${t("Summe")}</td><td class="n">${money(r.brutto, cur)}</td><td class="n">100 %</td><td class="n">${delta(dp.brutto)}</td>
-          <td class="n">${money(r.netto, cur)}</td><td class="n">${pct(r.kostenquote_prozent)}</td><td class="n">${r.naechte}</td>
+          <td class="n">${money(r.netto, cur)}</td><td class="n">${money(r.kosten, cur)} ${delta(dp.kosten, "%", true)}</td><td class="n">${pct(r.kostenquote_prozent)}</td><td class="n">${r.naechte}</td>
           <td class="n">${money(r.netto_pro_nacht, cur)}</td><td class="n">${r.buchungen}</td><td class="n">${pct(r.stornoquote_prozent, 0)}</td>
           <td class="n">${num(r.aufenthalt_schnitt, 1)}</td><td class="n">${num(r.vorlauf_schnitt)}</td><td class="n">${num(r.personen_schnitt, 1)}</td></tr></tfoot></table></div>`;
   }
