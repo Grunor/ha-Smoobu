@@ -174,7 +174,7 @@ Unter **Einstellungen → Geräte & Dienste → Smoobu → Konfigurieren**:
 | Standard-Check-in | 16:00 | Gilt, wenn in der Buchung keine Ankunftszeit steht |
 | Standard-Check-out | 11:00 | Gilt, wenn in der Buchung keine Abreisezeit steht (offizielle Check-out-Zeit) |
 | Kanäle mit Zahlung über das Portal | Airbnb, Booking.com | Buchungen dieser Kanäle zählen nicht als offene Zahlung |
-| Wartezeit nach Check-out | 0 min | Zeit bis zur tatsächlichen Freigabe (z. B. Reinigungsstart): Freigabe = Abreisezeit bzw. Standard-Check-out + Wartezeit, z. B. 11:00 + 30 min = 11:30 |
+| Wartezeit nach Check-out | 30 min | Zeit bis zur tatsächlichen Freigabe (z. B. Reinigungsstart): Freigabe = Abreisezeit bzw. Standard-Check-out + Wartezeit, z. B. 11:00 + 30 min = 11:30 |
 | Rückblick | 30 Tage | Wie weit zurück Buchungen geladen werden |
 | Vorschau | 365 Tage | Wie weit voraus Buchungen geladen werden |
 | Detaildaten für die nächsten n Buchungen | 3 | Laufende und nächste n Buchungen je Wohnung werden zusätzlich einzeln abgerufen (Vor-/Nachname, Kurtaxe, Preisdetails) |
@@ -834,7 +834,7 @@ Under **Settings → Devices & services → Smoobu → Configure**:
 | Default check-in | 16:00 | Used when the booking has no arrival time |
 | Default check-out | 11:00 | Used when the booking has no departure time (official check-out time) |
 | Channels paid via the portal | Airbnb, Booking.com | Bookings from these channels do not count as unpaid |
-| Waiting time after check-out | 0 min | Time until the actual release (e.g. cleaning start): release = departure time or default check-out + waiting time, e.g. 11:00 + 30 min = 11:30 |
+| Waiting time after check-out | 30 min | Time until the actual release (e.g. cleaning start): release = departure time or default check-out + waiting time, e.g. 11:00 + 30 min = 11:30 |
 | Days back | 30 days | How far back bookings are loaded |
 | Days ahead | 365 days | How far ahead bookings are loaded |
 | Fetch details for next n bookings | 3 | The current and next n bookings per apartment are additionally fetched one by one (first/last name, city tax, price details) |

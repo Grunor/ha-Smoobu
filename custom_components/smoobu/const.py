@@ -48,7 +48,8 @@ DEFAULT_CHECKIN = "16:00"
 DEFAULT_CHECKOUT = "11:00"
 DEFAULT_USE_WEBHOOK = True
 DEFAULT_ENRICH_COUNT = 3
-DEFAULT_CHECKOUT_BUFFER = 0
+# Wartezeit nach Check-out bis zur Freigabe (z. B. Reinigungsstart); Standard seit v1.17.0: 30 min
+DEFAULT_CHECKOUT_BUFFER = 30
 DEFAULT_PAYMENT_EXCLUDED_CHANNELS = ["Airbnb", "Booking.com"]
 
 # Provisionen (nur genutzt, wenn Smoobu keine Provision zur Buchung liefert)

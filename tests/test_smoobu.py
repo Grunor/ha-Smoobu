@@ -101,7 +101,8 @@ async def test_entities(hass, setup, aioclient_mock):
     assert s("aktuelle_personen").state == "3"
     assert s("nachster_gast").state == "Max Mustermann"
     assert s("nachste_anreise").state == "2026-11-18T19:00:00+00:00"
-    assert s("nachste_abreise").state == "2026-11-16T10:00:00+00:00"
+    # Abreise 11:00 (UTC+1) + Standard-Wartezeit 30 min (ab v1.17.0) = Freigabe 11:30
+    assert s("nachste_abreise").state == "2026-11-16T10:30:00+00:00"
     assert s("binary_sensor.smoobu_ferienwohnung_belegt").state == "on"
     assert s("anreise_heute").state == "off"
     assert s("offene_zahlungen").state == "1"

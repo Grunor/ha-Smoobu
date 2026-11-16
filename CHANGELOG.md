@@ -15,6 +15,7 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 - **Finanzen – 8 neue Kacheln:** Erlös je verfügbare Nacht (netto ÷ nicht gesperrte Nächte), Freie Nächte (buchbar + Potenzial, vergangen + entgangen, je × Ø Netto/Nacht), Storno-Volumen, Offene Zahlungen (inkl. überfällig), Teuerstes/günstigstes Portal, Bester/schwächster Kanal je Nacht, Stammgäste (wiedererkannt an Smoobu-Gast-ID, E-Mail oder vollem Namen), Wochenende Fr/Sa mit Verteilung je Wochentag
 - **Finanzen – Diagramm:** Legende mit Farbe, Kanal, Summe und Anteil (plus Vergleichslinie); Netto und Nächte jetzt ebenfalls je Kanal gestapelt; neue Ansicht **Provisionen** (Provision + Zahlungsgebühren je Portal und Monat, Ring mit Kostenverteilung und Kostenquote); Ring folgt der gewählten Kennzahl
 - **Finanzen – Kanaltabelle:** neue Spalte **Provision & Gebühren** (€, Gebühren separat ausgewiesen, Aufteilung im Tooltip), bisherige Spalte „Kosten“ heißt jetzt „Kostenquote“
+- **Wartezeit nach Check-out:** Standard jetzt **30 min** (vorher 0). Wer die Option nie gespeichert hat, bekommt die Freigabe dadurch 30 min später; eigene Einstellungen bleiben unverändert
 - Intern: WebSocket `smoobu/analytics` liefert zusätzlich Reihen je Kanal für Netto/Nächte/Kosten und die neuen Kennzahlen; Sensor-Attribute bleiben unverändert
 
 **English**
@@ -24,6 +25,7 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 - **Finance – 8 new tiles:** revenue per available night, free nights (bookable + potential, past + lost), cancelled volume, open payments (incl. overdue), most expensive/cheapest portal, best/weakest channel per night, returning guests (guest ID, e-mail or full name), weekend Fri/Sat with per-weekday distribution
 - **Finance – chart:** legend with colour, channel, total and share (plus comparison line); net and nights now stacked per channel too; new **Commissions** view (commission + payment fees per portal and month, donut with cost split and cost ratio)
 - **Finance – channel table:** new **Commission & fees** column (€, fees shown separately); former "Costs" column is now "Cost ratio"
+- **Waiting time after check-out:** default is now **30 min** (was 0). Installations that never saved this option get the release 30 min later; saved settings are kept
 - Internal: `smoobu/analytics` additionally returns per-channel series for net/nights/costs and the new figures; sensor attributes unchanged
 
 ## 1.16.0 – 2026-11-16
