@@ -81,7 +81,7 @@ const EN = {
   "Gastnachrichten bis zur nächsten Antwort, mehrere am Stück zählen einmal": "guest messages until the next reply, several in a row count once",
   "Anliegen je Buchung im Verhältnis zum Ø aller Kanäle (100 = Durchschnitt, 150 = 1,5-fach)": "requests per booking relative to the average of all channels (100 = average, 150 = 1.5×)",
   "ausgewertete Buchungen mit Anreise im Zeitraum": "evaluated bookings arriving in the period",
-  "Nur Nachrichten, die über Smoobu laufen; eigene und automatische Nachrichten zählen nicht": "Only messages that go through Smoobu; own and automatic messages are not counted", "Zurück zu": "Back to", "Anpassen": "Adjust",
+  "Nur Nachrichten, die über Smoobu laufen; eigene und automatische Nachrichten zählen nicht; Buchungen ganz ohne Verlauf (bei Smoobu oft vor 2024) fehlen": "Only messages that go through Smoobu; own and automatic messages are not counted; bookings without any message history (often before 2024 at Smoobu) are left out", "Zurück zu": "Back to", "Anpassen": "Adjust",
   "Im Belegungsplan Mindestaufenthalt oder Preis setzen": "Set minimum stay or price in the occupancy plan",
   "Smoobu-Anmeldung öffnen – Buchung dort über die ID suchen": "Opens the Smoobu login – search the booking there by ID",
   "in Smoobu speichern": "save in Smoobu", "Nicht als erhalten markiert": "Not marked as received", "DRINGEND": "URGENT",
@@ -3245,7 +3245,7 @@ function effortHtml(a) {
     <div class="legend gloss"><span><b>${t("Anliegen")}</b> = ${t("Gastnachrichten bis zur nächsten Antwort, mehrere am Stück zählen einmal")}</span>
       <span><b>Index</b> = ${t("Anliegen je Buchung im Verhältnis zum Ø aller Kanäle (100 = Durchschnitt, 150 = 1,5-fach)")}</span>
       <span><b>n</b> = ${t("ausgewertete Buchungen mit Anreise im Zeitraum")}</span>
-      <span>${t("Nur Nachrichten, die über Smoobu laufen; eigene und automatische Nachrichten zählen nicht")}</span></div>`;
+      <span>${t("Nur Nachrichten, die über Smoobu laufen; eigene und automatische Nachrichten zählen nicht; Buchungen ganz ohne Verlauf (bei Smoobu oft vor 2024) fehlen")}</span></div>`;
 }
 // Baukasten-Modul: Kennzahl × Gruppierung (× Aufteilung) in der gewählten Darstellung
 const CUSTOM_MODULE = {

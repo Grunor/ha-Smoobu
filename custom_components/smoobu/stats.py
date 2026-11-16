@@ -712,13 +712,15 @@ def message_counts(messages: list[dict[str, Any]]) -> dict[str, int]:
     Eigene Nachrichten werden bewusst nicht gezählt: Smoobu kennzeichnet automatische Vorlagen
     nicht, sie würden den Aufwand je Kanal verfälschen.
     """
-    gast = anliegen = 0
+    gast = anliegen = alle = 0
     waiting = False
     for m in sorted(messages, key=lambda x: int(x.get("id") or 0)):
         try:
             typ = int(m.get("type") or 0)
         except (TypeError, ValueError):
             continue
+        if typ in (1, 2):
+            alle += 1
         if typ == 1:
             gast += 1
             if not waiting:
@@ -726,7 +728,9 @@ def message_counts(messages: list[dict[str, Any]]) -> dict[str, int]:
                 waiting = True
         elif typ == 2:
             waiting = False
-    return {"gast": gast, "anliegen": anliegen}
+    # alle = sichtbare Nachrichten in beide Richtungen; 0 heißt meist „kein Verlauf vorhanden“
+    # (Smoobu liefert für ältere Buchungen keine Nachrichten) → zählt nicht im Aufwand
+    return {"gast": gast, "anliegen": anliegen, "alle": alle}
 
 
 def service(records: list[dict[str, Any]], responses: dict[str, dict[str, Any]], start: date, end: date,
@@ -752,7 +756,9 @@ def service(records: list[dict[str, Any]], responses: dict[str, dict[str, Any]],
         allm += mins
         by_ch[r["kanal"] or "unbekannt"] += mins
         by_m[r["anreise"][:7]] += mins
-        if "gast" in entry:
+        # Nur Buchungen mit Nachrichtenverlauf: ohne jede Nachricht fehlt meist nur die Historie bei Smoobu
+        # (sonst würden ältere Buchungen als „0 Anliegen“ den Schnitt verfälschen)
+        if "gast" in entry and entry.get("alle", entry.get("gast")):
             e = effort[r["kanal"] or "unbekannt"]
             e["buchungen"] += 1
             e["gast"] += int(entry.get("gast") or 0)

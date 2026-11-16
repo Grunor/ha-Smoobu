@@ -134,10 +134,14 @@ def test_kommunikationsaufwand_je_kanal():
         {"id": 4, "type": 2},  # eigene Nachricht ohne Anlass zählt nicht
         {"id": 5, "type": "1"},  # zweites Anliegen (type als Text)
     ]
-    assert message_counts(msgs) == {"gast": 3, "anliegen": 2}
-    assert message_counts([{"id": 1, "type": 2}]) == {"gast": 0, "anliegen": 0}
-    resp = {"11": {"minuten": [], "gast": 3, "anliegen": 2}, "12": {"minuten": [], "gast": 0, "anliegen": 0},
+    assert message_counts(msgs) == {"gast": 3, "anliegen": 2, "alle": 5}
+    assert message_counts([{"id": 1, "type": 2}]) == {"gast": 0, "anliegen": 0, "alle": 1}
+    resp = {"11": {"minuten": [], "gast": 3, "anliegen": 2, "alle": 5},
+            "12": {"minuten": [], "gast": 0, "anliegen": 0, "alle": 1},  # nur Willkommensnachricht → zählt (0 Anliegen)
             "13": {"minuten": []}}  # ohne Zähler (noch nicht nachgeladen) → nicht im Aufwand
+    # Buchung ganz ohne Verlauf (Smoobu-Historie fehlt) zählt nicht als „0 Anliegen“
+    ohne = service(G, {**resp, "12": {"minuten": [], "gast": 0, "anliegen": 0, "alle": 0}}, date(2026, 5, 1), date(2026, 6, 1))
+    assert ohne["aufwand"]["gesamt"]["buchungen"] == 1
     res = service(G, resp, date(2026, 5, 1), date(2026, 6, 1))
     auf = res["aufwand"]
     assert auf["gesamt"]["buchungen"] == 2 and auf["gesamt"]["anliegen_je_buchung"] == 1.0
