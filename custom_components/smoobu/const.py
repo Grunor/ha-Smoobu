@@ -78,6 +78,10 @@ CONF_COMMISSION_CUSTOM = "commission_custom"  # Freitext "Kanal=Prozent; Kanal=P
 # Auswertungen: so viele Jahre vor dem laufenden Jahr werden geladen
 CONF_HISTORY_YEARS = "history_years"
 DEFAULT_HISTORY_YEARS = 2
+# Alternativ fester Startpunkt (ISO-Datum „YYYY-MM-DD“, ab v1.17.0). Ist er gesetzt, gilt er
+# statt CONF_HISTORY_YEARS – spätestens aber ab 01.01. des Vorjahres, weil Jahres- und
+# Vorjahresvergleiche sonst keine Daten hätten.
+CONF_HISTORY_SINCE = "history_since"
 
 # KI-Assistent (ab v1.10.0)
 CONF_ASSISTANT = "assistant"  # automatische Antwortvorschläge an/aus (wirkt nur mit erlaubter KI)

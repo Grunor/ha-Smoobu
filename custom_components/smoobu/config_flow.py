@@ -14,6 +14,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    DateSelector,
     EntitySelector,
     EntitySelectorConfig,
     NumberSelector,
@@ -54,6 +55,7 @@ from .const import (
     CONF_DEFAULT_CHECKOUT,
     CONF_DIRECT_CHANNELS,
     CONF_ENRICH_COUNT,
+    CONF_HISTORY_SINCE,
     CONF_HISTORY_YEARS,
     CONF_NOTIFY_GAPS_TIME,
     CONF_NOTIFY_PAYMENT_DAYS,
@@ -265,12 +267,19 @@ class SmoobuOptionsFlow(OptionsFlow):
                 ): NumberSelector(
                     NumberSelectorConfig(min=0, max=20, step=1, mode=NumberSelectorMode.BOX)
                 ),
-                # Auswertungen/Vergleiche: Jahre vor dem laufenden Jahr (mehr = längere Abfrage)
+                # Auswertungen/Vergleiche: Jahre vor dem laufenden Jahr
+                # (je Jahr ca. ein zusätzlicher API-Abruf à 100 Einträge, stündlich – unkritisch)
                 vol.Required(
                     CONF_HISTORY_YEARS, default=opts.get(CONF_HISTORY_YEARS, DEFAULT_HISTORY_YEARS)
                 ): NumberSelector(
                     NumberSelectorConfig(min=1, max=5, step=1, unit_of_measurement="J", mode=NumberSelectorMode.BOX)
                 ),
+                # Alternativ fester Startpunkt – hat Vorrang vor den Jahren. Optional mit
+                # suggested_value statt default, damit das Feld wieder geleert werden kann.
+                vol.Optional(
+                    CONF_HISTORY_SINCE,
+                    description={"suggested_value": opts.get(CONF_HISTORY_SINCE)},
+                ): DateSelector(),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
@@ -485,6 +494,9 @@ class SmoobuOptionsFlow(OptionsFlow):
                 # damit eine abgewählte KI-Entität nicht aus den alten Optionen weiterlebt.
                 if not self._assist.get(CONF_AI_ENTITY):
                     merged.pop(CONF_AI_ENTITY, None)
+                # Gleiches für ein geleertes „Daten abrufen seit“ → wieder „Jahre Historie“
+                if not self._general.get(CONF_HISTORY_SINCE):
+                    merged.pop(CONF_HISTORY_SINCE, None)
                 return self.async_create_entry(data=merged)
         auto = all_codes(self.hass, {entry.entry_id: {}})
         schema = vol.Schema(

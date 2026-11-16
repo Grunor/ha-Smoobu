@@ -858,3 +858,43 @@ async def test_update_reservation_payment(hass, setup):
     await hass.services.async_call("smoobu", "update_reservation",
                                    {"reservation_id": 3, "prepayment_paid": False, "deposit_paid": True}, blocking=True)
     assert sent == [(2, {"priceStatus": 1}), (3, {"prepaymentStatus": 0, "depositStatus": 1})]
+
+
+async def test_history_since_and_page_limit(hass, setup, aioclient_mock, caplog):
+    """v1.17.0: „Daten abrufen seit“ hat Vorrang vor „Jahre Historie“ (spätestens 01.01. Vorjahr);
+    Seitenlimit schneidet nie still ab."""
+    from custom_components.smoobu import api as smoobu_api
+
+    c = setup.runtime_data if hasattr(setup, "runtime_data") else hass.data[DOMAIN][setup.entry_id]
+    # Standard: 2 Jahre → ab 01.01.2024
+    assert c.history_start == date(2024, 1, 1)
+    # Festes Datum gewinnt
+    hass.config_entries.async_update_entry(setup, options={**setup.options, "history_since": "2020-01-01"})
+    assert c.history_start == date(2020, 1, 1)
+    # Zu spätes Datum → auf 01.01. Vorjahr vorgezogen (Vorjahresvergleiche)
+    hass.config_entries.async_update_entry(setup, options={**setup.options, "history_since": "2026-06-01"})
+    assert c.history_start == date(2025, 1, 1)
+    # Ungültig → zurück auf Jahre
+    hass.config_entries.async_update_entry(setup, options={**setup.options, "history_since": "kaputt"})
+    assert c.history_start == date(2024, 1, 1)
+
+    # Abfrage nutzt den Starttag + 1 als departureFrom
+    hass.config_entries.async_update_entry(setup, options={**setup.options, "history_since": "2020-01-01"})
+    await hass.async_block_till_done()
+    c.force_revenue_refresh = True
+    aioclient_mock.mock_calls.clear()
+    await c._async_load_revenue_bookings()
+    urls = [str(call[1]) for call in aioclient_mock.mock_calls if "/api/reservations" in str(call[1])]
+    assert urls and all("departureFrom=2020-01-02" in u for u in urls)
+
+    # Seitenlimit: mehr Seiten als erlaubt → Warnung statt stillem Abschneiden
+    old = smoobu_api.MAX_PAGES
+    smoobu_api.MAX_PAGES = 1
+    try:
+        aioclient_mock.clear_requests()
+        aioclient_mock.get(f"{BASE}/api/reservations", json={"page_count": 3, "page": 1, "bookings": BOOKINGS})
+        res = await c.client.get_reservations(arrivalFrom="2020-01-01")
+        assert len(res) == len(BOOKINGS)
+        assert "nur die ersten 1 wurden geladen" in caplog.text
+    finally:
+        smoobu_api.MAX_PAGES = old
