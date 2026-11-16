@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+**Deutsch**
+- **Saison-Matrix:** Spalte Ø jetzt ganz links, danach die Jahre absteigend (aktuelles bzw. kommendes Jahr vorne) – am Handy ist das Wichtigste ohne Wischen sichtbar; gilt auch für die Jahreszeile
+
+**English**
+- **Season matrix:** Ø column now first, followed by the years in descending order (current or next year first) – on phones the most relevant columns are visible without scrolling; also applies to the year row
+
 ## 1.17.1b2 – 2026-11-16
 
 > Beta / Pre-release

@@ -3802,29 +3802,34 @@ class SmoobuStatsCard extends SmoobuCard {
       const tip = `${binLabel(key, true)}: ${this.fmt(id, c.wert, cur, true)} · n = ${c.n || 0}${low ? ` (${t("wenig Daten")})` : ""}${open ? `\n${t("noch nicht abgeschlossen – Buchungsstand heute")}` : ""}`;
       return `<div class="c${low ? " low" : ""}${open ? " open" : ""}${inSel ? " sel" : ""}" style="${shade(c.wert)}" data-tip="${esc(tip)}">${this.fmt(id, c.wert, cur)}</div>`;
     };
-    const cols = `grid-template-columns: 44px repeat(${years.length}, minmax(52px, 1fr)) minmax(62px, 1fr)`;
-    let html = `<div></div>${years.map((y) => `<div class="h">${y}${exclude.has(y) ? "*" : ""}</div>`).join("")}<div class="h">Ø${exclude.size ? "*" : ""}</div>`;
+    // v1.17.1: Ø ganz links, danach die Jahre absteigend (aktuelles/kommendes Jahr vorne) – Wunsch Betreiber 16.11.2026;
+    // am Handy ist so das Wichtigste ohne Wischen sichtbar
+    const yearsDesc = [...years].reverse();
+    const cols = `grid-template-columns: 44px minmax(62px, 1fr) repeat(${years.length}, minmax(52px, 1fr))`;
+    let html = `<div></div><div class="h">Ø${exclude.size ? "*" : ""}</div>${yearsDesc.map((y) => `<div class="h">${y}${exclude.has(y) ? "*" : ""}</div>`).join("")}`;
     for (let mo = 0; mo < 12; mo++) {
       html += `<div class="rl">${t(MONTHS_SHORT[mo])}</div>`;
       const avgVals = [];
-      for (const y of years) {
+      let row = "";
+      for (const y of yearsDesc) {
         const c = cells.get(`${y}-${String(mo + 1).padStart(2, "0")}`);
-        html += cell(c, y, mo);
+        row += cell(c, y, mo);
         if (!exclude.has(y) && done(y, mo + 1) && c && c.wert !== null) avgVals.push(c.wert);
       }
       const avg = avgVals.length ? avgVals.reduce((a, b) => a + b, 0) / avgVals.length : null;
-      html += `<div class="c avg" data-tip="${esc(`Ø ${t(MONTHS_SHORT[mo])}: ${this.fmt(id, avg, cur, true)}\n${t("aus")} ${avgVals.length} ${t("abgeschlossenen Jahren")}${exclude.size ? ` (${t("ohne")} ${[...exclude].join(", ")})` : ""}`)}">${this.fmt(id, avg, cur)}</div>`;
+      html += `<div class="c avg" data-tip="${esc(`Ø ${t(MONTHS_SHORT[mo])}: ${this.fmt(id, avg, cur, true)}\n${t("aus")} ${avgVals.length} ${t("abgeschlossenen Jahren")}${exclude.size ? ` (${t("ohne")} ${[...exclude].join(", ")})` : ""}`)}">${this.fmt(id, avg, cur)}</div>${row}`;
     }
     // Jahreszeile (eigene Abfrage je Jahr: Auslastung/ADR sind keine Summe der Monate)
     html += `<div class="gap"></div><div class="rl">${t("Jahr")}</div>`;
     const yAvg = [];
-    for (const y of years) {
+    let yRow = "";
+    for (const y of yearsDesc) {
       const c = yearCells.get(String(y));
       const open = y >= ty;
       if (!exclude.has(y) && !open && c?.wert !== null && c?.wert !== undefined) yAvg.push(c.wert);
-      html += `<div class="c tot${open ? " open" : ""}${(c?.n || 0) < 5 ? " low" : ""}" data-tip="${esc(`${y}: ${this.fmt(id, c?.wert, cur, true)} · n = ${c?.n || 0}${open ? `\n${t("noch nicht abgeschlossen – Buchungsstand heute")}` : ""}`)}">${this.fmt(id, c?.wert, cur)}</div>`;
+      yRow += `<div class="c tot${open ? " open" : ""}${(c?.n || 0) < 5 ? " low" : ""}" data-tip="${esc(`${y}: ${this.fmt(id, c?.wert, cur, true)} · n = ${c?.n || 0}${open ? `\n${t("noch nicht abgeschlossen – Buchungsstand heute")}` : ""}`)}">${this.fmt(id, c?.wert, cur)}</div>`;
     }
-    html += `<div class="c avg tot">${this.fmt(id, yAvg.length ? yAvg.reduce((a, b) => a + b, 0) / yAvg.length : null, cur)}</div>`;
+    html += `<div class="c avg tot">${this.fmt(id, yAvg.length ? yAvg.reduce((a, b) => a + b, 0) / yAvg.length : null, cur)}</div>${yRow}`;
     const seg = `<div class="seg" role="group" aria-label="${t("Kennzahl")}">${MATRIX_MEASURES.map(([k, l]) =>
       `<button data-matrix="${k}" aria-pressed="${id === k}">${t(l)}</button>`).join("")}</div>`;
     return `<div class="panel"><div class="ph"><h2>${t("Saison-Matrix")}</h2><span class="sub">${t("Monate × Jahre seit")} ${m.since}</span>${seg}</div>
