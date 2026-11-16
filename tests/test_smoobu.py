@@ -428,6 +428,13 @@ async def test_websocket(hass, setup, hass_ws_client, aioclient_mock):
     assert res["success"] and res["result"]["zeilen"][0]["fach"] == "Gesamt"
     await ws.send_json({"id": 7, "type": "smoobu/stats", "mode": "query", "measure": "umsatz", "as_of": "kein-datum"})
     assert (await ws.receive_json())["error"]["code"] == "invalid_format"
+    # Teilschritte 3/4: Lücken, Stornos, Antwortzeiten
+    for i, mode in enumerate(("gaps", "storno", "service"), start=8):
+        await ws.send_json({"id": i, "type": "smoobu/stats", "mode": mode, "start": "2026-01-01", "end": "2027-01-01"})
+        res = await ws.receive_json()
+        assert res["success"], res
+    c = hass.config_entries.async_entries(DOMAIN)[0].runtime_data
+    assert c.price_history(123)  # Preis-Historie beim Preisabruf gemerkt
 
 
 async def test_write_services(hass, setup, aioclient_mock):
@@ -905,3 +912,27 @@ async def test_history_since_and_page_limit(hass, setup, aioclient_mock, caplog)
         assert "nur die ersten 1 wurden geladen" in caplog.text
     finally:
         smoobu_api.MAX_PAGES = old
+
+
+async def test_response_time_job(hass, setup):
+    """Antwortzeiten-Abruf (Statistik Teil 4): alle Buchungen einmal, Ergebnis gemerkt, Fehler übersprungen."""
+    from custom_components.smoobu.api import SmoobuError
+
+    c = hass.config_entries.async_entries(DOMAIN)[0].runtime_data
+    calls = []
+
+    async def fake_get(rid, only=True):
+        calls.append(rid)
+        if rid == 1:
+            raise SmoobuError("kaputt")
+        return [{"id": 1, "type": 1, "createdAt": "2026-11-10 10:00:00"},
+                {"id": 2, "type": 2, "createdAt": "2026-11-10 10:30:00"}]
+
+    c.client.get_messages = fake_get
+    done = await c.async_update_response_times(delay=0)
+    assert done >= 1 and 1 in calls
+    assert c.responses["2"]["minuten"] == [30.0] and "1" not in c.responses
+    # zweiter Lauf am selben Tag: nur die fehlerhafte Buchung erneut
+    calls.clear()
+    await c.async_update_response_times(delay=0)
+    assert calls == [1]

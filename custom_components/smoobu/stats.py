@@ -456,3 +456,269 @@ def pace(
                                  if prev and prev["stand_stichtag"] else None),
         "prognose": forecast,
     }
+
+
+# ---------------------------------------------------------------------------
+# Teilschritt 3/4: verlorene Nächte, Stornos, Antwortzeiten
+# ---------------------------------------------------------------------------
+
+GAP_MAX = 14  # längere freie Zeiträume gelten nicht als „Lücke zwischen zwei Buchungen“
+
+
+def _month_adr(records: list[dict[str, Any]]) -> tuple[dict[str, float], float | None]:
+    """Ø Brutto je belegter Nacht je Monat (JJJJ-MM) und über alles – Schätzpreis für Lücken
+    ohne gespeicherten Tagespreis (Entscheidung Betreiber 16.11.2026: Ø-Monatspreis, als „geschätzt“
+    gekennzeichnet; Smoobu liefert Tagespreise nicht rückwirkend)."""
+    sums: dict[str, list[float]] = defaultdict(lambda: [0.0, 0])
+    for r in records:
+        if r["blockiert"] or r["storniert"] or not r["naechte"] or not r["brutto"]:
+            continue
+        per = r["brutto"] / r["naechte"]
+        day, last = date.fromisoformat(r["anreise"]), date.fromisoformat(r["abreise"])
+        while day < last:
+            s = sums[f"{day.year}-{day.month:02d}"]
+            s[0] += per
+            s[1] += 1
+            day += timedelta(days=1)
+    monthly = {k: v[0] / v[1] for k, v in sums.items() if v[1]}
+    total_n = sum(v[1] for v in sums.values())
+    overall = sum(v[0] for v in sums.values()) / total_n if total_n else None
+    return monthly, overall
+
+
+def gaps(
+    records: list[dict[str, Any]],
+    start: date,
+    end: date,
+    today: date,
+    *,
+    rates_now: dict[str, dict[str, Any]] | None = None,
+    price_history: dict[str, list[Any]] | None = None,
+    max_len: int = GAP_MAX,
+) -> dict[str, Any]:
+    """Freie Lücken zwischen zwei Belegungen (Sperrzeiten zählen als belegt) einer Wohnung.
+
+    Preis je Nacht: künftige Tage aus den aktuellen Smoobu-Tagespreisen, vergangene aus der
+    ab v1.18 gespeicherten Preis-Historie, sonst Ø-Monatspreis (quelle „geschätzt“).
+    Mindestaufenthalt ebenso (unbekannt = None). „zu_kurz“ = Lücke kürzer als der
+    Mindestaufenthalt am ersten freien Tag → so nicht buchbar.
+    """
+    rates_now = rates_now or {}
+    price_history = price_history or {}
+    occ: set[date] = set()
+    for r in records:
+        if r["storniert"] or not r["naechte"]:
+            continue
+        day, last = date.fromisoformat(r["anreise"]), date.fromisoformat(r["abreise"])
+        while day < last:
+            occ.add(day)
+            day += timedelta(days=1)
+    monthly, overall = _month_adr(records)
+
+    def info(day: date) -> tuple[float | None, int | None, str]:
+        key = day.isoformat()
+        if day >= today and key in rates_now:
+            r = rates_now[key]
+            return r.get("price"), r.get("min_length_of_stay"), "tagespreis"
+        if key in price_history:
+            p, m = (list(price_history[key]) + [None, None])[:2]
+            return p, m, "tagespreis"
+        return monthly.get(f"{day.year}-{day.month:02d}", overall), None, "geschaetzt"
+
+    out = []
+    day = start
+    while day < end:
+        if day in occ or (day - timedelta(days=1)) not in occ:
+            day += timedelta(days=1)
+            continue
+        first = day
+        while day not in occ and (day - first).days <= max_len:
+            day += timedelta(days=1)
+        length = (day - first).days
+        if day not in occ or length > max_len:
+            continue  # kein Ende in Sicht → keine Lücke, sondern freier Zeitraum
+        prices, sources = [], set()
+        for i in range(length):
+            p, _m, src = info(first + timedelta(days=i))
+            prices.append(p or 0.0)
+            sources.add(src)
+        _p, min_stay, _src = info(first)
+        out.append({
+            "von": first.isoformat(), "bis": day.isoformat(), "naechte": length,
+            "wert": round(sum(prices), 2), "preis_nacht": round(sum(prices) / length, 2) if length else None,
+            "mindestaufenthalt": min_stay, "zu_kurz": bool(min_stay and length < min_stay),
+            "quelle": "geschaetzt" if "geschaetzt" in sources else "tagespreis",
+            "vergangen": day <= today,
+        })
+
+    def summary(items: list[dict[str, Any]]) -> dict[str, Any]:
+        return {"luecken": len(items), "naechte": sum(g["naechte"] for g in items),
+                "wert": round(sum(g["wert"] for g in items), 2),
+                "zu_kurz": sum(1 for g in items if g["zu_kurz"]),
+                "zu_kurz_naechte": sum(g["naechte"] for g in items if g["zu_kurz"]),
+                "geschaetzt": sum(1 for g in items if g["quelle"] == "geschaetzt")}
+
+    past = [g for g in out if g["vergangen"]]
+    future = [g for g in out if not g["vergangen"]]
+    hints = [
+        {"von": g["von"], "naechte": g["naechte"], "mindestaufenthalt": g["mindestaufenthalt"], "wert": g["wert"],
+         "text": f"Mindestaufenthalt ab {g['von']} von {g['mindestaufenthalt']} auf {g['naechte']} senken"}
+        for g in future if g["zu_kurz"]
+    ]
+    # Verteilung der Lückenlänge (1 … 7+ Nächte) für das Histogramm
+    lengths: dict[str, int] = defaultdict(int)
+    for g in out:
+        lengths[str(g["naechte"]) if g["naechte"] < 7 else "7+"] += 1
+    return {"luecken": out, "vergangen": summary(past), "kommend": summary(future), "vorschlaege": hints,
+            "laengen": [{"fach": k, "anzahl": lengths.get(k, 0)} for k in ["1", "2", "3", "4", "5", "6", "7+"]]}
+
+
+def _changed(r: dict[str, Any]) -> date | None:
+    value = r.get("geaendert")
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+STORNO_LEAD = ((0, "am Anreisetag"), (7, "1–7"), (30, "8–30"), (90, "31–90"))
+
+
+def storno(records: list[dict[str, Any]], start: date, end: date, *, channels: Any = None) -> dict[str, Any]:
+    """Stornos mit Anreise im Zeitraum: Quote je Kanal, Ausfall, Wiederbelegung, Storno-Vorlauf.
+
+    Smoobu liefert kein Stornodatum → Storno-Vorlauf = Anreise − Änderungsdatum (Näherung,
+    wie bei analytics.as_of). Wiederbelegt = Nächte des Stornos, die später durch eine andere,
+    nicht stornierte Gästebuchung belegt sind.
+    """
+    match = channel_filter(channels)
+    s_iso, e_iso = start.isoformat(), end.isoformat()
+    guests = [r for r in records if not r["blockiert"] and match(r)]
+    in_range = [r for r in guests if s_iso <= r["anreise"] < e_iso]
+    booked_nights: set[tuple[Any, date]] = set()
+    for r in records:
+        if r["blockiert"] or r["storniert"] or not r["naechte"]:
+            continue
+        day, last = date.fromisoformat(r["anreise"]), date.fromisoformat(r["abreise"])
+        while day < last:
+            booked_nights.add((r["wohnung_id"], day))
+            day += timedelta(days=1)
+    per: dict[str, dict[str, Any]] = {}
+    leads, lost_nights, rebooked, lost_value = [], 0, 0, 0.0
+    buckets: dict[str, int] = defaultdict(int)
+    items = []
+    for r in in_range:
+        p = per.setdefault(r["kanal"] or "unbekannt", {"kanal": r["kanal"] or "unbekannt", "gruppe": r["gruppe"],
+                                                       "buchungen": 0, "stornos": 0, "ausfall": 0.0})
+        if not r["storniert"]:
+            p["buchungen"] += 1
+            continue
+        p["stornos"] += 1
+        p["ausfall"] += r["brutto"]
+        lost_value += r["brutto"]
+        day, last = date.fromisoformat(r["anreise"]), date.fromisoformat(r["abreise"])
+        nights = re = 0
+        while day < last:
+            nights += 1
+            re += 1 if (r["wohnung_id"], day) in booked_nights else 0
+            day += timedelta(days=1)
+        lost_nights += nights
+        rebooked += re
+        changed = _changed(r)
+        lead = (date.fromisoformat(r["anreise"]) - changed).days if changed else None
+        if lead is not None and lead >= 0:
+            leads.append(lead)
+            buckets[_bucket(lead, STORNO_LEAD, ">90")] += 1
+        items.append({"id": r["id"], "kanal": r["kanal"], "anreise": r["anreise"], "naechte": nights, "brutto": r["brutto"],
+                      "storno_vorlauf": lead, "wiederbelegt": re})
+    for p in per.values():
+        total = p["buchungen"] + p["stornos"]
+        p["quote"] = round(p["stornos"] / total * 100, 1) if total else None
+        p["ausfall"] = round(p["ausfall"], 2)
+        p["wenig_daten"] = total < MIN_N
+    stornos = sum(p["stornos"] for p in per.values())
+    total = stornos + sum(p["buchungen"] for p in per.values())
+    return {
+        "buchungen": total, "stornos": stornos, "quote": round(stornos / total * 100, 1) if total else None,
+        "ausfall": round(lost_value, 2), "naechte": lost_nights, "wiederbelegt_naechte": rebooked,
+        "wiederbelegt_prozent": round(rebooked / lost_nights * 100, 1) if lost_nights else None,
+        "vorlauf_median": _median(leads),
+        "vorlauf": [{"fach": label, "anzahl": buckets.get(label, 0)}
+                    for label in [b[1] for b in STORNO_LEAD] + [">90"]],
+        "kanaele": sorted(per.values(), key=lambda p: -(p["stornos"] + p["buchungen"])),
+        "liste": sorted(items, key=lambda i: i["anreise"], reverse=True),
+        "min_n": MIN_N,
+    }
+
+
+def _parse_ts(value: Any) -> Any:
+    from datetime import datetime  # noqa: PLC0415
+
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace(" ", "T")[:19])
+    except ValueError:
+        return None
+
+
+def response_times(messages: list[dict[str, Any]]) -> list[float]:
+    """Antwortzeiten in Minuten: je Gastnachricht-Folge die Zeit bis zur nächsten Nachricht an den Gast.
+
+    Erwartet sichtbare Nachrichten (ohne interne Notizen). type 1 = Gast, type 2 = an den Gast
+    (auch automatische Smoobu-Nachrichten – Smoobu kennzeichnet sie nicht, sie zählen deshalb
+    als Antwort). Mehrere Gastnachrichten am Stück zählen ab der ersten.
+    """
+    out: list[float] = []
+    waiting = None
+    for m in sorted(messages, key=lambda x: int(x.get("id") or 0)):
+        try:
+            typ = int(m.get("type") or 0)
+        except (TypeError, ValueError):
+            continue
+        ts = _parse_ts(m.get("createdAt") or m.get("created_at"))
+        if ts is None:
+            continue
+        if typ == 1 and waiting is None:
+            waiting = ts
+        elif typ == 2 and waiting is not None:
+            out.append(round(max((ts - waiting).total_seconds(), 0) / 60, 1))
+            waiting = None
+    return out
+
+
+def service(records: list[dict[str, Any]], responses: dict[str, dict[str, Any]], start: date, end: date,
+            *, channels: Any = None) -> dict[str, Any]:
+    """Antwortzeiten (Median, Anteil < 1 h) für Buchungen mit Anreise im Zeitraum, je Kanal und Monat."""
+    match = channel_filter(channels)
+    s_iso, e_iso = start.isoformat(), end.isoformat()
+    allm: list[float] = []
+    by_ch: dict[str, list[float]] = defaultdict(list)
+    by_m: dict[str, list[float]] = defaultdict(list)
+    covered = total = 0
+    for r in records:
+        if r["blockiert"] or not match(r) or not (s_iso <= r["anreise"] < e_iso):
+            continue
+        total += 1
+        entry = responses.get(str(r["id"]))
+        if entry is None:
+            continue
+        covered += 1
+        mins = entry.get("minuten") or []
+        allm += mins
+        by_ch[r["kanal"] or "unbekannt"] += mins
+        by_m[r["anreise"][:7]] += mins
+
+    def agg(values: list[float]) -> dict[str, Any]:
+        return {"median": _median(values), "unter_1h": round(sum(1 for v in values if v < 60) / len(values) * 100, 1)
+                if values else None, "n": len(values), "wenig_daten": len(values) < MIN_N}
+
+    return {"gesamt": agg(allm), "buchungen": total, "geladen": covered,
+            "kanaele": [{"kanal": k, **agg(v)} for k, v in sorted(by_ch.items(), key=lambda kv: -len(kv[1]))],
+            "monate": [{"fach": k, **agg(v)} for k, v in sorted(by_m.items())],
+            "verteilung": [{"fach": label, "anzahl": sum(1 for v in allm if lo <= v < hi)} for label, lo, hi in
+                           (("< 15 min", 0, 15), ("15–60 min", 15, 60), ("1–4 h", 60, 240), ("4–12 h", 240, 720),
+                            ("12–24 h", 720, 1440), ("> 24 h", 1440, 10**9))],
+            "min_n": MIN_N}

@@ -47,7 +47,8 @@ from .analytics import (
     period_range,
 )
 from .api import SmoobuError
-from .stats import DIMENSIONS, MEASURES, pace as stats_pace, query as stats_query
+from .stats import DIMENSIONS, MEASURES, gaps as stats_gaps, pace as stats_pace, query as stats_query
+from .stats import service as stats_service, storno as stats_storno
 from .const import DOMAIN
 from .coordinator import SmoobuCoordinator
 from .models import strip_html
@@ -244,7 +245,8 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         **_TARGET,
         # "query" = Baukasten (Kennzahl × Gruppierung × Aufteilung), "pace" = Buchungstempo + Prognose,
         # "meta" = verfügbare Kennzahlen/Dimensionen für die Auswahlfelder der Karte
-        vol.Required("mode"): vol.In(("query", "pace", "meta")),
+        # Teilschritte 3/4: "gaps" = verlorene Nächte, "storno" = Storno-Auswertung, "service" = Antwortzeiten
+        vol.Required("mode"): vol.In(("query", "pace", "meta", "gaps", "storno", "service")),
         vol.Optional("measure"): vol.In(tuple(MEASURES)),
         vol.Optional("dimension", default="monat"): vol.In(DIMENSIONS),
         vol.Optional("split"): vol.Any(None, vol.In(DIMENSIONS)),
@@ -281,6 +283,22 @@ def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
         result = stats_pace(recs, msg.get("year") or today.year, today, channels=channels, first=first)
         connection.send_result(msg["id"], result)
         return
+    if msg["mode"] in ("gaps", "storno", "service"):
+        start = _date(msg.get("start"), date(today.year, 1, 1))
+        end = _date(msg.get("end"), date(today.year + 1, 1, 1))
+        if end <= start or (end - start).days > 3700:
+            connection.send_error(msg["id"], "invalid_range", "Zeitraum ungültig (max. ~10 Jahre)")
+            return
+        if msg["mode"] == "storno":
+            connection.send_result(msg["id"], stats_storno(recs, start, end, channels=channels))
+        elif msg["mode"] == "service":
+            responses = {k: v for c, _ in pairs for k, v in c.responses.items()}
+            result = stats_service(recs, responses, start, end, channels=channels)
+            result["abruf_laeuft"] = any(c._resp_task is not None and not c._resp_task.done() for c, _ in pairs)
+            connection.send_result(msg["id"], result)
+        else:
+            connection.send_result(msg["id"], _gaps_all(pairs, start, end, today))
+        return
     if not msg.get("measure"):
         connection.send_error(msg["id"], "invalid_format", "measure fehlt")
         return
@@ -303,6 +321,29 @@ def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
         connection.send_error(msg["id"], "invalid_format", str(err))
         return
     connection.send_result(msg["id"], result)
+
+
+def _gaps_all(pairs: list[tuple[SmoobuCoordinator, int]], start: date, end: date, today: date) -> dict[str, Any]:
+    """Verlorene Nächte je Wohnung berechnen und zusammenführen (Lücken gibt es nur je Wohnung)."""
+    items, hints = [], []
+    lengths: dict[str, int] = {}
+    for c, apt in pairs:
+        res = stats_gaps(c.records(apt), start, end, today, rates_now=c.rates_now(apt), price_history=c.price_history(apt))
+        code = c.apartment_code(apt) if len(pairs) > 1 else ""
+        items += [{**g, "wohnung": code} for g in res["luecken"]]
+        hints += [{**h, "wohnung": code} for h in res["vorschlaege"]]
+        for x in res["laengen"]:
+            lengths[x["fach"]] = lengths.get(x["fach"], 0) + x["anzahl"]
+
+    def summary(sel: list[dict[str, Any]]) -> dict[str, Any]:
+        return {"luecken": len(sel), "naechte": sum(g["naechte"] for g in sel), "wert": round(sum(g["wert"] for g in sel), 2),
+                "zu_kurz": sum(1 for g in sel if g["zu_kurz"]), "zu_kurz_naechte": sum(g["naechte"] for g in sel if g["zu_kurz"]),
+                "geschaetzt": sum(1 for g in sel if g["quelle"] == "geschaetzt")}
+
+    items.sort(key=lambda g: g["von"])
+    return {"luecken": items, "vergangen": summary([g for g in items if g["vergangen"]]),
+            "kommend": summary([g for g in items if not g["vergangen"]]), "vorschlaege": hints,
+            "laengen": [{"fach": k, "anzahl": lengths.get(k, 0)} for k in ["1", "2", "3", "4", "5", "6", "7+"]]}
 
 
 @websocket_api.websocket_command(

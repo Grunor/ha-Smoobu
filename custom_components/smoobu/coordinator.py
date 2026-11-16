@@ -134,6 +134,21 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         # KI-Assistent (assistant.py), gesetzt in __init__.async_setup_entry
         self.assistant: Any = None
         self.notifier: Any = None  # v1.17.0: Benachrichtigungen (notifications.SmoobuNotifier)
+        # Statistik-Werkbank (Teilschritte 3/4):
+        # 1. Preis-Historie {apt_id: {datum: [preis, mindestaufenthalt]}} – Smoobu liefert Tagespreise
+        #    nicht rückwirkend, deshalb wird bei jedem Preisabruf der Stand für heute und künftige Tage
+        #    gemerkt; vergangene Tage bleiben eingefroren (= letzter bekannter Stand).
+        self._price_store: Store = Store(hass, 1, f"{DOMAIN}_preis_historie_{entry.entry_id}")
+        self._price_hist: dict[str, dict[str, list[Any]]] | None = None
+        # 2. Antwortzeiten je Buchung {reservation_id: {"minuten": [...], "geladen": datum}}: einmaliger,
+        #    gedrosselter Abruf aller Buchungen ab history_start (Entscheidung Betreiber: komplett ab 2020),
+        #    danach stündlich nur neue/laufende Buchungen. Erster Lauf frühestens 10 min nach dem Start,
+        #    damit der HA-Start nicht mit hunderten API-Anfragen belastet wird.
+        self._resp_store: Store = Store(hass, 1, f"{DOMAIN}_antwortzeiten_{entry.entry_id}")
+        self._resp: dict[str, dict[str, Any]] | None = None
+        self._resp_task: Any = None
+        self._resp_last: Any = None
+        self._started = dt_util.utcnow()
 
     # --- Optionen bequem lesbar ----------------------------------------
     @property
@@ -231,6 +246,10 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
     async def _async_update_data(self) -> SmoobuData:
         """Wohnungen (24 h gecacht) + Buchungen im Zeitfenster laden."""
         previous = self.data or SmoobuData()
+        if self._price_hist is None:
+            self._price_hist = dict(await self._price_store.async_load() or {})
+        if self._resp is None:
+            self._resp = dict(await self._resp_store.async_load() or {})
         try:
             apartments = await self._async_load_apartments(previous)
             bookings = await self._async_load_bookings()
@@ -300,6 +319,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
                 items, self.commissions, self.commission_other, self.direct_channels
             )
 
+        self._maybe_start_response_job()
         return SmoobuData(
             apartments=apartments,
             bookings=grouped,
@@ -343,7 +363,83 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
                 rates[apt_id] = self._rates.get(apt_id, {})
         self._rates = rates
         self._rates_loaded = now
+        self._record_prices(rates, today)
         return rates
+
+    # --- Statistik-Werkbank: Preis-Historie und Antwortzeiten ----------
+    def _record_prices(self, rates: dict[int, dict[str, dict[str, Any]]], today: date) -> None:
+        """Tagespreis + Mindestaufenthalt für heute und künftige Tage merken (vergangene bleiben)."""
+        if self._price_hist is None:
+            return
+        iso_today = today.isoformat()
+        for apt_id, days in rates.items():
+            hist = self._price_hist.setdefault(str(apt_id), {})
+            for day, value in (days or {}).items():
+                if day >= iso_today and isinstance(value, dict):
+                    hist[day] = [value.get("price"), value.get("min_length_of_stay")]
+        self._price_store.async_delay_save(lambda: self._price_hist or {}, 30)
+
+    def price_history(self, apartment_id: int) -> dict[str, list[Any]]:
+        return (self._price_hist or {}).get(str(apartment_id), {})
+
+    def rates_now(self, apartment_id: int) -> dict[str, dict[str, Any]]:
+        return self._rates.get(int(apartment_id), {})
+
+    @property
+    def responses(self) -> dict[str, dict[str, Any]]:
+        return self._resp or {}
+
+    def _maybe_start_response_job(self) -> None:
+        now = dt_util.utcnow()
+        if self._resp_task is not None and not self._resp_task.done():
+            return
+        if now - self._started < timedelta(minutes=10):
+            return
+        if self._resp_last and now - self._resp_last < timedelta(hours=1):
+            return
+        self._resp_last = now
+        self._resp_task = self.config_entry.async_create_background_task(
+            self.hass, self.async_update_response_times(), f"{DOMAIN}_antwortzeiten"
+        )
+
+    async def async_update_response_times(self, delay: float = 1.5, limit: int | None = None) -> int:
+        """Antwortzeiten nachladen: fehlende Buchungen + laufende/kürzliche (täglich neu). Gibt Anzahl zurück.
+
+        Gedrosselt (eine Anfrage, dann `delay` s Pause), Fehler einzelner Buchungen werden übersprungen,
+        bei Anmeldefehler bricht der Lauf ab. Zwischenstand wird alle 25 Buchungen gespeichert.
+        """
+        from .stats import response_times  # noqa: PLC0415
+
+        if self._resp is None:
+            self._resp = dict(await self._resp_store.async_load() or {})
+        today = dt_util.now().date()
+        recent = (today - timedelta(days=14)).isoformat()
+        start = self.history_start.isoformat()
+        todo = []
+        for r in self.records_all():
+            if r["blockiert"] or not r["id"] or r["anreise"] < start:
+                continue
+            entry = self._resp.get(str(r["id"]))
+            if entry is None or (r["abreise"] >= recent and entry.get("geladen") != today.isoformat()):
+                todo.append(r["id"])
+        done = 0
+        for rid in todo[:limit] if limit else todo:
+            try:
+                messages = await self.client.get_messages(int(rid), False)
+            except SmoobuAuthError:
+                break
+            except SmoobuError as err:
+                _LOGGER.debug("Antwortzeiten %s nicht ladbar: %s", rid, err)
+                continue
+            self._resp[str(rid)] = {"minuten": response_times(self._visible(messages)), "geladen": today.isoformat()}
+            done += 1
+            if done % 25 == 0:
+                self._resp_store.async_delay_save(lambda: self._resp or {}, 1)
+            if delay:
+                await asyncio.sleep(delay)
+        if done:
+            self._resp_store.async_delay_save(lambda: self._resp or {}, 1)
+        return done
 
     @staticmethod
     def _visible(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
