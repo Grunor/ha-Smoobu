@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.17.0b5 – 2026-11-16
+
+> Beta / Pre-release
+
 **Deutsch**
 - **Statistik: neues Modul „Buchungszeitpunkt“:** Matrix Aufenthaltsmonat (Jan–Dez) × Abstand zum Buchungsmonat (> 12, 7–12, 4–6, 3, 2, 1 Monat vorher, gleicher Monat) als Anteil je Zeile, umschaltbar Nächte/Buchungen/Umsatz und Basis „alle Jahre“ (abgeschlossene Monate, ohne ausgenommene Jahre wie 2020) oder gewählter Zeitraum; Spalte „Hälfte gebucht bis“ und Kernaussage (Anteil kurzfristig/langfristig gebucht). Neue Baukasten-Dimensionen `vorlauf_monate` und `buchungsmonat_im_jahr`
 
