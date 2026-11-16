@@ -8,11 +8,25 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.17.1b1 – 2026-11-16
+
+> Beta / Pre-release
+
 **Deutsch**
-- **Korrektur Übersicht – aktueller Gast am Anreisetag:** Status und Gästekarten rechnen jetzt mit Uhrzeit (wie die Sensoren). Ab der Check-in-Zeit ist der anreisende Gast „Aktueller Gast“, ab der Check-out-Zeit ist der abreisende Gast weg. Vorher blieb der Gast am Anreisetag bis Mitternacht „Nächster Gast, heute“ und die Karte „Aktueller Gast“ zeigte „keine“. Gilt auch für Gästewechsel und Abreise; Uhrzeit in der Zeitzone von Home Assistant. Die Übersicht prüft jede Minute und zeichnet bei Statuswechsel neu (offenes Tablet)
+- **Korrektur Übersicht – aktueller Gast am Anreisetag:** Status, Gästekarten und die Zeilen der Mehr-Wohnungen-Ansicht rechnen jetzt mit Uhrzeit (wie die Sensoren). Ab der Check-in-Zeit ist der anreisende Gast „Aktueller Gast“, ab der Check-out-Zeit ist der abreisende Gast weg. Vorher blieb der Gast am Anreisetag bis Mitternacht „Nächster Gast, heute“ und „Aktueller Gast“ zeigte „keine“. Gilt auch für Gästewechsel und Abreise; Uhrzeit in der Zeitzone von Home Assistant. Die Übersicht prüft jede Minute und zeichnet bei Statuswechsel neu (offenes Tablet)
+- **Anzeigenamen statt Schlüsseln:** Kanäle „Direct booking“ → „Direktbuchung“, „Blocked channel“ → „Sperre“; Preiselemente „Base price“ → „Grundpreis“, „Cleaning fee“ → „Endreinigung“ u. a. (0-€-Rabattzeilen ausgeblendet); Assistent: Anlass-Auswahl, Absicht im KI-Vorschlag („Späte Anreise“ statt `spaete_anreise`), Quelle und Status der Wissenseinträge und Vorschläge, KI-Name statt Entitäts-ID. Nur Anzeige – Filter, Farben und Sensoren nutzen weiter die Smoobu-Namen
+- **Buchungsdetails:** Ankunfts-/Abreisezeit und Notiz werden wie alle Schreibaktionen erst nach Bestätigung in Smoobu gespeichert; „In Smoobu öffnen“ heißt jetzt „Smoobu öffnen“ (führt zur Smoobu-Anmeldung, Tooltip mit Buchungs-ID)
+- **„Wartet auf dich“:** Portal-Buchungen ohne Markierung heißen „Nicht als erhalten markiert“ statt „Zahlung offen“ – es ist kein Geld offen, nur die Markierung fehlt
+- Englische Oberfläche: relative Zeitangaben („vor 2 Std.“) übersetzt
+- Dashboard-Vorlage: Statistik-Seite ergänzt, Geräte-Chips der Übersicht nur noch als auskommentiertes Beispiel; Screenshots neu erzeugt
 
 **English**
-- **Fix overview – current guest on arrival day:** status and guest cards now use the time of day (like the sensors). From the check-in time the arriving guest is the "Current guest", from the check-out time the departing guest is gone. Previously the guest stayed "Next guest, today" until midnight and "Current guest" showed "none". Also applies to changeover and departure days; time in Home Assistant's time zone. The overview checks every minute and re-renders when the status changes (open tablet)
+- **Fix overview – current guest on arrival day:** status, guest cards and the rows of the multi-property view now use the time of day (like the sensors). From the check-in time the arriving guest is the "Current guest", from the check-out time the departing guest is gone. Previously the guest stayed "Next guest, today" until midnight and "Current guest" showed "none". Also applies to changeover and departure days; time in Home Assistant's time zone. The overview checks every minute and re-renders when the status changes (open tablet)
+- **Display names instead of keys:** German UI shows "Direktbuchung"/"Sperre" for Smoobu's "Direct booking"/"Blocked channel" and German price element names; assistant: occasion picker, intent of the AI suggestion, source and status of knowledge entries and suggestions, AI name instead of the entity ID. Display only – filters, colours and sensors keep Smoobu's names
+- **Booking details:** arrival/departure time and note are saved in Smoobu only after confirmation, like every other write action; "Open in Smoobu" is now "Open Smoobu" (opens the Smoobu login, tooltip with booking ID)
+- **"Waiting for you":** unmarked portal bookings are labelled "Not marked as received" instead of "Payment open" – no money is outstanding, only the mark is missing
+- English UI: relative times translated
+- Dashboard template: statistics page added, overview device chips only as a commented example; screenshots regenerated
 
 ## 1.17.0 – 2026-11-16
 

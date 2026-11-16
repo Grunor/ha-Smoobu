@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.16.0";
+const SMOOBU_CARDS_VERSION = "1.17.1b1";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -74,7 +74,15 @@ const EN = {
   "gebucht": "booked", "Gesperrt": "Blocked", "Monate": "months", "Diagramm": "Chart", "Sperrzeit": "Block",
   "Preis/Nacht": "Price/night", "Ersparnis Direkt": "Direct savings", "Kanaltabelle": "Channel table",
   "Neu laden": "Reload", "morgen": "tomorrow", "Heute abgereist": "Departed today", "Heute": "Today", "Ankunft": "Check-in", "Abfahrt": "Check-out", "Gäste": "Guests",
-  "Details": "Details", "In Smoobu öffnen": "Open in Smoobu", "Grund (optional)": "Reason (optional)",
+  "Details": "Details", "In Smoobu öffnen": "Open in Smoobu", "Smoobu öffnen": "Open Smoobu",
+  "Smoobu-Anmeldung öffnen – Buchung dort über die ID suchen": "Opens the Smoobu login – search the booking there by ID",
+  "in Smoobu speichern": "save in Smoobu", "Nicht als erhalten markiert": "Not marked as received", "DRINGEND": "URGENT",
+  "Antwort": "Reply", "Willkommen": "Welcome", "Anreisetag": "Arrival day", "Abreisetag": "Departure day", "Bitte um Bewertung": "Review request",
+  "aus dem Verlauf": "from history", "aus Smoobu-Vorlage": "from Smoobu template", "gesendet": "sent", "KI-Vorschlag": "AI suggestion",
+  "bearbeitet": "edited", "Wissenslücke": "knowledge gap", "manuell": "manual", "aktiv": "active", "zur Freigabe": "awaiting approval",
+  "ausgeschaltet": "off", "ignoriert": "ignored", "keine KI": "no AI",
+  "Frage": "Question", "Späte Anreise": "Late arrival", "Früher Check-in": "Early check-in", "Später Check-out": "Late check-out",
+  "Problem": "Problem", "Dank": "Thanks", "Buchungsanfrage": "Booking request", "Stornierung": "Cancellation", "Sonstiges": "Other", "Grund (optional)": "Reason (optional)",
   "Tage markieren: erst ersten, dann letzten Tag antippen": "Mark days: tap first day, then last day",
   // v1.14.0
   "Keine Antwort nötig": "No reply needed", "Ohne Antwort erledigt": "Done without reply", "Rückgängig": "Undo",
@@ -110,6 +118,20 @@ const EN = {
 };
 let LANG = "de";
 const t = (s) => (LANG === "de" ? s : EN[s] || s);
+// v1.17.1: Anzeigenamen statt Smoobu-/Programmschlüsseln (nur Anzeige – Filter, Farben und Sensoren
+// arbeiten weiter mit den Originalnamen aus Smoobu, z. B. „Direct booking“)
+const CH_DE = { "Direct booking": "Direktbuchung", "Blocked channel": "Sperre", "Blocked channel auto": "Sperre (automatisch)" };
+const chn = (name) => (LANG === "de" && CH_DE[name]) || name || "";
+// Preiselemente: Smoobu liefert Standardnamen englisch; eigene Zusatzleistungen behalten ihren Namen
+const PRICE_DE = { basePrice: ["Base price", "Grundpreis"], cleaningFee: ["Cleaning fee", "Endreinigung"],
+  longStayDiscount: ["Long stay discount", "Langzeitrabatt"], extraGuestFee: ["Extra guest fee", "Zusatzgast"],
+  discount: ["Discount", "Rabatt"], cityTax: ["City tax", "Kurtaxe"] };
+const priceName = (p) => { const m = PRICE_DE[p.typ]; return LANG === "de" && m && (!p.name || p.name === m[0]) ? m[1] : p.name || p.typ || ""; };
+const OCCASION_LABEL = { antwort: "Antwort", willkommen: "Willkommen", anreise: "Anreisetag", abreise: "Abreisetag", bewertung: "Bitte um Bewertung" };
+const SOURCE_LABEL = { verlauf: "aus dem Verlauf", smoobu: "aus Smoobu-Vorlage", gesendet: "gesendet", vorschlag: "KI-Vorschlag",
+  bearbeitet: "bearbeitet", wissensluecke: "Wissenslücke", manuell: "manuell" };
+const KSTATUS_LABEL = { aktiv: "aktiv", vorschlag: "zur Freigabe", aus: "ausgeschaltet" };
+const SSTATUS_LABEL = { offen: "offen", gesendet: "gesendet", ignoriert: "ignoriert", bearbeitet: "bearbeitet" };
 
 // ---------------------------------------------------------------------------
 // Hilfsfunktionen
@@ -543,7 +565,7 @@ function channelChips(apt, selected, colors = {}) {
     `<button class="chip" data-ch="Direkt" aria-pressed="${sel.has("Direkt")}">${t("Direkt")}</button>`,
     `<button class="chip" data-ch="Portale" aria-pressed="${sel.has("Portale")}">${t("Portale")}</button>`];
   for (const ch of apt.kanaele) {
-    chips.push(`<button class="chip" data-ch="${esc(ch.name)}" aria-pressed="${sel.has(ch.name)}"><span class="dot" style="background:${chColor(ch.name)}"></span>${esc(ch.name)}</button>`);
+    chips.push(`<button class="chip" data-ch="${esc(ch.name)}" aria-pressed="${sel.has(ch.name)}"><span class="dot" style="background:${chColor(ch.name)}"></span>${esc(chn(ch.name))}</button>`);
   }
   return chips.join("");
 }
@@ -672,14 +694,15 @@ function stayStatus(apt, bookings, today, now = "00:00") {
   const arrived = arr && now >= hm(arr.check_in || apt.check_in, "16:00");
   const departed = dep && now >= hm(dep.check_out || apt.check_out, "11:00");
   const stay = (b) => `${plural(b.naechte, "Nacht", "Nächte")} bis ${fdowLong(b.abreise)}`;
-  if (arr && dep) return { key: "chg", pill: t("Gästewechsel"), title: t("Gästewechsel heute"),
+  const ev = { arr, dep, arrived: !!arrived, departed: !!departed }; // für die Kurztexte der Mehr-Wohnungen-Ansicht
+  if (arr && dep) return { key: "chg", ev, pill: t("Gästewechsel"), title: t("Gästewechsel heute"),
     current: arrived ? arr : departed ? null : dep, next: arrived ? next : arr,
     text: arrived ? `${esc(dep.gast)} ist abgereist, ${esc(arr.gast)}${arr.hund ? " 🐕" : ""} ist seit ${ci(arr)} da, ${stay(arr)}.`
       : departed ? `${esc(dep.gast)} ist abgereist, ${esc(arr.gast)}${arr.hund ? " 🐕" : ""} kommt um ${ci(arr)}. Reinigung dazwischen.`
       : `${esc(dep.gast)} reist bis ${co(dep)} ab, ${esc(arr.gast)}${arr.hund ? " 🐕" : ""} kommt um ${ci(arr)}. Reinigung dazwischen.` };
-  if (dep) return { key: "dep", pill: t("Abreise"), title: t("Abreise heute"), current: departed ? null : dep, next,
+  if (dep) return { key: "dep", ev, pill: t("Abreise"), title: t("Abreise heute"), current: departed ? null : dep, next,
     text: `${esc(dep.gast)} ${departed ? "ist abgereist" : `reist bis ${co(dep)} ab`}. ${after(today, next)}` };
-  if (arr) return { key: "arr", pill: t("Anreise"), title: t("Anreise heute"), current: arrived ? arr : null, next: arrived ? next : arr,
+  if (arr) return { key: "arr", ev, pill: t("Anreise"), title: t("Anreise heute"), current: arrived ? arr : null, next: arrived ? next : arr,
     text: arrived ? `${esc(arr.gast)}${arr.hund ? " 🐕" : ""} ist seit ${ci(arr)} da, ${stay(arr)}.`
       : `${esc(arr.gast)}${arr.hund ? " 🐕" : ""} kommt um ${ci(arr)}, ${stay(arr)}.` };
   if (staying) return { key: "occ", pill: t("Belegt"), title: `${t("Belegt bis")} ${fdowLong(staying.abreise)}`, current: staying, next,
@@ -882,14 +905,14 @@ class SmoobuOverviewCard extends SmoobuCard {
       const portal = b.gruppe === "Portal";
       const note = b.hund ? `<div class="note">🐕 ${esc(b.hund_hinweis || t("Hund dabei"))}</div>`
         : b.offen > 0 && !portal ? `<div class="note bad">${t("Offen")} ${money(b.offen, cur, 2)}</div>`
-        : portal ? `<div class="note">${t("Bezahlt über")} ${esc(b.kanal)}</div>` : "";
+        : portal ? `<div class="note">${t("Bezahlt über")} ${esc(chn(b.kanal))}</div>` : "";
       const isNext = label === "Nächster Gast";
       const when = isNext ? `, ${daysWord(nightsBetween(today, b.anreise))}` : "";
       return `<div class="guest" data-id="${b.id}" style="--c:${colorOf(apt, b.kanal)}">
         <div class="gl">${t(label)}${when}</div><div class="gn">${esc(b.gast || "–")}${b.hund ? " 🐕" : ""}</div>
         <div class="gm">${fdowLong(b.anreise)} bis ${fdowLong(b.abreise)}<br>${plural(b.naechte, t("Nacht"), t("Nächte"))}, ${plural(b.personen, t("Person"), t("Personen"))}<br>
           ${isNext ? `${t("Ankunft")} ${uhr(b.check_in || apt.check_in) || "–"}` : `${t("Abreise bis")} ${uhr(b.check_out || apt.check_out || "11:00")}`}</div>${note}
-        <div class="gf"><span class="dot" style="background:${colorOf(apt, b.kanal)}"></span>${esc(b.kanal)}<b>${money(b.brutto, cur)}</b></div></div>`;
+        <div class="gf"><span class="dot" style="background:${colorOf(apt, b.kanal)}"></span>${esc(chn(b.kanal))}<b>${money(b.brutto, cur)}</b></div></div>`;
     };
     const curLabel = s.current && s.current.abreise === today ? "Reist heute ab" : "Aktueller Gast";
     return `<section class="hero">
@@ -911,10 +934,13 @@ class SmoobuOverviewCard extends SmoobuCard {
     if (depN) parts.push(plural(depN, "Abreise", "Abreisen"));
     const lead = `${parts.length ? `Heute ${parts.join(" und ")}.` : "Heute keine An- oder Abreise."}${open.length ? ` ${plural(open.length, "Nachricht", "Nachrichten")} unbeantwortet.` : ""}`;
     const short = (p) => {
-      const s = p.s, c = s.current, n = s.next;
-      if (s.key === "chg") return `${esc(c.gast)} reist ab, ${esc(n.gast)} kommt um ${uhr(n.check_in || p.w.check_in || "16:00")}`;
-      if (s.key === "dep") return `${esc(c.gast)} reist heute ab${n ? `, nächste Anreise ${fdowLong(n.anreise)}` : ""}`;
-      if (s.key === "arr") return `${esc(n.gast)} kommt um ${uhr(n.check_in || p.w.check_in || "16:00")}`;
+      // v1.17.1: uhrzeitgenau über s.ev (current/next ändern sich mit Check-in/-out, können also leer sein)
+      const s = p.s, c = s.current, n = s.next, e = s.ev || {};
+      const ci = (b) => uhr(b.check_in || p.w.check_in || "16:00");
+      if (s.key === "chg") return e.arrived ? `${esc(e.dep.gast)} abgereist, ${esc(e.arr.gast)} seit ${ci(e.arr)} da`
+        : `${esc(e.dep.gast)} ${e.departed ? "abgereist" : "reist ab"}, ${esc(e.arr.gast)} kommt um ${ci(e.arr)}`;
+      if (s.key === "dep") return `${esc(e.dep.gast)} ${e.departed ? "abgereist" : "reist heute ab"}${n ? `, nächste Anreise ${fdowLong(n.anreise)}` : ""}`;
+      if (s.key === "arr") return e.arrived ? `${esc(e.arr.gast)} seit ${ci(e.arr)} da, bis ${fdowLong(e.arr.abreise)}` : `${esc(e.arr.gast)} kommt um ${ci(e.arr)}`;
       if (s.key === "occ") return `${esc(c.gast)} bis ${fdowLong(c.abreise)}`;
       return n ? `Frei bis ${fdowLong(n.anreise)}, dann ${esc(n.gast)}` : t("Keine Buchung in den nächsten 6 Monaten.");
     };
@@ -968,7 +994,7 @@ class SmoobuOverviewCard extends SmoobuCard {
       if (b.blockiert) return `<div class="bar blk ${cut ? "cut" : ""} ${cr ? "cr" : ""}" data-id="${b.id}" style="grid-column:${cs} / ${ce}" title="${esc(b.notiz || t("Gesperrt"))}"><span class="bn">🔒</span></div>`;
       const sub = this.multi ? "" : `<span class="bs">${plural(b.naechte, t("Nacht"), t("Nächte"))}, ${money(b.brutto, apt.currency)}</span>`;
       return `<div class="bar ${cut ? "cut" : ""} ${cr ? "cr" : ""}" data-id="${b.id}" style="grid-column:${cs} / ${ce};--c:${colorOf(apt, b.kanal)}"
-        title="${esc(`${b.gast} · ${b.kanal} · ${fdate(b.anreise)} – ${fdate(b.abreise)}`)}"><span class="bn">${esc(b.gast)}${b.hund ? " 🐕" : ""}</span>${sub}</div>`;
+        title="${esc(`${b.gast} · ${chn(b.kanal)} · ${fdate(b.anreise)} – ${fdate(b.abreise)}`)}"><span class="bn">${esc(b.gast)}${b.hund ? " 🐕" : ""}</span>${sub}</div>`;
     }).join("");
     const prices = (apt, list) => {
       const occ = new Set();
@@ -984,7 +1010,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     };
     const legend = (this.multi ? d.info.wohnungen.flatMap((w) => w.kanaele) : apts[0].kanaele)
       .filter((c, i, a) => a.findIndex((x) => x.name === c.name) === i)
-      .map((c) => `<span><i class="dot" style="background:${chColor(c.name)}"></i>${esc(c.name)}</span>`).join("")
+      .map((c) => `<span><i class="dot" style="background:${chColor(c.name)}"></i>${esc(chn(c.name))}</span>`).join("")
       + `<span><i class="dot hatch"></i>${t("Gesperrt")}</span>`;
     const rows = apts.map((w) => {
       const list = bookings.filter((b) => !this.multi || b.wohnung_id === w.apartment_id);
@@ -1090,7 +1116,9 @@ class SmoobuOverviewCard extends SmoobuCard {
       if (isNaN(ms)) return "";
       if (ms < 0) return fdowLong(s);
       const h = Math.round(ms / 3600000);
-      return h < 1 ? t("gerade eben") : h < 24 ? `vor ${h} Std.` : `vor ${Math.round(h / 24)} ${Math.round(h / 24) === 1 ? "Tag" : "Tagen"}`;
+      const dd = Math.round(h / 24);
+      if (LANG !== "de") return h < 1 ? t("gerade eben") : h < 24 ? `${h} h ago` : `${dd} ${dd === 1 ? "day" : "days"} ago`;
+      return h < 1 ? t("gerade eben") : h < 24 ? `vor ${h} Std.` : `vor ${dd} ${dd === 1 ? "Tag" : "Tagen"}`;
     };
     const todo = [
       ...open.map((b) => `<div class="todo msg"><div class="tt">${esc(b.gast)} ${t("wartet auf Antwort")}${this.code(b)}</div>
@@ -1099,9 +1127,9 @@ class SmoobuOverviewCard extends SmoobuCard {
       // v1.17.0 (Portal): vor den Direkt-Zahlungen, weil schon fällig (Anreise erreicht) und damit „Später fällig“
       // direkt unter den Direkt-Zahlungen bleibt, zu denen die Summe gehört. Kanalname statt rotem Betrag;
       // Brutto gedämpft (.amt.muted), weil kein Geld offen ist, sondern nur die Markierung „erhalten“ fehlt
-      ...portalShow.map((b) => `<div class="todo"><div class="tt">${t("Zahlung offen")}${this.code(b)}
+      ...portalShow.map((b) => `<div class="todo"><div class="tt">${t("Nicht als erhalten markiert")}${this.code(b)}
         <button class="lnk" style="margin-left:auto" data-id="${b.id}">${t("Buchung öffnen")}</button></div>
-        <p>${esc(b.gast)}, ${t("Anreise")} ${fdowLong(b.anreise)} · <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span> ${esc(b.kanal)}</p>
+        <p>${esc(b.gast)}, ${t("Anreise")} ${fdowLong(b.anreise)} · <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span> ${esc(chn(b.kanal))}</p>
         <div class="ta"><span class="amt muted">${money(b.brutto, cur, 2)}</span>
           <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t("Erhalten")}</button></div></div>`),
       portalRest.length ? `<div class="sub" style="padding:4px 2px">${t("Weitere ohne Markierung")}: ${plural(portalRest.length, t("Buchung"), t("Buchungen"))}, ${money(portalRest.reduce((a, b) => a + (b.brutto || 0), 0), cur, 2)}</div>` : "",
@@ -1251,7 +1279,7 @@ class SmoobuTimelineCard extends SmoobuCard {
           const right = cutR ? dim / 31 : Math.min((b.abreise === mEnd ? dim + 0.45 : d.getDate() - 1 + 0.45) / 31, 1);
           const label = b.blockiert ? `🔒 ${t("Gesperrt")}${b.notiz ? ", " + esc(b.notiz) : ""}` : `${esc(b.gast || "")}${b.hund ? " 🐕" : ""}`;
           bars += `<div class="bar ${b.blockiert ? "blocked" : ""} ${cutL ? "cl" : ""} ${cutR ? "cr" : ""}" data-id="${b.id}"
-            title="${esc(b.blockiert ? t("Sperrzeit") : `${b.gast}, ${b.personen} P., ${b.kanal}, ${money(b.brutto, cur)}`)}"
+            title="${esc(b.blockiert ? t("Sperrzeit") : `${b.gast}, ${b.personen} P., ${chn(b.kanal)}, ${money(b.brutto, cur)}`)}"
             style="left:calc(${(left * 100).toFixed(3)}%);width:calc(${((right - left) * 100).toFixed(3)}%);--c:${colorOf(apt, b.kanal)}">${label}</div>`;
         }
         const lab = `${wi === 0 ? `<span>${m.toLocaleDateString(locale(), MONTH_FMT)}</span>` : ""}${this.multi ? `<span class="ak" title="${esc(w.name)}">${esc(w.kuerzel)}</span>` : ""}`;
@@ -1278,7 +1306,7 @@ class SmoobuTimelineCard extends SmoobuCard {
         <button class="btn flat" data-act="prev" aria-label="${t("Zurück")}">◀</button><button class="btn flat" data-act="now">${t("Heute")}</button>
         <button class="btn flat" data-act="next" aria-label="${t("Weiter")}">▶</button></div>
       <div class="scroll"><div class="months ${this.multi ? "multi" : ""}">${rows.join("")}</div></div>
-      <div class="legend">${chans.map((c) => `<span><span class="dot" style="background:${chColor(c.name)}"></span>${esc(c.name)}</span>`).join("")}
+      <div class="legend">${chans.map((c) => `<span><span class="dot" style="background:${chColor(c.name)}"></span>${esc(chn(c.name))}</span>`).join("")}
         <span><span class="dot hatch"></span>${t("Gesperrt")}</span>
         <span><span class="dot" style="background:var(--sm-bad)"></span>${t("nicht buchbar")} (${t("Mindestaufenthalt zu hoch")})</span>
         ${this._config.show_prices ? `<span>${t("Zahl unten = Preis/Nacht")}, ☾ = ${t("Mindestaufenthalt")}</span>` : ""}
@@ -1526,7 +1554,7 @@ class SmoobuBookingsCard extends SmoobuCard {
       ${this.multi ? `<td>${codeTag(b.wohnung)}</td>` : ""}<td>${fdow(b.anreise)}</td><td>${fdow(b.abreise)}</td><td class="n">${b.naechte}</td>
       <td>${b.blockiert ? `🔒 ${esc(b.notiz || t("Gesperrt"))}` : esc(b.gast)}${b.hund ? " 🐕" : ""}</td>
       <td class="n">${b.blockiert ? "" : b.personen}</td>
-      <td><span class="dot" style="background:${colorOf(apt, b.kanal, b.blockiert)}"></span>${esc(b.kanal)}</td>
+      <td><span class="dot" style="background:${colorOf(apt, b.kanal, b.blockiert)}"></span>${esc(chn(b.kanal))}</td>
       <td class="n">${b.blockiert ? "" : money(b.brutto, cur, 2)}</td><td class="n">${b.blockiert ? "" : money(b.kosten, cur, 2)}</td>
       <td class="n">${b.blockiert ? "" : money(b.netto, cur, 2)}</td><td class="n">${b.netto_pro_nacht ? money(b.netto_pro_nacht, cur) : ""}</td>
       <td class="n">${b.offen > 0 ? `<span class="badge bad">${money(b.offen, cur, 2)}</span>` : ""}</td>
@@ -1723,17 +1751,17 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     const portals = chans.filter(([, v]) => v.gruppe === "Portal" && v.brutto > 0);
     if (portals.length) {
       const [n, v] = portals.reduce((a, b) => (b[1].kostenquote_prozent > a[1].kostenquote_prozent ? b : a));
-      out.push(`Teuerstes Portal: <b>${esc(n)}</b> mit ${pct(v.kostenquote_prozent)} Kosten (${money(v.kosten, cur)}).`);
+      out.push(`Teuerstes Portal: <b>${esc(chn(n))}</b> mit ${pct(v.kostenquote_prozent)} Kosten (${money(v.kosten, cur)}).`);
       const pb = portals.reduce((a, [, v]) => a + v.brutto, 0), pk = portals.reduce((a, [, v]) => a + v.kosten, 0);
       const direct = chans.filter(([, v]) => v.gruppe === "Direkt").reduce((a, [, v]) => a + v.brutto, 0);
       if (direct && pb) out.push(`Direktbuchungen sparten rund <b>${money((direct * pk) / pb, cur)}</b> Portalkosten (Ø ${pct((pk / pb) * 100)}).`);
     }
     const best = chans.filter(([, v]) => v.netto_pro_nacht).sort((a, b) => b[1].netto_pro_nacht - a[1].netto_pro_nacht);
-    if (best.length > 1) out.push(`Bester Erlös je Nacht: <b>${esc(best[0][0])}</b> ${money(best[0][1].netto_pro_nacht, cur)} netto, schwächster: ${esc(best.at(-1)[0])} ${money(best.at(-1)[1].netto_pro_nacht, cur)}.`);
+    if (best.length > 1) out.push(`Bester Erlös je Nacht: <b>${esc(chn(best[0][0]))}</b> ${money(best[0][1].netto_pro_nacht, cur)} netto, schwächster: ${esc(chn(best.at(-1)[0]))} ${money(best.at(-1)[1].netto_pro_nacht, cur)}.`);
     const storno = chans.filter(([, v]) => v.stornos > 0 && v.buchungen + v.stornos >= 3).sort((a, b) => b[1].stornoquote_prozent - a[1].stornoquote_prozent);
-    if (storno.length) out.push(`Höchste Stornoquote: <b>${esc(storno[0][0])}</b> ${pct(storno[0][1].stornoquote_prozent)} (${storno[0][1].stornos} von ${storno[0][1].stornos + storno[0][1].buchungen}, ${money(storno[0][1].storno_volumen, cur)}).`);
+    if (storno.length) out.push(`Höchste Stornoquote: <b>${esc(chn(storno[0][0]))}</b> ${pct(storno[0][1].stornoquote_prozent)} (${storno[0][1].stornos} von ${storno[0][1].stornos + storno[0][1].buchungen}, ${money(storno[0][1].storno_volumen, cur)}).`);
     const lead = chans.filter(([, v]) => v.vorlauf_schnitt !== null && v.buchungen >= 2).sort((a, b) => a[1].vorlauf_schnitt - b[1].vorlauf_schnitt);
-    if (lead.length > 1) out.push(`Kurzfristigste Gäste: <b>${esc(lead[0][0])}</b> (Ø ${num(lead[0][1].vorlauf_schnitt)} Tage Vorlauf), langfristigste: ${esc(lead.at(-1)[0])} (Ø ${num(lead.at(-1)[1].vorlauf_schnitt)} Tage).`);
+    if (lead.length > 1) out.push(`Kurzfristigste Gäste: <b>${esc(chn(lead[0][0]))}</b> (Ø ${num(lead[0][1].vorlauf_schnitt)} Tage Vorlauf), langfristigste: ${esc(chn(lead.at(-1)[0]))} (Ø ${num(lead.at(-1)[1].vorlauf_schnitt)} Tage).`);
     if (r.vergleich && r.veraenderung_prozent?.brutto !== null && r.veraenderung_prozent?.brutto !== undefined) {
       const ch = r.veraenderung_prozent.brutto;
       out.push(`Umsatz ${ch >= 0 ? "über" : "unter"} dem Vergleichszeitraum: ${delta(ch)} (${money(r.brutto - r.vergleich.brutto, cur)}).`);
@@ -1833,7 +1861,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       .map((v, i) => ({ values: v.reihe[m], label: periodName(v.von, v.bis), op: Math.max(0.12, 0.4 - i * 0.08), dash: i % 2 ? "2 3" : "8 4" }));
     const chans = Object.entries(r.kanaele);
     const cmpCh = c?.kanaele || {};
-    const table = chans.map(([n, v]) => `<tr><td><span class="dot" style="background:${colors[n] || colorOf(apt, n)}"></span> ${esc(n)}</td>
+    const table = chans.map(([n, v]) => `<tr><td><span class="dot" style="background:${colors[n] || colorOf(apt, n)}"></span> ${esc(chn(n))}</td>
       <td class="n">${money(v.brutto, cur)}</td><td class="n" style="min-width:90px">${pct(v.anteil_prozent, 0)}
         <div class="bar-in" style="width:${v.anteil_prozent}%;background:${colors[n] || colorOf(apt, n)}"></div></td>
       <td class="n">${cmpCh[n] ? delta(((v.brutto - cmpCh[n].brutto) / (cmpCh[n].brutto || 1)) * 100) : c ? `<span class="badge">neu</span>` : ""}</td>
@@ -1876,9 +1904,9 @@ class SmoobuAnalyticsCard extends SmoobuCard {
           <div class="tip" data-k="tip"></div></div>
         ${m === "kosten"
           // Provisionen: Verteilung der Kosten je Portal, in der Mitte die Kostenquote gesamt
-          ? `<div class="share">${donut(chans.filter(([, v]) => v.kosten > 0).map(([n, v]) => ({ name: n, value: v.kosten, color: colors[n] || colorOf(apt, n) })), pct(r.kostenquote_prozent, 1))}
+          ? `<div class="share">${donut(chans.filter(([, v]) => v.kosten > 0).map(([n, v]) => ({ name: chn(n), value: v.kosten, color: colors[n] || colorOf(apt, n) })), pct(r.kostenquote_prozent, 1))}
               <span class="sub">${t("Kostenquote")} · ${money(r.kosten, cur)}</span></div>`
-          : `<div class="share">${donut(chans.map(([n, v]) => ({ name: n, value: m === "naechte" ? v.naechte : v[m], color: colors[n] || colorOf(apt, n) })).filter((p) => p.value > 0), pct(r.direktanteil_prozent, 0))}
+          : `<div class="share">${donut(chans.map(([n, v]) => ({ name: chn(n), value: m === "naechte" ? v.naechte : v[m], color: colors[n] || colorOf(apt, n) })).filter((p) => p.value > 0), pct(r.direktanteil_prozent, 0))}
               <span class="sub">${t("Direktanteil")}</span></div>`}</div>
       ${this.multiTable(apt, r)}
       ${per.length > 1 ? `<h3>${t("Wohnungen im Vergleich")}</h3>
@@ -1949,7 +1977,7 @@ const noReplyHtml = (st, id) => st?.offen ? `<div class="noreply"><span class="p
   : st?.ohne_antwort ? `<div class="noreply"><span class="done">✓ ${t("Ohne Antwort erledigt")}</span>
     <button class="btn flat" data-undo="${id}">↶ ${t("Rückgängig")}</button></div>` : "";
 // Hinweisbox zum KI-Vorschlag (Absicht, Hinweise, Wissenslücke, offene Stellen)
-const sugHtml = (sug) => sug ? `<div class="sugbox ${sug.dringend ? "urgent" : ""}"><b>✨ ${sug.dringend ? "DRINGEND · " : ""}${esc(sug.absicht)}</b>
+const sugHtml = (sug) => sug ? `<div class="sugbox ${sug.dringend ? "urgent" : ""}"><b>✨ ${sug.dringend ? `${t("DRINGEND")} · ` : ""}${esc(t(INTENT_LABEL[sug.absicht] || sug.absicht))}</b>
     ${sug.zusammenfassung ? ` · ${esc(sug.zusammenfassung)}` : ""}
     ${sug.hinweis ? `<div>ℹ️ ${esc(sug.hinweis)}</div>` : ""}
     ${sug.wissensluecke ? `<div>❓ Wissenslücke: ${esc(sug.wissensluecke)}</div>` : ""}
@@ -1959,7 +1987,7 @@ const aiCtlHtml = (ai, allowed, reason, thinking) => {
   if (!ai) return "";
   const lock = !allowed;
   const tip = esc(reason || t("KI in den Integrationsoptionen deaktiviert"));
-  return `<select data-k="anlass" ${lock ? `disabled title="${tip}"` : ""}>${["antwort", "willkommen", "anreise", "abreise", "bewertung"].map((a) => `<option value="${a}">${a}</option>`).join("")}</select>
+  return `<select data-k="anlass" ${lock ? `disabled title="${tip}"` : ""}>${["antwort", "willkommen", "anreise", "abreise", "bewertung"].map((a) => `<option value="${a}">${esc(t(OCCASION_LABEL[a] || a))}</option>`).join("")}</select>
     <button class="btn flat ${lock ? "locked" : ""}" data-act="ai" ${thinking || lock ? "disabled" : ""} ${lock ? `title="${tip}"` : ""}>${lock ? `🔒 ${t("KI gesperrt")}` : thinking ? `⏳ ${t("KI denkt …")}` : `✨ ${t("Vorschlag")}`}</button>`;
 };
 const DIALOG_CSS = `
@@ -2041,17 +2069,17 @@ class SmoobuBookingDialog extends HTMLElement {
     const cur = this.apt?.currency || "EUR";
     const color = colorOf(this.apt, b.kanal, b.blockiert);
     const kv = (rows) => `<dl class="kv">${rows.filter(Boolean).map(([k, v]) => `<dt>${t(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
-    const positions = (b.positionen || []).map((p) => `<div class="row"><span class="grow">${esc(p.name)}</span><span>${money(p.betrag, cur, 2)}</span></div>`).join("");
+    const positions = (b.positionen || []).filter((p) => Number(p.betrag) !== 0 || p.typ === "basePrice").map((p) => `<div class="row"><span class="grow">${esc(priceName(p))}</span><span>${money(p.betrag, cur, 2)}</span></div>`).join("");
     const msgs = newestFirst(d.nachrichten).map((m) => `<div class="msg ${Number(m.typ) === 2 ? "out" : ""}"><div class="h">${dirLabel(m)}${m.zeit ? " · " + esc(fdate(m.zeit, DT_FMT)) : ""}${m.betreff ? " · " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("");
     const canCancel = !b.blockiert && b.gruppe === "Direkt" && !b.storniert && b.status !== "vergangen";
     return `
-      <div class="row" style="margin-bottom:12px"><span class="badge"><span class="dot" style="background:${color}"></span> ${esc(b.kanal)}</span>
+      <div class="row" style="margin-bottom:12px"><span class="badge"><span class="dot" style="background:${color}"></span> ${esc(chn(b.kanal))}</span>
         <span class="badge"><ha-icon icon="${STATUS_ICON[b.status] || "mdi:help"}"></ha-icon> ${t(b.status || "")}</span>
         ${b.referenz ? `<span class="badge">#${esc(b.referenz)}</span>` : ""}<span class="badge">ID ${esc(b.id)}</span>
         ${b.offen > 0 ? `<span class="badge bad">${t("Offen")} ${money(b.offen, cur, 2)}</span>` : b.blockiert ? ""
           // v1.17.0 (Portal): ohne Markierung neutral „Bezahlt über <Kanal>“ – Geld ist beim Portal, aber noch nicht
           // als erhalten markiert (kein Rot: nichts überfällig; kein Grün: der Betreiber hat es noch nicht abgehakt)
-          : portalPay(b) && !b.bezahlt ? `<span class="badge">${t("Bezahlt über")} ${esc(b.kanal)}</span>`
+          : portalPay(b) && !b.bezahlt ? `<span class="badge">${t("Bezahlt über")} ${esc(chn(b.kanal))}</span>`
           : `<span class="badge good">✓ ${t("bezahlt")}</span>`}</div>
       ${d.fehler ? `<div class="err">${esc(d.fehler)}</div>` : ""}
       <div class="sec">
@@ -2097,7 +2125,8 @@ class SmoobuBookingDialog extends HTMLElement {
         ${b.blockiert ? `<button class="btn danger" data-act="unblock">🔓 ${t("Sperre löschen")}</button>` : ""}
         ${canCancel ? `<button class="btn danger" data-act="cancel">${t("Stornieren")}</button>` : ""}
         <span class="grow"></span>
-        <a class="btn flat" href="https://login.smoobu.com/" target="_blank" rel="noopener" style="text-decoration:none">${t("In Smoobu öffnen")} ↗</a>
+        <a class="btn flat" href="https://login.smoobu.com/" target="_blank" rel="noopener" style="text-decoration:none"
+          title="${esc(`${t("Smoobu-Anmeldung öffnen – Buchung dort über die ID suchen")}: ${b.id}`)}">${t("Smoobu öffnen")} ↗</a>
       </div>`;
   }
   // v1.17.0: Zahlungseingang markieren (Logik gemeinsam mit der Übersicht: payInfo/markPayment)
@@ -2158,11 +2187,16 @@ class SmoobuBookingDialog extends HTMLElement {
     }
     try {
       if (a === "times") {
+        // v1.17.1: wie alle Schreibaktionen erst nach Bestätigung (wirkt direkt in Smoobu)
         const data = { reservation_id: id };
         if (v("ci")) data.arrival_time = v("ci");
         if (v("co")) data.departure_time = v("co");
+        if (!data.arrival_time && !data.departure_time) return;
+        const what = [data.arrival_time && `${t("Ankunftszeit")} ${data.arrival_time}`, data.departure_time && `${t("Abreisezeit")} ${data.departure_time}`].filter(Boolean).join(", ");
+        if (!(await confirmDialog(`${this.data?.buchung?.gast || ""}: ${what} ${t("in Smoobu speichern")}?`))) return;
         await this.store.service("update_reservation", data);
       } else if (a === "notice") {
+        if (!(await confirmDialog(`${t("Notiz")} ${t("in Smoobu speichern")}?`))) return;
         await this.store.service("update_reservation", { reservation_id: id, notice: v("notice") || "" });
       } else if (a === "send") {
         const text = (v("msg") || "").trim();
@@ -2377,10 +2411,10 @@ class SmoobuAssistantCard extends SmoobuCard {
         <input data-f="thema" value="${esc(w.thema)}" placeholder="Thema">
         <textarea data-f="text" placeholder="Fakt / Antwortbaustein">${esc(w.text)}</textarea>
         <div class="row"><label><input type="checkbox" data-f="vertraulich" ${w.vertraulich ? "checked" : ""}> vertraulich (nicht an die KI)</label>
-          <select data-f="status">${["aktiv", "vorschlag", "aus"].map((x) => `<option ${x === w.status ? "selected" : ""}>${x}</option>`).join("")}</select>
+          <select data-f="status">${["aktiv", "vorschlag", "aus"].map((x) => `<option value="${x}" ${x === w.status ? "selected" : ""}>${t(KSTATUS_LABEL[x])}</option>`).join("")}</select>
           <span class="grow"></span><button class="btn flat" data-a="cancel">${t("Abbrechen")}</button><button class="btn" data-a="save">${t("Speichern")}</button></div></div>`
       : `<div class="kn ${w.status}" data-id="${w.id}"><div class="row"><span class="t grow">${esc(w.thema)}${w.vertraulich ? " 🔒" : ""}</span>
-          ${w.status === "vorschlag" ? `<span class="badge warn">Vorschlag · ${esc(w.quelle)}</span><button class="btn" data-a="ok">✓ Freigeben</button>` : `<span class="badge">${w.status}</span>`}
+          ${w.status === "vorschlag" ? `<span class="badge warn">${t("Vorschlag")} · ${esc(t(SOURCE_LABEL[w.quelle] || w.quelle))}</span><button class="btn" data-a="ok">✓ Freigeben</button>` : `<span class="badge">${t(KSTATUS_LABEL[w.status] || w.status)}</span>`}
           <button class="btn flat" data-a="edit">✎</button><button class="btn flat" data-a="del">🗑</button></div>
           <div class="x">${esc(w.text) || '<span class="muted">(noch kein Text – bitte ergänzen)</span>'}</div></div>`;
     return `<div class="toolbar"><input type="search" data-k="filter" placeholder="${t("Suche")}" value="${esc(this._state.filter)}" style="flex:1">
@@ -2394,7 +2428,7 @@ class SmoobuAssistantCard extends SmoobuCard {
     const head = `<div class="head"><h2>${esc(this._config.title || "Assistent")}</h2>
         ${st.ki_erlaubt === false ? `<span class="badge bad" title="${esc(st.ki_sperre || "")}">🔒 ${t("KI gesperrt")}</span>`
           : `<span class="badge ${st.aktiv ? "good" : "bad"}" title="Automatische Antwortvorschläge">${st.aktiv ? "aktiv" : "aus"}</span>`}
-        <span class="badge">${esc(st.ki || "keine KI")}</span></div>
+        <span class="badge" title="${esc(st.ki || "")}">${esc((st.ki && this._hass?.states[st.ki]?.attributes?.friendly_name) || st.ki || t("keine KI"))}</span></div>
       ${st.ki_erlaubt === false ? `<div class="lockinfo">🔒 ${esc(st.ki_sperre || t("KI in den Integrationsoptionen deaktiviert"))}.
         Wissensdatenbank, Lernen, Import, Tagesbriefing und Lücken funktionieren weiter – es gehen keine Daten an einen KI-Anbieter.</div>` : ""}
       ${st.fehler && st.ki_erlaubt !== false ? `<div class="err">Letzter Fehler: ${esc(st.fehler)}</div>` : ""}
@@ -2410,7 +2444,7 @@ class SmoobuAssistantCard extends SmoobuCard {
     if (tab === "wissen") body = this.knowledge(st);
     if (tab === "vorschlaege") body = st.vorschlaege.map((v) => `<div class="ex click" data-bid="${v.buchung_id}">
         <div class="row"><b class="grow">${esc(v.gast || v.buchung_id)}</b>${v.dringend ? '<span class="badge bad">dringend</span>' : ""}
-        <span class="badge">${esc(INTENT_LABEL[v.absicht] || v.absicht)}</span><span class="badge ${v.status === "offen" ? "warn" : ""}">${esc(v.status)}</span>
+        <span class="badge">${esc(INTENT_LABEL[v.absicht] || v.absicht)}</span><span class="badge ${v.status === "offen" ? "warn" : ""}">${esc(t(SSTATUS_LABEL[v.status] || v.status))}</span>
         <span class="sub">${fdate(v.erstellt, DT_FMT)}</span></div>
         ${v.gastnachricht ? `<div class="g">„${esc(v.gastnachricht.slice(0, 300))}“</div>` : ""}
         ${this._state.editSug === v.buchung_id
@@ -2424,8 +2458,8 @@ class SmoobuAssistantCard extends SmoobuCard {
             <button class="btn flat" data-sa="ignore" data-rid="${v.buchung_id}">${t("Ignorieren")}</button>` : ""}
           <span class="grow"></span><button class="btn flat" data-sa="delete" data-rid="${v.buchung_id}" title="${t("Löschen")}">🗑</button></div></div>`).join("")
       || `<div class="empty">${t("Keine Daten")}</div>`;
-    if (tab === "beispiele") body = st.beispiele.slice(0, 60).map((b) => `<div class="ex"><div class="row"><span class="badge">${esc(b.quelle)}</span>
-        <span class="sub grow">${esc(b.kanal || "")} · ${esc(b.sprache || "")}</span><button class="btn flat" data-del-ex="${b.id}">🗑</button></div>
+    if (tab === "beispiele") body = st.beispiele.slice(0, 60).map((b) => `<div class="ex"><div class="row"><span class="badge">${esc(t(SOURCE_LABEL[b.quelle] || b.quelle))}</span>
+        <span class="sub grow">${esc(chn(b.kanal))} · ${esc(b.sprache || "")}</span><button class="btn flat" data-del-ex="${b.id}">🗑</button></div>
         ${b.gast ? `<div class="g">Gast: ${esc(b.gast.slice(0, 300))}</div>` : ""}<div class="a">Ihr: ${esc(b.antwort.slice(0, 500))}</div></div>`).join("")
       || `<div class="empty">Noch nichts gelernt – Verlauf importieren oder Antworten senden.</div>`;
     if (tab === "luecken") body = st.luecken.map((g) => `<div class="ex"><b>${fdow(g.von)} – ${fdow(g.bis)}</b> · ${g.naechte} N. frei,
@@ -3031,8 +3065,8 @@ const STATS_MODULES = {
         [t("Storno-Vorlauf"), m.vorlauf_median === null ? "–" : `${num(m.vorlauf_median)} ${t("Tage")}`, t("Median vor Anreise"),
           t("Anreise − Änderungsdatum (Smoobu liefert kein Stornodatum, Näherung)")],
       ]);
-      const ch = hbars(m.kanaele.filter((k) => k.buchungen + k.stornos > 0).map((k) => ({ label: k.kanal, dot: chColor(k.kanal), color: chColor(k.kanal),
-        value: k.quote || 0, n: k.buchungen + k.stornos, tip: `${k.kanal}: ${pct(k.quote, 1)} (${k.stornos} ${t("von")} ${k.buchungen + k.stornos}) · ${t("Ausfall")} ${money(k.ausfall, cur)}` })),
+      const ch = hbars(m.kanaele.filter((k) => k.buchungen + k.stornos > 0).map((k) => ({ label: chn(k.kanal), dot: chColor(k.kanal), color: chColor(k.kanal),
+        value: k.quote || 0, n: k.buchungen + k.stornos, tip: `${chn(k.kanal)}: ${pct(k.quote, 1)} (${k.stornos} ${t("von")} ${k.buchungen + k.stornos}) · ${t("Ausfall")} ${money(k.ausfall, cur)}` })),
       { fmt: (v) => pct(v, 0), max: 100 });
       const hist = vbars(m.vorlauf.map((x) => ({ label: x.fach, value: x.anzahl, color: "var(--sm-bad)", tip: `${x.fach} ${t("Tage vor Anreise")}: ${x.anzahl} ${t("Stornos")}` })),
         { W: card.chartW(0.4, 300), H: 170 });
@@ -3081,8 +3115,8 @@ const STATS_MODULES = {
       ]);
       if (!g.n) return panel(t("Service"), t("Antwortzeit auf Gästenachrichten"), `${tiles}<div class="empty">${m.geladen ? t("Keine Gastnachrichten im Zeitraum") : t("Noch keine Nachrichten ausgewertet – der Abruf startet etwa 10 Minuten nach dem Start von Home Assistant.")}</div>`);
       const hist = vbars(m.verteilung.map((x) => ({ label: x.fach, value: x.anzahl })), { W: card.chartW(0.48, 340), H: 180 });
-      const ch = hbars(m.kanaele.map((k) => ({ label: k.kanal, dot: chColor(k.kanal), color: chColor(k.kanal), value: k.median, n: k.n,
-        tip: `${k.kanal}: Median ${dur(k.median)} · ${pct(k.unter_1h, 0)} < 1 h · n = ${k.n}` })), { fmt: dur });
+      const ch = hbars(m.kanaele.map((k) => ({ label: chn(k.kanal), dot: chColor(k.kanal), color: chColor(k.kanal), value: k.median, n: k.n,
+        tip: `${chn(k.kanal)}: Median ${dur(k.median)} · ${pct(k.unter_1h, 0)} < 1 h · n = ${k.n}` })), { fmt: dur });
       return panel(t("Service"), t("Antwortzeit auf Gästenachrichten, Buchungen mit Anreise im Zeitraum"),
         `${tiles}<div class="split2 even"><div><div class="kl">${t("Verteilung der Antwortzeiten")}</div>${hist}</div>
           <div><div class="kl">${t("Median je Kanal")}</div>${ch}</div></div>`);
@@ -3096,7 +3130,7 @@ const STATS_MODULES = {
       const rows = (m.buchungen || []).filter((b) => !b.blockiert).sort((a, b) => b.anreise.localeCompare(a.anreise));
       const shown = card._state.tableAll ? rows : rows.slice(0, 25);
       const body = shown.map((b) => `<tr class="click${b.storniert ? " muted" : ""}" data-open="${b.id}"><td>${fdate(b.anreise)}</td><td>${fdate(b.abreise)}</td>
-        <td>${esc(b.gast || "–")}${card.code(b)}${b.hund ? " 🐕" : ""}</td><td><span class="dot" style="background:${chColor(b.kanal)}"></span> ${esc(b.kanal)}</td>
+        <td>${esc(b.gast || "–")}${card.code(b)}${b.hund ? " 🐕" : ""}</td><td><span class="dot" style="background:${chColor(b.kanal)}"></span> ${esc(chn(b.kanal))}</td>
         <td class="n">${b.naechte}</td><td class="n">${b.personen ?? "–"}</td><td class="n">${money(b.brutto, cur)}</td><td class="n">${money(b.netto, cur)}</td>
         <td class="n">${b.vorlauf_tage ?? "–"}</td><td>${b.storniert ? `<span class="badge bad">${t("storniert")}</span>` : esc(t(b.status || ""))}</td></tr>`).join("");
       const more = rows.length > 25 ? `<button class="lnk" data-k="tableall">${card._state.tableAll ? t("Weniger anzeigen") : `${t("Alle")} ${rows.length} ${t("anzeigen")}`}</button>` : "";

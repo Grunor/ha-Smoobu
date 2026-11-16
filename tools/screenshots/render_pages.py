@@ -33,7 +33,8 @@ OUT = Path(os.environ.get("SMOOBU_SHOT_DIR", ROOT / "docs" / "screenshots"))
 HARNESS = Path(__file__).parent / "harness.html"
 SCALE = float(os.environ.get("SMOOBU_SHOT_SCALE", "1.5"))
 APTS = int(os.environ.get("SMOOBU_WOHNUNGEN", "1"))
-CHIPS = ["climate.ferienwohnung", "binary_sensor.ferienwohnung_eingangstuer", "sensor.ferienwohnung_vorheizstart"]
+# v1.17.1: Übersicht ohne Geräte-Chips (Empfehlung der Dashboard-Vorlage: Chip-Zeile nur mit Ereignissen von heute)
+CHIPS: list[str] = []
 PAGES = {
     "uebersicht": [["smoobu-header-card", {}], ["smoobu-overview-card", {"entities": CHIPS}]],
     "belegung": [["smoobu-header-card", {}], ["smoobu-timeline-card", {"months": 2}]],

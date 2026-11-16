@@ -1,7 +1,7 @@
 # Smoobu – Dashboard-Vorlage (ab v1.15.0)
 # =============================================================================
-# Zweck: Komplettes Smoobu-Dashboard mit 6 Seiten (Übersicht, Belegung,
-# Buchungen, Finanzen, Nachrichten, Assistent). So sehen die Seiten aus: docs/screenshots/
+# Zweck: Komplettes Smoobu-Dashboard mit 7 Seiten (Übersicht, Belegung,
+# Buchungen, Finanzen, Statistik, Nachrichten, Assistent). So sehen die Seiten aus: docs/screenshots/
 #
 # Einrichtung
 # 1. Einstellungen → Dashboards → „Dashboard hinzufügen“ → „Neues Dashboard von Grund auf“,
@@ -9,7 +9,8 @@
 # 2. Dashboard öffnen → ✎ → ⋮ → „Raw-Konfigurationseditor“ → diesen Inhalt einfügen → Speichern.
 # 3. Andere URL gewählt? „back_path: /dashboard-ferienwohnung/…“ anpassen (nur der Zurück-Pfeil;
 #    die Navigation der Kopfleiste findet die Seiten selbst).
-# 4. Übersicht: unter „entities“ eigene Entitäten eintragen (Heizung, Tür …) oder die Zeilen löschen.
+# 4. Übersicht: optional unter „entities“ eigene Entitäten als Chips eintragen (Heizung, Tür …).
+#    Empfehlung: weglassen – die Chip-Zeile zeigt dann nur die Ereignisse von heute.
 # 5. Optionen der Integration → KI-Assistent → „Dashboard-Seite für Bearbeiten“:
 #    /<eure-dashboard-url>/smoobu-nachrichten
 #
@@ -38,10 +39,10 @@ views:
           - type: custom:smoobu-header-card
           # Status heute, Gäste, Belegung 6 Wochen, Kennzahlen, Anreisen, Lücken, Offenes
           - type: custom:smoobu-overview-card
-            # Eigene HA-Entitäten als Chips (Beispiele – anpassen oder löschen):
-            entities:
-              - climate.ferienwohnung
-              - binary_sensor.ferienwohnung_eingangstuer
+            # Optional eigene HA-Entitäten als Chips (siehe Einrichtung, Punkt 4):
+            # entities:
+            #   - climate.ferienwohnung
+            #   - binary_sensor.ferienwohnung_eingangstuer
 
   # --- Seite 2: Belegung (Monate mit Preisen, sperren, Preise setzen) -----------
   - title: Belegung
@@ -84,7 +85,20 @@ views:
           - type: custom:smoobu-header-card
           - type: custom:smoobu-analytics-card
 
-  # --- Seite 5: Posteingang (Antwort offen, keine Antwort nötig, KI-Vorschlag) --
+  # --- Seite 5: Statistik (Baukasten, Prognose, Saison, Buchungszeitpunkt …) ----
+  - title: Statistik
+    path: smoobu-statistik
+    icon: mdi:chart-box-outline
+    type: panel
+    subview: true
+    back_path: /dashboard-ferienwohnung/smoobu
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:smoobu-header-card
+          - type: custom:smoobu-stats-card
+
+  # --- Seite 6: Posteingang (Antwort offen, keine Antwort nötig, KI-Vorschlag) --
   - title: Nachrichten
     path: smoobu-nachrichten
     icon: mdi:message-text
@@ -97,7 +111,7 @@ views:
           - type: custom:smoobu-header-card
           - type: custom:smoobu-inbox-card
 
-  # --- Seite 6: KI-Assistent (Wissensdatenbank, Vorschläge, Gelerntes) ----------
+  # --- Seite 7: KI-Assistent (Wissensdatenbank, Vorschläge, Gelerntes) ----------
   # Funktioniert auch mit gesperrter KI (Wissen pflegen, Import); KI-Buttons sind dann ausgegraut.
   - title: Assistent
     path: smoobu-assistent

@@ -104,9 +104,8 @@ def _shots(base: str, token: str, set_options) -> list[str]:
             done.append(path.name)
 
         start()
-        card("uebersicht", "smoobu-overview-card",
-             {"entities": ["climate.ferienwohnung", "binary_sensor.ferienwohnung_eingangstuer",
-                           "sensor.ferienwohnung_vorheizstart", "vacuum.ferienwohnung_saugroboter"]})
+        # v1.17.1: ohne Geräte-Chips (Empfehlung der Dashboard-Vorlage)
+        card("uebersicht", "smoobu-overview-card")
         card("belegungsplan", "smoobu-timeline-card", {"months": 3})
         card("buchungen", "smoobu-bookings-card")
         card("finanzen", "smoobu-analytics-card")
