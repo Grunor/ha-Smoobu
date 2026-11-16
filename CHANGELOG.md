@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.17.0b4 – 2026-11-16
+
+> Beta / Pre-release
+
 **Deutsch**
 - **Zahlungseingang im Dashboard markieren:** In „Wartet auf dich“ (Übersicht) stehen bei offenen Zahlungen jetzt die Buttons „✓ Erhalten“ und – bei offener Anzahlung – „✓ Anzahlung“ (Betrag der Anzahlung in der Zeile); „Buchung öffnen“ ist dort ein Textlink. In den Buchungsdetails zeigt der Preisbereich den Restbetrag und die Buttons „✓ Anzahlung erhalten“ / „✓ Zahlung erhalten“ sowie als Rückweg „↶ Anzahlung offen“ / „↶ Als offen markieren“. Jede Änderung wird vorher bestätigt und über `smoobu.update_reservation` direkt in Smoobu gespeichert; „Zahlung erhalten“ setzt eine offene Anzahlung mit auf bezahlt
 - **Portal-Buchungen als erhalten markieren:** Auch Buchungen über Portale (Airbnb, Booking.com, HomeToGo, Expedia …) lassen sich jetzt als „erhalten“ markieren (z. B. sobald die Rechnung an den Gast geschrieben ist); maßgeblich ist der Smoobu-Status „bezahlt“. Buchungsdetails: „✓ Zahlung erhalten“ bzw. „↶ Als offen markieren“; der Kopf zeigt ohne Markierung neutral „Bezahlt über <Kanal>“, danach „✓ bezahlt“. „Wartet auf dich“: Portal-Buchungen ohne Markierung erscheinen ab dem Anreisetag (bis 60 Tage zurück) als „Zahlung offen“ mit Kanalname, Bruttobetrag gedämpft und „✓ Erhalten“; höchstens drei, der Rest als Zeile „Weitere ohne Markierung“. Sensoren und offene Zahlungen im Backend bleiben unverändert (Portal kassiert)
