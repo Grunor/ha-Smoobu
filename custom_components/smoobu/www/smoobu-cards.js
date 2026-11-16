@@ -93,6 +93,11 @@ const EN = {
   "Zurück": "Back", "Weiter": "Next", "Zahl unten = Preis/Nacht": "Number below = price/night",
   "Keine Buchung in den nächsten 6 Monaten.": "No booking in the next 6 months.", "Danach keine Buchung in den nächsten 6 Monaten.": "No booking afterwards in the next 6 months.",
   "gebucht + Nachbuchungen wie im Vorjahr": "booked + pickup like last year", "Nachrichten": "Messages",
+  // v1.17.0: Zahlungseingang markieren
+  "Zahlung erhalten": "Payment received", "Anzahlung erhalten": "Prepayment received", "Erhalten": "Received",
+  "Als offen markieren": "Mark as open", "Anzahlung offen": "Prepayment open", "Restbetrag": "Balance",
+  "Zahlung": "Payment", "als erhalten markieren": "mark as received", "wieder als offen markieren": "mark as open again",
+  "In Smoobu gespeichert": "Saved in Smoobu", "offen": "open",
 };
 let LANG = "de";
 const t = (s) => (LANG === "de" ? s : EN[s] || s);
@@ -1003,6 +1008,9 @@ class SmoobuOverviewCard extends SmoobuCard {
     const unpaidAll = guests.filter((b) => b.offen > 0 && b.gruppe !== "Portal" && b.status !== "vergangen");
     const soon = iso(addDays(D(today), 30));
     const unpaid = unpaidAll.filter((b) => b.anreise <= soon).slice(0, 3);
+    // v1.17.0: für die Buttons „✓ Erhalten“ / „✓ Anzahlung“ (bind sucht die Buchung per ID)
+    this._payBookings = new Map(unpaid.map((b) => [b.id, b]));
+    this._payCur = cur;
     const later = unpaidAll.filter((b) => !unpaid.includes(b));
     const ago = (s) => {
       if (!s) return "";
@@ -1016,8 +1024,14 @@ class SmoobuOverviewCard extends SmoobuCard {
       ...open.map((b) => `<div class="todo msg"><div class="tt">${esc(b.gast)} ${t("wartet auf Antwort")}${this.code(b)}</div>
         ${status[b.id].letzte_text ? `<p>„${esc(status[b.id].letzte_text)}“</p>` : "<p></p>"}
         <div class="ta"><button class="btn" data-id="${b.id}">${t("Antworten")}</button><span class="ago">${ago(status[b.id].letzte_zeit)}</span></div></div>`),
-      ...unpaid.map((b) => `<div class="todo"><div class="tt">${t("Zahlung offen")}${this.code(b)}</div><p>${esc(b.gast)}, ${t("Anreise")} ${fdowLong(b.anreise)}</p>
-        <div class="ta"><span class="amt">${money(b.offen, cur, 2)}</span><button class="btn flat" data-id="${b.id}">${t("Buchung öffnen")}</button></div></div>`),
+      // v1.17.0: „✓ Erhalten“ (Gesamtbetrag) und ggf. „✓ Anzahlung“ direkt hier; „Buchung öffnen“ als Textlink,
+      // damit Betrag + Buttons auch in der schmalen Spalte in eine Zeile passen
+      ...unpaid.map((b) => { const p = payInfo(b); return `<div class="todo"><div class="tt">${t("Zahlung offen")}${this.code(b)}
+        <button class="lnk" style="margin-left:auto" data-id="${b.id}">${t("Buchung öffnen")}</button></div>
+        <p>${esc(b.gast)}, ${t("Anreise")} ${fdowLong(b.anreise)}${p.canPre ? ` · ${t("Anzahlung")} ${money(p.pre, cur, 2)} ${t("offen")}` : ""}</p>
+        <div class="ta"><span class="amt">${money(b.offen, cur, 2)}</span>
+          ${p.canPre ? `<button class="btn flat" data-pay="anzahlung" data-pid="${b.id}">✓ ${t("Anzahlung")}</button>` : ""}
+          <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t("Erhalten")}</button></div></div>`; }),
       later.length ? `<div class="sub" style="padding:4px 2px">${t("Später fällig")}: ${plural(later.length, t("Buchung"), t("Buchungen"))}, ${money(later.reduce((a, b) => a + b.offen, 0), cur, 2)}</div>` : "",
     ].join("");
     return `<section class="three">
@@ -1035,6 +1049,14 @@ class SmoobuOverviewCard extends SmoobuCard {
   }
   bind(root) {
     root.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); this.openBooking(Number(el.dataset.id)); }));
+    // v1.17.0: Zahlung/Anzahlung direkt als erhalten markieren (Neuladen übernimmt store.service)
+    root.querySelectorAll("[data-pay]").forEach((el) => el.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const b = this._payBookings?.get(Number(el.dataset.pid));
+      if (!b || el.disabled) return;
+      el.disabled = true;
+      if (!(await markPayment(this.store, b, el.dataset.pay, true, this._payCur))) el.disabled = false;
+    }));
     root.querySelectorAll("[data-apt]").forEach((el) => el.addEventListener("click", () => { AptSel.value = Number(el.dataset.apt); }));
     root.querySelectorAll("[data-entity]").forEach((el) => el.addEventListener("click", () => {
       this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: el.dataset.entity }, bubbles: true, composed: true }));
@@ -1243,6 +1265,52 @@ function confirmDialog(text) {
     });
     document.body.appendChild(wrap);
   });
+}
+
+// ---------------------------------------------------------------------------
+// v1.17.0: Zahlungseingang markieren – gemeinsam für Übersicht und Buchungsdetails
+// Schreibt den Zahlungsstatus über die vorhandene Aktion smoobu.update_reservation nach Smoobu
+// (price_paid → priceStatus, prepayment_paid → prepaymentStatus). Danach lädt store.service()
+// alle Karten neu; der offene Betrag kommt wie bisher aus dem Backend (Preis − bezahlte Anzahlung).
+// Entscheidung: Bestätigung vor jedem Schreiben (wirkt direkt in Smoobu, auch für Mitbetreiber sichtbar)
+// und immer ein Rückweg („Als offen markieren“), falls versehentlich getippt.
+// ---------------------------------------------------------------------------
+const payInfo = (b) => {
+  const live = b && !b.blockiert && !b.storniert;
+  const pre = Number(b?.anzahlung) || 0;
+  return {
+    // Gesamtzahlung offen: nur wenn das Backend einen offenen Betrag meldet (Portal-Kanäle haben nie einen)
+    canPay: live && b.offen > 0,
+    // Anzahlung separat nur, solange weder Anzahlung noch Gesamtbetrag bezahlt sind
+    canPre: live && b.offen > 0 && pre > 0 && !b.anzahlung_bezahlt && !b.bezahlt,
+    // Rückwege: in Smoobu als bezahlt markiert → wieder öffnen
+    canUnpay: live && !!b.bezahlt,
+    canUnpre: live && pre > 0 && !!b.anzahlung_bezahlt && !b.bezahlt,
+    pre,
+  };
+};
+async function markPayment(store, b, kind, paid, cur) {
+  const pre = Number(b.anzahlung) || 0;
+  const what = kind === "anzahlung" ? `${t("Anzahlung")} ${money(pre, cur, 2)}`
+    : `${t("Zahlung")}${b.offen > 0 ? " " + money(b.offen, cur, 2) : ""}`;
+  const how = paid ? t("als erhalten markieren") : t("wieder als offen markieren");
+  if (!(await confirmDialog(`${b.gast}: ${what} ${how}?`))) return false;
+  const data = { reservation_id: b.id };
+  if (kind === "anzahlung") data.prepayment_paid = paid;
+  else {
+    data.price_paid = paid;
+    // Gesamtbetrag erhalten schließt die Anzahlung ein → beide auf bezahlt (sonst bliebe Smoobu inkonsistent).
+    // Beim Zurücksetzen bleibt der Anzahlungsstatus bewusst unverändert.
+    if (paid && pre > 0 && !b.anzahlung_bezahlt) data.prepayment_paid = true;
+  }
+  try {
+    await store.service("update_reservation", data);
+    toast(t("In Smoobu gespeichert"));
+    return true;
+  } catch (e) {
+    toast(`${t("Fehler")}: ${e.message || e}`);
+    return false;
+  }
 }
 
 // Zeiträume wie in analytics.py (für Karten ohne Server-Auswertung)
@@ -1915,9 +1983,10 @@ class SmoobuBookingDialog extends HTMLElement {
           ["Provision", `${money(b.provision, cur, 2)}${b.provision_quelle === "konfiguration" ? " (geschätzt)" : ""}`],
           b.zahlungsgebuehr && ["Zahlungsgebühr", money(b.zahlungsgebuehr, cur, 2)],
           ["Netto", `<b>${money(b.netto, cur, 2)}</b> · ${money(b.netto_pro_nacht, cur, 2)}/${t("Nacht")}`],
-          b.anzahlung && ["Anzahlung", `${money(b.anzahlung, cur, 2)} ${b.anzahlung_bezahlt ? "✓" : "✗"}`],
+          b.anzahlung && ["Anzahlung", `${money(b.anzahlung, cur, 2)} ${b.anzahlung_bezahlt || b.bezahlt ? "✓" : "✗"}`],
+          b.offen > 0 && ["Restbetrag", `<b style="color:var(--sm-bad)">${money(b.offen, cur, 2)}</b>`],
           b.kurtaxe && ["Kurtaxe", money(b.kurtaxe, cur, 2)],
-        ])}</div>` : ""}
+        ])}${this.payHtml(b)}</div>` : ""}
         <div><h3>${t("Notiz")}</h3><textarea data-k="notice">${esc(b.notiz || "")}</textarea>
           <div class="row"><button class="btn flat" data-act="notice">${t("Speichern")}</button></div>
           ${b.assistent_notiz ? `<div class="sub" style="margin-top:8px;white-space:pre-wrap">${esc(b.assistent_notiz)}</div>` : ""}</div>
@@ -1933,6 +2002,17 @@ class SmoobuBookingDialog extends HTMLElement {
         <span class="grow"></span>
         <a class="btn flat" href="https://login.smoobu.com/" target="_blank" rel="noopener" style="text-decoration:none">${t("In Smoobu öffnen")} ↗</a>
       </div>`;
+  }
+  // v1.17.0: Zahlungseingang markieren (Logik gemeinsam mit der Übersicht: payInfo/markPayment)
+  payHtml(b) {
+    const p = payInfo(b);
+    const btns = [
+      p.canPre && `<button class="btn flat" data-act="pre">✓ ${t("Anzahlung erhalten")}</button>`,
+      p.canPay && `<button class="btn" data-act="paid">✓ ${t("Zahlung erhalten")}</button>`,
+      p.canUnpre && `<button class="btn flat" data-act="unpre">↶ ${t("Anzahlung offen")}</button>`,
+      p.canUnpay && `<button class="btn flat" data-act="unpaid">↶ ${t("Als offen markieren")}</button>`,
+    ].filter(Boolean);
+    return btns.length ? `<div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px">${btns.join("")}</div>` : "";
   }
   bind() {
     const r = this.shadowRoot;
@@ -1973,6 +2053,12 @@ class SmoobuBookingDialog extends HTMLElement {
     if (a === "ai") return this.aiSuggest();
     const v = (k) => this.shadowRoot.querySelector(`[data-k="${k}"]`)?.value;
     const id = this.rid;
+    // v1.17.0: Zahlungsstatus – markPayment fragt nach, schreibt und meldet selbst
+    const pay = { paid: ["zahlung", true], unpaid: ["zahlung", false], pre: ["anzahlung", true], unpre: ["anzahlung", false] }[a];
+    if (pay) {
+      if (await markPayment(this.store, this.data?.buchung || {}, pay[0], pay[1], this.apt?.currency || "EUR")) this.load();
+      return;
+    }
     try {
       if (a === "times") {
         const data = { reservation_id: id };

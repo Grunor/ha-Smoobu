@@ -103,7 +103,8 @@ def build(today: date, apt: dict[str, Any] | None = None, seed: int = 2026, rid0
             "price": price,
             "price-paid": "Yes" if arr < today or channel in ("Airbnb", "Booking.com") else "No",
             "prepayment": round(price * 0.3) if channel in ("Direct booking", "Website") else None,
-            "prepayment-paid": "Yes",
+            # v1.17.0: Anzahlung bei Anreisen in mehr als 14 Tagen noch offen (zeigt „✓ Anzahlung“)
+            "prepayment-paid": "Yes" if arr <= today + timedelta(days=14) else "No",
             "deposit": None,
             "deposit-paid": "No",
             "is-blocked-booking": False,

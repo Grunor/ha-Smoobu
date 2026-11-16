@@ -116,6 +116,9 @@ def _shots(base: str, token: str, set_options) -> list[str]:
         page.set_viewport_size({"width": 1212, "height": 1000})
         card("buchungsdetails", "smoobu-bookings-card",
              prepare=lambda el: el.locator("tr[data-id]", has_text="Lukas Berg").first.click(), dialog=True)
+        # v1.17.0: Buchung mit offener Zahlung + offener Anzahlung → Buttons „Zahlung/Anzahlung erhalten“
+        card("buchungsdetails_zahlung", "smoobu-bookings-card",
+             prepare=lambda el: el.locator("tr[data-id]", has_text="Lea Kraus").first.click(), dialog=True)
 
         # KI sperren (Option aus) → Seite neu laden, gesperrte Bedienung zeigen
         set_options({"ai_enabled": False})
