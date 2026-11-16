@@ -130,7 +130,11 @@ function fdate(s, opts = { day: "2-digit", month: "2-digit", year: "2-digit" }) 
   const d = s.length > 10 ? new Date(String(s).replace(" ", "T")) : D(s);
   return d.toLocaleDateString(locale(), opts);
 }
-const fdow = (s) => fdate(s, { weekday: "short", day: "2-digit", month: "2-digit" });
+// Wochentag + Datum immer mit Jahr (zweistellig), da Listen über den Jahreswechsel reichen – sonst ist
+// „17.08.“ nicht von „27.12.“ des Vorjahres zu unterscheiden (Wunsch Betreiber 16.11.2026)
+const fdow = (s) => fdate(s, { weekday: "short", day: "2-digit", month: "2-digit", year: "2-digit" });
+// Datum + Uhrzeit (Nachrichten, Vorschläge) ebenfalls mit Jahr
+const DT_FMT = { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" };
 const nightsBetween = (a, b) => Math.round((D(b) - D(a)) / 86400000);
 const PERIOD_LABEL = {
   monat: "Laufender Monat", vormonat: "Vormonat", folgemonat: "Folgemonat", jahr: "Laufendes Jahr",
@@ -586,13 +590,13 @@ function uhr(s) {
   if (LANG !== "de") return `${Number(h)}:${m || "00"}`;
   return m && m !== "00" ? `${Number(h)}:${m} Uhr` : `${Number(h)} Uhr`;
 }
-// „Sa, 21.11.“ – deutsche Wochentage ohne Punkt (toLocaleDateString liefert „Sa.,“)
+// „Sa, 21.11.26“ – deutsche Wochentage ohne Punkt (toLocaleDateString liefert „Sa.,“), Jahr zweistellig
 const WD_DE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const fdowLong = (s) => {
   if (!s) return "–";
   const d = D(String(s).slice(0, 10));
-  return LANG === "de" ? `${WD_DE[d.getDay()]}, ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.`
-    : fdate(s, { weekday: "short", day: "2-digit", month: "2-digit" });
+  return LANG === "de" ? `${WD_DE[d.getDay()]}, ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getFullYear()).slice(-2)}`
+    : fdate(s, { weekday: "short", day: "2-digit", month: "2-digit", year: "2-digit" });
 };
 const monthName = (iso10) => D(iso10).toLocaleDateString(locale(), { month: "long" });
 const plural = (n, one, many) => `${num(n)} ${n === 1 ? one : many}`;
@@ -817,7 +821,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     };
     const curLabel = s.current && s.current.abreise === today ? "Reist heute ab" : "Aktueller Gast";
     return `<section class="hero">
-      <div><div class="h-state"><span class="pill ${s.key}">${s.pill}</span><span>${fdate(today, { weekday: "long", day: "numeric", month: "long" })}</span></div>
+      <div><div class="h-state"><span class="pill ${s.key}">${s.pill}</span><span>${fdate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span></div>
         <h1>${s.title}</h1><p class="lead">${s.text}</p><p class="lead2">${lead2}</p>
         <div class="events">${this.events(d, open)}</div></div>
       <div class="guests">${guestCard(s.current, curLabel)}${guestCard(s.next, "Nächster Gast")}</div></section>`;
@@ -843,7 +847,7 @@ class SmoobuOverviewCard extends SmoobuCard {
       return n ? `Frei bis ${fdowLong(n.anreise)}, dann ${esc(n.gast)}` : t("Keine Buchung in den nächsten 6 Monaten.");
     };
     return `<section class="hero">
-      <div><div class="h-state"><span>${fdate(today, { weekday: "long", day: "numeric", month: "long" })}</span></div>
+      <div><div class="h-state"><span>${fdate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span></div>
         <h1>${busy} von ${apts.length} belegt</h1><p class="lead">${lead}</p>
         <div class="events">${this.events(d, open)}</div></div>
       <div class="panel apts">${per.map((p) => `<div class="aptrow" data-apt="${p.w.apartment_id}"><span class="ak">${esc(p.w.kuerzel)}</span>
@@ -1877,7 +1881,7 @@ class SmoobuBookingDialog extends HTMLElement {
     const color = colorOf(this.apt, b.kanal, b.blockiert);
     const kv = (rows) => `<dl class="kv">${rows.filter(Boolean).map(([k, v]) => `<dt>${t(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
     const positions = (b.positionen || []).map((p) => `<div class="row"><span class="grow">${esc(p.name)}</span><span>${money(p.betrag, cur, 2)}</span></div>`).join("");
-    const msgs = newestFirst(d.nachrichten).map((m) => `<div class="msg ${Number(m.typ) === 2 ? "out" : ""}"><div class="h">${dirLabel(m)}${m.zeit ? " · " + esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""}${m.betreff ? " · " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("");
+    const msgs = newestFirst(d.nachrichten).map((m) => `<div class="msg ${Number(m.typ) === 2 ? "out" : ""}"><div class="h">${dirLabel(m)}${m.zeit ? " · " + esc(fdate(m.zeit, DT_FMT)) : ""}${m.betreff ? " · " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("");
     const canCancel = !b.blockiert && b.gruppe === "Direkt" && !b.storniert && b.status !== "vergangen";
     return `
       <div class="row" style="margin-bottom:12px"><span class="badge"><span class="dot" style="background:${color}"></span> ${esc(b.kanal)}</span>
@@ -2093,7 +2097,7 @@ class SmoobuInboxCard extends SmoobuCard {
     // Ohne Leerraum zwischen den Tags: .last nutzt white-space: pre-wrap
     // Nur echte Gästenachrichten zeigen (alte Stände mit absender „host“ ausblenden, v1.14.0)
     const lastHtml = last && last.attributes.text && last.attributes.absender !== "host" ? `<div class="last" data-rid="${esc(last.attributes.buchungs_id || "")}">` +
-      `<div class="sub">${t("Nachrichten")} · ${esc(last.attributes.gast || "")} · ${fdate(last.attributes.empfangen, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>` +
+      `<div class="sub">${t("Nachrichten")} · ${esc(last.attributes.gast || "")} · ${fdate(last.attributes.empfangen, DT_FMT)}</div>` +
       `${msgHtml(String(last.attributes.text).slice(0, 2000))}</div>` : "";
     const openCount = guests.filter((b) => status[b.id]?.offen).length;
     const items = guests.map((b) => { const op = !!status[b.id]?.offen;
@@ -2102,7 +2106,7 @@ class SmoobuInboxCard extends SmoobuCard {
       <div class="sub">${fdate(b.anreise)} – ${fdate(b.abreise)} · ${t(b.status)}</div>
       ${op ? `<span class="pending">💬 ${t("Antwort offen")}</span><button class="btn flat mini" data-noreply="${b.id}" title="${t("Keine Antwort nötig")}">✓ ${t("Keine Antwort nötig")}</button>` : ""}</div></div>`; }).join("");
     const th = s.thread;
-    const msgs = th ? newestFirst(th.nachrichten).map((m) => `<div class="msg ${Number(m.typ) === 2 ? "out" : ""}"><div class="h">${dirLabel(m)} ${m.zeit ? esc(fdate(m.zeit, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })) : ""} ${m.betreff ? "· " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("") : "";
+    const msgs = th ? newestFirst(th.nachrichten).map((m) => `<div class="msg ${Number(m.typ) === 2 ? "out" : ""}"><div class="h">${dirLabel(m)} ${m.zeit ? esc(fdate(m.zeit, DT_FMT)) : ""} ${m.betreff ? "· " + esc(m.betreff) : ""}</div>${msgHtml(m.text)}</div>`).join("") : "";
     const right = !s.sel ? `<div class="empty">← ${t("Gast")}</div>`
       : s.loadingThread ? `<div class="empty">${t("Laden …")}</div>`
       : `${th?.fehler ? `<div class="err">${esc(th.fehler)}</div>` : ""}
@@ -2224,7 +2228,7 @@ class SmoobuAssistantCard extends SmoobuCard {
     if (tab === "vorschlaege") body = st.vorschlaege.map((v) => `<div class="ex click" data-bid="${v.buchung_id}">
         <div class="row"><b class="grow">${esc(v.gast || v.buchung_id)}</b>${v.dringend ? '<span class="badge bad">dringend</span>' : ""}
         <span class="badge">${esc(INTENT_LABEL[v.absicht] || v.absicht)}</span><span class="badge ${v.status === "offen" ? "warn" : ""}">${esc(v.status)}</span>
-        <span class="sub">${fdate(v.erstellt, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></div>
+        <span class="sub">${fdate(v.erstellt, DT_FMT)}</span></div>
         ${v.gastnachricht ? `<div class="g">„${esc(v.gastnachricht.slice(0, 300))}“</div>` : ""}
         ${this._state.editSug === v.buchung_id
           // v1.17.0: Vorschlag direkt hier bearbeiten und senden
