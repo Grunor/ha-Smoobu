@@ -9,9 +9,11 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 ## Unveröffentlicht / Unreleased
 
 **Deutsch**
+- **Kommunikationsaufwand je Kanal (Statistik → Service):** welche Portal-Gäste generell die meiste Kommunikation brauchen – je Kanal Anliegen je Buchung (Gastnachrichten bis zur nächsten Antwort, mehrere am Stück zählen einmal), Gastnachrichten je Buchung, Anteil Buchungen mit Nachricht und Index (Ø aller Kanäle = 100), mit Hinweis auf den aufwendigsten Kanal. Eigene und automatische Nachrichten zählen nicht (Smoobu kennzeichnet Vorlagen nicht). Die Zähler entstehen beim gedrosselten Nachrichtenabruf; bereits ausgewertete Buchungen werden dafür einmalig im Hintergrund nachgeladen
 - **Saison-Matrix:** Spalte Ø jetzt ganz links, danach die Jahre absteigend (aktuelles bzw. kommendes Jahr vorne) – am Handy ist das Wichtigste ohne Wischen sichtbar; gilt auch für die Jahreszeile; Legende erklärt ADR, RevPAR und Ø immer (nicht nur bei gewählter Kennzahl)
 
 **English**
+- **Communication effort per channel (statistics → service):** which portals' guests generally need the most communication – per channel requests per booking (guest messages until the next reply, several in a row count once), guest messages per booking, share of bookings with a message and an index (average of all channels = 100), naming the most demanding channel. Own and automatic messages are not counted (Smoobu does not mark templates). Counts are collected by the throttled message fetch; already evaluated bookings are reloaded once in the background
 - **Season matrix:** Ø column now first, followed by the years in descending order (current or next year first) – on phones the most relevant columns are visible without scrolling; also applies to the year row; legend always explains ADR, RevPAR and Ø (not only for the selected measure)
 
 ## 1.17.1b2 – 2026-11-16

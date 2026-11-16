@@ -408,7 +408,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         Gedrosselt (eine Anfrage, dann `delay` s Pause), Fehler einzelner Buchungen werden übersprungen,
         bei Anmeldefehler bricht der Lauf ab. Zwischenstand wird alle 25 Buchungen gespeichert.
         """
-        from .stats import response_times  # noqa: PLC0415
+        from .stats import message_counts, response_times  # noqa: PLC0415
 
         if self._resp is None:
             self._resp = dict(await self._resp_store.async_load() or {})
@@ -420,7 +420,8 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             if r["blockiert"] or not r["id"] or r["anreise"] < start:
                 continue
             entry = self._resp.get(str(r["id"]))
-            if entry is None or (r["abreise"] >= recent and entry.get("geladen") != today.isoformat()):
+            # v1.17.1: Einträge ohne Nachrichtenzähler („gast“) einmalig nachladen (Kommunikationsaufwand je Kanal)
+            if entry is None or "gast" not in entry or (r["abreise"] >= recent and entry.get("geladen") != today.isoformat()):
                 todo.append(r["id"])
         done = 0
         for rid in todo[:limit] if limit else todo:
@@ -431,7 +432,8 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             except SmoobuError as err:
                 _LOGGER.debug("Antwortzeiten %s nicht ladbar: %s", rid, err)
                 continue
-            self._resp[str(rid)] = {"minuten": response_times(self._visible(messages)), "geladen": today.isoformat()}
+            visible = self._visible(messages)
+            self._resp[str(rid)] = {"minuten": response_times(visible), **message_counts(visible), "geladen": today.isoformat()}
             done += 1
             if done % 25 == 0:
                 self._resp_store.async_delay_save(lambda: self._resp or {}, 1)

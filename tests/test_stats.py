@@ -4,7 +4,7 @@ from datetime import date
 import pytest
 
 from custom_components.smoobu.analytics import as_of, build_records
-from custom_components.smoobu.stats import gaps, pace, query, response_times, service, storno
+from custom_components.smoobu.stats import gaps, message_counts, pace, query, response_times, service, storno
 from tests.test_analytics import costs, bk
 
 TODAY = date(2026, 11, 16)
@@ -124,6 +124,28 @@ def test_antwortzeiten_und_service():
     res = service(G, {"11": {"minuten": [45.0, 180.0]}}, date(2026, 5, 1), date(2026, 6, 1))
     assert res["gesamt"]["median"] == 112.5 and res["gesamt"]["unter_1h"] == 50.0
     assert res["buchungen"] == 3 and res["geladen"] == 1  # Stornos haben auch Nachrichten
+
+
+def test_kommunikationsaufwand_je_kanal():
+    """v1.17.1 (Wunsch Betreiber): welche Portal-Gäste brauchen die meiste Kommunikation – je Kanal, nicht je Gast."""
+    msgs = [
+        {"id": 1, "type": 1}, {"id": 2, "type": 1},  # zwei Gastnachrichten am Stück = ein Anliegen
+        {"id": 3, "type": 2},
+        {"id": 4, "type": 2},  # eigene Nachricht ohne Anlass zählt nicht
+        {"id": 5, "type": "1"},  # zweites Anliegen (type als Text)
+    ]
+    assert message_counts(msgs) == {"gast": 3, "anliegen": 2}
+    assert message_counts([{"id": 1, "type": 2}]) == {"gast": 0, "anliegen": 0}
+    resp = {"11": {"minuten": [], "gast": 3, "anliegen": 2}, "12": {"minuten": [], "gast": 0, "anliegen": 0},
+            "13": {"minuten": []}}  # ohne Zähler (noch nicht nachgeladen) → nicht im Aufwand
+    res = service(G, resp, date(2026, 5, 1), date(2026, 6, 1))
+    auf = res["aufwand"]
+    assert auf["gesamt"]["buchungen"] == 2 and auf["gesamt"]["anliegen_je_buchung"] == 1.0
+    assert sum(k["buchungen"] for k in auf["kanaele"]) == 2
+    airbnb, booking = auf["kanaele"]  # absteigend nach Anliegen je Buchung
+    assert airbnb["kanal"] == "Airbnb" and airbnb["anliegen_je_buchung"] == 2.0 and airbnb["index"] == 200
+    assert airbnb["gast_je_buchung"] == 3.0 and airbnb["anteil_mit_nachricht"] == 100.0 and airbnb["wenig_daten"]
+    assert booking["kanal"] == "Booking.com" and booking["anliegen_je_buchung"] == 0.0 and booking["index"] == 0
 
 
 def test_buchungszeitpunkt_matrix():

@@ -74,7 +74,14 @@ const EN = {
   "gebucht": "booked", "Gesperrt": "Blocked", "Monate": "months", "Diagramm": "Chart", "Sperrzeit": "Block",
   "Preis/Nacht": "Price/night", "Ersparnis Direkt": "Direct savings", "Kanaltabelle": "Channel table",
   "Neu laden": "Reload", "morgen": "tomorrow", "Heute abgereist": "Departed today", "Heute": "Today", "Ankunft": "Check-in", "Abfahrt": "Check-out", "Gäste": "Guests",
-  "Details": "Details", "In Smoobu öffnen": "Open in Smoobu", "Smoobu öffnen": "Open Smoobu", "Zurück zu": "Back to", "Anpassen": "Adjust",
+  "Details": "Details", "In Smoobu öffnen": "Open in Smoobu", "Smoobu öffnen": "Open Smoobu", "Kommunikationsaufwand je Kanal": "Communication effort per channel",
+  "Anliegen je Buchung": "Requests per booking", "Gastnachrichten je Buchung": "Guest messages per booking",
+  "Buchungen mit Nachricht": "Bookings with message", "Alle Kanäle": "All channels", "Anliegen": "Request",
+  "Am meisten Kommunikation": "Most communication", "Ø aller Kanäle": "avg. of all channels",
+  "Gastnachrichten bis zur nächsten Antwort, mehrere am Stück zählen einmal": "guest messages until the next reply, several in a row count once",
+  "Anliegen je Buchung im Verhältnis zum Ø aller Kanäle (100 = Durchschnitt, 150 = 1,5-fach)": "requests per booking relative to the average of all channels (100 = average, 150 = 1.5×)",
+  "ausgewertete Buchungen mit Anreise im Zeitraum": "evaluated bookings arriving in the period",
+  "Nur Nachrichten, die über Smoobu laufen; eigene und automatische Nachrichten zählen nicht": "Only messages that go through Smoobu; own and automatic messages are not counted", "Zurück zu": "Back to", "Anpassen": "Adjust",
   "Im Belegungsplan Mindestaufenthalt oder Preis setzen": "Set minimum stay or price in the occupancy plan",
   "Smoobu-Anmeldung öffnen – Buchung dort über die ID suchen": "Opens the Smoobu login – search the booking there by ID",
   "in Smoobu speichern": "save in Smoobu", "Nicht als erhalten markiert": "Not marked as received", "DRINGEND": "URGENT",
@@ -3179,13 +3186,13 @@ const STATS_MODULES = {
         [t("Ausgewertet"), `${num(m.geladen)} / ${num(m.buchungen)}`, m.abruf_laeuft ? t("Abruf läuft …") : t("Buchungen mit Nachrichten-Verlauf"),
           t("Nachrichten werden im Hintergrund gedrosselt nachgeladen (einmalig ab 2020, danach stündlich neue)")],
       ]);
-      if (!g.n) return panel(t("Service"), t("Antwortzeit auf Gästenachrichten"), `${tiles}<div class="empty">${m.geladen ? t("Keine Gastnachrichten im Zeitraum") : t("Noch keine Nachrichten ausgewertet – der Abruf startet etwa 10 Minuten nach dem Start von Home Assistant.")}</div>`);
+      if (!g.n) return panel(t("Service"), t("Antwortzeit auf Gästenachrichten"), `${tiles}${effortHtml(m.aufwand)}<div class="empty">${m.geladen ? t("Keine Gastnachrichten im Zeitraum") : t("Noch keine Nachrichten ausgewertet – der Abruf startet etwa 10 Minuten nach dem Start von Home Assistant.")}</div>`);
       const hist = vbars(m.verteilung.map((x) => ({ label: x.fach, value: x.anzahl })), { W: card.chartW(0.48, 340), H: 180 });
       const ch = hbars(m.kanaele.map((k) => ({ label: chn(k.kanal), dot: chColor(k.kanal), color: chColor(k.kanal), value: k.median, n: k.n,
         tip: `${chn(k.kanal)}: Median ${dur(k.median)} · ${pct(k.unter_1h, 0)} < 1 h · n = ${k.n}` })), { fmt: dur });
       return panel(t("Service"), t("Antwortzeit auf Gästenachrichten, Buchungen mit Anreise im Zeitraum"),
         `${tiles}<div class="split2 even"><div><div class="kl">${t("Verteilung der Antwortzeiten")}</div>${hist}</div>
-          <div><div class="kl">${t("Median je Kanal")}</div>${ch}</div></div>`);
+          <div><div class="kl">${t("Median je Kanal")}</div>${ch}</div></div>${effortHtml(m.aufwand)}`);
     },
   },
   // 11: Datentabelle aller Buchungen im Filter + CSV
@@ -3209,6 +3216,37 @@ const STATS_MODULES = {
     },
   },
 };
+// v1.17.1: Kommunikationsaufwand je Kanal (Wunsch Betreiber 16.11.2026): Welche Portal-Gäste brauchen generell
+// die meiste Kommunikation? Je Kanal, nicht je Gast. Hauptwert = Anliegen je Buchung (Folge von
+// Gastnachrichten bis zur Antwort), dazu Gastnachrichten je Buchung, Anteil mit Nachricht, Index (Ø = 100).
+// Eigene Nachrichten zählen nicht (automatische Smoobu-Vorlagen sind nicht erkennbar).
+function effortHtml(a) {
+  if (!a || !a.kanaele?.length) return "";
+  const g = a.gesamt;
+  const max = Math.max(...a.kanaele.map((k) => k.anliegen_je_buchung || 0), 0.01);
+  const rows = a.kanaele.map((k) => {
+    const w = ((k.anliegen_je_buchung || 0) / max) * 100;
+    const idx = k.index === null || k.index === undefined ? "–" : num(k.index);
+    const cls = k.index > 115 ? "bad" : k.index < 85 ? "good" : "";
+    return `<tr class="${k.wenig_daten ? "low" : ""}"><td><span class="dot" style="background:${chColor(k.kanal)}"></span> ${esc(chn(k.kanal))}</td>
+      <td class="n" style="min-width:140px"><b>${num(k.anliegen_je_buchung, 2)}</b>
+        <div class="bar-in" style="width:${w}%;background:${chColor(k.kanal)}"></div></td>
+      <td class="n">${num(k.gast_je_buchung, 1)}</td><td class="n">${pct(k.anteil_mit_nachricht, 0)}</td>
+      <td class="n"><span class="badge ${cls}">${idx}</span></td><td class="n">${num(k.buchungen)}${k.wenig_daten ? ` <span class="lowtag">${t("wenig Daten")}</span>` : ""}</td></tr>`;
+  }).join("");
+  const top = a.kanaele.find((k) => !k.wenig_daten && k.index > 100);
+  const lead = top ? `<p class="sub" style="margin:4px 0 8px">${t("Am meisten Kommunikation")}: <b>${esc(chn(top.kanal))}</b> –
+      ${num(top.anliegen_je_buchung, 1)} ${t("Anliegen je Buchung")} (${t("Ø aller Kanäle")} ${num(g.anliegen_je_buchung, 1)}, Index ${num(top.index)}).</p>` : "";
+  return `<div class="kl" style="margin-top:18px">${t("Kommunikationsaufwand je Kanal")}</div>${lead}
+    <div class="scroll"><table><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Anliegen je Buchung")}</th><th class="n">${t("Gastnachrichten je Buchung")}</th>
+      <th class="n">${t("Buchungen mit Nachricht")}</th><th class="n">Index</th><th class="n">n</th></tr></thead><tbody>${rows}</tbody>
+      <tfoot><tr><td>${t("Alle Kanäle")}</td><td class="n">${num(g.anliegen_je_buchung, 2)}</td><td class="n">${num(g.gast_je_buchung, 1)}</td>
+        <td class="n">${pct(g.anteil_mit_nachricht, 0)}</td><td class="n">100</td><td class="n">${num(g.buchungen)}</td></tr></tfoot></table></div>
+    <div class="legend gloss"><span><b>${t("Anliegen")}</b> = ${t("Gastnachrichten bis zur nächsten Antwort, mehrere am Stück zählen einmal")}</span>
+      <span><b>Index</b> = ${t("Anliegen je Buchung im Verhältnis zum Ø aller Kanäle (100 = Durchschnitt, 150 = 1,5-fach)")}</span>
+      <span><b>n</b> = ${t("ausgewertete Buchungen mit Anreise im Zeitraum")}</span>
+      <span>${t("Nur Nachrichten, die über Smoobu laufen; eigene und automatische Nachrichten zählen nicht")}</span></div>`;
+}
 // Baukasten-Modul: Kennzahl × Gruppierung (× Aufteilung) in der gewählten Darstellung
 const CUSTOM_MODULE = {
   load: (c, def) => c.q(def.measure, def.view === "kennzahl" ? "gesamt" : def.dimension, c.range, def.split && def.view !== "kennzahl" ? { split: def.split } : {}),
@@ -3309,6 +3347,8 @@ class SmoobuStatsCard extends SmoobuCard {
     .spark circle { fill: var(--sm-accent); }
     .spark polyline.cmp { stroke: var(--sm-muted); stroke-opacity: .5; stroke-width: 1.4; stroke-dasharray: 3 2; }
     .lowtag { font-size: .68rem; font-weight: 650; color: var(--sm-warn); }
+    .bar-in { height: 5px; border-radius: 3px; background: var(--sm-accent); margin: 3px 0 0 auto; max-width: 100%; }
+    tr.low td { opacity: .72; }
     .focus { margin-top: var(--sm-gap); }
     /* Diagramme */
     svg.ch { display: block; width: 100%; height: auto; color: var(--sm-ink); font-family: inherit; overflow: visible; }

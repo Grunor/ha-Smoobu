@@ -102,9 +102,16 @@ def _demo_responses(coord) -> None:
     import random  # noqa: PLC0415
 
     rnd = random.Random(7)
-    coord._resp = {str(r["id"]): {"minuten": [round(rnd.choice([4, 9, 18, 35, 50, 75, 140, 320, 900]) * rnd.uniform(.7, 1.3), 1)
-                                              for _ in range(rnd.randint(0, 3))], "geladen": "demo"}
-                   for r in coord.records_all() if not r["blockiert"]}
+    # v1.17.1: dazu Nachrichtenzähler je Buchung (Kommunikationsaufwand); Demo: Airbnb-Gäste schreiben etwas mehr
+    extra = {"Airbnb": 1.0, "Booking.com": 0.5, "FeWo-direkt": 0.3}
+    out = {}
+    for r in coord.records_all():
+        if r["blockiert"]:
+            continue
+        mins = [round(rnd.choice([4, 9, 18, 35, 50, 75, 140, 320, 900]) * rnd.uniform(.7, 1.3), 1) for _ in range(rnd.randint(0, 3))]
+        anl = len(mins) + (1 if rnd.random() < extra.get(r["kanal"], 0.1) else 0)
+        out[str(r["id"])] = {"minuten": mins, "gast": anl + rnd.randint(0, anl), "anliegen": anl, "geladen": "demo"}
+    coord._resp = out
 
 
 async def test_render_pages(socket_enabled, hass: HomeAssistant, aiohttp_client, hass_access_token) -> None:

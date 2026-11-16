@@ -704,6 +704,31 @@ def response_times(messages: list[dict[str, Any]]) -> list[float]:
     return out
 
 
+def message_counts(messages: list[dict[str, Any]]) -> dict[str, int]:
+    """Kommunikationsaufwand einer Buchung (v1.17.1): Gastnachrichten und Anliegen.
+
+    Erwartet sichtbare Nachrichten (ohne interne Notizen). Anliegen = Folge von Gastnachrichten
+    (type 1) bis zur nächsten Nachricht an den Gast – drei Nachrichten am Stück sind ein Anliegen.
+    Eigene Nachrichten werden bewusst nicht gezählt: Smoobu kennzeichnet automatische Vorlagen
+    nicht, sie würden den Aufwand je Kanal verfälschen.
+    """
+    gast = anliegen = 0
+    waiting = False
+    for m in sorted(messages, key=lambda x: int(x.get("id") or 0)):
+        try:
+            typ = int(m.get("type") or 0)
+        except (TypeError, ValueError):
+            continue
+        if typ == 1:
+            gast += 1
+            if not waiting:
+                anliegen += 1
+                waiting = True
+        elif typ == 2:
+            waiting = False
+    return {"gast": gast, "anliegen": anliegen}
+
+
 def service(records: list[dict[str, Any]], responses: dict[str, dict[str, Any]], start: date, end: date,
             *, channels: Any = None) -> dict[str, Any]:
     """Antwortzeiten (Median, Anteil < 1 h) für Buchungen mit Anreise im Zeitraum, je Kanal und Monat."""
@@ -713,6 +738,8 @@ def service(records: list[dict[str, Any]], responses: dict[str, dict[str, Any]],
     by_ch: dict[str, list[float]] = defaultdict(list)
     by_m: dict[str, list[float]] = defaultdict(list)
     covered = total = 0
+    # Kommunikationsaufwand je Kanal: nur Buchungen, deren Nachrichten schon gezählt wurden (Feld „gast“)
+    effort: dict[str, dict[str, int]] = defaultdict(lambda: {"buchungen": 0, "gast": 0, "anliegen": 0, "mit": 0})
     for r in records:
         if r["blockiert"] or not match(r) or not (s_iso <= r["anreise"] < e_iso):
             continue
@@ -725,12 +752,40 @@ def service(records: list[dict[str, Any]], responses: dict[str, dict[str, Any]],
         allm += mins
         by_ch[r["kanal"] or "unbekannt"] += mins
         by_m[r["anreise"][:7]] += mins
+        if "gast" in entry:
+            e = effort[r["kanal"] or "unbekannt"]
+            e["buchungen"] += 1
+            e["gast"] += int(entry.get("gast") or 0)
+            e["anliegen"] += int(entry.get("anliegen") or 0)
+            e["mit"] += 1 if entry.get("gast") else 0
 
     def agg(values: list[float]) -> dict[str, Any]:
         return {"median": _median(values), "unter_1h": round(sum(1 for v in values if v < 60) / len(values) * 100, 1)
                 if values else None, "n": len(values), "wenig_daten": len(values) < MIN_N}
 
+    def eff(e: dict[str, int]) -> dict[str, Any]:
+        n = e["buchungen"]
+        return {"buchungen": n, "gastnachrichten": e["gast"], "anliegen": e["anliegen"],
+                "anliegen_je_buchung": round(e["anliegen"] / n, 2) if n else None,
+                "gast_je_buchung": round(e["gast"] / n, 2) if n else None,
+                "anteil_mit_nachricht": round(e["mit"] / n * 100, 1) if n else None, "wenig_daten": n < MIN_N}
+
+    tot = {"buchungen": 0, "gast": 0, "anliegen": 0, "mit": 0}
+    for e in effort.values():
+        for k in tot:
+            tot[k] += e[k]
+    eff_all = eff(tot)
+    base = eff_all["anliegen_je_buchung"]
+    aufwand = []
+    for k, e in effort.items():
+        row = {"kanal": k, **eff(e)}
+        # Index: Ø aller Kanäle = 100 (über 100 = Gäste dieses Kanals brauchen mehr Kommunikation)
+        row["index"] = round(row["anliegen_je_buchung"] / base * 100) if base and row["anliegen_je_buchung"] is not None else None
+        aufwand.append(row)
+    aufwand.sort(key=lambda x: -(x["anliegen_je_buchung"] or 0))
+
     return {"gesamt": agg(allm), "buchungen": total, "geladen": covered,
+            "aufwand": {"gesamt": eff_all, "kanaele": aufwand},
             "kanaele": [{"kanal": k, **agg(v)} for k, v in sorted(by_ch.items(), key=lambda kv: -len(kv[1]))],
             "monate": [{"fach": k, **agg(v)} for k, v in sorted(by_m.items())],
             "verteilung": [{"fach": label, "anzahl": sum(1 for v in allm if lo <= v < hi)} for label, lo, hi in
