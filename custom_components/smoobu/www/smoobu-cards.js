@@ -47,6 +47,10 @@ const EN = {
   "Teuerstes Portal": "Most expensive portal", "günstigstes": "cheapest", "Bester Kanal je Nacht": "Best channel per night",
   "schwächster": "weakest", "Stammgäste": "Returning guests", "Wochenende Fr/Sa": "Weekend Fri/Sat",
   "So–Do": "Sun–Thu", "Mo": "Mo", "Di": "Tu", "Mi": "We", "Do": "Th", "Fr": "Fr", "Sa": "Sa", "So": "Su",
+  "Anzahl Vergleichszeiträume": "Number of comparison periods", "Periode": "period", "Perioden": "periods",
+  "Jahr": "year", "Jahre": "years", "Mehrfachvergleich": "Multi-period comparison", "Stand": "as of",
+  "Keine Daten – Historie in den Integrationsoptionen erhöhen": "No data – increase history in the integration options",
+  "Veränderung zum nächstälteren Zeitraum": "Change vs. the next older period",
   "Anstehend": "Upcoming", "Aktuell": "Current", "Vergangen": "Past",
   "Status": "Status", "kommend": "upcoming", "laufend": "current", "vergangen": "past", "storniert": "cancelled",
   "blockiert": "blocked", "Anreise": "Arrival", "Abreise": "Departure", "Gast": "Guest", "Offen": "Open",
@@ -1412,11 +1416,12 @@ function niceMax(v) {
   const p = Math.pow(10, Math.floor(Math.log10(v)));
   return [1, 2, 2.5, 5, 10].map((m) => m * p).find((m) => m >= v);
 }
-function barChart({ labels, stacks, line, fmt, unit, daily }) {
+// extra (v1.17.0): weitere Vergleichslinien (ältere Jahre/Perioden), je blasser, je älter
+function barChart({ labels, stacks, line, fmt, unit, daily, extra = [] }) {
   const W = 800, H = 260, L = 56, R = 8, T = 10, B = 28;
   const n = labels.length || 1;
   const sums = labels.map((_, i) => stacks.reduce((a, s) => a + (s.values[i] || 0), 0));
-  const max = niceMax(Math.max(...sums, ...(line?.values || [0])) * 1.05);
+  const max = niceMax(Math.max(...sums, ...(line?.values || [0]), ...extra.flatMap((e) => e.values || [0])) * 1.05);
   const y = (v) => T + (H - T - B) * (1 - v / max);
   const bw = (W - L - R) / n;
   let svg = "";
@@ -1441,8 +1446,14 @@ function barChart({ labels, stacks, line, fmt, unit, daily }) {
     const lbl = daily ? fdate(lab, { day: "2-digit", month: "2-digit" }) : D(`${lab}-01`).toLocaleDateString(locale(), { month: "short" });
     if (i % step === 0) svg += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".7">${lbl}</text>`;
     const tip = `${daily ? fdate(lab) : D(`${lab}-01`).toLocaleDateString(locale(), { month: "long", year: "numeric" })}: ${fmt(sums[i])}` +
-      (parts.length > 1 ? ` (${parts.join(", ")})` : "") + (line ? ` · ${line.label}: ${fmt(line.values[i] || 0)}` : "");
+      (parts.length > 1 ? ` (${parts.join(", ")})` : "") + (line ? ` · ${line.label}: ${fmt(line.values[i] || 0)}` : "")
+      + extra.map((e) => ` · ${e.label}: ${fmt(e.values[i] || 0)}`).join("");
     svg += `<rect class="hit" data-tip="${esc(tip)}" x="${x}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"><title>${esc(tip)}</title></rect>`;
+  });
+  // ältere Vergleichslinien zuerst zeichnen, damit die erste Vergleichslinie obenauf liegt
+  extra.forEach((e) => {
+    const pts = (e.values || []).slice(0, n).map((v, i) => `${L + i * bw + bw / 2},${y(v || 0)}`).join(" ");
+    svg += `<polyline points="${pts}" fill="none" stroke="currentColor" stroke-opacity="${e.op}" stroke-width="1.5" stroke-dasharray="${e.dash}"/>`;
   });
   if (line && line.values.length) {
     const pts = line.values.slice(0, n).map((v, i) => `${L + i * bw + bw / 2},${y(v || 0)}`).join(" ");
@@ -1467,11 +1478,26 @@ function donut(parts, center = "") {
 // ===========================================================================
 // Finanzen & Kanäle
 // ===========================================================================
+// Auswahl „Anzahl Vergleichszeiträume“ (v1.17.0)
+const COMPARE_COUNTS = [1, 2, 3, 4, 5, 10];
+// Kurzname eines Zeitraums [von, bis): ganzes Jahr „2025“, ganze Monate „Nov 2025“ / „Jan–Jun 2025“, sonst Datum–Datum
+function periodName(von, bis) {
+  const a = D(von), b = addDays(D(bis), -1);
+  const wholeMonths = a.getDate() === 1 && D(bis).getDate() === 1;
+  if (wholeMonths && a.getMonth() === 0 && b.getMonth() === 11 && a.getFullYear() === b.getFullYear()) return String(a.getFullYear());
+  const mon = (d) => d.toLocaleDateString(locale(), { month: "short" });
+  if (wholeMonths && a.getFullYear() === b.getFullYear()) {
+    return a.getMonth() === b.getMonth() ? `${mon(a)} ${a.getFullYear()}` : `${mon(a)}–${mon(b)} ${a.getFullYear()}`;
+  }
+  return `${fdate(von)} – ${fdate(iso(b))}`;
+}
 // Diagramm-Kennzahlen der Finanzen-Karte (v1.17.0: + Provisionen & Gebühren je Portal)
 const METRIC_LABEL = { brutto: "Brutto", netto: "Netto", naechte: "Nächte", kosten: "Provisionen" };
 class SmoobuAnalyticsCard extends SmoobuCard {
-  static defaults = { title: "", period: "jahr", compare: "vorjahr" };
-  static initialState = (c) => ({ period: c.period, compare: c.compare, channels: [], from: null, to: null, metric: "brutto" });
+  // compare_count (v1.17.0): Anzahl Vergleichszeiträume, Standard 1 = wie bisher
+  static defaults = { title: "", period: "jahr", compare: "vorjahr", compare_count: 1 };
+  static initialState = (c) => ({ period: c.period, compare: c.compare, compareCount: Number(c.compare_count) || 1,
+    channels: [], from: null, to: null, metric: "brutto" });
   static css = `
     .split { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 16px; align-items: center; }
     @media (max-width: 700px) { .split { grid-template-columns: 1fr; } }
@@ -1497,6 +1523,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     const apt = await this.apartment();
     const s = this._state;
     const params = { ...this.target, compare: s.compare };
+    if (s.compareCount > 1 && s.compare !== "kein") params.compare_count = s.compareCount;
     if (s.period === "custom") {
       if (!s.from || !s.to) { const info = await this.store.getInfo(); const [a, b] = periodRange("jahr", info.heute); params.start = iso(a); params.end = iso(b); }
       else { params.start = s.from; params.end = iso(addDays(D(s.to), 1)); }
@@ -1537,6 +1564,29 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     }
     if (r.prognose) out.push(`Prognose ${new Date().getFullYear()}: <b>${money(r.prognose.prognose, cur)}</b> brutto (gebucht ${money(r.prognose.gebucht, cur)} + ${t("Nachbuchung wie Vorjahr")} ${money(r.prognose.nachbuchung_vorjahr, cur)}).`);
     return out;
+  }
+  // v1.17.0: Mehrjahres-/Mehrperiodenvergleich als Tabelle (aktueller Zeitraum + alle Vergleiche).
+  // Δ je Zeile = Veränderung zum nächstälteren Zeitraum (Wachstumskette), letzte Zeile ohne Δ
+  multiTable(apt, r) {
+    const list = r.vergleiche || [];
+    if (list.length < 2) return "";
+    const cur = apt.currency;
+    const rows = [{ ...r, aktuell: true }, ...list];
+    const chg = (a, b, k) => (b && !b.keine_daten && b[k] ? ((a[k] - b[k]) / b[k]) * 100 : null);
+    const body = rows.map((x, i) => {
+      const prev = rows[i + 1];
+      if (x.keine_daten) return `<tr><td>${esc(periodName(x.von, x.bis))}</td><td colspan="10" class="empty" style="padding:6px 0">${t("Keine Daten – Historie in den Integrationsoptionen erhöhen")}</td></tr>`;
+      return `<tr${x.aktuell ? ' style="font-weight:600"' : ""}><td>${esc(periodName(x.von, x.bis))}${x.stichtag ? ` <span class="sub">${t("Stand")} ${fdate(x.stichtag)}</span>` : ""}</td>
+        <td class="n">${money(x.brutto, cur)}</td><td class="n">${delta(chg(x, prev, "brutto"))}</td>
+        <td class="n">${money(x.netto, cur)}</td><td class="n">${money(x.kosten, cur)}</td><td class="n">${pct(x.kostenquote_prozent)}</td>
+        <td class="n">${x.naechte}</td><td class="n">${pct(x.auslastung_prozent, 0)}</td><td class="n">${money(x.netto_pro_nacht, cur)}</td>
+        <td class="n">${x.buchungen}</td><td class="n">${pct(x.direktanteil_prozent, 0)}</td></tr>`;
+    }).join("");
+    return `<h3>${t("Mehrfachvergleich")}</h3>
+      <div class="scroll"><table><thead><tr><th>${t("Zeitraum")}</th><th class="n">${t("Brutto")}</th><th class="n" title="${t("Veränderung zum nächstälteren Zeitraum")}">Δ</th>
+        <th class="n">${t("Netto")}</th><th class="n">${t("Provision & Gebühren")}</th><th class="n">${t("Kostenquote")}</th><th class="n">${t("Nächte")}</th>
+        <th class="n">${t("Auslastung")}</th><th class="n">${t("Netto/Nacht")}</th><th class="n">${t("Buchungen")}</th><th class="n">${t("Direktanteil")}</th></tr></thead>
+        <tbody>${body}</tbody></table></div>`;
   }
   // v1.17.0: acht Zusatzkacheln
   extraTiles(apt, r) {
@@ -1600,7 +1650,11 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       const v = st.values.reduce((x, y) => x + y, 0);
       return `<span><i style="background:${st.color}"></i>${esc(st.name)} <b>${fmt(v)}</b><em>${stackTotal ? pct((v / stackTotal) * 100, 0) : ""}</em></span>`;
     }).join("")}</div>`;
-    const line = c?.reihe?.[m] ? { values: c.reihe[m], label: t(COMPARE_LABEL[s.compare]) } : null;
+    const many = (r.vergleiche || []).length > 1;
+    const line = c?.reihe?.[m] ? { values: c.reihe[m], label: many ? periodName(c.von, c.bis) : t(COMPARE_LABEL[s.compare]) } : null;
+    // Weitere Vergleichszeiträume: nur mit Daten, Deckkraft und Strichmuster nehmen mit dem Alter ab
+    const extra = (r.vergleiche || []).slice(1).filter((v) => !v.keine_daten && v.reihe?.[m])
+      .map((v, i) => ({ values: v.reihe[m], label: periodName(v.von, v.bis), op: Math.max(0.12, 0.4 - i * 0.08), dash: i % 2 ? "2 3" : "8 4" }));
     const chans = Object.entries(r.kanaele);
     const cmpCh = c?.kanaele || {};
     const table = chans.map(([n, v]) => `<tr><td><span class="dot" style="background:${colors[n] || colorOf(apt, n)}"></span> ${esc(n)}</td>
@@ -1619,6 +1673,8 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       <div class="toolbar">${periodSelect(s.period)}
         ${s.period === "custom" ? `<input type="date" data-k="from" value="${s.from || ""}"> – <input type="date" data-k="to" value="${s.to || ""}">` : ""}
         <select data-k="compare">${Object.entries(COMPARE_LABEL).map(([k, v]) => `<option value="${k}" ${k === s.compare ? "selected" : ""}>${t("Vergleich")}: ${t(v)}</option>`).join("")}</select>
+        ${s.compare !== "kein" ? `<select data-k="ccount" title="${t("Anzahl Vergleichszeiträume")}">${COMPARE_COUNTS.map((n) =>
+          `<option value="${n}" ${n === s.compareCount ? "selected" : ""}>${n} ${t(s.compare === "vorperiode" ? (n === 1 ? "Periode" : "Perioden") : (n === 1 ? "Jahr" : "Jahre"))}</option>`).join("")}</select>` : ""}
       </div>
       <div class="toolbar">${channelChips(apt, s.channels, colors)}</div>
       <div class="grid">
@@ -1638,8 +1694,9 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       <h3>${t("Diagramm")}</h3>
       <div class="row"><div class="seg">${Object.keys(METRIC_LABEL).map((k) => `<button data-metric="${k}" aria-pressed="${m === k}">${t(METRIC_LABEL[k])}</button>`).join("")}</div>
         ${line ? `<span class="sub">┄ ${esc(line.label)}</span>` : ""}</div>
-      <div class="split"><div>${barChart({ labels: reihe.labels, stacks, line, fmt, daily: reihe.einheit === "tag" })}
-          ${legendHtml.replace("</div>", line ? `<span><i class="ln"></i><em>${esc(line.label)} ${fmt((line.values || []).reduce((x, y) => x + (y || 0), 0))}</em></span></div>` : "</div>")}
+      <div class="split"><div>${barChart({ labels: reihe.labels, stacks, line, fmt, daily: reihe.einheit === "tag", extra })}
+          ${legendHtml.replace("</div>", (line ? `<span><i class="ln"></i><em>${esc(line.label)} ${fmt((line.values || []).reduce((x, y) => x + (y || 0), 0))}</em></span>` : "")
+            + extra.map((e) => `<span><i class="ln" style="opacity:${e.op};border-top-style:${e.dash === "2 3" ? "dotted" : "dashed"}"></i><em>${esc(e.label)} ${fmt(e.values.reduce((x, y) => x + (y || 0), 0))}</em></span>`).join("") + "</div>")}
           <div class="tip" data-k="tip"></div></div>
         ${m === "kosten"
           // Provisionen: Verteilung der Kosten je Portal, in der Mitte die Kostenquote gesamt
@@ -1647,6 +1704,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
               <span class="sub">${t("Kostenquote")} · ${money(r.kosten, cur)}</span></div>`
           : `<div class="share">${donut(chans.map(([n, v]) => ({ name: n, value: m === "naechte" ? v.naechte : v[m], color: colors[n] || colorOf(apt, n) })).filter((p) => p.value > 0), pct(r.direktanteil_prozent, 0))}
               <span class="sub">${t("Direktanteil")}</span></div>`}</div>
+      ${this.multiTable(apt, r)}
       ${per.length > 1 ? `<h3>${t("Wohnungen im Vergleich")}</h3>
       <div class="scroll"><table><thead><tr><th>${t("Wohnung")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
         <th class="n">${t("Netto")}</th><th class="n">${t("Auslastung")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Netto/Nacht")}</th>
@@ -1671,6 +1729,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     const s = this._state;
     root.querySelector('[data-k="period"]')?.addEventListener("change", (e) => this.setState({ period: e.target.value }, true));
     root.querySelector('[data-k="compare"]')?.addEventListener("change", (e) => this.setState({ compare: e.target.value }, true));
+    root.querySelector('[data-k="ccount"]')?.addEventListener("change", (e) => this.setState({ compareCount: Number(e.target.value) }, true));
     root.querySelector('[data-k="from"]')?.addEventListener("change", (e) => this.setState({ from: e.target.value }, true));
     root.querySelector('[data-k="to"]')?.addEventListener("change", (e) => this.setState({ to: e.target.value }, true));
     root.querySelectorAll("[data-ch]").forEach((el) => el.addEventListener("click", () => this.setState({ channels: toggleChannel(s.channels, el.dataset.ch) }, true)));

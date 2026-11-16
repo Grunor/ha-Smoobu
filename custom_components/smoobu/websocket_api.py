@@ -234,6 +234,8 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
         vol.Optional("end"): str,  # exklusiv
         vol.Optional("channels"): [str],
         vol.Optional("compare", default="vorjahr"): vol.In(COMPARES),
+        # v1.17.0: Anzahl Vergleichszeiträume (1 = wie bisher)
+        vol.Optional("compare_count", default=1): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
     }
 )
 @callback
@@ -255,7 +257,8 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         connection.send_error(msg["id"], "invalid_range", "Ende muss nach dem Start liegen")
         return
     channels = msg.get("channels") or None
-    result = analyze_with_compare(recs, start, end, channels, msg["compare"], today=today, units=len(pairs))
+    result = analyze_with_compare(recs, start, end, channels, msg["compare"], today=today, units=len(pairs),
+                                  count=msg["compare_count"])
     result["prognose"] = forecast_year(recs, today, channels)
     result["farben"] = channel_colors([ch["name"] for ch in channels_of(recs)])
     connection.send_result(msg["id"], result)

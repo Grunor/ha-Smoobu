@@ -147,3 +147,19 @@ def test_returning_guests():
     r = analyze(recs, date(2026, 1, 1), date(2027, 1, 1), series=False, today=TODAY)
     # Buchung 2 per E-Mail, Buchung 3 per vollem Namen wiedererkannt
     assert r["stammgaeste"] == 2 and r["stammgaeste_prozent"] == 100.0
+
+
+def test_compare_count():
+    """v1.17.0: mehrere Vergleichszeiträume; „vergleich“ bleibt der erste, ohne Daten markiert."""
+    one = analyze_with_compare(RECS, *period_range("jahr", TODAY), None, "vorjahr", series=False)
+    assert "vergleiche" not in one
+    r = analyze_with_compare(RECS, *period_range("jahr", TODAY), None, "vorjahr", series=False, count=3)
+    assert [v["von"] for v in r["vergleiche"]] == ["2025-01-01", "2024-01-01", "2023-01-01"]
+    assert r["vergleich"]["brutto"] == one["vergleich"]["brutto"] == 360.0
+    assert r["veraenderung_prozent"] == one["veraenderung_prozent"]
+    # älteste Buchung ist vom 10.12.2025 → 2024 und 2023 ohne Daten
+    assert [v["keine_daten"] for v in r["vergleiche"]] == [False, True, True]
+    p = analyze_with_compare(RECS, date(2026, 3, 1), date(2026, 4, 1), None, "vorperiode", series=False, count=2)
+    assert [(v["von"], v["bis"]) for v in p["vergleiche"]] == [("2026-02-01", "2026-03-01"), ("2026-01-01", "2026-02-01")]
+    s = analyze_with_compare(RECS, *period_range("jahr", TODAY), None, "vorjahr_stand", series=False, today=TODAY, count=2)
+    assert [v["stichtag"] for v in s["vergleiche"]] == ["2025-11-15", "2024-11-15"]

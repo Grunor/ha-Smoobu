@@ -291,8 +291,9 @@ class SmoobuSelectionSensor(SmoobuEntity, SensorEntity):
             attrs["veraenderung_prozent"] = change(r.get(field), cmp.get(field))
         if self._desc.key == "auswertung_brutto":
             # Vollständige Auswertung einmal am Brutto-Sensor (Kanaltabelle, Reihe, Vergleich)
-            attrs["auswertung"] = {k: v for k, v in r.items() if k not in ("vergleich", "auswahl")}
-            attrs["vergleich"] = {k: v for k, v in cmp.items() if k != "kanaele"} if cmp else None
+            # Zusatzkennzahlen der Finanzen-Karte (v1.17.0) und Mehrfachvergleich nicht als Attribut
+            attrs["auswertung"] = {k: v for k, v in r.items() if k not in ("vergleich", "vergleiche", "auswahl", *EXTRA_KEYS)}
+            attrs["vergleich"] = {k: v for k, v in cmp.items() if k != "kanaele" and k not in EXTRA_KEYS} if cmp else None
             attrs["kanaele"] = r["kanaele"]
         if self._desc.key == "auswertung_buchungen":
             attrs["stornos"] = r.get("stornos")

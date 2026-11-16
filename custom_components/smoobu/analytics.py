@@ -639,6 +639,10 @@ def as_of(records: list[dict[str, Any]], day: date) -> list[dict[str, Any]]:
     return out
 
 
+# Höchstzahl Vergleichszeiträume (Daten reichen ohnehin nur so weit wie „Historie (Jahre)“)
+MAX_COMPARE_COUNT = 10
+
+
 def analyze_with_compare(
     records: list[dict[str, Any]],
     start: date,
@@ -648,23 +652,44 @@ def analyze_with_compare(
     series: bool = True,
     today: date | None = None,
     units: int = 1,
+    count: int = 1,
 ) -> dict[str, Any]:
     """Auswertung + Vergleichszeitraum + Veränderungen je Kennzahl.
 
     `today` wird nur für „vorjahr_stand“ gebraucht (Stichtag = gleicher Tag im Vorjahr).
+    `count` (v1.17.0): Anzahl Vergleichszeiträume (Jahre bzw. Perioden zurück, 1–10).
+    „vergleich“ und alle Veränderungen beziehen sich weiter auf den ersten (wie bisher);
+    ab 2 kommt die Liste „vergleiche“ dazu (neuester zuerst).
     """
     result = analyze(records, start, end, selection, series, units, today)
-    rng = compare_range(start, end, mode)
-    if rng is None:
+    count = max(1, min(int(count or 1), MAX_COMPARE_COUNT))
+    first_day = min((date.fromisoformat(r["anreise"]) for r in records), default=None)
+    comparisons: list[dict[str, Any]] = []
+    rng: tuple[date, date] | None = (start, end)
+    stichtag = today or date.today()
+    for _ in range(count):
+        rng = compare_range(rng[0], rng[1], mode) if rng else None
+        if rng is None:
+            break
+        base = records
+        if mode == "vorjahr_stand":
+            stichtag = _prev_year(stichtag)
+            base = as_of(records, stichtag)
+        cmp = analyze(base, rng[0], rng[1], selection, series, units, today)
+        if mode == "vorjahr_stand":
+            cmp["stichtag"] = stichtag.isoformat()
+        # Zeitraum vor dem ältesten geladenen Datensatz → als „keine Daten“ markieren (statt 0 €)
+        cmp["keine_daten"] = first_day is None or rng[1] <= first_day
+        comparisons.append(cmp)
+    if not comparisons:
         result["vergleich"] = None
         return result
-    base = records
+    cmp = comparisons[0]
     if mode == "vorjahr_stand":
-        stichtag = _prev_year(today or date.today())
-        base = as_of(records, stichtag)
-        result["stichtag_vergleich"] = stichtag.isoformat()
-    cmp = analyze(base, rng[0], rng[1], selection, series, units, today)
+        result["stichtag_vergleich"] = cmp["stichtag"]
     result["vergleich"] = cmp
+    if count > 1:
+        result["vergleiche"] = comparisons
     result["veraenderung_prozent"] = {k: change(result.get(k), cmp.get(k)) for k in COMPARE_KEYS}
     # Prozentwerte (Auslastung, Kostenquote, Stornoquote) zusätzlich als Punkte
     result["veraenderung_punkte"] = {
