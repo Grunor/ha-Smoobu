@@ -179,6 +179,15 @@ update_reservation:
       selector:
         text:
           multiline: true
+    price_paid:
+      selector:
+        boolean:
+    prepayment_paid:
+      selector:
+        boolean:
+    deposit_paid:
+      selector:
+        boolean:
 
 # --- KI-Assistent (ab v1.10.0) -------------------------------------------------
 assistant_suggest:

@@ -842,3 +842,19 @@ async def test_assistant_default_on(hass, setup):
     await hass.async_block_till_done()
     a = hass.config_entries.async_get_entry(setup.entry_id).runtime_data.assistant
     assert a.enabled is False
+
+
+async def test_update_reservation_payment(hass, setup):
+    """v1.17.0: Zahlungsstatus per Aktion setzen (priceStatus 1 = bezahlt)."""
+    c = hass.config_entries.async_get_entry(setup.entry_id).runtime_data
+    sent = []
+
+    async def fake_update(rid, body):
+        sent.append((rid, body))
+        return {}
+
+    c.client.update_reservation = fake_update
+    await hass.services.async_call("smoobu", "update_reservation", {"reservation_id": 2, "price_paid": True}, blocking=True)
+    await hass.services.async_call("smoobu", "update_reservation",
+                                   {"reservation_id": 3, "prepayment_paid": False, "deposit_paid": True}, blocking=True)
+    assert sent == [(2, {"priceStatus": 1}), (3, {"prepaymentStatus": 0, "depositStatus": 1})]

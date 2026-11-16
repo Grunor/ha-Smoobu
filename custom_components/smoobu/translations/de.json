@@ -821,7 +821,7 @@
     },
     "update_reservation": {
       "name": "Buchung ändern",
-      "description": "Ändert Ankunfts-/Abreisezeit oder Notiz einer Buchung.",
+      "description": "Ändert Ankunfts-/Abreisezeit, Notiz oder Zahlungsstatus einer Buchung.",
       "fields": {
         "config_entry_id": {
           "name": "Konto",
@@ -842,6 +842,18 @@
         "notice": {
           "name": "Notiz",
           "description": "Neue Notiz (ersetzt die bisherige)."
+        },
+        "price_paid": {
+          "name": "Bezahlt",
+          "description": "Gesamtpreis als bezahlt (an) bzw. offen (aus) markieren."
+        },
+        "prepayment_paid": {
+          "name": "Anzahlung bezahlt",
+          "description": "Anzahlung als bezahlt bzw. offen markieren."
+        },
+        "deposit_paid": {
+          "name": "Kaution bezahlt",
+          "description": "Kaution als bezahlt bzw. offen markieren."
         }
       }
     },

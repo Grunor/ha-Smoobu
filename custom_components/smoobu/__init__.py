@@ -542,6 +542,11 @@ def _register_services(hass: HomeAssistant) -> None:
             body["departureTime"] = call.data[ATTR_DEPARTURE_TIME].strftime("%H:%M")
         if ATTR_NOTICE in call.data:
             body["notice"] = call.data[ATTR_NOTICE]
+        # v1.17.0: Zahlungsstatus (Smoobu: priceStatus/prepaymentStatus/depositStatus, 1 = bezahlt, 0 = offen)
+        for attr, key in (("price_paid", "priceStatus"), ("prepayment_paid", "prepaymentStatus"),
+                          ("deposit_paid", "depositStatus")):
+            if attr in call.data:
+                body[key] = 1 if call.data[attr] else 0
         if not body:
             raise ServiceValidationError("Nichts zu ändern angegeben")
         try:
@@ -603,6 +608,9 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional(ATTR_ARRIVAL_TIME): cv.time,
                 vol.Optional(ATTR_DEPARTURE_TIME): cv.time,
                 vol.Optional(ATTR_NOTICE): cv.string,
+                vol.Optional("price_paid"): cv.boolean,
+                vol.Optional("prepayment_paid"): cv.boolean,
+                vol.Optional("deposit_paid"): cv.boolean,
             }
         ),
     )

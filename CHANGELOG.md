@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+**Deutsch**
+- **Aktion `smoobu.update_reservation`:** neue Felder `price_paid`, `prepayment_paid`, `deposit_paid` – Zahlungsstatus in Smoobu als bezahlt/offen setzen (Smoobu `priceStatus`/`prepaymentStatus`/`depositStatus`)
+
+**English**
+- **Action `smoobu.update_reservation`:** new fields `price_paid`, `prepayment_paid`, `deposit_paid` – set the payment status in Smoobu to paid/open
+
 ## 1.17.0b1 – 2026-11-16
 
 > Beta / Pre-release

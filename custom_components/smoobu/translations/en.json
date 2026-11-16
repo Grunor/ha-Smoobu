@@ -821,7 +821,7 @@
     },
     "update_reservation": {
       "name": "Update booking",
-      "description": "Changes arrival/departure time or note of a booking.",
+      "description": "Changes arrival/departure time, note or payment status of a booking.",
       "fields": {
         "config_entry_id": {
           "name": "Account",
@@ -842,6 +842,18 @@
         "notice": {
           "name": "Note",
           "description": "New note (replaces the old one)."
+        },
+        "price_paid": {
+          "name": "Paid",
+          "description": "Mark the total price as paid (on) or open (off)."
+        },
+        "prepayment_paid": {
+          "name": "Prepayment paid",
+          "description": "Mark the prepayment as paid or open."
+        },
+        "deposit_paid": {
+          "name": "Deposit paid",
+          "description": "Mark the deposit as paid or open."
         }
       }
     },
