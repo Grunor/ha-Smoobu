@@ -472,16 +472,28 @@ def ws_assistant_knowledge(hass: HomeAssistant, connection: websocket_api.Active
 
 @websocket_api.websocket_command(
     {vol.Required("type"): "smoobu/assistant/delete", **_TARGET,
-     vol.Required("kind"): vol.In(["wissen", "beispiel"]), vol.Required("item_id"): str}
+     vol.Required("kind"): vol.In(["wissen", "beispiel", "vorschlag", "ignorieren"]), vol.Required("item_id"): str}
 )
-@callback
-def ws_assistant_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+@websocket_api.async_response
+async def ws_assistant_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Wissen/Beispiel löschen; v1.17.0: Vorschlag löschen bzw. ignorieren (item_id = Buchungs-ID)."""
     try:
         a = _assistant(hass, msg)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
-    (a.delete_knowledge if msg["kind"] == "wissen" else a.delete_example)(msg["item_id"])
+    kind = msg["kind"]
+    if kind == "wissen":
+        a.delete_knowledge(msg["item_id"])
+    elif kind == "beispiel":
+        a.delete_example(msg["item_id"])
+    else:
+        try:
+            rid = int(msg["item_id"])
+        except ValueError:
+            connection.send_error(msg["id"], "invalid_format", "Buchungs-ID erwartet")
+            return
+        await (a.delete_suggestion(rid) if kind == "vorschlag" else a.dismiss(rid))
     connection.send_result(msg["id"])
 
 

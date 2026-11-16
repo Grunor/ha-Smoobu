@@ -296,6 +296,12 @@ class SmoobuAssistant:
         self.data["wissen"] = [w for w in self.data["wissen"] if w["id"] != item_id]
         self._changed()
 
+    async def delete_suggestion(self, rid: int) -> None:
+        """v1.17.0: Vorschlag ganz entfernen (z. B. Testvorschlag) inkl. Push."""
+        if self.data["vorschlaege"].pop(str(rid), None) is not None:
+            self._changed()
+        await self._clear_push(rid)
+
     def delete_example(self, ex_id: str) -> None:
         self.data["beispiele"] = [b for b in self.data["beispiele"] if b["id"] != ex_id]
         self._changed()

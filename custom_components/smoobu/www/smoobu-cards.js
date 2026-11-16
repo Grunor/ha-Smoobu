@@ -51,6 +51,7 @@ const EN = {
   "Jahr": "year", "Jahre": "years", "Mehrfachvergleich": "Multi-period comparison", "Stand": "as of",
   "Keine Daten – Historie in den Integrationsoptionen erhöhen": "No data – increase history in the integration options",
   "Veränderung zum nächstälteren Zeitraum": "Change vs. the next older period",
+  "Bearbeiten & senden": "Edit & send", "Vorschlag löschen": "Delete suggestion", "Löschen": "Delete",
   "Anstehend": "Upcoming", "Aktuell": "Current", "Vergangen": "Past",
   "Status": "Status", "kommend": "upcoming", "laufend": "current", "vergangen": "past", "storniert": "cancelled",
   "blockiert": "blocked", "Anreise": "Arrival", "Abreise": "Departure", "Gast": "Guest", "Offen": "Open",
@@ -2155,7 +2156,7 @@ const INTENT_LABEL = { frage: "Frage", spaete_anreise: "Späte Anreise", frueher
   stornierung: "Stornierung", sonstiges: "Sonstiges" };
 class SmoobuAssistantCard extends SmoobuCard {
   static defaults = { title: "" };
-  static initialState = () => ({ tab: "wissen", edit: null, filter: "" });
+  static initialState = () => ({ tab: "wissen", edit: null, filter: "", editSug: null });
   static css = `
     .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; }
     .kn { border: 1px solid var(--sm-line); border-radius: var(--sm-rs); padding: 12px 14px; margin-bottom: 8px; }
@@ -2224,7 +2225,17 @@ class SmoobuAssistantCard extends SmoobuCard {
         <div class="row"><b class="grow">${esc(v.gast || v.buchung_id)}</b>${v.dringend ? '<span class="badge bad">dringend</span>' : ""}
         <span class="badge">${esc(INTENT_LABEL[v.absicht] || v.absicht)}</span><span class="badge ${v.status === "offen" ? "warn" : ""}">${esc(v.status)}</span>
         <span class="sub">${fdate(v.erstellt, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></div>
-        ${v.gastnachricht ? `<div class="g">„${esc(v.gastnachricht.slice(0, 300))}“</div>` : ""}<div class="a">➜ ${esc(v.antwort)}</div></div>`).join("")
+        ${v.gastnachricht ? `<div class="g">„${esc(v.gastnachricht.slice(0, 300))}“</div>` : ""}
+        ${this._state.editSug === v.buchung_id
+          // v1.17.0: Vorschlag direkt hier bearbeiten und senden
+          ? `<textarea data-k="sugtext" rows="8" style="width:100%;box-sizing:border-box">${esc(v.antwort)}</textarea>
+             <div class="row" style="margin-top:6px"><button class="btn" data-sa="send" data-rid="${v.buchung_id}">📤 ${t("Senden")}</button>
+             <button class="btn flat" data-sa="cancel" data-rid="${v.buchung_id}">${t("Abbrechen")}</button></div>`
+          : `<div class="a">➜ ${esc(v.antwort)}</div>`}
+        <div class="row" style="margin-top:6px;gap:6px">
+          ${v.status === "offen" && this._state.editSug !== v.buchung_id ? `<button class="btn" data-sa="edit" data-rid="${v.buchung_id}">✏️ ${t("Bearbeiten & senden")}</button>
+            <button class="btn flat" data-sa="ignore" data-rid="${v.buchung_id}">${t("Ignorieren")}</button>` : ""}
+          <span class="grow"></span><button class="btn flat" data-sa="delete" data-rid="${v.buchung_id}" title="${t("Löschen")}">🗑</button></div></div>`).join("")
       || `<div class="empty">${t("Keine Daten")}</div>`;
     if (tab === "beispiele") body = st.beispiele.slice(0, 60).map((b) => `<div class="ex"><div class="row"><span class="badge">${esc(b.quelle)}</span>
         <span class="sub grow">${esc(b.kanal || "")} · ${esc(b.sprache || "")}</span><button class="btn flat" data-del-ex="${b.id}">🗑</button></div>
@@ -2250,7 +2261,36 @@ class SmoobuAssistantCard extends SmoobuCard {
     root.querySelectorAll("[data-tab]").forEach((el) => el.addEventListener("click", () => this.setState({ tab: el.dataset.tab, edit: null })));
     const f = root.querySelector('[data-k="filter"]');
     f?.addEventListener("input", () => { const p = f.selectionStart; this.setState({ filter: f.value }); const n = this.$('[data-k="filter"]'); n.focus(); n.setSelectionRange(p, p); });
-    root.querySelectorAll("[data-bid]").forEach((el) => el.addEventListener("click", () => this.openBooking(Number(el.dataset.bid))));
+    root.querySelectorAll("[data-bid]").forEach((el) => el.addEventListener("click", (e) => {
+      // Klicks auf Buttons/Textfeld im Vorschlag öffnen nicht die Buchung
+      if (e.target.closest("button, textarea")) return;
+      this.openBooking(Number(el.dataset.bid));
+    }));
+    // v1.17.0: Vorschläge bearbeiten & senden, ignorieren, löschen
+    root.querySelectorAll("[data-sa]").forEach((el) => el.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const rid = Number(el.dataset.rid), act = el.dataset.sa;
+      try {
+        if (act === "edit") return this.setState({ editSug: rid });
+        if (act === "cancel") return this.setState({ editSug: null });
+        if (act === "send") {
+          const text = (this.$('[data-k="sugtext"]')?.value || "").trim();
+          if (!text) return;
+          if (/\[OFFEN/i.test(text)) { toast("Bitte zuerst die Stellen [OFFEN: …] ergänzen"); return; }
+          if (!(await confirmDialog(`${t("Senden")} ${t("an den Gast")}?`))) return;
+          await this.store.ws("smoobu/assistant/send", { ...this.target, reservation_id: rid, text }, { cache: false });
+          toast(t("Gesendet"));
+        } else if (act === "ignore") {
+          await this.store.ws("smoobu/assistant/delete", { ...this.target, kind: "ignorieren", item_id: String(rid) }, { cache: false });
+        } else if (act === "delete") {
+          if (!(await confirmDialog(`${t("Vorschlag löschen")}?`))) return;
+          await this.store.ws("smoobu/assistant/delete", { ...this.target, kind: "vorschlag", item_id: String(rid) }, { cache: false });
+        }
+        this._state.editSug = null;
+        this.store.messagesChanged();
+        this._reload();
+      } catch (err) { toast(`${t("Fehler")}: ${err.message || err}`); }
+    }));
     root.querySelectorAll("[data-del-ex]").forEach((el) => el.addEventListener("click", async () => {
       await this.store.ws("smoobu/assistant/delete", { ...this.target, kind: "beispiel", item_id: el.dataset.delEx }, { cache: false });
       this._reload();

@@ -809,3 +809,18 @@ async def test_apartment_codes(hass, setup, hass_ws_client):
     await ws.send_json({"id": 1, "type": "smoobu/info"})
     info = (await ws.receive_json())["result"]
     assert info["wohnungen"][0]["kuerzel"] == "SEE"
+
+
+async def test_suggestion_delete_and_ignore(hass, setup, hass_ws_client):
+    """v1.17.0: Vorschläge in der Assistent-Karte ignorieren bzw. löschen (z. B. Testvorschlag)."""
+    a = hass.config_entries.async_get_entry(setup.entry_id).runtime_data.assistant
+    for rid in (2, 3):
+        a.data["vorschlaege"][str(rid)] = {"id": f"s{rid}", "buchung_id": rid, "status": "offen", "gast": "X",
+                                           "antwort": "Hallo", "erstellt": "2026-11-15T10:00:00"}
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "smoobu/assistant/delete", "kind": "ignorieren", "item_id": "2"})
+    assert (await ws.receive_json())["success"]
+    assert a.data["vorschlaege"]["2"]["status"] == "ignoriert"
+    await ws.send_json({"id": 2, "type": "smoobu/assistant/delete", "kind": "vorschlag", "item_id": "3"})
+    assert (await ws.receive_json())["success"]
+    assert "3" not in a.data["vorschlaege"]
