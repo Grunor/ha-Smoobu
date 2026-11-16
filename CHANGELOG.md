@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+**Deutsch**
+- **Statistik-Werkbank, Teil 1 (Backend):** neuer WebSocket-Befehl `smoobu/stats` als Grundlage der kommenden Statistikseite. `mode: "query"` = Baukasten-Abfrage Kennzahl × Gruppierung × Aufteilung (18 Kennzahlen inkl. ADR, RevPAR, Netto-RevPAR, Stornoquote, Median-Vorlauf/-Aufenthalt; 17 Dimensionen inkl. Wochentag, Saison, Kanal, Vorlauf-/Aufenthaltsklassen, Hund, Sprache, Stammgast, Buchungsmonat; Filter Nächte/Hund/Sprache). Jede Zelle mit Anzahl Buchungen `n` und Kennzeichen „wenig Daten“ (n < 5). `mode: "pace"` = Buchungstempo des Zieljahres gegen die Vorjahre am gleichen Tag und Prognose aus der Nachbuchung aller verfügbaren Vorjahre (Median, Spanne P10–P90). `mode: "meta"` = Liste der Kennzahlen und Dimensionen
+
+**English**
+- **Statistics workbench, part 1 (backend):** new WebSocket command `smoobu/stats` as the basis of the upcoming statistics page. `mode: "query"` = builder query measure × grouping × split (18 measures incl. ADR, RevPAR, net RevPAR, cancellation rate, median lead time/stay; 17 dimensions incl. weekday, season, channel, lead-time/stay classes, dog, language, repeat guest, booking month; filters nights/dog/language). Every cell carries the booking count `n` and a "low data" flag (n < 5). `mode: "pace"` = booking pace of the target year versus previous years on the same day, plus a forecast from the pick-up of all available previous years (median, P10–P90 range). `mode: "meta"` = list of measures and dimensions
+
 ## 1.17.0b3 – 2026-11-16
 
 > Beta / Pre-release

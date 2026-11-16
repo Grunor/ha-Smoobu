@@ -12,6 +12,7 @@ Befehle (alle nur für angemeldete HA-Benutzer):
 - smoobu/message_status   Antwortstatus je Buchung (letzte Nachricht vom Gast = offen, v1.13.0)
 - smoobu/message_done     „Keine Antwort erforderlich“ setzen/aufheben (v1.14.0)
 - smoobu/rates             Tagespreise, Mindestaufenthalt, Verfügbarkeit für einen Zeitraum
+- smoobu/stats             Statistik-Werkbank: Baukasten-Abfrage und Pace-Modell (v1.18.0)
 - smoobu/subscribe         Meldung bei jedem neuen Datenstand (Karten laden dann neu)
 
 Ab v1.15.0 akzeptieren bookings, analytics, booking, message_status,
@@ -45,6 +46,7 @@ from .analytics import (
     period_range,
 )
 from .api import SmoobuError
+from .stats import DIMENSIONS, MEASURES, pace as stats_pace, query as stats_query
 from .const import DOMAIN
 from .coordinator import SmoobuCoordinator
 from .models import strip_html
@@ -141,6 +143,7 @@ def _date(value: str | None, default: date | None = None) -> date | None:
 def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_info)
     websocket_api.async_register_command(hass, ws_analytics)
+    websocket_api.async_register_command(hass, ws_stats)
     websocket_api.async_register_command(hass, ws_bookings)
     websocket_api.async_register_command(hass, ws_booking)
     websocket_api.async_register_command(hass, ws_rates)
@@ -231,6 +234,62 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
                                   count=msg["compare_count"])
     result["prognose"] = forecast_year(recs, today, channels)
     result["farben"] = channel_colors([ch["name"] for ch in channels_of(recs)])
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smoobu/stats",
+        **_TARGET,
+        # "query" = Baukasten (Kennzahl × Gruppierung × Aufteilung), "pace" = Buchungstempo + Prognose,
+        # "meta" = verfügbare Kennzahlen/Dimensionen für die Auswahlfelder der Karte
+        vol.Required("mode"): vol.In(("query", "pace", "meta")),
+        vol.Optional("measure"): vol.In(tuple(MEASURES)),
+        vol.Optional("dimension", default="monat"): vol.In(DIMENSIONS),
+        vol.Optional("split"): vol.Any(None, vol.In(DIMENSIONS)),
+        vol.Optional("start"): str,
+        vol.Optional("end"): str,  # exklusiv
+        vol.Optional("channels"): [str],
+        vol.Optional("filters"): dict,
+        vol.Optional("year"): vol.Coerce(int),
+    }
+)
+@callback
+def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    if msg["mode"] == "meta":
+        connection.send_result(msg["id"], {
+            "kennzahlen": [{"id": k, "art": v[0], "name": v[1], "einheit": v[2]} for k, v in MEASURES.items()],
+            "dimensionen": list(DIMENSIONS),
+        })
+        return
+    try:
+        pairs = _targets(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    recs = [r for c, a in pairs for r in c.records(a)]
+    today = dt_util.now().date()
+    channels = msg.get("channels") or None
+    if msg["mode"] == "pace":
+        # Vorjahre nur, soweit die Historie reicht (frühester history_start der beteiligten Konten)
+        first = min((c.history_start for c, _ in pairs), default=None)
+        result = stats_pace(recs, msg.get("year") or today.year, today, channels=channels, first=first)
+        connection.send_result(msg["id"], result)
+        return
+    if not msg.get("measure"):
+        connection.send_error(msg["id"], "invalid_format", "measure fehlt")
+        return
+    start = _date(msg.get("start"), date(today.year, 1, 1))
+    end = _date(msg.get("end"), date(today.year + 1, 1, 1))
+    if end <= start or (end - start).days > 3700:
+        connection.send_error(msg["id"], "invalid_range", "Zeitraum ungültig (max. ~10 Jahre)")
+        return
+    try:
+        result = stats_query(recs, msg["measure"], msg["dimension"], start, end, split=msg.get("split"),
+                             channels=channels, units=len(pairs), filters=msg.get("filters"))
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid_format", str(err))
+        return
     connection.send_result(msg["id"], result)
 
 
