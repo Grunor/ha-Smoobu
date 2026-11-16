@@ -3840,7 +3840,7 @@ class SmoobuStatsCard extends SmoobuCard {
         <span><i style="box-shadow:inset 0 0 0 2px var(--sm-ink);background:none"></i>${t("gewählter Zeitraum")}</span>
         <span><i style="background:var(--sm-warn);width:6px;height:6px;border-radius:50%"></i><em>${t("kursiv")}</em> = ${t("weniger als 5 Buchungen")}</span>
         <span>${exShown.length ? `* Ø ${t("ohne")} ${exShown.join(", ")}, ` : "Ø "}${t("nur abgeschlossene Monate")}</span></div>
-      ${gloss([...(id === "adr" ? ["ADR"] : id === "revpar" ? ["RevPAR"] : []), "Ø"])}</div>`;
+      ${gloss(["ADR", "RevPAR", "Ø"])}</div>`; /* immer alle: die Umschalter oben nennen ADR/RevPAR auch, wenn sie nicht gewählt sind */
   }
 
   body(d) {
