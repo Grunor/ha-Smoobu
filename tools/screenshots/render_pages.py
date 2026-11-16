@@ -78,6 +78,9 @@ def _shots(base: str, token: str) -> list[str]:
             # Ansicht Werkbank/Einfach: Standard je Fensterbreite, mit SMOOBU_STATISTIK_MODUS=werkbank|einfach erzwingen
             page.evaluate("(m) => m ? localStorage.setItem('smoobu-statistik-modus', m) : localStorage.removeItem('smoobu-statistik-modus')",
                           os.environ.get("SMOOBU_STATISTIK_MODUS", ""))
+            # Anordnung/eigene Module vorgeben (Prüfung Baukasten): SMOOBU_STATISTIK_LAYOUT='{"custom": [...]}'
+            page.evaluate("(l) => l ? localStorage.setItem('smoobu-statistik-layout', l) : localStorage.removeItem('smoobu-statistik-layout')",
+                          os.environ.get("SMOOBU_STATISTIK_LAYOUT", ""))
             page.evaluate("([c, w, th, a]) => showPage(c, w, th, a)", [pages[name], width, theme, apt])
             page.wait_for_function(
                 "() => [...document.querySelectorAll('#stage > *')].every(e => e.shadowRoot && e.shadowRoot.querySelector('ha-card')"
@@ -91,6 +94,16 @@ def _shots(base: str, token: str) -> list[str]:
     if errors:
         raise AssertionError(f"Fehler im Browser: {errors[:5]}")
     return done
+
+
+def _demo_responses(coord) -> None:
+    """Erfundene Antwortzeiten für das Modul „Service“ (fest gewürfelt, gleiche Bilder bei jedem Lauf)."""
+    import random  # noqa: PLC0415
+
+    rnd = random.Random(7)
+    coord._resp = {str(r["id"]): {"minuten": [round(rnd.choice([4, 9, 18, 35, 50, 75, 140, 320, 900]) * rnd.uniform(.7, 1.3), 1)
+                                              for _ in range(rnd.randint(0, 3))], "geladen": "demo"}
+                   for r in coord.records_all() if not r["blockiert"]}
 
 
 async def test_render_pages(socket_enabled, hass: HomeAssistant, aiohttp_client, hass_access_token) -> None:
@@ -108,6 +121,7 @@ async def test_render_pages(socket_enabled, hass: HomeAssistant, aiohttp_client,
         await hass.async_block_till_done()
         _demo_states(hass, today)
         _demo_assistant(entry.runtime_data.assistant, demo, today)
+        _demo_responses(entry.runtime_data)
         await hass.async_block_till_done()
         client = await aiohttp_client(hass.http.app)
         files = await hass.async_add_executor_job(_shots, f"http://127.0.0.1:{client.server.port}", hass_access_token)

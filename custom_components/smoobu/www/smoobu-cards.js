@@ -2561,13 +2561,431 @@ function binLabel(fach, long = false) {
   return fach;
 }
 
+// ---- Teilschritte 3/4: Module 4–11, Baukasten, Anordnung je Gerät -------------------------
+// Anordnung (Reihenfolge, ausgeblendete Module, eigene Baukasten-Module) je Gerät in localStorage –
+// Entscheidung Betreiber: „speichern je Gerät“ (kein Server-Speicher, kein Abgleich zwischen Geräten).
+const STATS_LAYOUT_KEY = "smoobu-statistik-layout";
+const STATS_BUILTIN = ["kennzahlen", "tempo", "saison", "belegung", "kanaele", "fenster", "luecken", "stornos", "gaeste", "service", "tabelle"];
+const STATS_TITLES = {
+  kennzahlen: "Kennzahlen", tempo: "Buchungstempo & Prognose", saison: "Saison-Matrix", belegung: "Belegung nach Wochentag",
+  kanaele: "Kanal-Wirtschaftlichkeit", fenster: "Buchungsfenster & Aufenthalt", luecken: "Verlorene Nächte", stornos: "Stornos",
+  gaeste: "Gäste", service: "Service", tabelle: "Datentabelle",
+};
+// Dimensionen des Baukastens (stats.DIMENSIONS) mit Anzeigenamen
+const DIM_LABEL = {
+  gesamt: "Gesamt", jahr: "Jahr", monat: "Monat", monat_im_jahr: "Monat im Jahr", woche: "Kalenderwoche", wochentag: "Wochentag",
+  saison: "Saison", kanal: "Kanal", gruppe: "Direkt/Portal", wohnung: "Wohnung", aufenthalt: "Aufenthalt (Nächte)",
+  vorlauf: "Vorlauf (Tage)", personen: "Personen", hund: "Hund", sprache: "Sprache", stammgast: "Stammgast", buchungsmonat: "Buchungsmonat",
+};
+// Summierbare Kennzahlen (Legende zeigt die Summe; bei Quoten/Medianen/Durchschnitten wäre sie sinnlos)
+const ADDITIVE = new Set(["umsatz", "netto", "kosten", "naechte", "buchungen", "stornos"]);
+const VIEWS = [["balken", "Balken"], ["linie", "Linie"], ["heatmap", "Heatmap"], ["tabelle", "Tabelle"], ["kennzahl", "Kennzahl"]];
+// Farben für Aufteilungen ohne feste Kanalfarbe: Akzent + Ersatzpalette (fest je Name)
+const seriesColor = (name, dim, i) => (dim === "kanal" ? chColor(name) : i === 0 && dim !== "gruppe"
+  ? PAL[DARK ? "dark" : "light"].acc : name === "Direkt" ? chColor("direkt") : name === "Portal" ? chColor("booking.com")
+    : CH_FALLBACK[i % CH_FALLBACK.length][DARK ? 1 : 0]);
+
+function statsLayout() {
+  let l = {};
+  try { l = JSON.parse(lsGet(STATS_LAYOUT_KEY, "{}")) || {}; } catch (e) { l = {}; }
+  const custom = Array.isArray(l.custom) ? l.custom.filter((c) => c && c.id && c.measure && c.dimension) : [];
+  const known = [...STATS_BUILTIN, ...custom.map((c) => c.id)];
+  const order = (Array.isArray(l.order) ? l.order : []).filter((id) => known.includes(id));
+  for (const id of known) if (!order.includes(id)) order.push(id); // neue Module hinten anhängen
+  const hidden = (Array.isArray(l.hidden) ? l.hidden : []).filter((id) => known.includes(id));
+  return { order, hidden, custom };
+}
+const saveLayout = (l) => lsSet(STATS_LAYOUT_KEY, JSON.stringify(l));
+
+// Wert je Einheit eines stats-Ergebnisses formatieren (Baukasten)
+function fmtUnit(unit, v, cur, long = false) {
+  if (v === null || v === undefined) return "–";
+  if (unit === "€") return money(v, cur, long && Math.abs(v) < 1000 ? 2 : 0);
+  if (unit === "%") return pct(v, long ? 1 : 0);
+  if (unit === "T") return `${num(v)} ${t("Tage")}`;
+  if (unit === "N") return `${num(v, v % 1 ? 1 : 0)} ${t("N.")}`;
+  return num(v, v % 1 ? 1 : 0);
+}
+
+// Waagerechte Balkenliste (HTML): Beschriftung, Balken, Wert, n; n < 5 blass
+function hbars(items, { fmt, max = null, note = "" } = {}) {
+  const top = max ?? Math.max(1e-9, ...items.map((i) => Math.abs(i.value || 0)));
+  return `<div class="hb">${items.map((i) => {
+    const w = Math.max(0, Math.min(100, ((i.value || 0) / top) * 100));
+    const low = i.n !== undefined && i.n < 5;
+    return `<div class="hr${low ? " low" : ""}" data-tip="${esc(i.tip || `${i.label}: ${fmt(i.value)}${i.n !== undefined ? ` · n = ${i.n}` : ""}${low ? ` (${t("wenig Daten")})` : ""}`)}">
+      <span class="hl">${i.dot ? `<span class="dot" style="background:${i.dot}"></span>` : ""}${esc(i.label)}</span>
+      <span class="ht"><i style="width:${w.toFixed(1)}%;background:${i.color || "var(--sm-accent)"}${i.hatch ? `;background-image:repeating-linear-gradient(135deg, transparent 0 3px, var(--sm-surf) 3px 5px)` : ""}"></i></span>
+      <span class="hv">${fmt(i.value)}${i.n !== undefined ? `<em>n = ${i.n}</em>` : ""}</span></div>`;
+  }).join("")}${note ? `<div class="sub" style="margin-top:6px">${note}</div>` : ""}</div>`;
+}
+
+// Senkrechtes Histogramm (SVG) mit Anzahl über dem Balken, eine y-Achse
+function vbars(items, { W = 420, H = 190, fmt = (v) => num(v), color = "var(--sm-accent)", unit = "" } = {}) {
+  const L = 34, R = 6, T = 18, B = 26;
+  const max = niceMax(Math.max(1, ...items.map((i) => i.value || 0)) * 1.1);
+  const n = Math.max(items.length, 1);
+  const bw = (W - L - R) / n;
+  const y = (v) => T + (H - T - B) * (1 - (v || 0) / max);
+  let svg = "";
+  for (let g = 0; g <= 2; g++) {
+    const v = (max / 2) * g;
+    svg += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity=".1"/>
+      <text x="${L - 5}" y="${y(v) + 4}" text-anchor="end" font-size="10.5" fill="currentColor" fill-opacity=".55">${fmt(v)}</text>`;
+  }
+  items.forEach((it, i) => {
+    const x = L + i * bw;
+    const h = Math.max(y(0) - y(it.value), 0);
+    svg += `<rect x="${x + bw * 0.14}" y="${y(it.value)}" width="${bw * 0.72}" height="${h}" rx="3" fill="${it.color || color}" fill-opacity="${it.faint ? 0.4 : 0.9}"/>
+      <text x="${x + bw / 2}" y="${y(it.value) - 5}" text-anchor="middle" font-size="10.5" font-weight="600" fill="currentColor">${it.value ? fmt(it.value) : ""}</text>
+      <text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="currentColor" fill-opacity=".7">${esc(it.label)}</text>
+      <rect data-tip="${esc(it.tip || `${it.label}${unit}: ${fmt(it.value)}`)}" x="${x}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"/>`;
+  });
+  return `<svg class="ch" viewBox="0 0 ${W} ${H}" role="img">${svg}</svg>`;
+}
+
+// Mehrreihen-Diagramm für den Baukasten: Balken (gestapelt bei Aufteilung) oder Linien, eine y-Achse
+function seriesChart({ labels, series, kind, fmt, W = 800, H = 240 }) {
+  const L = 60, R = 10, T = 12, B = 28;
+  const n = Math.max(labels.length, 1);
+  const stacked = kind === "balken";
+  const sums = labels.map((_, i) => series.reduce((a, s) => a + Math.max(s.values[i] || 0, 0), 0));
+  const max = niceMax(Math.max(1e-9, ...(stacked ? sums : series.flatMap((s) => s.values.map((v) => v || 0)))) * 1.08);
+  const y = (v) => T + (H - T - B) * (1 - (v || 0) / max);
+  const bw = (W - L - R) / n;
+  let svg = "";
+  for (let g = 0; g <= 4; g++) {
+    const v = (max / 4) * g;
+    svg += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity=".1"/>
+      <text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity=".6">${fmt(v)}</text>`;
+  }
+  const step = Math.ceil(n / Math.max(4, Math.floor(W / 60)));
+  const binN = labels.map((_, i) => series.reduce((a, s) => a + (s.n?.[i] ?? 9), 0));
+  labels.forEach((lab, i) => {
+    const x = L + i * bw;
+    if (stacked) {
+      let acc = 0;
+      for (const s of series) {
+        const v = Math.max(s.values[i] || 0, 0);
+        if (!v) continue;
+        // blass nur, wenn das ganze Fach weniger als 5 Buchungen hat (sonst wären bei Aufteilung fast alle Teile blass)
+        svg += `<rect x="${x + bw * 0.16}" y="${y(acc + v)}" width="${bw * 0.68}" height="${Math.max(y(acc) - y(acc + v), 0)}" rx="2"
+          fill="${s.color}" fill-opacity="${binN[i] < 5 ? 0.4 : 0.92}"/>`;
+        acc += v;
+      }
+    }
+    if (i % step === 0) svg += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".7">${esc(lab)}</text>`;
+    const tip = `${lab}\n${series.map((s) => `${s.name}: ${fmt(s.values[i])}${s.n ? ` · n = ${s.n[i] ?? 0}` : ""}`).join("\n")}`;
+    svg += `<rect data-tip="${esc(tip)}" x="${x}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"/>`;
+  });
+  if (!stacked) {
+    for (const s of series) {
+      const pts = s.values.map((v, i) => (v === null || v === undefined ? null : `${L + i * bw + bw / 2},${y(v)}`)).filter(Boolean);
+      svg += `<polyline points="${pts.join(" ")}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round" pointer-events="none"/>`;
+      s.values.forEach((v, i) => { if (v !== null && v !== undefined) svg += `<circle cx="${L + i * bw + bw / 2}" cy="${y(v)}" r="2.6" fill="${s.color}" pointer-events="none"/>`; });
+    }
+  }
+  svg += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="currentColor" stroke-opacity=".3"/>`;
+  return `<svg class="ch" viewBox="0 0 ${W} ${H}" role="img">${svg}</svg>`;
+}
+const legendOf = (series, fmtTotal) => `<div class="legend">${series.map((s) =>
+  `<span><i style="background:${s.color}"></i><b>${esc(s.name)}</b>${fmtTotal ? ` ${fmtTotal(s)}` : ""}</span>`).join("")}</div>`;
+const tilesRow = (items) => `<div class="mt">${items.map(([l, v, s, tip, low]) =>
+  `<div class="mtile${low ? " low" : ""}"${tip ? ` data-tip="${esc(tip)}"` : ""}><div class="kl">${l}</div><div class="kv">${v}</div>${s ? `<div class="ks">${s}</div>` : ""}</div>`).join("")}</div>`;
+const panel = (title, sub, inner, extra = "") => `<div class="panel"><div class="ph"><h2>${title}</h2>${sub ? `<span class="sub">${sub}</span>` : ""}${extra}</div>${inner}</div>`;
+
+// Module 4–11: load(ctx) holt die Daten (parallel), render(card, d, data) baut das HTML
+const STATS_MODULES = {
+  // 4: Belegungs-Heatmap Wochentag × KW + Auslastung/ADR je Wochentag
+  belegung: {
+    load: async (c) => {
+      const [grid, wd, adr] = await Promise.all([c.q("auslastung", "woche", c.range, { split: "wochentag" }),
+        c.q("auslastung", "wochentag", c.range), c.q("adr", "wochentag", c.range)]);
+      return { grid, wd, adr };
+    },
+    render: (card, d, m) => {
+      const days = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+      const weeks = m.grid.zeilen || [];
+      const cols = `grid-template-columns: 30px repeat(${weeks.length}, minmax(${weeks.length > 30 ? 14 : 22}px, 1fr))`;
+      let html = `<div></div>${weeks.map((w, i) => `<div class="h">${i % (weeks.length > 30 ? 4 : 1) === 0 ? Number(w.fach.slice(6)) : ""}</div>`).join("")}`;
+      for (const day of days) {
+        html += `<div class="rl">${t(day)}</div>`;
+        for (const w of weeks) {
+          const c = w.werte[day];
+          if (!c || c.wert === null || c.wert === undefined) { html += `<div class="hc none"></div>`; continue; }
+          const a = 0.06 + 0.86 * (c.wert / 100);
+          html += `<div class="hc" style="background:color-mix(in srgb, var(--sm-accent) ${Math.round(a * 100)}%, var(--sm-surf2))"
+            data-tip="${esc(`${t(day)}, ${binLabel(w.fach, true)}: ${pct(c.wert, 0)} ${t("belegt")}`)}"></div>`;
+        }
+      }
+      const wdRows = statSeries(m.wd), adrRows = new Map(statSeries(m.adr).map((x) => [x.fach, x]));
+      const bars = hbars(wdRows.map((x) => ({ label: t(x.fach), value: x.wert, n: x.n,
+        tip: `${t(x.fach)}: ${pct(x.wert, 1)} ${t("Auslastung")} · ADR ${money(adrRows.get(x.fach)?.wert, d.apt.currency)} · n = ${x.n}` })),
+      { fmt: (v) => pct(v, 0), max: 100 });
+      return panel(t("Belegung nach Wochentag"), `${t("Nacht von … auf …, je Kalenderwoche")}`,
+        `<div class="split2"><div class="scroll"><div class="hm" style="${cols}">${html}</div>
+          <div class="legend"><span class="scale"><i style="background:linear-gradient(90deg, color-mix(in srgb, var(--sm-accent) 6%, var(--sm-surf2)), var(--sm-accent))"></i>0 – 100 %</span>
+          <span>${t("Zahlen oben = Kalenderwoche")}</span></div></div>
+          <div><div class="kl" style="margin-bottom:6px">${t("Auslastung je Wochentag")}</div>${bars}</div></div>`);
+    },
+  },
+  // 5: Kanal-Wirtschaftlichkeit (Netto + schraffierte Kosten) + Kanal-Matrix (Netto/Nacht × Anteil Nächte, Blase = Buchungen)
+  kanaele: {
+    load: async (c) => {
+      const ms = ["netto", "kosten", "naechte", "buchungen", "netto_pro_nacht"];
+      const res = await Promise.all(ms.map((m) => c.q(m, "kanal", c.range)));
+      return Object.fromEntries(ms.map((m, i) => [m, new Map(statSeries(res[i]).map((x) => [x.fach, x]))]));
+    },
+    render: (card, d, m) => {
+      const cur = d.apt.currency;
+      const names = [...m.netto.keys()].filter((k) => (m.naechte.get(k)?.wert || 0) > 0 || (m.netto.get(k)?.wert || 0) > 0)
+        .sort((a, b) => ((m.netto.get(b)?.wert || 0) + (m.kosten.get(b)?.wert || 0)) - ((m.netto.get(a)?.wert || 0) + (m.kosten.get(a)?.wert || 0)));
+      if (!names.length) return panel(t("Kanal-Wirtschaftlichkeit"), "", `<div class="empty">${t("Keine Daten")}</div>`);
+      const max = Math.max(...names.map((k) => (m.netto.get(k)?.wert || 0) + (m.kosten.get(k)?.wert || 0)), 1);
+      const rows = names.map((k) => {
+        const net = m.netto.get(k)?.wert || 0, cost = m.kosten.get(k)?.wert || 0, n = m.buchungen.get(k)?.wert || 0;
+        const col = chColor(k);
+        const tip = `${k}\n${t("Netto")} ${money(net, cur)} · ${t("Provision & Gebühren")} ${money(cost, cur)} (${pct(net + cost ? (cost / (net + cost)) * 100 : null, 1)})\n${t("Netto/Nacht")} ${money(m.netto_pro_nacht.get(k)?.wert, cur)} · ${num(m.naechte.get(k)?.wert)} ${t("Nächte")} · n = ${n}`;
+        return `<div class="hr${n < 5 ? " low" : ""}" data-tip="${esc(tip)}"><span class="hl"><span class="dot" style="background:${col}"></span>${esc(k)}</span>
+          <span class="ht"><i style="width:${((net / max) * 100).toFixed(1)}%;background:${col}"></i><i style="width:${((cost / max) * 100).toFixed(1)}%;background:${col};opacity:.5;
+            background-image:repeating-linear-gradient(135deg, transparent 0 3px, var(--sm-surf) 3px 5px)"></i></span>
+          <span class="hv">${money(net, cur)}<em>+ ${money(cost, cur)}</em></span></div>`;
+      }).join("");
+      // Kanal-Matrix
+      const W = card.chartW(0.42, 360), H = 250, L = 52, R = 14, T = 14, B = 34;
+      const total = names.reduce((a, k) => a + (m.naechte.get(k)?.wert || 0), 0) || 1;
+      const pts = names.map((k) => ({ k, x: ((m.naechte.get(k)?.wert || 0) / total) * 100, y: m.netto_pro_nacht.get(k)?.wert || 0, n: m.buchungen.get(k)?.wert || 0 }));
+      const xmax = niceMax(Math.max(10, ...pts.map((p) => p.x)) * 1.1), ymax = niceMax(Math.max(10, ...pts.map((p) => p.y)) * 1.15);
+      const nmax = Math.max(...pts.map((p) => p.n), 1);
+      const X = (v) => L + (W - L - R) * (v / xmax), Y = (v) => T + (H - T - B) * (1 - v / ymax);
+      let svg = "";
+      for (let g = 0; g <= 4; g++) {
+        svg += `<line x1="${L}" x2="${W - R}" y1="${Y((ymax / 4) * g)}" y2="${Y((ymax / 4) * g)}" stroke="currentColor" stroke-opacity=".1"/>
+          <text x="${L - 6}" y="${Y((ymax / 4) * g) + 4}" text-anchor="end" font-size="10.5" fill="currentColor" fill-opacity=".55">${money((ymax / 4) * g, cur)}</text>
+          <text x="${X((xmax / 4) * g)}" y="${H - 16}" text-anchor="middle" font-size="10.5" fill="currentColor" fill-opacity=".55">${num((xmax / 4) * g)} %</text>`;
+      }
+      svg += `<text x="${(L + W - R) / 2}" y="${H - 2}" text-anchor="middle" font-size="10.5" font-weight="600" fill="currentColor" fill-opacity=".6">${t("Anteil Nächte")}</text>`;
+      // Blasen groß → klein (kleine liegen oben); Beschriftung mit einfacher Kollisionsvermeidung
+      const placed = [];
+      let labels = "";
+      for (const p of pts.sort((a, b) => b.n - a.n)) {
+        const r = 6 + 16 * Math.sqrt(p.n / nmax);
+        svg += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${r}" fill="${chColor(p.k)}" fill-opacity="${p.n < 5 ? 0.25 : 0.55}" stroke="${chColor(p.k)}" stroke-width="1.5"
+          data-tip="${esc(`${p.k}: ${money(p.y, cur)} ${t("netto je Nacht")} · ${pct(p.x, 0)} ${t("der Nächte")} · n = ${p.n}`)}"/>`;
+        const w = p.k.length * 6.2;
+        let lx = X(p.x) + r + 4;
+        if (lx + w > W - 2) lx = X(p.x) - r - 4 - w;
+        let ly = Y(p.y) + 4;
+        for (const off of [0, -14, 14, -28, 28, -42, 42]) {
+          const yy = Y(p.y) + 4 + off;
+          if (!placed.some((q) => lx < q.x + q.w && lx + w > q.x && Math.abs(yy - q.y) < 13)) { ly = yy; break; }
+        }
+        placed.push({ x: lx, y: ly, w });
+        labels += `<text x="${lx}" y="${ly}" font-size="10.5" font-weight="600" fill="currentColor" pointer-events="none">${esc(p.k)}</text>`;
+      }
+      svg += labels;
+      return panel(t("Kanal-Wirtschaftlichkeit"), t("Netto und Provision/Gebühren (schraffiert) je Kanal"),
+        `<div class="split2"><div><div class="hb">${rows}</div>
+          <div class="legend"><span><i style="background:var(--sm-ink)"></i>${t("Netto")}</span>
+          <span><i style="background:var(--sm-ink);opacity:.5;background-image:repeating-linear-gradient(135deg, transparent 0 3px, var(--sm-surf) 3px 5px)"></i>${t("Provision & Gebühren")}</span>
+          <span>${t("blass = weniger als 5 Buchungen")}</span></div></div>
+          <div><div class="kl">${t("Kanal-Matrix: Netto je Nacht × Anteil Nächte, Blase = Buchungen")}</div>
+          <svg class="ch" viewBox="0 0 ${W} ${H}" role="img">${svg}</svg></div></div>`);
+    },
+  },
+  // 6: Buchungsfenster- und Aufenthalts-Histogramme
+  fenster: {
+    load: async (c) => {
+      const [lead, stay, leadM, stayM] = await Promise.all([c.q("buchungen", "vorlauf", c.range), c.q("buchungen", "aufenthalt", c.range),
+        c.q("vorlauf", "gesamt", c.range), c.q("aufenthalt", "gesamt", c.range)]);
+      return { lead, stay, leadM: statCell(leadM), stayM: statCell(stayM) };
+    },
+    render: (card, d, m) => {
+      const W = card.chartW(0.48, 340);
+      const lead = statSeries(m.lead).filter((x) => x.fach !== "unbekannt");
+      const stay = statSeries(m.stay);
+      const nl = lead.reduce((a, x) => a + (x.wert || 0), 0), ns = stay.reduce((a, x) => a + (x.wert || 0), 0);
+      const items = (rows, n, unit) => rows.map((x) => ({ label: x.fach, value: x.wert || 0,
+        tip: `${x.fach} ${unit}: ${num(x.wert || 0)} ${t("Buchungen")} (${pct(n ? ((x.wert || 0) / n) * 100 : null, 0)})` }));
+      return panel(t("Buchungsfenster & Aufenthalt"), t("Buchungen mit Anreise im Zeitraum"),
+        `<div class="split2 even"><div><div class="kl">${t("Vorlauf (Tage zwischen Buchung und Anreise)")} · Median <b>${num(m.leadM.wert)} ${t("Tage")}</b> · n = ${nl}${nl < 5 ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>
+          ${vbars(items(lead, nl, t("Tage")), { W })}</div>
+          <div><div class="kl">${t("Aufenthalt (Nächte)")} · Median <b>${num(m.stayM.wert, 1)} ${t("N.")}</b> · n = ${ns}${ns < 5 ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>
+          ${vbars(items(stay, ns, t("Nächte")), { W })}</div></div>`);
+    },
+  },
+  // 7: Verlorene Nächte (Lücken zwischen Buchungen) + Vorschläge
+  luecken: {
+    load: (c) => c.ws("gaps"),
+    render: (card, d, m) => {
+      const cur = d.apt.currency;
+      const p = m.vergangen, f = m.kommend;
+      const tiles = tilesRow([
+        [t("Entgangen (vergangen)"), money(p.wert, cur), `${num(p.naechte)} ${t("Nächte")} in ${p.luecken} ${t("Lücken")}${p.geschaetzt ? ` · ${p.geschaetzt} ${t("geschätzt")}` : ""}`,
+          t("Vergangene freie Nächte zwischen zwei Belegungen × Tagespreis (gespeichert) bzw. Ø-Monatspreis (geschätzt)")],
+        [t("Offen (kommend)"), money(f.wert, cur), `${num(f.naechte)} ${t("Nächte")} in ${f.luecken} ${t("Lücken")}`, t("Kommende Lücken × aktueller Tagespreis")],
+        [t("Unter Mindestaufenthalt"), num(f.zu_kurz + p.zu_kurz), `${num(f.zu_kurz_naechte + p.zu_kurz_naechte)} ${t("Nächte so nicht buchbar")}`,
+          t("Lücke kürzer als der Mindestaufenthalt am ersten freien Tag (nur wo der Mindestaufenthalt bekannt ist)")],
+      ]);
+      const hist = vbars(m.laengen.map((x) => ({ label: x.fach, value: x.anzahl, tip: `${x.fach} ${t("Nächte")}: ${x.anzahl} ${t("Lücken")}` })), { W: card.chartW(0.36, 300), H: 170 });
+      const list = m.luecken.slice().sort((a, b) => b.von.localeCompare(a.von)).slice(0, 14).map((g) => `<tr>
+        <td>${fdowLong(g.von)}${g.wohnung ? codeTag(g.wohnung) : ""}</td><td class="n">${g.naechte}</td>
+        <td class="n">${money(g.wert, cur)}${g.quelle === "geschaetzt" ? ` <span class="badge" title="${t("Ø-Monatspreis, kein gespeicherter Tagespreis")}">≈</span>` : ""}</td>
+        <td class="n">${g.mindestaufenthalt ?? "–"}</td>
+        <td>${g.zu_kurz ? `<span class="badge bad">${t("zu kurz")}</span>` : g.vergangen ? `<span class="badge">${t("vergangen")}</span>` : `<span class="badge good">${t("buchbar")}</span>`}</td></tr>`).join("");
+      const hints = m.vorschlaege.length ? `<ul class="ins">${m.vorschlaege.slice(0, 6).map((h) =>
+        `<li>${h.wohnung ? codeTag(h.wohnung) + " " : ""}${t("Mindestaufenthalt ab")} <b>${fdowLong(h.von)}</b> ${t("von")} ${h.mindestaufenthalt} ${t("auf")} <b>${h.naechte}</b> ${t("senken")} – ${money(h.wert, cur)} ${t("möglich")}</li>`).join("")}</ul>`
+        : `<div class="sub">${t("Keine kommende Lücke unter dem Mindestaufenthalt.")}</div>`;
+      return panel(t("Verlorene Nächte"), t("Freie Nächte zwischen zwei Belegungen (bis 14 Nächte), Sperrzeiten zählen als belegt"),
+        `${tiles}<div class="split2"><div><div class="kl">${t("Letzte Lücken")}</div><div class="scroll"><table><thead><tr><th>${t("Ab")}</th><th class="n">${t("Nächte")}</th>
+          <th class="n">${t("Wert")}</th><th class="n">${t("Mindestaufenthalt")}</th><th>${t("Status")}</th></tr></thead><tbody>${list || `<tr><td colspan="5" class="empty">${t("Keine Lücken im Zeitraum")}</td></tr>`}</tbody></table></div></div>
+          <div><div class="kl">${t("Lückenlänge (Nächte)")}</div>${hist}<div class="kl" style="margin-top:10px">${t("Vorschlag")}</div>${hints}</div></div>
+          <div class="sub" style="margin-top:8px">≈ = ${t("geschätzt mit Ø-Monatspreis (Smoobu liefert Tagespreise nicht rückwirkend; ab jetzt speichert die Integration sie täglich)")}</div>`);
+    },
+  },
+  // 8: Stornos
+  stornos: {
+    load: (c) => c.ws("storno"),
+    render: (card, d, m) => {
+      const cur = d.apt.currency;
+      const low = m.buchungen < 5;
+      const tiles = tilesRow([
+        [t("Stornoquote"), pct(m.quote, 1), `${m.stornos} ${t("von")} ${m.buchungen} ${t("Buchungen")}`, "", low],
+        [t("Ausfall"), money(m.ausfall, cur), `${num(m.naechte)} ${t("Nächte")}`, t("Brutto der stornierten Buchungen")],
+        [t("Wiederbelegt"), pct(m.wiederbelegt_prozent, 0), `${num(m.wiederbelegt_naechte)} ${t("von")} ${num(m.naechte)} ${t("Nächten")}`,
+          t("Nächte stornierter Buchungen, die später von einer anderen Buchung belegt sind")],
+        [t("Storno-Vorlauf"), m.vorlauf_median === null ? "–" : `${num(m.vorlauf_median)} ${t("Tage")}`, t("Median vor Anreise"),
+          t("Anreise − Änderungsdatum (Smoobu liefert kein Stornodatum, Näherung)")],
+      ]);
+      const ch = hbars(m.kanaele.filter((k) => k.buchungen + k.stornos > 0).map((k) => ({ label: k.kanal, dot: chColor(k.kanal), color: chColor(k.kanal),
+        value: k.quote || 0, n: k.buchungen + k.stornos, tip: `${k.kanal}: ${pct(k.quote, 1)} (${k.stornos} ${t("von")} ${k.buchungen + k.stornos}) · ${t("Ausfall")} ${money(k.ausfall, cur)}` })),
+      { fmt: (v) => pct(v, 0), max: 100 });
+      const hist = vbars(m.vorlauf.map((x) => ({ label: x.fach, value: x.anzahl, color: "var(--sm-bad)", tip: `${x.fach} ${t("Tage vor Anreise")}: ${x.anzahl} ${t("Stornos")}` })),
+        { W: card.chartW(0.4, 300), H: 170 });
+      return panel(t("Stornos"), t("Buchungen mit Anreise im Zeitraum"),
+        `${tiles}<div class="split2"><div><div class="kl">${t("Stornoquote je Kanal")}</div>${ch}</div>
+          <div><div class="kl">${t("Storno-Vorlauf (Tage vor Anreise)")}</div>${hist}</div></div>`);
+    },
+  },
+  // 9: Gäste (Personen, Hund, Stammgäste, Sprache)
+  gaeste: {
+    load: async (c) => {
+      const dims = ["personen", "hund", "stammgast", "sprache"];
+      const res = await Promise.all(dims.map((x) => c.q("buchungen", x, c.range)));
+      const npn = await c.q("netto_pro_nacht", "stammgast", c.range);
+      return { ...Object.fromEntries(dims.map((x, i) => [x, statSeries(res[i])])), npn: statSeries(npn) };
+    },
+    render: (card, d, m) => {
+      const LANGS = { de: "Deutsch", en: "Englisch", nl: "Niederländisch", fr: "Französisch", it: "Italienisch", pl: "Polnisch", cs: "Tschechisch", es: "Spanisch", da: "Dänisch" };
+      const block = (title, rows, label = (x) => x) => {
+        const n = rows.reduce((a, x) => a + (x.wert || 0), 0);
+        const items = rows.filter((x) => x.wert).sort((a, b) => b.wert - a.wert).slice(0, 7)
+          .map((x) => ({ label: label(x.fach), value: n ? (x.wert / n) * 100 : 0, tip: `${label(x.fach)}: ${x.wert} ${t("Buchungen")} (${pct(n ? (x.wert / n) * 100 : null, 0)})` }));
+        return `<div><div class="kl">${title} · n = ${n}${n < 5 ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>${hbars(items, { fmt: (v) => pct(v, 0), max: 100 })}</div>`;
+      };
+      const npn = new Map(m.npn.map((x) => [x.fach, x]));
+      const sg = npn.get("Stammgast"), nk = npn.get("Neukunde");
+      return panel(t("Gäste"), t("Anteil der Buchungen mit Anreise im Zeitraum"),
+        `<div class="quad">${block(t("Personen"), m.personen, (f) => `${f} ${f === "1" ? t("Person") : t("Personen")}`)}
+          ${block(t("Hund"), m.hund, (f) => t(f))}
+          ${block(t("Stammgäste"), m.stammgast, (f) => t(f))}
+          ${block(t("Sprache"), m.sprache, (f) => t(LANGS[f] || f))}</div>
+          ${sg?.wert && nk?.wert ? `<div class="sub" style="margin-top:8px">${t("Netto je Nacht")}: ${t("Stammgast")} ${money(sg.wert, d.apt.currency)} (n = ${sg.n}) · ${t("Neukunde")} ${money(nk.wert, d.apt.currency)} (n = ${nk.n})</div>` : ""}`);
+    },
+  },
+  // 10: Service (Antwortzeit)
+  service: {
+    load: (c) => c.ws("service"),
+    render: (card, d, m) => {
+      const g = m.gesamt;
+      const dur = (v) => (v === null || v === undefined ? "–" : v < 60 ? `${num(v)} min` : v < 1440 ? `${num(v / 60, 1)} h` : `${num(v / 1440, 1)} ${t("Tage")}`);
+      const tiles = tilesRow([
+        [t("Antwortzeit (Median)"), dur(g.median), `n = ${g.n} ${t("Antworten")}`, t("Zeit von der ersten Gastnachricht bis zur nächsten Nachricht an den Gast (auch automatische)"), g.wenig_daten],
+        [t("Antwort unter 1 h"), pct(g.unter_1h, 0), "", "", g.wenig_daten],
+        [t("Ausgewertet"), `${num(m.geladen)} / ${num(m.buchungen)}`, m.abruf_laeuft ? t("Abruf läuft …") : t("Buchungen mit Nachrichten-Verlauf"),
+          t("Nachrichten werden im Hintergrund gedrosselt nachgeladen (einmalig ab 2020, danach stündlich neue)")],
+      ]);
+      if (!g.n) return panel(t("Service"), t("Antwortzeit auf Gästenachrichten"), `${tiles}<div class="empty">${m.geladen ? t("Keine Gastnachrichten im Zeitraum") : t("Noch keine Nachrichten ausgewertet – der Abruf startet etwa 10 Minuten nach dem Start von Home Assistant.")}</div>`);
+      const hist = vbars(m.verteilung.map((x) => ({ label: x.fach, value: x.anzahl })), { W: card.chartW(0.48, 340), H: 180 });
+      const ch = hbars(m.kanaele.map((k) => ({ label: k.kanal, dot: chColor(k.kanal), color: chColor(k.kanal), value: k.median, n: k.n,
+        tip: `${k.kanal}: Median ${dur(k.median)} · ${pct(k.unter_1h, 0)} < 1 h · n = ${k.n}` })), { fmt: dur });
+      return panel(t("Service"), t("Antwortzeit auf Gästenachrichten, Buchungen mit Anreise im Zeitraum"),
+        `${tiles}<div class="split2 even"><div><div class="kl">${t("Verteilung der Antwortzeiten")}</div>${hist}</div>
+          <div><div class="kl">${t("Median je Kanal")}</div>${ch}</div></div>`);
+    },
+  },
+  // 11: Datentabelle aller Buchungen im Filter + CSV
+  tabelle: {
+    load: (c) => c.card.store.ws("smoobu/bookings", { ...c.target, start: iso(c.range[0]), end: iso(c.range[1]), ...(c.channels.length ? { channels: c.channels } : {}) }),
+    render: (card, d, m) => {
+      const cur = d.apt.currency;
+      const rows = (m.buchungen || []).filter((b) => !b.blockiert).sort((a, b) => b.anreise.localeCompare(a.anreise));
+      const shown = card._state.tableAll ? rows : rows.slice(0, 25);
+      const body = shown.map((b) => `<tr class="click${b.storniert ? " muted" : ""}" data-open="${b.id}"><td>${fdate(b.anreise)}</td><td>${fdate(b.abreise)}</td>
+        <td>${esc(b.gast || "–")}${card.code(b)}${b.hund ? " 🐕" : ""}</td><td><span class="dot" style="background:${chColor(b.kanal)}"></span> ${esc(b.kanal)}</td>
+        <td class="n">${b.naechte}</td><td class="n">${b.personen ?? "–"}</td><td class="n">${money(b.brutto, cur)}</td><td class="n">${money(b.netto, cur)}</td>
+        <td class="n">${b.vorlauf_tage ?? "–"}</td><td>${b.storniert ? `<span class="badge bad">${t("storniert")}</span>` : esc(t(b.status || ""))}</td></tr>`).join("");
+      const more = rows.length > 25 ? `<button class="lnk" data-k="tableall">${card._state.tableAll ? t("Weniger anzeigen") : `${t("Alle")} ${rows.length} ${t("anzeigen")}`}</button>` : "";
+      return panel(t("Datentabelle"), `${rows.length} ${t("Buchungen im Filter (inkl. Stornos)")}`,
+        `<div class="scroll"><table><thead><tr><th>${t("Anreise")}</th><th>${t("Abreise")}</th><th>${t("Gast")}</th><th>${t("Kanal")}</th><th class="n">${t("Nächte")}</th>
+          <th class="n">${t("Personen")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Netto")}</th><th class="n">${t("Vorlauf")}</th><th>${t("Status")}</th></tr></thead>
+          <tbody>${body || `<tr><td colspan="10" class="empty">${t("Keine Buchungen")}</td></tr>`}</tbody></table></div>
+          <div class="row" style="margin-top:8px">${more}<span class="grow"></span></div>`,
+        `<button class="btn flat" data-k="csv">${t("CSV exportieren")}</button>`);
+    },
+  },
+};
+// Baukasten-Modul: Kennzahl × Gruppierung (× Aufteilung) in der gewählten Darstellung
+const CUSTOM_MODULE = {
+  load: (c, def) => c.q(def.measure, def.view === "kennzahl" ? "gesamt" : def.dimension, c.range, def.split && def.view !== "kennzahl" ? { split: def.split } : {}),
+  render: (card, d, res, def) => {
+    const cur = d.apt.currency;
+    const unit = res.einheit;
+    const f = (v, long) => fmtUnit(unit, v, cur, long);
+    const sub = `${esc(res.bezeichnung)} × ${t(DIM_LABEL[def.dimension] || def.dimension)}${def.split ? ` × ${t(DIM_LABEL[def.split] || def.split)}` : ""}`;
+    const title = esc(def.title || res.bezeichnung);
+    if (def.view === "kennzahl") {
+      const c = statCell(res);
+      return panel(title, sub, `<div class="mtile big${c.n < 5 ? " low" : ""}"><div class="kv">${f(c.wert)}</div><div class="ks">n = ${c.n}${c.n < 5 ? ` · ${t("wenig Daten")}` : ""}</div></div>`);
+    }
+    const rows = res.zeilen || [];
+    const labels = rows.map((z) => (["monat", "woche", "buchungsmonat"].includes(def.dimension) ? binLabel(z.fach) : t(z.fach)));
+    const series = (res.serien || []).map((name, i) => ({ name: name === "Gesamt" ? res.bezeichnung : t(name), color: seriesColor(name, def.split, i),
+      values: rows.map((z) => z.werte[name]?.wert ?? null), n: rows.map((z) => z.werte[name]?.n ?? 0) }));
+    if (!rows.length) return panel(title, sub, `<div class="empty">${t("Keine Daten")}</div>`);
+    if (def.view === "tabelle") {
+      return panel(title, sub, `<div class="scroll"><table><thead><tr><th>${t(DIM_LABEL[def.dimension])}</th>${series.map((s) => `<th class="n">${esc(s.name)}</th>`).join("")}</tr></thead>
+        <tbody>${rows.map((z, i) => `<tr><td>${esc(labels[i])}</td>${series.map((s) => `<td class="n${s.n[i] < 5 ? " muted" : ""}" title="n = ${s.n[i]}">${f(s.values[i])}<span class="sub2">n = ${s.n[i]}</span></td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+    }
+    if (def.view === "heatmap") {
+      const vals = series.flatMap((s) => s.values).filter((v) => v !== null);
+      const lo = Math.min(...vals, 0), hi = Math.max(...vals, 1e-9);
+      const cols = `grid-template-columns: minmax(70px, auto) repeat(${series.length}, minmax(56px, 1fr))`;
+      let html = `<div></div>${series.map((s) => `<div class="h">${esc(s.name)}</div>`).join("")}`;
+      rows.forEach((z, i) => {
+        html += `<div class="rl">${esc(labels[i])}</div>`;
+        for (const s of series) {
+          const v = s.values[i];
+          const a = v === null ? 0 : 0.08 + 0.8 * ((v - lo) / (hi - lo || 1));
+          html += `<div class="c${s.n[i] < 5 ? " low" : ""}${v === null ? " none" : ""}" style="${v === null ? "" : `background:color-mix(in srgb, var(--sm-accent) ${Math.round(a * 100)}%, var(--sm-surf));${a > 0.55 ? "color:var(--sm-acc-ink);" : ""}`}"
+            data-tip="${esc(`${labels[i]} · ${s.name}: ${f(v, true)} · n = ${s.n[i]}`)}">${f(v)}</div>`;
+        }
+      });
+      return panel(title, sub, `<div class="scroll"><div class="mx" style="${cols};min-width:0">${html}</div></div>`);
+    }
+    return panel(title, sub, `${seriesChart({ labels, series, kind: def.view, fmt: (v) => f(v), W: card.chartW(1, 360) })}
+      ${legendOf(series, (s) => (ADDITIVE.has(def.measure) ? f(s.values.reduce((a, v) => a + (v || 0), 0)) : ""))}`);
+  },
+};
+
 class SmoobuStatsCard extends SmoobuCard {
   // Optionen: period (monat|quartal|saison|jahr), compare (stichtag|vorjahr|vorperiode),
   // matrix_exclude_years (aus dem Ø der Saison-Matrix ausgenommene Jahre, Standard 2020 = Lockdown),
   // matrix_since (erstes Jahr der Matrix, Standard = erste Anreise in den Daten)
   static defaults = { title: "", period: "jahr", compare: "stichtag", matrix_exclude_years: [2020], matrix_since: null };
   static initialState = (c) => ({ ptype: c.period, anchor: null, from: null, to: null, compare: c.compare, channels: [],
-    raster: "auto", focus: "umsatz", matrix: "auslastung", paceYear: null });
+    raster: "auto", focus: "umsatz", matrix: "auslastung", paceYear: null, edit: false, builder: false, tableAll: false,
+    draft: { title: "", measure: "umsatz", dimension: "monat", split: "", view: "balken" } });
   static css = `
     ha-card { background: none; border: 0; padding: 0; overflow: visible; position: relative; }
     .panel { background: var(--sm-surf); border: 1px solid var(--sm-line); border-radius: var(--sm-r); padding: 18px 20px; min-width: 0; }
@@ -2661,6 +3079,44 @@ class SmoobuStatsCard extends SmoobuCard {
       padding: 7px 10px; border-radius: 8px; white-space: pre-line; max-width: 300px; box-shadow: 0 6px 20px rgba(0,0,0,.22); }
     .tt[hidden] { display: none; }
     .hint { margin-top: var(--sm-gap); text-align: center; font-size: .86rem; color: var(--sm-muted); }
+    /* Teilschritte 3/4: Module, Anordnen, Baukasten */
+    .mod + .mod { margin-top: var(--sm-gap); }
+    .mod > .panel + .panel, .mod > .panel.focus { margin-top: var(--sm-gap); }
+    .mbar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin-bottom: 6px; border: 1px dashed var(--sm-accent);
+      border-radius: var(--sm-rs); background: color-mix(in srgb, var(--sm-accent) 6%, transparent); font-size: .86rem; }
+    .mbar.off { opacity: .6; }
+    .step:disabled { opacity: .35; cursor: default; }
+    .btn.sm { padding: 4px 11px; font-size: .8rem; }
+    .btn[aria-pressed="true"] { background: var(--sm-accent); color: var(--sm-acc-ink); }
+    .grow { flex: 1 1 auto; }
+    .builder .bform { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; }
+    .builder label { display: flex; flex-direction: column; gap: 4px; font-size: .76rem; color: var(--sm-muted); font-weight: 600; }
+    .split2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+    .split2.even { grid-template-columns: 1fr 1fr; }
+    .quad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+    @media (max-width: 1250px) { .quad { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 1000px) { .split2, .split2.even { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 700px) { .quad { grid-template-columns: 1fr; } }
+    .hb { display: flex; flex-direction: column; gap: 6px; }
+    .hr { display: grid; grid-template-columns: minmax(70px, 34%) 1fr auto; gap: 10px; align-items: center; font-size: .84rem; }
+    .hr.low { opacity: .5; }
+    .hl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+    .ht { height: 12px; background: var(--sm-surf2); border-radius: 4px; display: flex; overflow: hidden; }
+    .ht i { display: block; height: 100%; }
+    .hv { white-space: nowrap; font-weight: 600; text-align: right; }
+    .hv em { font-style: normal; font-weight: 400; color: var(--sm-muted); margin-left: 6px; font-size: .76rem; }
+    .hm { display: grid; gap: 2px; font-size: .7rem; min-width: 0; }
+    .hm .h { color: var(--sm-muted); text-align: center; font-size: .66rem; }
+    .hm .rl { color: var(--sm-muted); font-weight: 600; font-size: .74rem; display: flex; align-items: center; }
+    .hc { height: 18px; border-radius: 3px; }
+    .hc.none { background: transparent; }
+    .mt { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .mtile { background: var(--sm-surf2); border-radius: var(--sm-rs); padding: 10px 14px; }
+    .mtile.low .kv { opacity: .5; }
+    .mtile .kv { font-size: 1.35rem; }
+    .mtile.big .kv { font-size: 2.2rem; }
+    .ins { padding-left: 18px; margin: 4px 0; font-size: .86rem; } .ins li { margin: 4px 0; }
+    td .sub2 { display: block; font-size: .7rem; color: var(--sm-muted); }
     @media (max-width: 700px) {
       .panel { padding: 14px 14px; }
       /* am Handy nicht mitlaufen lassen: die Leiste wäre höher als ein Drittel des Bildschirms */
@@ -2721,14 +3177,37 @@ class SmoobuStatsCard extends SmoobuCard {
         ...(s.channels.length ? { channels: s.channels } : {}) }).catch(() => null);
     }
     // Modul 3: Saison-Matrix Monate × Jahre (nur Werkbank)
+    const layout = statsLayout();
+    const visible = simple ? [] : layout.order.filter((id) => !layout.hidden.includes(id));
     let matrix = null;
-    if (!simple) {
+    if (visible.includes("saison")) {
       const since = Math.max(Number(this._config.matrix_since) || firstYear, ty - 10);
       const mRange = [new Date(since, 0, 1), new Date(ty + 2, 0, 1)];
       const [months, years] = await Promise.all([q(s.matrix, "monat", mRange), q(s.matrix, "jahr", mRange)]);
       matrix = { since, months, years };
     }
-    return { info, apt, today, range, cmp, raster, kpis, pace, paceYear, firstYear, free, freePeriod, matrix, simple };
+    // Module 4–11 und eigene Baukasten-Module: parallel laden, Fehler je Modul statt für die ganze Karte
+    const ctx = { card: this, s, info, apt, today, range, q, target: this.target, channels: s.channels,
+      ws: (mode) => this.store.ws("smoobu/stats", { ...this.target, mode, start: iso(range[0]), end: iso(range[1]),
+        ...(s.channels.length ? { channels: s.channels } : {}) }) };
+    const mods = {};
+    await Promise.all(visible.filter((id) => STATS_MODULES[id] || id.startsWith("c_")).map(async (id) => {
+      const def = layout.custom.find((c) => c.id === id);
+      try { mods[id] = def ? await CUSTOM_MODULE.load(ctx, def) : await STATS_MODULES[id].load(ctx); }
+      catch (e) { mods[id] = { __error: e?.message || String(e) }; }
+    }));
+    const meta = s.builder || layout.custom.length ? await this.store.ws("smoobu/stats", { mode: "meta" }).catch(() => null) : null;
+    return { info, apt, today, range, cmp, raster, kpis, pace, paceYear, firstYear, free, freePeriod, matrix, simple, layout, mods, meta };
+  }
+
+  // Breite der Diagramme in SVG-Einheiten = tatsächliche Pixelbreite (Handy-Feinschliff): so bleiben
+  // Schriftgrößen in allen Breiten gleich lesbar, statt am Handy auf 5 px zu schrumpfen.
+  // frac = Anteil an der Kartenbreite in zweispaltigen Bereichen (ab 1000 px Fensterbreite)
+  chartW(frac = 1, min = 320) {
+    const narrow = (window.innerWidth || 1200) <= 700;
+    const w = (this._cw || 1100) - (narrow ? 30 : 44); // Innenabstand der Module (am Handy kleiner)
+    const two = (window.innerWidth || 1200) > 1000;
+    return Math.round(Math.max(narrow ? Math.min(min, w) : min, Math.min(1200, two ? w * frac : w)));
   }
 
   // ---- Formatierung je Kennzahl ----
@@ -2814,8 +3293,10 @@ class SmoobuStatsCard extends SmoobuCard {
           `<button data-apt="${w.apartment_id}" aria-pressed="${sel === w.apartment_id}" title="${esc(w.name)}">${esc(w.kuerzel || w.name)}</button>`).join("")}</div></span>` : "";
     const raster = `<span class="grp"><span class="lbl">${t("Raster")}</span><div class="seg">${RASTER.map(([k, l]) =>
       `<button data-raster="${k}" aria-pressed="${s.raster === k}">${t(l)}</button>`).join("")}</div></span>`;
+    const tools = `<span class="grow"></span><button class="btn flat sm" data-k="builder" aria-pressed="${s.builder}">＋ ${t("Modul")}</button>
+      <button class="btn flat sm" data-k="edit" aria-pressed="${s.edit}">${s.edit ? t("Fertig") : t("Anordnen")}</button>`;
     return `<div class="fbar">${period}${anchor}${cmp}<span class="sep"></span>${raster}${apts}
-      <span class="sep"></span><div class="chips">${channelChips(d.apt, s.channels)}</div></div>`;
+      <span class="sep"></span><div class="chips">${channelChips(d.apt, s.channels)}</div>${tools}</div>`;
   }
 
   // ---- Modul 1: Kennzahlenleiste ----
@@ -2843,7 +3324,7 @@ class SmoobuStatsCard extends SmoobuCard {
     const cur = d.apt.currency;
     const cur_ = x.ser, cmp = x.serC;
     const n = Math.max(cur_.length, 1);
-    const W = 800, H = 230, L = 58, R = 10, T = 12, B = 26;
+    const W = this.chartW(1), H = 230, L = 58, R = 10, T = 12, B = 26;
     const vals = [...cur_.map((p) => p.wert), ...cmp.map((p) => p.wert)].filter((v) => v !== null && v !== undefined);
     const max = niceMax(Math.max(0, ...vals) * 1.08);
     const y = (v) => T + (H - T - B) * (1 - (v || 0) / max);
@@ -2854,7 +3335,7 @@ class SmoobuStatsCard extends SmoobuCard {
       svg += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity=".1"/>
         <text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity=".6">${this.fmt(k.id, v, cur)}</text>`;
     }
-    const step = Math.ceil(n / 14);
+    const step = Math.ceil(n / Math.max(4, Math.floor(W / 60)));
     cur_.forEach((p, i) => {
       const x0 = L + i * bw;
       const low = (p.n || 0) < 5;
@@ -2883,7 +3364,7 @@ class SmoobuStatsCard extends SmoobuCard {
     const cur = d.apt.currency;
     const target = String(p.zieljahr);
     const years = Object.keys(p.kurven).sort().reverse(); // Zieljahr zuerst
-    const W = 800, H = 290, L = 62, R = 74, T = 14, B = 34;
+    const W = this.chartW(0.64, 340), H = 290, L = 62, R = 74, T = 14, B = 34;
     const all = years.flatMap((y) => p.kurven[y].map((q) => q.wert));
     if (p.prognose) all.push(p.prognose.oben);
     const max = niceMax(Math.max(1, ...all) * 1.05);
@@ -2896,10 +3377,10 @@ class SmoobuStatsCard extends SmoobuCard {
         <text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity=".6">${money(v, cur)}</text>`;
     }
     // x-Achse: Buchungsdatum, Jan Vorjahr … Dez Zieljahr; Jahreswechsel markiert
-    for (let i = 0; i < 24; i += 2) svg += `<text x="${x(i)}" y="${H - 16}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".65">${t(MONTHS_SHORT[i % 12])}</text>`;
+    for (let i = 0; i < 24; i += W < 560 ? 4 : 2) svg += `<text x="${x(i)}" y="${H - 16}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".65">${t(MONTHS_SHORT[i % 12])}</text>`;
     svg += `<line x1="${x(11.5)}" x2="${x(11.5)}" y1="${T}" y2="${H - B}" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="2 3"/>
-      <text x="${x(5.5)}" y="${H - 2}" text-anchor="middle" font-size="11" font-weight="600" fill="currentColor" fill-opacity=".55">${t("gebucht im Vorjahr")}</text>
-      <text x="${x(17.5)}" y="${H - 2}" text-anchor="middle" font-size="11" font-weight="600" fill="currentColor" fill-opacity=".55">${t("gebucht im Aufenthaltsjahr")}</text>`;
+      <text x="${x(5.5)}" y="${H - 2}" text-anchor="middle" font-size="11" font-weight="600" fill="currentColor" fill-opacity=".55">${W < 560 ? t("Vorjahr") : t("gebucht im Vorjahr")}</text>
+      <text x="${x(17.5)}" y="${H - 2}" text-anchor="middle" font-size="11" font-weight="600" fill="currentColor" fill-opacity=".55">${W < 560 ? t("Aufenthaltsjahr") : t("gebucht im Aufenthaltsjahr")}</text>`;
     // Linien: Zieljahr kräftig (Akzent), Vorjahr mittel, ältere Jahre blasser
     const style = (yr, idx) => (yr === target ? { c: "var(--sm-accent)", w: 3, o: 1, dash: "" }
       : idx === 1 ? { c: "currentColor", w: 2, o: 0.6, dash: "" } : { c: "currentColor", w: 1.4, o: Math.max(0.14, 0.38 - (idx - 2) * 0.06), dash: "4 3" });
@@ -3068,6 +3549,8 @@ class SmoobuStatsCard extends SmoobuCard {
   }
 
   body(d) {
+    this._cw = this.getBoundingClientRect().width || this._cw || 1100;
+    const s = this._state;
     const simple = d.simple;
     const sen = this.sentence(d);
     const modeSeg = `<div class="seg" role="group" aria-label="${t("Ansicht")}">${[["werkbank", "Werkbank"], ["einfach", "Einfach"]].map(([k, l]) =>
@@ -3079,8 +3562,53 @@ class SmoobuStatsCard extends SmoobuCard {
       return `${head}${this.filterBar(d)}${this.kpiBar(d)}<div class="two">${this.forecastCard(d)}</div>
         <div class="hint">${t("Buchungstempo, Verlauf und Saison-Matrix:")} <button class="lnk" data-mode="werkbank">${t("Werkbank öffnen")}</button></div>${tt}`;
     }
-    return `${head}${this.filterBar(d)}${this.kpiBar(d)}${this.focusChart(d)}
-      <div class="two">${this.paceChart(d)}${this.forecastCard(d)}</div>${this.seasonMatrix(d)}${tt}`;
+    const L = d.layout;
+    const parts = L.order.filter((id) => s.edit || !L.hidden.includes(id)).map((id, i, arr) => {
+      const def = L.custom.find((c) => c.id === id);
+      const hidden = L.hidden.includes(id);
+      const name = def ? def.title || t("Eigenes Modul") : t(STATS_TITLES[id]);
+      const bar = s.edit ? `<div class="mbar${hidden ? " off" : ""}"><b>${esc(name)}</b>${hidden ? `<span class="sub">${t("ausgeblendet")}</span>` : ""}<span class="grow"></span>
+        <button class="step" data-mv="${id}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="${t("nach oben")}">↑</button>
+        <button class="step" data-mv="${id}" data-dir="1" ${i === arr.length - 1 ? "disabled" : ""} aria-label="${t("nach unten")}">↓</button>
+        <button class="btn flat sm" data-hide="${id}">${hidden ? t("Einblenden") : t("Ausblenden")}</button>
+        ${def ? `<button class="btn flat sm" data-del="${id}">${t("Löschen")}</button>` : ""}</div>` : "";
+      if (hidden) return `<section class="mod">${bar}</section>`;
+      return `<section class="mod">${bar}${this.module(id, d, def)}</section>`;
+    }).join("");
+    return `${head}${this.filterBar(d)}${s.builder ? this.builder(d) : ""}${parts}${tt}`;
+  }
+  // Ein Modul der Werkbank (1–3 eingebaut, 4–11 aus STATS_MODULES, sonst Baukasten)
+  module(id, d, def) {
+    if (id === "kennzahlen") return `${this.kpiBar(d)}${this.focusChart(d)}`;
+    if (id === "tempo") return `<div class="two">${this.paceChart(d)}${this.forecastCard(d)}</div>`;
+    if (id === "saison") return this.seasonMatrix(d);
+    const data = d.mods[id];
+    if (!data) return "";
+    if (data.__error) return panel(esc(def?.title || t(STATS_TITLES[id] || "Modul")), "", `<div class="err">${t("Fehler")}: ${esc(data.__error)}</div>`);
+    try { return def ? CUSTOM_MODULE.render(this, d, data, def) : STATS_MODULES[id].render(this, d, data); }
+    catch (e) { return panel(esc(t(STATS_TITLES[id] || "Modul")), "", `<div class="err">${t("Fehler")}: ${esc(e.message)}</div>`); }
+  }
+  // Baukasten: neues Modul zusammenstellen (Kennzahl × Gruppierung × Aufteilung × Darstellung)
+  builder(d) {
+    const s = this._state;
+    const dr = s.draft;
+    const ms = d.meta?.kennzahlen || [];
+    const dims = (d.meta?.dimensionen || Object.keys(DIM_LABEL)).filter((x) => x !== "gesamt");
+    const opt = (list, val) => list.map(([k, l]) => `<option value="${k}" ${k === val ? "selected" : ""}>${esc(l)}</option>`).join("");
+    const hidden = d.layout.hidden;
+    return `<div class="panel builder"><div class="ph"><h2>＋ ${t("Eigenes Modul")}</h2><span class="sub">${t("Wird auf diesem Gerät gespeichert und erscheint unten in der Werkbank")}</span></div>
+      <div class="bform">
+        <label>${t("Kennzahl")}<select data-b="measure">${opt(ms.map((m) => [m.id, m.name]), dr.measure)}</select></label>
+        <label>${t("Gruppierung")}<select data-b="dimension">${opt(dims.map((k) => [k, t(DIM_LABEL[k] || k)]), dr.dimension)}</select></label>
+        <label>${t("Aufteilung")}<select data-b="split"><option value="">${t("keine")}</option>${opt(dims.filter((k) => k !== dr.dimension).map((k) => [k, t(DIM_LABEL[k] || k)]), dr.split)}</select></label>
+        <label>${t("Darstellung")}<div class="seg">${VIEWS.map(([k, l]) => `<button data-bview="${k}" aria-pressed="${dr.view === k}">${t(l)}</button>`).join("")}</div></label>
+        <label>${t("Titel")}<input data-b="title" value="${esc(dr.title)}" placeholder="${t("optional")}"></label>
+        <div class="row"><button class="btn" data-k="bsave">${t("Speichern")}</button><button class="btn flat" data-k="builder">${t("Abbrechen")}</button></div>
+      </div>
+      ${hidden.length ? `<div class="sub" style="margin-top:10px">${t("Ausgeblendet")}: ${hidden.map((id) => {
+        const def = d.layout.custom.find((c) => c.id === id);
+        return `<button class="chip" data-hide="${id}">↺ ${esc(def ? def.title || t("Eigenes Modul") : t(STATS_TITLES[id]))}</button>`;
+      }).join(" ")}</div>` : ""}</div>`;
   }
   bind(root) {
     const s = this._state;
@@ -3118,6 +3646,51 @@ class SmoobuStatsCard extends SmoobuCard {
       this._data = null; // anderes Datenpaket (Einfach lädt weniger)
       this._reload();
     }));
+    // Teilschritte 3/4: Tabelle, CSV, Anordnen, Baukasten
+    root.querySelectorAll("[data-open]").forEach((el) => el.addEventListener("click", () => this.openBooking(Number(el.dataset.open))));
+    root.querySelector('[data-k="tableall"]')?.addEventListener("click", () => this.setState({ tableAll: !s.tableAll }));
+    root.querySelector('[data-k="csv"]')?.addEventListener("click", () => this.exportCsv());
+    root.querySelectorAll('[data-k="edit"]').forEach((el) => el.addEventListener("click", () => this.setState({ edit: !s.edit }, true)));
+    root.querySelectorAll('[data-k="builder"]').forEach((el) => el.addEventListener("click", () => this.setState({ builder: !s.builder }, true)));
+    const layoutChange = (fn) => { const l = statsLayout(); fn(l); saveLayout(l); this._reload(); };
+    root.querySelectorAll("[data-mv]").forEach((el) => el.addEventListener("click", () => layoutChange((l) => {
+      const i = l.order.indexOf(el.dataset.mv), j = i + Number(el.dataset.dir);
+      if (i < 0 || j < 0 || j >= l.order.length) return;
+      [l.order[i], l.order[j]] = [l.order[j], l.order[i]];
+    })));
+    root.querySelectorAll("[data-hide]").forEach((el) => el.addEventListener("click", () => layoutChange((l) => {
+      const id = el.dataset.hide;
+      l.hidden = l.hidden.includes(id) ? l.hidden.filter((x) => x !== id) : [...l.hidden, id];
+    })));
+    root.querySelectorAll("[data-del]").forEach((el) => el.addEventListener("click", async () => {
+      if (!(await confirmDialog(t("Eigenes Modul löschen?")))) return;
+      layoutChange((l) => { const id = el.dataset.del; l.custom = l.custom.filter((c) => c.id !== id); l.order = l.order.filter((x) => x !== id); l.hidden = l.hidden.filter((x) => x !== id); });
+    }));
+    root.querySelectorAll("[data-b]").forEach((el) => el.addEventListener("change", () => {
+      const draft = { ...s.draft, [el.dataset.b]: el.value };
+      if (draft.split === draft.dimension) draft.split = "";
+      this._state.draft = draft;
+      if (el.dataset.b !== "title") this.render();
+    }));
+    root.querySelectorAll("[data-bview]").forEach((el) => el.addEventListener("click", () => { this._state.draft = { ...s.draft, view: el.dataset.bview }; this.render(); }));
+    root.querySelector('[data-k="bsave"]')?.addEventListener("click", () => {
+      const title = root.querySelector('[data-b="title"]')?.value || "";
+      const def = { ...s.draft, title, id: `c_${Date.now().toString(36)}`, split: s.draft.split || null };
+      const l = statsLayout();
+      l.custom.push(def);
+      l.order.push(def.id);
+      saveLayout(l);
+      this._state.builder = false;
+      this._reload();
+    });
+    // Breite merken und bei deutlicher Größenänderung neu zeichnen (Diagramme passen sich an)
+    if (!this._ro && window.ResizeObserver) {
+      this._ro = new ResizeObserver(() => {
+        const w = this.getBoundingClientRect().width;
+        if (this._data && w && Math.abs(w - (this._cw || 0)) > 40) this.render();
+      });
+      this._ro.observe(this);
+    }
     // Tooltips: ein schwebendes Kästchen für alle Elemente mit data-tip (Maus: Hover, Touch: Tippen)
     const card = root.querySelector("ha-card");
     const tt = root.querySelector(".tt");
@@ -3138,6 +3711,16 @@ class SmoobuStatsCard extends SmoobuCard {
     card.addEventListener("pointermove", show);
     card.addEventListener("pointerdown", show);
     card.addEventListener("pointerleave", () => { tt.hidden = true; });
+  }
+  // CSV der Datentabelle (alle Buchungen im Filter, gleiche Spalten wie die Buchungsliste)
+  exportCsv() {
+    const m = this._data?.mods?.tabelle;
+    if (!m?.buchungen) return;
+    const cols = BOOKING_COLS;
+    const rows = m.buchungen.filter((b) => !b.blockiert).sort((a, b) => b.anreise.localeCompare(a.anreise));
+    const [a, b] = this._data.range;
+    downloadCsv(`smoobu_statistik_${iso(a)}_${iso(addDays(b, -1))}.csv`,
+      [cols.map((c) => t(c[1])), ...rows.map((r) => cols.map((c) => r[c[0]] ?? ""))]);
   }
   getCardSize() { return 14; }
 }
