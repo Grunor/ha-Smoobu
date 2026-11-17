@@ -208,6 +208,8 @@ def booking_record(
         "offen": 0.0 if (blocked or cancelled) else open_amount(booking, payment_excluded),
         "kurtaxe": booking.get("city-tax"),
         "hund": hint is not None,
+        # v1.18.0: Booking.com kennzeichnet Genius-Gäste in der Notiz („Weitere Angaben: booker_is_genius“)
+        "genius": "booker_is_genius" in str(booking.get("notice") or "").casefold(),
         "hund_hinweis": hint,
         "erstellt": created.isoformat() if created else None,
         "geaendert": booking.get("modifiedAt"),

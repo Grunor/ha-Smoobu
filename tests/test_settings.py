@@ -131,3 +131,19 @@ def test_provision_herkunft():
     assert src["Booking.com"]["status"] == "smoobu" and src["Booking.com"]["prozent_schnitt"] == 15.0
     assert src["Airbnb"]["status"] == "teilweise" and src["Airbnb"]["mit_provision"] == 1
     assert src["Expedia"]["status"] == "option" and src["Expedia"]["ungueltig"] == 1
+
+
+def test_genius_check():
+    from datetime import date
+
+    from custom_components.smoobu.analytics import build_records
+    from custom_components.smoobu.settings import genius_check
+    from tests.test_analytics import bk, costs
+
+    recs = build_records([
+        bk(1, "2026-08-04", "2026-08-06", "Booking.com", 188, notice="Weitere Angaben: booker_is_genius"),
+        bk(2, "2026-09-04", "2026-09-06", "Booking.com", 188, notice="Payment charge is EUR 2.63"),
+        bk(3, "2026-09-10", "2026-09-12", "Airbnb", 188, notice="booker_is_genius"),
+    ], costs, [], date(2026, 11, 17))
+    g = genius_check(recs, date(2026, 11, 17))
+    assert g == {"buchungen": 2, "genius": 1, "anteil": 50, "letzte": "2026-09-04"}

@@ -8,6 +8,16 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.18.0b4 – 2026-11-17
+
+> Beta / Pre-release
+
+**Deutsch**
+- **Genius-Check (Einstellungen → Kosten & Preise):** zählt die Booking.com-Buchungen der letzten 24 Monate mit Genius-Gast (Booking.com schreibt „booker_is_genius“ in die Notiz) und zeigt den Anteil neben der Option „Anteil Genius-Buchungen“, mit Button „Gemessenen Anteil übernehmen“. Den Rabatt selbst liefert Booking.com nicht. Buchungsdatensätze haben dafür das neue Feld `genius`
+
+**English**
+- **Genius check (settings → costs & prices):** counts the Booking.com bookings of the last 24 months with a Genius guest (Booking.com writes "booker_is_genius" into the note) and shows the share next to the option "share of Genius bookings", with a "use measured share" button. Booking.com does not provide the discount itself. Booking records get the new field `genius` for this
+
 ## 1.18.0b3 – 2026-11-17
 
 > Beta / Pre-release

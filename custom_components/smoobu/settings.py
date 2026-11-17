@@ -248,6 +248,21 @@ def commission_sources(records: list[dict[str, Any]], today: date) -> dict[str, 
     return out
 
 
+def genius_check(records: list[dict[str, Any]], today: date) -> dict[str, Any]:
+    """Wie viele Booking.com-Buchungen der letzten 24 Monate kamen von Genius-Gästen? (v1.18.0)
+
+    Booking.com schreibt „booker_is_genius“ in die Notiz, die Smoobu mitliefert. Den Rabatt selbst
+    (10/15/20 %) liefert es nicht – der bleibt eine Option.
+    """
+    since = date(today.year - 2, today.month, 1).isoformat()
+    items = [r for r in records if not r["blockiert"] and not r["storniert"] and r["anreise"] >= since
+             and (r["kanal"] or "").casefold() == "booking.com"]
+    genius = sum(1 for r in items if r.get("genius"))
+    return {"buchungen": len(items), "genius": genius,
+            "anteil": round(genius / len(items) * 100) if items else None,
+            "letzte": max((r["anreise"] for r in items), default=None)}
+
+
 async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, Any]:
     """Auswahlmöglichkeiten für die Karte: Handys, KI-Entitäten, Kanäle, Wohnungen, Benutzer."""
     phones = sorted(
@@ -285,6 +300,8 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
         "push_arten": NOTIFY_TYPES,
         "admin": bool(user and user.is_admin),
         # v1.18.0: je Kanal, ob Smoobu eine gültige Provision liefert (Markierung im Reiter Provisionen)
+        "genius_check": genius_check(
+            [r for apt_id in (data.apartments if data else {}) for r in coordinator.records(apt_id)], date.today()),
         "provision_herkunft": commission_sources(
             [r for apt_id in (data.apartments if data else {}) for r in coordinator.records(apt_id)], date.today()),
         # v1.18.0: Rollen × Rechte und eigene Rolle (Anzeige im Reiter „Benutzer & Rechte“)

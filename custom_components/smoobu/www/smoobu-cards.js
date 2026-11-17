@@ -40,7 +40,8 @@ const EN = {
   "Tage zurückgesetzt": "days reset", "Keine Änderung nötig": "No change needed", "ausgelassen": "skipped",
   "Feiertag": "holiday", "eigener Preis": "own price", "Last-Minute": "Last minute", "Fenster": "Window", "max. Rabatt": "max. discount",
   "kein Rabatt empfohlen": "no discount recommended", "Smoobu liefert": "Smoobu provides", "teilweise": "partly",
-  "Wert hier wird genutzt": "value here is used", "Direktkanal": "direct channel", "keine Buchungen": "no bookings",
+  "Wert hier wird genutzt": "value here is used", "Genius-Check": "Genius check", "Gemessenen Anteil übernehmen": "Use measured share",
+  "passt zur Einstellung": "matches the setting", "Direktkanal": "direct channel", "keine Buchungen": "no bookings",
   "Provision von Smoobu (24 Monate)": "Commission from Smoobu (24 months)", "Weitere Kanäle mit Buchungen": "Other channels with bookings", "auf die freien Nächte": "on the free nights", "Lücke": "Gap", "Kanalpreise bei": "Channel prices at",
   "Kosten & Preise": "Costs & prices", "Bewertung & Empfehlung": "Assessment & recommendation", "Basispreis heute": "Base price today",
   "Basispreis": "Base price", "netto je Nacht": "net per night", "Schwach": "Weak", "Normal": "Normal", "Stark": "Strong",
@@ -4753,7 +4754,16 @@ class SmoobuSettingsCard extends SmoobuCard {
       <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Aufschlag")}</th><th></th></tr></thead><tbody>${mk}</tbody></table></div>
         <div class="inline"><button class="btn flat" data-madd>＋ ${t("Kanal hinzufügen")}</button></div>${this.err("channel_markups")}
         ${this.fld("Booking.com Genius-Rabatt", this.numIn("genius_discount", 0, 50, 1, "%"), "Genius-Gäste zahlen weniger als den Kanalpreis.", "genius_discount")}
-        ${this.fld("Anteil Genius-Buchungen", this.numIn("genius_share", 0, 100, 1, "%"), "Unbekannt? 100 % lassen – vorsichtige Annahme (siehe Booking.com-Extranet).", "genius_share")}</div></div>
+        ${this.fld("Anteil Genius-Buchungen", this.numIn("genius_share", 0, 100, 1, "%"), "Unbekannt? 100 % lassen – vorsichtige Annahme (siehe Booking.com-Extranet).", "genius_share")}
+        ${(() => {
+          // v1.18.0: Checkup aus den eigenen Buchungen (Booking.com markiert Genius-Gäste in der Notiz)
+          const g = meta.genius_check;
+          if (!g || !g.buchungen) return `<div class="sub">${t("Genius-Check: keine Booking.com-Buchungen in den letzten 24 Monaten.")}</div>`;
+          const same = Number(d.genius_share) === g.anteil;
+          return `<div class="note">${t("Genius-Check")}: <b>${num(g.genius)} ${t("von")} ${num(g.buchungen)}</b> ${t("Booking.com-Buchungen der letzten 24 Monate waren Genius-Gäste")} (${num(g.anteil)} %).
+            ${same ? `✓ ${t("passt zur Einstellung")}` : `<button class="btn flat sm" data-genius="${g.anteil}">${t("Gemessenen Anteil übernehmen")} (${num(g.anteil)} %)</button>`}
+            <div class="sub">${t("Den Rabatt selbst (10/15/20 %) liefert Booking.com nicht – bitte im Extranet unter Genius nachsehen.")}</div></div>`;
+        })()}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Last-Minute")}</b>
         <span class="sub">${t("Standard: kein Rabatt. Nur Lücken zwischen zwei Gästen oder Nächte in schwach gebuchten Monaten bekommen einen Vorschlag – nie unter der Untergrenze.")}</span></div></div><div class="gb">
         ${this.fld("Last-Minute-Fenster", this.numIn("lastminute_days", 1, 14, 1, "Tage"), "So viele Tage vor Anreise gilt eine freie Nacht als Last-Minute.", "lastminute_days")}
@@ -4877,6 +4887,7 @@ class SmoobuSettingsCard extends SmoobuCard {
       d.commissions = { ...d.commissions, [name]: d.commission_other };
       redraw();
     });
+    root.querySelector("[data-genius]")?.addEventListener("click", (e) => { d.genius_share = Number(e.target.dataset.genius); redraw(); });
     // Benutzerrollen (nur Admins sehen die Auswahl); leer = Standardrolle
     root.querySelectorAll("[data-role]").forEach((sel) => sel.addEventListener("change", () => {
       const roles = { ...(d.user_roles || {}) };
