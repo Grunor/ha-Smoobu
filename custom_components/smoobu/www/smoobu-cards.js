@@ -169,6 +169,55 @@ const EN = {
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
   // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
   "Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum": "Share of bookings (arrival in period) and of nights in period",
+  // v1.18.0b7: Ehrentafel
+  "Ehrentafel": "Hall of fame",
+  "Nur zum Spaß – keine Gästebewertung": "Just for fun – not a guest rating",
+  "Die Goldene Fußmatte": "The Golden Doormat",
+  "Die Rostige Klobürste": "The Rusty Toilet Brush",
+  "Gäste, die man gern wieder sieht": "Guests you'd love to see again",
+  "Wanderpokal für besonderen Einsatz": "Challenge trophy for special effort",
+  "netto/Nacht": "net/night",
+  "je Nacht": "per night",
+  "Abzug": "deducted",
+  "Ruhe": "Calm",
+  "Pünktlichkeit": "Punctuality",
+  "Extra-Stunden": "Extra hours",
+  "Billigpreis": "Bargain price",
+  "Gesprächigkeit": "Chattiness",
+  "Kurzaufenthalt": "Short stay",
+  "Portal-Abzug": "Portal deduction",
+  "Zahlt": "Pays",
+  "Respekt": "respect",
+  "Schweigsam wie ein Mönch: 0 Anliegen": "Silent as a monk: 0 requests",
+  "Pflegeleicht": "Low-maintenance",
+  "Pünktlich wie ein Schweizer Uhrwerk": "Punctual like Swiss clockwork",
+  "Fast pünktlich": "Almost on time",
+  "Plant voraus": "Plans ahead",
+  "Tage vorher gebucht": "days in advance",
+  "Frühaufsteher und Langschläfer": "Early bird and late riser",
+  "Frühaufsteher": "Early bird",
+  "Langschläfer": "Late riser",
+  "Check-in": "Check-in",
+  "Check-out": "Check-out",
+  "Schnäppchenjäger": "Bargain hunter",
+  "Brieffreund": "Pen pal",
+  "Eine Nacht, volle Reinigung": "One night, full cleaning",
+  "Kurz und schmutzig": "Short and messy",
+  "Das Portal isst mit": "The portal eats along",
+  "weg": "gone",
+  "Stammgast – gehört fast zur Familie": "Regular – practically family",
+  "Punkte": "Points",
+  "inkl. Stammgast-Bonus": "incl. regular bonus",
+  "keine Daten (neutral)": "no data (neutral)",
+  "Pkt.": "pts",
+  "Keine abgeschlossenen Aufenthalte im Zeitraum": "No completed stays in this period",
+  "Gewertet": "Rated",
+  "Aufenthalte mit Abreise im Zeitraum": "stays departing in the period",
+  "Uhrzeit bekannt": "time known",
+  "Nachrichten geladen": "messages loaded",
+  "Standard": "Default",
+  "Zu wenig Gäste für eine faire Wertung": "Too few guests for a fair ranking",
+  "Zeitraum vergrößern": "widen the period",
   "Stand": "as of", "Endstand": "Final", "Endstand Vergleichszeitraum": "Final value of comparison period",
   "Pfeil und Farbe vergleichen mit dem Stand am Stichtag, nicht mit dem Endstand.": "Arrow and colour compare with the status on the reference day, not with the final value.",
 };
@@ -2996,11 +3045,11 @@ function binLabel(fach, long = false) {
 // Anordnung (Reihenfolge, ausgeblendete Module, eigene Baukasten-Module) je Gerät in localStorage –
 // Entscheidung Betreiber: „speichern je Gerät“ (kein Server-Speicher, kein Abgleich zwischen Geräten).
 const STATS_LAYOUT_KEY = "smoobu-statistik-layout";
-const STATS_BUILTIN = ["kennzahlen", "empfehlung", "tempo", "saison", "belegung", "kanaele", "fenster", "buchungszeit", "luecken", "stornos", "gaeste", "service", "tabelle"];
+const STATS_BUILTIN = ["kennzahlen", "empfehlung", "tempo", "saison", "belegung", "kanaele", "fenster", "buchungszeit", "luecken", "stornos", "gaeste", "ehrentafel", "service", "tabelle"];
 const STATS_TITLES = {
   kennzahlen: "Kennzahlen", empfehlung: "Bewertung & Empfehlung", tempo: "Buchungstempo & Prognose", saison: "Saison-Matrix", belegung: "Belegung nach Wochentag",
   kanaele: "Kanal-Wirtschaftlichkeit", fenster: "Buchungsfenster & Aufenthalt", buchungszeit: "Buchungszeitpunkt", luecken: "Verlorene Nächte", stornos: "Stornos",
-  gaeste: "Gäste", service: "Service", tabelle: "Datentabelle",
+  gaeste: "Gäste", ehrentafel: "Ehrentafel", service: "Service", tabelle: "Datentabelle",
 };
 // Dimensionen des Baukastens (stats.DIMENSIONS) mit Anzeigenamen
 const DIM_LABEL = {
@@ -3025,6 +3074,8 @@ function statsLayout() {
   const order = (Array.isArray(l.order) ? l.order : []).filter((id) => known.includes(id));
   // v1.18.0: „Bewertung & Empfehlung“ direkt nach den Kennzahlen einfügen (statt hinten), auch in gespeicherten Layouts
   if (order.length && !order.includes("empfehlung")) order.splice(order.indexOf("kennzahlen") + 1, 0, "empfehlung");
+  // v1.18.0b7: „Ehrentafel“ direkt nach „Gäste“ einfügen, auch in gespeicherten Layouts
+  if (order.length && !order.includes("ehrentafel") && order.includes("gaeste")) order.splice(order.indexOf("gaeste") + 1, 0, "ehrentafel");
   for (const id of known) if (!order.includes(id)) order.push(id); // neue Module hinten anhängen
   const hidden = (Array.isArray(l.hidden) ? l.hidden : []).filter((id) => known.includes(id));
   // v1.17.1: Datentabelle doppelt die Seite „Buchungen“ (inkl. CSV) → einmalig ausblenden; über ↺ wieder einblendbar
@@ -3585,6 +3636,75 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
           ${sg?.wert && nk?.wert ? `<div class="sub" style="margin-top:8px">${t("Netto je Nacht")}: ${t("Stammgast")} ${money(sg.wert, d.apt.currency)} (n = ${sg.n}) · ${t("Neukunde")} ${money(nk.wert, d.apt.currency)} (n = ${nk.n})</div>` : ""}`);
     },
   },
+  // v1.18.0b7: Ehrentafel (Fun-Statistik) – Backend stats.ranking. Zwei Spalten mit je Top 3:
+  // „Die Goldene Fußmatte“ (Lieblingsgäste) und „Die Rostige Klobürste“ (sarkastischer Wanderpokal).
+  // Je Platz die zwei stärksten Kriterien als Spruch; Tooltip zeigt alle Kriterien mit Rohwert und Punkten.
+  ehrentafel: {
+    load: (c) => c.ws("ranking"),
+    render: (card, d, m) => {
+      const cur = d.apt.currency;
+      const std = m.standard || { check_in: 16, check_out: 11 };
+      const hrs = (v) => `${num(v, v % 1 ? 1 : 0)} h`;
+      const hm = (v) => { const h = Math.floor(v), mi = Math.round((v - h) * 60); return `${h}:${String(mi).padStart(2, "0")}`; };
+      const hOf = (s) => { if (!s) return null; const [h, mi] = String(s).split(":").map(Number); return isNaN(h) ? null : h + (mi || 0) / 60; };
+      const nights = (n) => `${num(n)} ${n === 1 ? t("Nacht") : t("Nächte")}`;
+      // Rohwert je Kriterium (für Tooltip) – null = fehlt (zählt neutral 50)
+      const raw = {
+        preis: (g) => `${money(g.netto_pro_nacht, cur)} ${t("netto/Nacht")}`,
+        billig: (g) => `${money(g.netto_pro_nacht, cur)} ${t("netto/Nacht")}`,
+        ruhe: (g) => (g.anliegen === null ? null : `${num(g.anliegen)} ${t("Anliegen")}`),
+        gespraechig: (g) => (g.nachrichten === null ? null : `${num(g.nachrichten)} ${t("Nachrichten")} (${num(g.nachrichten_je_nacht, 1)} ${t("je Nacht")})`),
+        puenktlich: (g) => (g.extra_stunden === null ? null : `+${hrs(g.extra_stunden)}`),
+        extra: (g) => (g.extra_stunden === null ? null : `+${hrs(g.extra_stunden)}`),
+        vorlauf: (g) => (g.vorlauf_tage === null || g.vorlauf_tage === undefined ? null : `${num(g.vorlauf_tage)} ${t("Tage")}`),
+        kurz: (g) => nights(g.naechte),
+        portal: (g) => (g.netto_quote === null ? null : `${pct(100 - g.netto_quote * 100, 0)} ${t("Abzug")}`),
+      };
+      const NAMES = { preis: "Preis", ruhe: "Ruhe", puenktlich: "Pünktlichkeit", vorlauf: "Vorlauf", extra: "Extra-Stunden",
+        billig: "Billigpreis", gespraechig: "Gesprächigkeit", kurz: "Kurzaufenthalt", portal: "Portal-Abzug" };
+      // Sprüche: nur für Kriterien mit echtem Wert (ein neutrales 50 ist keine Begründung)
+      const quip = {
+        preis: (g) => `💶 ${t("Zahlt")} ${money(g.netto_pro_nacht, cur)}/${t("Nacht")} – ${t("Respekt")}`,
+        ruhe: (g) => (g.anliegen === 0 ? `🤫 ${t("Schweigsam wie ein Mönch: 0 Anliegen")}` : `🧘 ${t("Pflegeleicht")}: ${num(g.anliegen)} ${t("Anliegen")}`),
+        puenktlich: (g) => (g.extra_stunden === 0 ? `⏰ ${t("Pünktlich wie ein Schweizer Uhrwerk")}` : `⏰ ${t("Fast pünktlich")}: +${hrs(g.extra_stunden)}`),
+        vorlauf: (g) => `🗓️ ${t("Plant voraus")}: ${num(g.vorlauf_tage)} ${t("Tage vorher gebucht")}`,
+        extra: (g) => {
+          const ci = hOf(g.check_in), co = hOf(g.check_out);
+          const early = ci !== null ? Math.max(0, std.check_in - ci) : 0, late = co !== null ? Math.max(0, co - std.check_out) : 0;
+          if (early && late) return `🛏️ ${t("Frühaufsteher und Langschläfer")}: ${hm(ci)} – ${hm(co)} (+${hrs(g.extra_stunden)})`;
+          return early ? `🐓 ${t("Frühaufsteher")}: ${t("Check-in")} ${hm(ci)} (+${hrs(early)})` : `😴 ${t("Langschläfer")}: ${t("Check-out")} ${hm(co)} (+${hrs(late)})`;
+        },
+        billig: (g) => `🏷️ ${t("Schnäppchenjäger")}: ${money(g.netto_pro_nacht, cur)}/${t("Nacht")}`,
+        gespraechig: (g) => `✉️ ${t("Brieffreund")}: ${num(g.nachrichten)} ${t("Nachrichten")}`,
+        kurz: (g) => (g.naechte === 1 ? `🧽 ${t("Eine Nacht, volle Reinigung")}` : `🧽 ${t("Kurz und schmutzig")}: ${nights(g.naechte)}`),
+        portal: (g) => `🍽️ ${t("Das Portal isst mit")}: ${pct(100 - g.netto_quote * 100, 0)} ${t("weg")}`,
+      };
+      const MEDALS = ["🥇", "🥈", "🥉"];
+      const place = (g, i, key) => {
+        const sc = g[key];
+        const crit = Object.entries(sc.kriterien).filter(([c]) => raw[c](g) !== null).sort((a, b) => b[1] - a[1]);
+        const lines = crit.slice(0, 2).map(([c]) => quip[c](g));
+        if (key === "gold" && g.stammgast) lines.push(`🏠 ${t("Stammgast – gehört fast zur Familie")}`);
+        const tip = `${g.name} · ${fdate(g.anreise)} – ${fdate(g.abreise)} · ${chn(g.kanal)}\n${t("Punkte")}: ${num(sc.punkte, 1)}${key === "gold" && g.stammgast ? ` (${t("inkl. Stammgast-Bonus")})` : ""}\n`
+          + Object.entries(sc.kriterien).map(([c, p]) => `${t(NAMES[c])}: ${raw[c](g) ?? t("keine Daten (neutral)")} → ${num(p)}`).join("\n");
+        return `<div class="rk click" data-open="${g.id}" data-tip="${esc(tip)}">
+          <div class="rm">${MEDALS[i]}</div>
+          <div class="rb"><div class="rn"><b>${esc(g.name)}</b><span class="dot" style="background:${chColor(g.kanal)}"></span><span class="sub">${fdate(g.anreise)} – ${fdate(g.abreise)}</span></div>
+            ${lines.map((l) => `<div class="rq">${esc(l)}</div>`).join("")}</div>
+          <div class="rp">${num(sc.punkte)}<em>${t("Pkt.")}</em></div></div>`;
+      };
+      const col = (title, sub, list, key) => `<div class="rcol ${key}"><div class="rh">${title}</div><div class="sub">${sub}</div>
+        ${list.length ? list.map((g, i) => place(g, i, key)).join("") : `<div class="empty">${t("Keine abgeschlossenen Aufenthalte im Zeitraum")}</div>`}</div>`;
+      const cov = m.abdeckung || {};
+      const note = `${t("Gewertet")}: ${num(m.gaeste)} ${t("Aufenthalte mit Abreise im Zeitraum")} · ${t("Uhrzeit bekannt")}: ${num(cov.uhrzeit)} · ${t("Nachrichten geladen")}: ${num(cov.nachrichten)}`
+        + ` · ${t("Standard")} ${hm(std.check_in)} / ${hm(std.check_out)}`;
+      return panel(`🏆 ${t("Ehrentafel")}`, t("Nur zum Spaß – keine Gästebewertung"),
+        `${m.zu_wenig ? `<div class="hint">${t("Zu wenig Gäste für eine faire Wertung")} (n = ${num(m.gaeste)} < ${m.min_n}) – ${t("Zeitraum vergrößern")}.</div>` : ""}
+        <div class="split2 even">${col(`🏆 ${t("Die Goldene Fußmatte")}`, t("Gäste, die man gern wieder sieht"), m.goldene_fussmatte || [], "gold")}
+          ${col(`🪠 ${t("Die Rostige Klobürste")}`, t("Wanderpokal für besonderen Einsatz"), m.rostige_kloburste || [], "buerste")}</div>
+        <div class="sub" style="margin-top:10px">${note}</div>`);
+    },
+  },
   // 10: Service (Antwortzeit)
   service: {
     load: (c) => c.ws("service"),
@@ -3864,6 +3984,19 @@ class SmoobuStatsCard extends SmoobuCard {
     .hc { height: 18px; border-radius: 3px; }
     .hc.none { background: transparent; }
     .mt { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    /* Ehrentafel (v1.18.0b7) */
+    .rcol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    .rcol .rh { font-weight: 700; font-size: 1rem; }
+    .rk { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px;
+      background: var(--sm-surf2); cursor: pointer; }
+    .rk:hover { outline: 1px solid var(--sm-line); }
+    .rcol.gold .rk { border-left: 4px solid #C9A227; }
+    .rcol.buerste .rk { border-left: 4px solid #8B5A2B; }
+    .rm { font-size: 1.6rem; text-align: center; }
+    .rn { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .rq { font-size: .82rem; color: var(--sm-muted); margin-top: 2px; }
+    .rp { font-weight: 700; font-size: 1.1rem; text-align: right; white-space: nowrap; }
+    .rp em { font-style: normal; font-weight: 400; font-size: .72rem; color: var(--sm-muted); margin-left: 3px; }
     .mtile { background: var(--sm-surf2); border-radius: var(--sm-rs); padding: 10px 14px; }
     .mtile.low .kv { opacity: .5; }
     .mtile .kv { font-size: 1.35rem; }
