@@ -167,6 +167,9 @@ const EN = {
   "Buchungstempo": "Booking pace", "Saison-Matrix": "Season matrix", "Prognose": "Forecast", "Spanne": "Range",
   "wahrscheinlich": "likely", "wenig Daten": "low data", "Treiber": "Driver", "Größter Hebel": "Biggest lever", "gesperrt": "blocked",
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
+  // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
+  "Stand": "as of", "Endstand": "Final", "Endstand Vergleichszeitraum": "Final value of comparison period",
+  "Pfeil und Farbe vergleichen mit dem Stand am Stichtag, nicht mit dem Endstand.": "Arrow and colour compare with the status on the reference day, not with the final value.",
 };
 let LANG = "de";
 const t = (s) => (LANG === "de" ? s : EN[s] || s);
@@ -3888,10 +3891,17 @@ class SmoobuStatsCard extends SmoobuCard {
     const cmpExtra = cmp.asOf ? { as_of: cmp.asOf } : {};
     // Modul 1: je Kennzahl Gesamtwert (Zeitraum + Vergleich) und Verlauf im Raster (Zeitraum + Vergleich)
     const kpiIds = simple ? STATS_EINFACH : STATS_KPIS.map((k) => k.id);
+    // v1.18.0b7: Bei „Stichtag Vorjahr“ zusätzlich den Endstand des Vergleichszeitraums laden – aber nur,
+    // wenn der Vergleichszeitraum am Stichtag noch nicht vorbei war (sonst sind Stand und Endstand gleich).
+    // Grund: Die Bewertung (Pfeil/Farbe) misst gegen den Stand am Stichtag; ohne den Endstand daneben
+    // wirkt z. B. RevPAR 49 € „▲ 0,6 %“ falsch, wenn das fertige Vorjahr 50 € hatte (Rückmeldung Betreiber 17.11.2026).
+    // Die Bewertung selbst bleibt beim Stichtag: ein laufender Zeitraum gegen ein fertiges Vorjahr sähe immer schlechter aus.
+    const withFinal = !!cmp.asOf && cmp.range[1] > addDays(D(cmp.asOf), 1);
     const kpis = Object.fromEntries(await Promise.all(kpiIds.map(async (id) => {
-      const [tot, totC, ser, serC] = await Promise.all([q(id, "gesamt", range), q(id, "gesamt", cmp.range, cmpExtra),
-        q(id, raster, range), q(id, raster, cmp.range, cmpExtra)]);
-      return [id, { tot: statCell(tot), cmp: statCell(totC), ser: statSeries(ser), serC: statSeries(serC), unit: tot.einheit }];
+      const [tot, totC, ser, serC, fin] = await Promise.all([q(id, "gesamt", range), q(id, "gesamt", cmp.range, cmpExtra),
+        q(id, raster, range), q(id, raster, cmp.range, cmpExtra), withFinal ? q(id, "gesamt", cmp.range) : null]);
+      return [id, { tot: statCell(tot), cmp: statCell(totC), fin: fin ? statCell(fin) : null,
+        ser: statSeries(ser), serC: statSeries(serC), unit: tot.einheit }];
     })));
     // Modul 2: Pace für das Jahr des Zeitraums (zwischen erstem Vergleichsjahr und nächstem Jahr)
     const ty = D(today).getFullYear();
@@ -3956,6 +3966,13 @@ class SmoobuStatsCard extends SmoobuCard {
     if (id === "vorlauf") return `${num(v)} ${t("Tage")}`;
     if (id === "naechte") return `${num(v)} ${t("N.")}`;
     return money(v, cur, long && v < 1000 ? 2 : 0);
+  }
+  // Veränderung als schlichter Text ohne Bewertungsfarbe (für den Endstand-Hinweis)
+  dltText(k, a, b) {
+    if (a === null || a === undefined || b === null || b === undefined) return "";
+    const v = k.pp ? Math.round((a - b) * 10) / 10 : b ? ((a - b) / Math.abs(b)) * 100 : null;
+    if (v === null) return "";
+    return `${v > 0 ? "+" : v < 0 ? "−" : "±"}${num(Math.abs(v), 1)}${k.pp ? " PP" : " %"}`;
   }
   dlt(k, a, b) {
     if (a === null || a === undefined || b === null || b === undefined) return "";
@@ -4047,10 +4064,17 @@ class SmoobuStatsCard extends SmoobuCard {
       const v = x.tot.wert, c = x.cmp.wert;
       const n = x.tot.n || 0;
       const low = n < 5;
-      const tip = `${t(k.label)}: ${this.fmt(k.id, v, cur, true)} · n = ${n}\n${t("Vergleich")}: ${this.fmt(k.id, c, cur, true)} · n = ${x.cmp.n || 0}\n${t(k.hint)}`;
+      // Endstand des Vergleichszeitraums (nur „Stichtag Vorjahr“ mit damals noch offenem Zeitraum, s. Loader)
+      const fin = x.fin ? x.fin.wert : null;
+      const asOf = d.cmp.asOf ? fdate(d.cmp.asOf) : "";
+      const tip = `${t(k.label)}: ${this.fmt(k.id, v, cur, true)} · n = ${n}\n${t("Vergleich")}${asOf ? ` (${t("Stand")} ${asOf})` : ""}: ${this.fmt(k.id, c, cur, true)} · n = ${x.cmp.n || 0}`
+        + (x.fin ? `\n${t("Endstand Vergleichszeitraum")}: ${this.fmt(k.id, fin, cur, true)} · n = ${x.fin.n || 0}`
+          + `\n${t("Pfeil und Farbe vergleichen mit dem Stand am Stichtag, nicht mit dem Endstand.")}` : "")
+        + `\n${t(k.hint)}`;
       return `<button class="kpi${low ? " low" : ""}" data-focus="${k.id}" aria-pressed="${this._state.focus === k.id}" data-tip="${esc(tip)}">
         <div class="kl">${esc(t(k.label))}</div><div class="kv">${this.fmt(k.id, v, cur)}${this.dlt(k, v, c)}</div>
-        <div class="ks">${t("Vgl.")} ${this.fmt(k.id, c, cur)} · n = ${num(n)}${low ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>
+        <div class="ks">${t("Vgl.")} ${this.fmt(k.id, c, cur)}${asOf && x.fin ? ` (${t("Stand")} ${asOf})` : ""} · n = ${num(n)}${low ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>
+        ${x.fin ? `<div class="ks">${t("Endstand")} ${this.fmt(k.id, fin, cur)}${fin !== null && c !== null && this.fmt(k.id, fin, cur) !== this.fmt(k.id, c, cur) ? ` (${this.dltText(k, v, fin)})` : ""}</div>` : ""}
         ${k.id === "auslastung" && x.tot.gesperrt ? `<div class="ks">${num(x.tot.verfuegbar)} ${t("verfügbar")} · ${num(x.tot.gesperrt)} ${t("gesperrt")}</div>` : ""}
         ${sparkline(x.ser.map((p) => p.wert), x.serC.map((p) => p.wert))}</button>`;
     }).join("")}</section>${gloss([...list.map((k) => k.label).filter((l) => GLOSSARY[l]), ...(list.some((k) => k.pp) ? ["PP"] : []), "Vgl.", "n"])}`;

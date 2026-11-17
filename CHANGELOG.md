@@ -9,9 +9,11 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 ## Unveröffentlicht / Unreleased
 
 **Deutsch**
+- Statistik, Kennzahlenleiste: Bei „Stichtag Vorjahr“ zeigt jede Kachel zusätzlich den **Endstand** des Vergleichszeitraums (mit Abstand in % bzw. PP) und das Stichtag-Datum. Pfeil und Farbe bewerten weiter gegen den Stand am Stichtag. Nur wenn der Vergleichszeitraum am Stichtag noch lief (sonst sind beide gleich)
 - Statistik: Zeitraum „Saison“ zeigte bei Frühling, Sommer und Herbst „undefined“ statt des Namens (Monatsschlüssel 1-basiert statt 0-basiert)
 
 **English**
+- Statistics, KPI bar: with "Same day last year" every tile also shows the **final value** of the comparison period (with difference in % or PP) and the reference date. Arrow and colour still rate against the status on the reference day. Only when the comparison period was still running on the reference day (otherwise both are equal)
 - Statistics: period "Season" showed "undefined" instead of the name for spring, summer and autumn (month keys 1-based instead of 0-based)
 
 ## 1.18.0b6 – 2026-11-17
