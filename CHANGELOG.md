@@ -8,12 +8,18 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.18.0b7 – 2026-11-17
+
+> Beta / Pre-release
+
 **Deutsch**
+- **Ehrentafel** (Statistik, neues Modul nach „Gäste“, nur Werkbank): Fun-Statistik mit zwei Ranglisten der abgeschlossenen Aufenthalte (Abreise im Zeitraum) – 🏆 **Die Goldene Fußmatte** (hoher Preis je Nacht netto, wenig Anliegen, pünktlich, früh gebucht, Stammgast-Bonus +25) und 🪠 **Die Rostige Klobürste** (Extra-Stunden durch früheren Check-in/späteren Check-out gegenüber den Standardzeiten, Billigpreis, viele Gastnachrichten je Nacht, kurzer Aufenthalt, hoher Portal-Abzug). Je Kriterium Perzentil-Rang 0–100, gleich gewichtet; fehlende Werte zählen neutral. Je Platz Medaille, Vorname + Initial, zwei Sprüche, Tooltip mit allen Kriterien, Klick öffnet die Buchung; Hinweis unter 5 Gästen. Niemand steht auf beiden Listen. Neuer Websocket-Modus `smoobu/stats` → `mode: ranking` (Recht „Finanzen“). Nur Anzeige, nichts wird gespeichert oder verschickt
 - Statistik, Modul Gäste: je Merkmal (Personen, Hund, Stammgäste, Sprache) neben dem Anteil der **Buchungen** auch der Anteil der **Nächte** (Doppelbalken, Tooltip mit Anzahl). Buchungen nach Anreise im Zeitraum, Nächte = belegte Nächte im Zeitraum
 - Statistik, Kennzahlenleiste: Bei „Stichtag Vorjahr“ zeigt jede Kachel zusätzlich den **Endstand** des Vergleichszeitraums (mit Abstand in % bzw. PP) und das Stichtag-Datum. Pfeil und Farbe bewerten weiter gegen den Stand am Stichtag. Nur wenn der Vergleichszeitraum am Stichtag noch lief (sonst sind beide gleich)
 - Statistik: Zeitraum „Saison“ zeigte bei Frühling, Sommer und Herbst „undefined“ statt des Namens (Monatsschlüssel 1-basiert statt 0-basiert)
 
 **English**
+- **Hall of fame** (statistics, new module after "Guests", workbench only): fun statistics with two rankings of completed stays (departure in the period) – 🏆 **The Golden Doormat** (high net price per night, few requests, punctual, booked early, regular bonus +25) and 🪠 **The Rusty Toilet Brush** (extra hours from earlier check-in/later check-out compared with the default times, bargain price, many guest messages per night, short stay, high portal deduction). Percentile rank 0–100 per criterion, equally weighted; missing values count as neutral. Per place medal, first name + initial, two quips, tooltip with all criteria, click opens the booking; notice below 5 guests. Nobody appears on both lists. New websocket mode `smoobu/stats` → `mode: ranking` (permission "finances"). Display only, nothing is stored or sent
 - Statistics, Guests module: for each attribute (people, dog, repeat guests, language) the share of **nights** is shown next to the share of **bookings** (double bar, tooltip with counts). Bookings by arrival in the period, nights = occupied nights within the period
 - Statistics, KPI bar: with "Same day last year" every tile also shows the **final value** of the comparison period (with difference in % or PP) and the reference date. Arrow and colour still rate against the status on the reference day. Only when the comparison period was still running on the reference day (otherwise both are equal)
 - Statistics: period "Season" showed "undefined" instead of the name for spring, summer and autumn (month keys 1-based instead of 0-based)
