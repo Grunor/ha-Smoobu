@@ -857,3 +857,114 @@ def service(records: list[dict[str, Any]], responses: dict[str, dict[str, Any]],
                            (("< 15 min", 0, 15), ("15–60 min", 15, 60), ("1–4 h", 60, 240), ("4–12 h", 240, 720),
                             ("12–24 h", 720, 1440), ("> 24 h", 1440, 10**9))],
             "min_n": MIN_N}
+
+
+# ---- v1.18.0b7: Ehrentafel (Fun-Statistik) -------------------------------------------------
+# Zwei Ranglisten je Zeitraum: „Die Goldene Fußmatte“ (Lieblingsgäste) und „Die Rostige Klobürste“
+# (sarkastischer Wanderpokal). Nur zum Spaß – nichts wird gespeichert oder verschickt.
+# Wertung: je Kriterium Perzentil-Rang (0–100) innerhalb des Zeitraums, gleich gewichtet.
+# Warum Perzentil-Rang statt Rohwert: Euro, Stunden und Nachrichten sind nicht vergleichbar;
+# der Rang macht sie gleich schwer und ist robust gegen Ausreißer (ein 900-€-Weihnachtsgast
+# erschlägt sonst alle anderen Kriterien). Fehlender Wert (keine Uhrzeit in Smoobu, Nachrichten
+# noch nicht geladen) = neutral 50, damit Lücken weder belohnt noch bestraft werden.
+RANK_MIN = 5          # darunter: Hinweis „zu wenig Gäste für eine faire Wertung“
+RANK_TOP = 3
+STAMMGAST_BONUS = 25  # Bonus statt eigenes Kriterium: sonst wöge „Stammgast ja/nein“ so viel wie der Preis
+
+# Kriterien: id → (Richtung, Feld). Richtung +1 = hoher Wert gibt Punkte, −1 = niedriger Wert gibt Punkte
+GOLD_CRITERIA = {"preis": (1, "netto_pro_nacht"), "ruhe": (-1, "anliegen"),
+                 "puenktlich": (-1, "extra_stunden"), "vorlauf": (1, "vorlauf_tage")}
+BRUSH_CRITERIA = {"extra": (1, "extra_stunden"), "billig": (-1, "netto_pro_nacht"),
+                  "gespraechig": (1, "nachrichten_je_nacht"), "kurz": (-1, "naechte"),
+                  "portal": (-1, "netto_quote")}
+
+
+def _hours(t: Any) -> float | None:
+    """'16:30' → 16.5; leer/ungültig → None."""
+    if not t or not isinstance(t, str):
+        return None
+    parts = t.strip().split(":")
+    try:
+        return int(parts[0]) + (int(parts[1]) if len(parts) > 1 else 0) / 60
+    except (ValueError, IndexError):
+        return None
+
+
+def _pct_rank(values: list[float], v: float | None, direction: int) -> float:
+    """Perzentil-Rang 0–100 (Gleichstände halb), Richtung −1 dreht um; None → 50 (neutral)."""
+    if v is None or not values:
+        return 50.0
+    below = sum(1 for x in values if x < v)
+    equal = sum(1 for x in values if x == v)
+    r = (below + 0.5 * equal) / len(values) * 100
+    return round(r if direction > 0 else 100 - r, 1)
+
+
+def _short_name(r: dict[str, Any]) -> str:
+    """Vorname + Initial des Nachnamens („Anna M.“) – volle Namen braucht die Ehrentafel nicht."""
+    full = str(r.get("gast") or "").replace(",", " ").split()
+    first = str(r.get("vorname") or (full[0] if full else "")).strip()
+    rest = [w for w in full if w.casefold() != first.casefold()]
+    return f"{first} {rest[-1][0]}." if first and rest else (first or "Gast")
+
+
+def ranking(records: list[dict[str, Any]], responses: dict[str, dict[str, Any]], start: date, end: date,
+            today: date, *, checkin: float = 16.0, checkout: float = 11.0, channels: Any = None) -> dict[str, Any]:
+    """Ehrentafel: Top 3 „Goldene Fußmatte“ und Top 3 „Rostige Klobürste“ für Abreisen im Zeitraum.
+
+    Nur abgeschlossene Aufenthalte (Abreise ≤ heute), ohne Stornos, Sperren und Buchungen ohne Preis.
+    checkin/checkout = Standardzeiten der Integration in Stunden (16.0 / 11.0); Extra-Stunden =
+    früherer Check-in + späterer Check-out laut Smoobu-Uhrzeit.
+    """
+    match = channel_filter(channels)
+    s_iso, e_iso, t_iso = start.isoformat(), end.isoformat(), today.isoformat()
+    repeat = _repeat_guests(records)
+    guests = []
+    for r in records:
+        if r["blockiert"] or r["storniert"] or not r["naechte"] or not r["brutto"] or not match(r):
+            continue
+        if not (s_iso < r["abreise"] <= e_iso) or r["abreise"] > t_iso:
+            continue
+        ci, co = _hours(r.get("check_in")), _hours(r.get("check_out"))
+        extra = None if ci is None and co is None else round(
+            max(0.0, checkin - ci if ci is not None else 0.0) + max(0.0, co - checkout if co is not None else 0.0), 2)
+        entry = responses.get(str(r["id"])) or {}
+        # Nachrichten nur, wenn der Verlauf gezählt wurde und überhaupt Nachrichten da sind
+        # (alle = 0 heißt meist: Smoobu liefert für die Buchung keinen Verlauf) – wie im Modul Service
+        has_msg = "gast" in entry and entry.get("alle", entry.get("gast"))
+        guests.append({
+            "id": r["id"], "name": _short_name(r), "kanal": r["kanal"], "anreise": r["anreise"], "abreise": r["abreise"],
+            "naechte": r["naechte"], "brutto": r["brutto"], "netto": r["netto"],
+            "netto_pro_nacht": round(r["netto"] / r["naechte"], 2),
+            "netto_quote": round(r["netto"] / r["brutto"], 3) if r["brutto"] else None,
+            "vorlauf_tage": r.get("vorlauf_tage"), "check_in": r.get("check_in"), "check_out": r.get("check_out"),
+            "extra_stunden": extra,
+            "anliegen": int(entry.get("anliegen") or 0) if has_msg else None,
+            "nachrichten": int(entry.get("gast") or 0) if has_msg else None,
+            "nachrichten_je_nacht": round(int(entry.get("gast") or 0) / r["naechte"], 2) if has_msg else None,
+            "stammgast": bool(_guest_keys(r) & repeat), "hund": bool(r.get("hund")),
+        })
+
+    def score(criteria: dict[str, tuple[int, str]], bonus: bool) -> None:
+        cols = {cid: [g[f] for g in guests if g[f] is not None] for cid, (_, f) in criteria.items()}
+        key = "gold" if bonus else "buerste"
+        for g in guests:
+            parts = {cid: _pct_rank(cols[cid], g[f], d) for cid, (d, f) in criteria.items()}
+            total = sum(parts.values()) / len(parts)
+            if bonus and g["stammgast"]:
+                total += STAMMGAST_BONUS
+            g[key] = {"punkte": round(total, 1), "kriterien": parts,
+                      "staerkstes": max(parts, key=lambda c: (parts[c], c))}
+
+    score(GOLD_CRITERIA, True)
+    score(BRUSH_CRITERIA, False)
+    gold = sorted(guests, key=lambda g: (-g["gold"]["punkte"], g["abreise"]))[:RANK_TOP]
+    gold_ids = {g["id"] for g in gold}
+    # Wer schon die Fußmatte hat, bekommt nicht auch noch die Klobürste (bei wenigen Gästen möglich)
+    brush = sorted((g for g in guests if g["id"] not in gold_ids),
+                   key=lambda g: (-g["buerste"]["punkte"], g["abreise"]))[:RANK_TOP]
+    return {"gaeste": len(guests), "zu_wenig": len(guests) < RANK_MIN, "min_n": RANK_MIN,
+            "standard": {"check_in": checkin, "check_out": checkout},
+            "abdeckung": {"uhrzeit": sum(1 for g in guests if g["extra_stunden"] is not None),
+                          "nachrichten": sum(1 for g in guests if g["anliegen"] is not None)},
+            "goldene_fussmatte": gold, "rostige_kloburste": brush}

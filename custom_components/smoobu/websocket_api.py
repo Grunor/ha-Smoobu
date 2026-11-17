@@ -62,7 +62,7 @@ from .analytics import (
 )
 from .api import SmoobuError
 from .stats import DIMENSIONS, MEASURES, gaps as stats_gaps, pace as stats_pace, query as stats_query
-from .stats import service as stats_service, storno as stats_storno
+from .stats import ranking as stats_ranking, service as stats_service, storno as stats_storno
 from .empfehlung import recommend as stats_recommend
 from .const import CONF_TASK_CATEGORIES, DEFAULT_TASK_CATEGORIES, DOMAIN, TASK_CATEGORIES, TASK_RIGHTS
 from .coordinator import SmoobuCoordinator
@@ -293,7 +293,8 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         # "meta" = verfügbare Kennzahlen/Dimensionen für die Auswahlfelder der Karte
         # Teilschritte 3/4: "gaps" = verlorene Nächte, "storno" = Storno-Auswertung, "service" = Antwortzeiten
         # v1.18.0: "empfehlung" = Bewertung (Pace je Monat), Preisuntergrenzen und Preis-Hinweise
-        vol.Required("mode"): vol.In(("query", "pace", "meta", "gaps", "storno", "service", "empfehlung")),
+        # v1.18.0b7: "ranking" = Ehrentafel (Goldene Fußmatte / Rostige Klobürste, Fun-Statistik)
+        vol.Required("mode"): vol.In(("query", "pace", "meta", "gaps", "storno", "service", "empfehlung", "ranking")),
         vol.Optional("measure"): vol.In(tuple(MEASURES)),
         vol.Optional("dimension", default="monat"): vol.In(DIMENSIONS),
         vol.Optional("split"): vol.Any(None, vol.In(DIMENSIONS)),
@@ -350,7 +351,7 @@ async def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
             out.append(res)
         connection.send_result(msg["id"], {"wohnungen": out})
         return
-    if msg["mode"] in ("gaps", "storno", "service"):
+    if msg["mode"] in ("gaps", "storno", "service", "ranking"):
         start = _date(msg.get("start"), date(today.year, 1, 1))
         end = _date(msg.get("end"), date(today.year + 1, 1, 1))
         if end <= start or (end - start).days > 3700:
@@ -358,6 +359,15 @@ async def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
             return
         if msg["mode"] == "storno":
             connection.send_result(msg["id"], stats_storno(recs, start, end, channels=channels))
+        elif msg["mode"] == "ranking":
+            # Standardzeiten der ersten beteiligten Integration (bei mehreren Konten in der Regel gleich)
+            c0 = pairs[0][0] if pairs else None
+            hours = lambda tm, fb: (tm.hour + tm.minute / 60) if tm else fb  # noqa: E731
+            responses = {k: v for c, _ in pairs for k, v in c.responses.items()}
+            connection.send_result(msg["id"], stats_ranking(
+                recs, responses, start, end, today, channels=channels,
+                checkin=hours(c0.default_checkin if c0 else None, 16.0),
+                checkout=hours(c0.default_checkout if c0 else None, 11.0)))
         elif msg["mode"] == "service":
             responses = {k: v for c, _ in pairs for k, v in c.responses.items()}
             result = stats_service(recs, responses, start, end, channels=channels)

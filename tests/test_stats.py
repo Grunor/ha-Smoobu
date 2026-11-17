@@ -4,7 +4,7 @@ from datetime import date
 import pytest
 
 from custom_components.smoobu.analytics import as_of, build_records
-from custom_components.smoobu.stats import gaps, message_counts, pace, query, response_times, service, storno
+from custom_components.smoobu.stats import gaps, message_counts, pace, query, ranking, response_times, service, storno
 from tests.test_analytics import costs, bk
 
 TODAY = date(2026, 11, 16)
@@ -190,3 +190,50 @@ def test_naechte_nach_gaeste_merkmalen():
     for dim in ("personen", "hund", "stammgast", "sprache"):
         res = query(R, "naechte", dim, s, e)
         assert sum(z["werte"]["Gesamt"]["wert"] or 0 for z in res["zeilen"]) == total == 3
+
+
+# ---- v1.18.0b7: Ehrentafel ----
+def _rank_recs():
+    """6 abgeschlossene Aufenthalte im Okt. 2026 mit klaren Profilen (Beispielnamen)."""
+    return recs(
+        # Traumgast: teuer, pünktlich, früh gebucht, keine Nachrichten
+        bk(11, "2026-10-01", "2026-10-04", "Direct booking", 450, **{"guest-name": "Anna Muster", "check-in": "16:00",
+           "check-out": "11:00", "created-at": "2026-06-01 10:00"}),
+        # Albtraum: billig, 1 Nacht, 13 Uhr Check-in, 14 Uhr Check-out, viele Nachrichten, Portal
+        bk(12, "2026-10-05", "2026-10-06", "Booking.com", 50, **{"guest-name": "Bert Beispiel", "check-in": "13:00",
+           "check-out": "14:00", "created-at": "2026-10-04 22:00"}),
+        bk(13, "2026-10-07", "2026-10-09", "Airbnb", 180, **{"guest-name": "Carla Test", "created-at": "2026-09-01 10:00"}),
+        bk(14, "2026-10-10", "2026-10-13", "Direct booking", 240, **{"guest-name": "Dora Probe", "created-at": "2026-09-20 10:00"}),
+        bk(15, "2026-10-14", "2026-10-16", "Booking.com", 160, **{"guest-name": "Emil Platz", "created-at": "2026-10-01 10:00"}),
+        bk(16, "2026-10-20", "2026-10-22", "Direct booking", 200, **{"guest-name": "Fritz Halter", "created-at": "2026-09-10 10:00"}),
+        # storniert und noch nicht abgereist: zählen nicht
+        bk(17, "2026-10-23", "2026-10-25", "Airbnb", 999, type="cancellation", **{"guest-name": "Gina Storno"}),
+        bk(18, "2026-11-20", "2026-11-22", "Direct booking", 999, **{"guest-name": "Hugo Zukunft"}),
+    )
+
+
+RESP = {"11": {"gast": 0, "anliegen": 0, "alle": 3}, "12": {"gast": 9, "anliegen": 5, "alle": 14},
+        "13": {"gast": 2, "anliegen": 1, "alle": 4}}
+
+
+def test_ehrentafel_reihenfolge_und_filter():
+    res = ranking(_rank_recs(), RESP, date(2026, 10, 1), date(2026, 11, 1), date(2026, 11, 16))
+    assert res["gaeste"] == 6 and not res["zu_wenig"]
+    assert res["goldene_fussmatte"][0]["id"] == 11
+    assert res["rostige_kloburste"][0]["id"] == 12
+    bert = res["rostige_kloburste"][0]
+    assert bert["extra_stunden"] == 6.0  # 3 h früher + 3 h später
+    assert bert["name"] == "Bert B."
+    ids = {g["id"] for g in res["goldene_fussmatte"] + res["rostige_kloburste"]}
+    assert not ids & {17, 18}
+    # niemand steht auf beiden Listen
+    assert not {g["id"] for g in res["goldene_fussmatte"]} & {g["id"] for g in res["rostige_kloburste"]}
+    assert res["abdeckung"] == {"uhrzeit": 2, "nachrichten": 3}
+
+
+def test_ehrentafel_fehlende_werte_neutral_und_zu_wenig():
+    res = ranking(_rank_recs(), {}, date(2026, 10, 1), date(2026, 10, 10), date(2026, 11, 16))
+    assert res["gaeste"] == 3 and res["zu_wenig"]
+    carla = next(g for g in res["goldene_fussmatte"] + res["rostige_kloburste"] if g["id"] == 13)
+    crit = carla["gold"]["kriterien"]
+    assert crit["ruhe"] == 50.0 and crit["puenktlich"] == 50.0
