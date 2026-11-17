@@ -8,6 +8,20 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+**Deutsch**
+- **Finanzen: Filter und Vergleich wie in der Statistik.** Gleiche Filterleiste (gemeinsamer Code): Zeitraum Monat/Quartal/Saison/Jahr/Frei mit ‹ › blättern, Vergleich **Stichtag Vorjahr** (neuer Standard) / Ganzes Vorjahr / Vorperiode, Raster, Wohnungsauswahl (ohne Kopfzeilen-Auswahl), Kanal-Chips; die Leiste läuft beim Scrollen mit (am Handy nicht). Was es nur in den Finanzen gibt, bleibt: „Kein Vergleich“, Mehrfachvergleich (1–10 Jahre/Perioden) und die bisherigen Zeiträume als **Schnellwahl** (Vormonat, Folgemonat, Vorjahr, Jahr bis heute, letzte/nächste 12 Monate, gesamter Zeitraum)
+- Finanzen: Bei „Stichtag Vorjahr“ zeigen Brutto, Netto, Auslastung, Netto/Nacht und Buchungen zusätzlich den **Endstand** des Vergleichszeitraums (wie Statistik, nur wenn der Zeitraum am Stichtag noch lief); Kopfzeile nennt das Stichtag-Datum
+- Finanzen: **Raster** Auto/Tag/Woche/Monat für das Diagramm (Wochen = ISO-Kalenderwochen, Randwochen auf den Zeitraum gekürzt). `smoobu/analytics` hat dafür den neuen Parameter `raster` (`auto` = bisheriges Verhalten: bis 62 Tage je Tag, sonst je Monat; „Tag“ über 400 Tage → Wochen)
+- Kartenoptionen Finanzen: `period` versteht weiter alle bisherigen Werte (`jahr_bis_heute` … werden zur Schnellwahl, `custom` = Frei), `compare: vorjahr_stand` = `stichtag`; neu `raster`
+- Seite **„Belegung“ heißt jetzt „Kalender“** – Reiter, Dashboard-Vorlage und Pfad (`smoobu-kalender` statt `smoobu-belegung`). Bestehende Dashboards funktionieren ohne Änderung weiter: Hat ein Dashboard nur die alte Ansicht `smoobu-belegung`, zeigt der Reiter dorthin. Übersicht: Option `kalender_path` (Standard `smoobu-kalender`) ersetzt `belegung_path`, die alte Option gilt weiter
+
+**English**
+- **Finance: filters and comparison as in the statistics.** Same filter bar (shared code): period month/quarter/season/year/custom with ‹ › paging, comparison **same day last year** (new default) / full previous year / previous period, grid, property selection (unless the header shows one), channel chips; the bar stays visible while scrolling (not on phones). Finance-only features remain: "no comparison", multi-period comparison (1–10 years/periods) and the previous periods as **quick select** (previous month, next month, previous year, year to date, last/next 12 months, whole period)
+- Finance: with "Same day last year", gross, net, occupancy, net/night and bookings also show the **final value** of the comparison period (as in the statistics, only if the period was still running on the reference day); the header names the reference date
+- Finance: chart **grid** auto/day/week/month (weeks = ISO calendar weeks, edge weeks trimmed to the period). `smoobu/analytics` has a new parameter `raster` (`auto` = previous behaviour: daily up to 62 days, otherwise monthly; "day" over 400 days → weeks)
+- Finance card options: `period` still accepts all previous values (`jahr_bis_heute` … become quick select, `custom` = custom), `compare: vorjahr_stand` = `stichtag`; new `raster`
+- Page **"Occupancy" is now "Calendar"** – tab, dashboard template and path (`smoobu-kalender` instead of `smoobu-belegung`). Existing dashboards keep working unchanged: if a dashboard only has the old view `smoobu-belegung`, the tab points there. Overview: option `kalender_path` (default `smoobu-kalender`) replaces `belegung_path`, the old option still works
+
 ## 1.18.0b7 – 2026-11-17
 
 > Beta / Pre-release

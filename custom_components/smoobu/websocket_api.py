@@ -52,6 +52,7 @@ from homeassistant.util import dt as dt_util
 from .codes import all_codes, short_codes  # noqa: F401  (short_codes: Rückwärtskompatibilität)
 from .analytics import (
     COMPARES,
+    RASTERS,
     PERIODS,
     analyze_with_compare,
     as_of as stats_as_of,
@@ -255,6 +256,8 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
         vol.Optional("compare", default="vorjahr"): vol.In(COMPARES),
         # v1.17.0: Anzahl Vergleichszeiträume (1 = wie bisher)
         vol.Optional("compare_count", default=1): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
+        # v1.18.0b8: Raster der Reihe (Filterleiste der Finanzen wie in der Statistik)
+        vol.Optional("raster", default="auto"): vol.In(RASTERS),
     }
 )
 @callback
@@ -279,7 +282,7 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         return
     channels = msg.get("channels") or None
     result = analyze_with_compare(recs, start, end, channels, msg["compare"], today=today, units=len(pairs),
-                                  count=msg["compare_count"])
+                                  count=msg["compare_count"], raster=msg["raster"])
     result["prognose"] = forecast_year(recs, today, channels)
     result["farben"] = channel_colors([ch["name"] for ch in channels_of(recs)])
     connection.send_result(msg["id"], result)

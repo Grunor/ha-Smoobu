@@ -150,7 +150,7 @@ const EN = {
   "Buchung öffnen": "Open booking", "Alles erledigt.": "All done.", "Keine Anreisen geplant.": "No arrivals planned.", "Keine Lücken.": "No gaps.",
   "Reinigung": "Cleaning", "ab": "from", "Heute keine An- oder Abreise": "No arrival or departure today", "Nachricht": "message",
   "unbeantwortet": "unanswered", "gerade eben": "just now", "Reist heute ab": "Leaves today", "Wohnungen im Vergleich": "Properties compared",
-  "Darstellung": "Appearance", "Hell": "Light", "Dunkel": "Dark", "System": "System", "Belegung": "Occupancy", "Assistent": "Assistant",
+  "Darstellung": "Appearance", "Hell": "Light", "Dunkel": "Dark", "System": "System", "Belegung": "Occupancy", "Kalender": "Calendar", "Assistent": "Assistant",
   "Zurück": "Back", "Weiter": "Next", "Zahl unten = Preis/Nacht": "Number below = price/night",
   "Keine Buchung in den nächsten 6 Monaten.": "No booking in the next 6 months.", "Danach keine Buchung in den nächsten 6 Monaten.": "No booking afterwards in the next 6 months.",
   "gebucht + Nachbuchungen wie im Vorjahr": "booked + pickup like last year", "Nachrichten": "Messages",
@@ -163,7 +163,7 @@ const EN = {
   "über": "via", "Portal": "Portal", "Weitere ohne Markierung": "More not yet marked",
   // Statistik-Werkbank (Teilschritt 2)
   "Statistik": "Statistics", "Werkbank": "Workbench", "Einfach": "Simple", "Quartal": "Quarter", "Saison": "Season",
-  "Raster": "Grid", "Woche": "Week", "Stichtag Vorjahr": "Same day last year", "Ganzes Vorjahr": "Full previous year",
+  "Raster": "Grid", "Woche": "Week", "Tag": "Day", "Schnellwahl": "Quick select", "Stichtag Vorjahr": "Same day last year", "Ganzes Vorjahr": "Full previous year",
   "Buchungstempo": "Booking pace", "Saison-Matrix": "Season matrix", "Prognose": "Forecast", "Spanne": "Range",
   "wahrscheinlich": "likely", "wenig Daten": "low data", "Treiber": "Driver", "Größter Hebel": "Biggest lever", "gesperrt": "blocked",
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
@@ -415,7 +415,7 @@ const rightsOf = (apt) => new Set(apt?.zugriff?.rechte ?? ALL_RIGHTS);
 const TASK_CATS = [["nachrichten", "Nachrichten"], ["rechnungen", "Rechnungen"], ["preise", "Preise"], ["lastminute", "Last-Minute"], ["luecken", "Lücken"]];
 // Seite (Pfad) → nötiges Recht; Seiten ohne Eintrag sind für jede Rolle außer „Kein Zugriff“ sichtbar
 const PAGE_RIGHT = { finanzen: "finanzen", statistik: "finanzen", nachrichten: "nachrichten", assistent: "nachrichten",
-  einstellungen: "einstellungen", buchungen: "gaeste", belegung: "gaeste" };
+  einstellungen: "einstellungen", buchungen: "gaeste", belegung: "gaeste", kalender: "gaeste" };
 // Darf der Benutzer `right` für Wohnung aptId (undefined = erste, „alle“ = alle)? Aus dem gecachten smoobu/info
 function can(right, aptId) {
   const info = window.__smoobuStore?.info;
@@ -895,8 +895,14 @@ function stayStatus(apt, bookings, today, now = "00:00") {
 // Übersicht (v1.15.0 neu gestaltet)
 // ===========================================================================
 class SmoobuOverviewCard extends SmoobuCard {
-  // belegung_path (v1.17.1): Seite mit dem Belegungsplan für „Anpassen“ bei nicht buchbaren Lücken; "" = kein Button
-  static defaults = { title: "", entities: [], upcoming: 5, gap_days: 60, band_days: 42, belegung_path: "smoobu-belegung" };
+  // kalender_path (v1.18.0b8, vorher belegung_path ab v1.17.1): Seite mit dem Kalender für „Anpassen“ bei
+  // nicht buchbaren Lücken; "" = kein Button. Eine alte Option belegung_path gilt weiter (siehe kalenderPath)
+  static defaults = { title: "", entities: [], upcoming: 5, gap_days: 60, band_days: 42 };
+  // Pfad der Kalender-Seite: neue Option vor alter; ohne beide Standard „smoobu-kalender“
+  get kalenderPath() {
+    const c = this._config;
+    return c.kalender_path ?? c.belegung_path ?? "smoobu-kalender";
+  }
   // v1.17.1: Status hängt jetzt an der Uhrzeit (Check-in/-out). Ohne neue Daten zeichnet die Karte nicht neu –
   // ein offenes Tablet bliebe sonst bis zum nächsten Datenabruf auf „Anreise um 17:30“ stehen. Daher jede
   // Minute prüfen und nur neu zeichnen, wenn sich aktueller/nächster Gast einer Wohnung tatsächlich ändert.
@@ -1289,7 +1295,7 @@ class SmoobuOverviewCard extends SmoobuCard {
       const pr = prices.length ? (lo === hi ? money(lo, cur) : `${num(lo)}–${money(hi, cur)}`) : "";
       return `<div class="li"><div class="m"><b>${fdowLong(g.von)} bis ${fdowLong(g.bis)}${this.multi ? codeTag(g.w.kuerzel) : ""}</b>
         <span>${plural(g.naechte, t("Nacht"), t("Nächte"))} frei${g.buchbar ? (pr ? `, ${pr}` : "") : `, ${t("Mindestaufenthalt")} ${g.min}`}</span></div>
-        ${g.buchbar || !this._config.belegung_path ? "" : `<button class="lnk" data-fix="${g.w.apartment_id}|${g.von}|${iso(addDays(D(g.bis), -1))}|${g.naechte}"
+        ${g.buchbar || !this.kalenderPath ? "" : `<button class="lnk" data-fix="${g.w.apartment_id}|${g.von}|${iso(addDays(D(g.bis), -1))}|${g.naechte}"
           title="${t("Im Belegungsplan Mindestaufenthalt oder Preis setzen")}">${t("Anpassen")}</button>`}
         <span class="badge ${g.buchbar ? "good" : "bad"}">${t(g.buchbar ? "buchbar" : "nicht buchbar")}</span></div>`;
     }).join("");
@@ -1455,7 +1461,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     root.querySelectorAll("[data-fix]").forEach((el) => el.addEventListener("click", () => {
       const [apt, von, bis, n] = el.dataset.fix.split("|");
       Preselect.set({ apt: Number(apt), von, bis, min: Number(n) });
-      const path = this._config.belegung_path;
+      const path = this.kalenderPath;
       const parts = location.pathname.split("/").filter(Boolean);
       history.pushState(null, "", path.startsWith("/") ? path : `/${parts[0] || "lovelace"}/${path}`);
       window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
@@ -2020,7 +2026,10 @@ function niceMax(v) {
   return [1, 2, 2.5, 5, 10].map((m) => m * p).find((m) => m >= v);
 }
 // extra (v1.17.0): weitere Vergleichslinien (ältere Jahre/Perioden), je blasser, je älter
-function barChart({ labels, stacks, line, fmt, unit, daily, extra = [] }) {
+// unit (v1.18.0b8): "tag" | "woche" | "monat" (Raster der Reihe); starts = erster Tag je Woche (Beschriftung)
+function barChart({ labels, stacks, line, fmt, unit, daily, extra = [], starts = [] }) {
+  daily = daily || unit === "tag";
+  const weekly = unit === "woche";
   const W = 800, H = 260, L = 56, R = 8, T = 10, B = 28;
   const n = labels.length || 1;
   const sums = labels.map((_, i) => stacks.reduce((a, s) => a + (s.values[i] || 0), 0));
@@ -2033,7 +2042,7 @@ function barChart({ labels, stacks, line, fmt, unit, daily, extra = [] }) {
     svg += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="currentColor" stroke-opacity=".12"/>
       <text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity=".6">${fmt(v)}</text>`;
   }
-  const step = daily ? Math.ceil(n / 15) : 1;
+  const step = daily || weekly ? Math.ceil(n / 15) : 1;
   labels.forEach((lab, i) => {
     const x = L + i * bw;
     let acc = 0;
@@ -2046,9 +2055,9 @@ function barChart({ labels, stacks, line, fmt, unit, daily, extra = [] }) {
       parts.push(`${s.name}: ${fmt(v)}`);
       acc += v;
     }
-    const lbl = daily ? fdate(lab, { day: "2-digit", month: "2-digit" }) : D(`${lab}-01`).toLocaleDateString(locale(), { month: "short" });
+    const lbl = weekly ? `${t("KW")} ${Number(lab.slice(6))}` : daily ? fdate(lab, { day: "2-digit", month: "2-digit" }) : D(`${lab}-01`).toLocaleDateString(locale(), { month: "short" });
     if (i % step === 0) svg += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".7">${lbl}</text>`;
-    const tip = `${daily ? fdate(lab) : D(`${lab}-01`).toLocaleDateString(locale(), { month: "long", year: "numeric" })}: ${fmt(sums[i])}` +
+    const tip = `${weekly ? `${t("KW")} ${Number(lab.slice(6))} ${lab.slice(0, 4)}${starts[i] ? ` (${t("ab")} ${fdate(starts[i])})` : ""}` : daily ? fdate(lab) : D(`${lab}-01`).toLocaleDateString(locale(), { month: "long", year: "numeric" })}: ${fmt(sums[i])}` +
       (parts.length > 1 ? ` (${parts.join(", ")})` : "") + (line ? ` · ${line.label}: ${fmt(line.values[i] || 0)}` : "")
       + extra.map((e) => ` · ${e.label}: ${fmt(e.values[i] || 0)}`).join("");
     svg += `<rect class="hit" data-tip="${esc(tip)}" x="${x}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"><title>${esc(tip)}</title></rect>`;
@@ -2096,11 +2105,134 @@ function periodName(von, bis) {
 }
 // Diagramm-Kennzahlen der Finanzen-Karte (v1.17.0: + Provisionen & Gebühren je Portal)
 const METRIC_LABEL = { brutto: "Brutto", netto: "Netto", naechte: "Nächte", kosten: "Provisionen" };
+// ===========================================================================
+// Gemeinsame Filterleiste Statistik + Finanzen (v1.18.0b8)
+// ===========================================================================
+// Wunsch Betreiber 17.11.2026: Finanzen bekommt dieselben Filter und Vergleichsmöglichkeiten wie die
+// Statistik. Damit beide nicht auseinanderlaufen, erzeugen filterBarHtml/bindFilterBar die Leiste für
+// beide Karten. Kartenzustand: ptype, anchor, from, to, compare, raster, channels (+ quick in Finanzen).
+const FBAR_CSS = `
+    /* Filterleiste: bleibt beim Scrollen oben (unter der HA-Kopfzeile) */
+    .fbar { position: sticky; top: var(--header-height, 0px); z-index: 4; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center;
+      padding: 10px 12px; margin: 0 0 var(--sm-gap); background: color-mix(in srgb, var(--sm-surf) 94%, transparent);
+      border: 1px solid var(--sm-line); border-radius: var(--sm-r); backdrop-filter: blur(6px); }
+    .fbar .grp { display: inline-flex; align-items: center; gap: 6px; }
+    .fbar .lbl { font-size: .74rem; color: var(--sm-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .fbar .sep { width: 1px; align-self: stretch; background: var(--sm-line); }
+    .fbar .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .fbar .chip { padding: 4px 10px; font-size: .8rem; }
+    .step { border: 1px solid var(--sm-line); background: var(--sm-surf); color: var(--sm-ink); border-radius: 999px; width: 30px; height: 30px;
+      cursor: pointer; font: inherit; font-size: 1rem; line-height: 1; }
+    .step:hover { border-color: var(--sm-accent); }
+    .plabel { font-weight: 650; min-width: 9ch; text-align: center; white-space: nowrap; }
+    @media (max-width: 700px) {
+      /* am Handy nicht mitlaufen lassen: die Leiste wäre höher als ein Drittel des Bildschirms */
+      .fbar { padding: 8px 10px; gap: 6px 8px; position: static; }
+      .fbar .sep { display: none; }
+    }
+`;
+// Finanzen: Vergleich wie Statistik plus „Kein Vergleich“ (gibt es nur hier); Schlüssel → smoobu/analytics
+const FIN_COMPARE = [["stichtag", "Stichtag Vorjahr"], ["vorjahr", "Ganzes Vorjahr"], ["vorperiode", "Vorperiode"], ["kein", "Kein Vergleich"]];
+const FIN_COMPARE_API = { stichtag: "vorjahr_stand", vorjahr: "vorjahr", vorperiode: "vorperiode", kein: "kein" };
+// alte Kartenoption compare: vorjahr_stand (bis v1.18.0b7) = heute „Stichtag Vorjahr“
+const FIN_COMPARE_ALIAS = { vorjahr_stand: "stichtag" };
+// Finanzen: Raster mit „Tag“ (Statistik: Auto/Woche/Monat); Auto = bis 62 Tage je Tag, sonst je Monat
+const FIN_RASTER = [["auto", "Auto"], ["tag", "Tag"], ["woche", "Woche"], ["monat", "Monat"]];
+// Schnellwahl (Entscheidung Betreiber 17.11.2026: bisherige Zeiträume der Finanzen bleiben zusätzlich erhalten)
+const QUICK_PERIODS = ["vormonat", "folgemonat", "vorjahr", "jahr_bis_heute", "letzte_12_monate", "naechste_12_monate", "gesamt"];
+// Schnellwahl → Kartenzustand: Vormonat/Folgemonat/Vorjahr werden echte Monats-/Jahreszeiträume (dann geht ‹ ›),
+// die übrigen ein freier Zeitraum mit Merker quick (für die Anzeige im Auswahlfeld)
+function quickState(key, todayIso, first) {
+  const today = D(todayIso);
+  const m = new Date(today.getFullYear(), today.getMonth(), 1);
+  if (key === "vormonat") return { ptype: "monat", anchor: iso(addMonths(m, -1)), quick: null };
+  if (key === "folgemonat") return { ptype: "monat", anchor: iso(addMonths(m, 1)), quick: null };
+  if (key === "vorjahr") return { ptype: "jahr", anchor: iso(new Date(today.getFullYear() - 1, 0, 1)), quick: null };
+  const [a, b] = periodRange(key, todayIso, first);
+  return { ptype: "frei", from: iso(a), to: iso(addDays(b, -1)), quick: key };
+}
+// opts: simple (Handy-Ansicht Statistik), compares, rasters, quick (Schnellwahl zeigen), afterCmp (HTML nach dem
+// Vergleich, z. B. Anzahl Vergleichsjahre), tools (HTML am rechten Rand)
+function filterBarHtml(card, d, { simple = false, compares = STATS_COMPARE, rasters = RASTER, quick = false, afterCmp = "", tools = "" } = {}) {
+  const s = card._state;
+  const ptypes = PERIOD_TYPES.filter(([k]) => !simple || k !== "frei");
+  const period = `<div class="seg" role="group" aria-label="${t("Zeitraum")}">${ptypes.map(([k, l]) =>
+    `<button data-ptype="${k}" aria-pressed="${s.ptype === k}">${k === "frei" && LANG !== "de" ? "Custom" : t(l)}</button>`).join("")}</div>`;
+  const qsel = quick ? `<select data-k="quick" aria-label="${t("Schnellwahl")}"><option value="">${t("Schnellwahl")} …</option>${QUICK_PERIODS.map((k) =>
+    `<option value="${k}" ${s.quick === k ? "selected" : ""}>${t(PERIOD_LABEL[k])}</option>`).join("")}</select>` : "";
+  const anchor = s.ptype === "frei"
+    ? `<span class="grp"><input type="date" data-k="from" value="${iso(d.range[0])}"> – <input type="date" data-k="to" value="${iso(addDays(d.range[1], -1))}"></span>`
+    : `<span class="grp"><button class="step" data-step="-1" aria-label="${t("Zurück")}">‹</button><span class="plabel">${esc(statsLabel(s.ptype, d.range))}</span>
+        <button class="step" data-step="1" aria-label="${t("Weiter")}">›</button></span>`;
+  const cmp = `<select data-k="compare" aria-label="${t("Vergleich")}">${compares.map(([k, l]) =>
+    `<option value="${k}" ${k === s.compare ? "selected" : ""}>${t("Vergleich")}: ${t(l)}</option>`).join("")}</select>`;
+  if (simple) return `<div class="fbar">${period}${anchor}${cmp}</div>`;
+  const ws = d.info.wohnungen;
+  const sel = card.target.apartment_id;
+  const apts = ws.length > 1 && !card._config.apartment_id && !HeaderApts.n
+    ? `<span class="sep"></span><span class="grp"><span class="lbl">${t("Wohnung")}</span><div class="seg">
+        <button data-apt="${ALL}" aria-pressed="${sel === ALL}">${t("Alle")}</button>${ws.map((w) =>
+        `<button data-apt="${w.apartment_id}" aria-pressed="${sel === w.apartment_id}" title="${esc(w.name)}">${esc(w.kuerzel || w.name)}</button>`).join("")}</div></span>` : "";
+  const raster = `<span class="grp"><span class="lbl">${t("Raster")}</span><div class="seg">${rasters.map(([k, l]) =>
+    `<button data-raster="${k}" aria-pressed="${s.raster === k}">${t(l)}</button>`).join("")}</div></span>`;
+  return `<div class="fbar">${period}${qsel}${anchor}${cmp}${afterCmp}<span class="sep"></span>${raster}${apts}
+    <span class="sep"></span><div class="chips">${channelChips(d.apt, s.channels)}</div>${tools}</div>`;
+}
+// Ereignisse der Leiste; shiftPatch = zusätzlicher Zustand beim Blättern (Statistik: Pace-Jahr zurücksetzen).
+// Heute/erster Datentag werden erst beim Klick aus card._data gelesen: bind() läuft auch beim Zeichnen
+// des Lade-/Fehlerzustands, dann gibt es noch keine Daten
+function bindFilterBar(card, root, shiftPatch = {}) {
+  const s = card._state;
+  const todayOf = () => card._data?.today;
+  root.querySelectorAll("[data-ptype]").forEach((el) => el.addEventListener("click", () => {
+    const todayIso = todayOf();
+    const [a, b] = statsRange(s, todayIso);
+    const p = el.dataset.ptype;
+    // Beim Wechsel auf „Frei“ den bisherigen Zeitraum übernehmen; sonst den Zeitraum, der heute bzw. den bisherigen Beginn enthält
+    if (p === "frei") card.setState({ ptype: p, from: iso(a), to: iso(addDays(b, -1)), quick: null }, true);
+    else card.setState({ ptype: p, anchor: iso(s.anchor ? a : D(todayIso)), quick: null }, true);
+  }));
+  root.querySelectorAll("[data-step]").forEach((el) => el.addEventListener("click", () => {
+    const [a] = statsRange(s, todayOf());
+    card.setState({ anchor: iso(addMonths(a, Number(el.dataset.step) * PERIOD_MONTHS[s.ptype])), ...shiftPatch }, true);
+  }));
+  root.querySelector('[data-k="quick"]')?.addEventListener("change", (e) => {
+    if (e.target.value) card.setState(quickState(e.target.value, todayOf(), card._data?.apt?.erster_tag), true);
+  });
+  root.querySelector('[data-k="compare"]')?.addEventListener("change", (e) => card.setState({ compare: e.target.value }, true));
+  // Datum von Hand geändert → keine Schnellwahl mehr
+  root.querySelector('[data-k="from"]')?.addEventListener("change", (e) => card.setState({ from: e.target.value, quick: null }, true));
+  root.querySelector('[data-k="to"]')?.addEventListener("change", (e) => card.setState({ to: e.target.value, quick: null }, true));
+  root.querySelectorAll("[data-raster]").forEach((el) => el.addEventListener("click", () => card.setState({ raster: el.dataset.raster }, true)));
+  root.querySelectorAll("[data-ch]").forEach((el) => el.addEventListener("click", () => card.setState({ channels: toggleChannel(s.channels, el.dataset.ch) }, true)));
+  root.querySelectorAll("[data-apt]").forEach((el) => el.addEventListener("click", () => {
+    AptSel.value = el.dataset.apt === ALL ? ALL : Number(el.dataset.apt);
+  }));
+}
+// Veränderung als schlichter Text ohne Bewertungsfarbe (Endstand-Hinweis); pp = Prozentpunkte
+function chgText(a, b, pp = false) {
+  if (a === null || a === undefined || b === null || b === undefined) return "";
+  const v = pp ? Math.round((a - b) * 10) / 10 : b ? ((a - b) / Math.abs(b)) * 100 : null;
+  if (v === null) return "";
+  return `${v > 0 ? "+" : v < 0 ? "−" : "±"}${num(Math.abs(v), 1)}${pp ? " PP" : " %"}`;
+}
+
 class SmoobuAnalyticsCard extends SmoobuCard {
   // compare_count (v1.17.0): Anzahl Vergleichszeiträume, Standard 1 = wie bisher
-  static defaults = { title: "", period: "jahr", compare: "vorjahr", compare_count: 1 };
-  static initialState = (c) => ({ period: c.period, compare: c.compare, compareCount: Number(c.compare_count) || 1,
-    channels: [], from: null, to: null, metric: "brutto" });
+  // v1.18.0b8: Filterleiste wie Statistik. period: monat|quartal|saison|jahr|custom oder ein Schnellwahl-Schlüssel
+  // (vormonat, jahr_bis_heute, letzte_12_monate …, wie bis v1.18.0b7); compare: stichtag (Standard, Entscheidung
+  // Betreiber 17.11.2026) | vorjahr | vorperiode | kein (alt: vorjahr_stand = stichtag); raster: auto|tag|woche|monat
+  static defaults = { title: "", period: "jahr", compare: "stichtag", compare_count: 1, raster: "auto" };
+  static initialState = (c) => {
+    const p = c.period === "custom" ? "frei" : c.period;
+    const typed = PERIOD_TYPES.some(([k]) => k === p);
+    return { ptype: typed ? p : "jahr", anchor: null, from: null, to: null,
+      // Schnellwahl aus der Kartenoption wird beim ersten Laden aufgelöst (braucht das heutige Datum)
+      quick: null, pendingQuick: typed || !QUICK_PERIODS.includes(p) ? null : p,
+      compare: FIN_COMPARE_ALIAS[c.compare] || (FIN_COMPARE_API[c.compare] ? c.compare : "stichtag"),
+      compareCount: Number(c.compare_count) || 1, raster: FIN_RASTER.some(([k]) => k === c.raster) ? c.raster : "auto",
+      channels: [], metric: "brutto" };
+  };
   static css = `
     .split { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 16px; align-items: center; }
     @media (max-width: 700px) { .split { grid-template-columns: 1fr; } }
@@ -2121,27 +2253,48 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     .wk div i { display: block; width: 100%; border-radius: 2px; background: var(--sm-accent); opacity: .45; min-height: 2px; }
     .wk div.we i { opacity: 1; }
     td .sub2 { display: block; font-size: .72rem; color: var(--sm-muted); }
+    /* v1.18.0b8: Filterleiste wie Statistik; mitlaufen geht nur, wenn die Karte nicht abschneidet
+       (breite Tabellen liegen ohnehin in eigenen .scroll-Bereichen) */
+    ha-card { overflow: visible; }
+    ${FBAR_CSS}
+    .fin { display: block; font-size: .74rem; color: var(--sm-muted); margin-top: 2px; }
   `;
+  // v1.18.0b8: wie Statistik neu zeichnen, wenn eine Kopfzeile mit Wohnungsauswahl erscheint/verschwindet
+  _listen() {
+    super._listen();
+    const onHdr = () => { if (this._data) this.render(); };
+    HeaderApts.listeners.add(onHdr);
+    const base = this._unsub;
+    this._unsub = () => { base?.(); HeaderApts.listeners.delete(onHdr); };
+  }
   async load() {
+    const info = await this.store.getInfo();
     const apt = await this.apartment();
+    const today = info.heute;
+    if (this._state.pendingQuick) this._state = { ...this._state, ...quickState(this._state.pendingQuick, today, apt.erster_tag), pendingQuick: null };
     const s = this._state;
-    const params = { ...this.target, compare: s.compare };
+    const range = statsRange(s, today);
+    const params = { ...this.target, compare: FIN_COMPARE_API[s.compare] || "vorjahr_stand", start: iso(range[0]), end: iso(range[1]), raster: s.raster };
     if (s.compareCount > 1 && s.compare !== "kein") params.compare_count = s.compareCount;
-    if (s.period === "custom") {
-      if (!s.from || !s.to) { const info = await this.store.getInfo(); const [a, b] = periodRange("jahr", info.heute); params.start = iso(a); params.end = iso(b); }
-      else { params.start = s.from; params.end = iso(addDays(D(s.to), 1)); }
-    } else params.period = s.period;
     if (s.channels.length) params.channels = s.channels;
     const r = await this.store.ws("smoobu/analytics", params);
+    // Endstand des Vergleichszeitraums (wie Statistik, v1.18.0b7): nur bei „Stichtag Vorjahr“ und wenn der
+    // Vergleichszeitraum am Stichtag noch lief – sonst sind Stand und Endstand gleich. Bewertung (Pfeil/Farbe)
+    // bleibt beim Stichtag, der Endstand steht nur als Zusatzzeile daneben.
+    let fin = null;
+    const st = r.stichtag_vergleich;
+    if (s.compare === "stichtag" && st && r.vergleich && D(r.vergleich.bis) > addDays(D(st), 1)) {
+      fin = await this.store.ws("smoobu/analytics", { ...params, compare: "vorjahr", compare_count: 1 })
+        .then((x) => x.vergleich).catch(() => null);
+    }
     // Gesamtansicht: dieselbe Auswertung je Wohnung für den Wohnungsvergleich
     let per = [];
     if (this.multi) {
-      const info = await this.store.getInfo();
       per = await Promise.all(info.wohnungen.filter((w) => !params.entry_id || w.entry_id === params.entry_id)
         .map((w) => this.store.ws("smoobu/analytics", { ...params, apartment_id: w.apartment_id }).then((x) => ({ w, x })).catch(() => null)));
       per = per.filter(Boolean);
     }
-    return { apt, r, per };
+    return { info, apt, today, range, r, per, fin };
   }
   insights(apt, r) {
     const cur = apt.currency;
@@ -2228,12 +2381,20 @@ class SmoobuAnalyticsCard extends SmoobuCard {
         `Ø ${money(r.wochenende_netto_pro_nacht, cur)} · ${t("So–Do")} ${money(r.wochentag_netto_pro_nacht, cur)}${wk}`),
     ].join("");
   }
-  body({ apt, r, per = [] }) {
+  body(d) {
+    const { apt, r, per = [], fin } = d;
     const cur = apt.currency;
     const s = this._state;
     const c = r.vergleich;
     const dp = r.veraenderung_prozent || {}, dpp = r.veraenderung_punkte || {};
     const cmpTxt = (k, f) => (c ? `${t("Vergleich")} ${f(c[k])}` : "");
+    // Zusatzzeile „Endstand X (±%)“ ohne Bewertungsfarbe; nur wenn er sich vom Stand am Stichtag unterscheidet
+    const endTxt = (k, f, pp = false) => {
+      if (!fin || fin[k] === null || fin[k] === undefined) return "";
+      const same = c && f(c[k]) === f(fin[k]);
+      return `<span class="fin" title="${t("Endstand Vergleichszeitraum")} · ${t("Pfeil und Farbe vergleichen mit dem Stand am Stichtag, nicht mit dem Endstand.")}">${t("Endstand")} ${f(fin[k])}${same ? "" : ` (${chgText(r[k], fin[k], pp)})`}</span>`;
+    };
+    const cmpLabel = Object.fromEntries(FIN_COMPARE)[s.compare] || "";
     const m = s.metric;
     const reihe = r.reihe;
     const colors = Object.fromEntries(Object.keys(r.farben || {}).map((n) => [n, chColor(n)]));
@@ -2254,7 +2415,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       return `<span><i style="background:${st.color}"></i>${esc(st.name)} <b>${fmt(v)}</b><em>${stackTotal ? pct((v / stackTotal) * 100, 0) : ""}</em></span>`;
     }).join("")}</div>`;
     const many = (r.vergleiche || []).length > 1;
-    const line = c?.reihe?.[m] ? { values: c.reihe[m], label: many ? periodName(c.von, c.bis) : t(COMPARE_LABEL[s.compare]) } : null;
+    const line = c?.reihe?.[m] ? { values: c.reihe[m], label: many ? periodName(c.von, c.bis) : t(cmpLabel) } : null;
     // Weitere Vergleichszeiträume: nur mit Daten, Deckkraft und Strichmuster nehmen mit dem Alter ab
     const extra = (r.vergleiche || []).slice(1).filter((v) => !v.keine_daten && v.reihe?.[m])
       .map((v, i) => ({ values: v.reihe[m], label: periodName(v.von, v.bis), op: Math.max(0.12, 0.4 - i * 0.08), dash: i % 2 ? "2 3" : "8 4" }));
@@ -2272,21 +2433,18 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     const ins = this.insights(apt, r);
     return `
       <div class="head"><h2>${esc(this._config.title || t("Finanzen"))}${this.multi ? ` <span class="sub">${t("Alle Wohnungen")}</span>` : ""}</h2>
-        <span class="sub">${fdate(r.von)} – ${fdate(iso(addDays(D(r.bis), -1)))}${c ? `, ${t("Vergleich")} ${fdate(c.von)} – ${fdate(iso(addDays(D(c.bis), -1)))}` : ""}</span></div>
-      <div class="toolbar">${periodSelect(s.period)}
-        ${s.period === "custom" ? `<input type="date" data-k="from" value="${s.from || ""}"> – <input type="date" data-k="to" value="${s.to || ""}">` : ""}
-        <select data-k="compare">${Object.entries(COMPARE_LABEL).map(([k, v]) => `<option value="${k}" ${k === s.compare ? "selected" : ""}>${t("Vergleich")}: ${t(v)}</option>`).join("")}</select>
-        ${s.compare !== "kein" ? `<select data-k="ccount" title="${t("Anzahl Vergleichszeiträume")}">${COMPARE_COUNTS.map((n) =>
-          `<option value="${n}" ${n === s.compareCount ? "selected" : ""}>${n} ${t(s.compare === "vorperiode" ? (n === 1 ? "Periode" : "Perioden") : (n === 1 ? "Jahr" : "Jahre"))}</option>`).join("")}</select>` : ""}
-      </div>
-      <div class="toolbar">${channelChips(apt, s.channels, colors)}</div>
+        <span class="sub">${fdate(r.von)} – ${fdate(iso(addDays(D(r.bis), -1)))}${c ? `, ${t("Vergleich")} ${fdate(c.von)} – ${fdate(iso(addDays(D(c.bis), -1)))}${r.stichtag_vergleich ? ` (${t("Stand")} ${fdate(r.stichtag_vergleich)})` : ""}` : ""}</span></div>
+      ${filterBarHtml(this, d, { compares: FIN_COMPARE, rasters: FIN_RASTER, quick: true,
+        // Mehrfachvergleich (nur Finanzen): Anzahl Vergleichsjahre bzw. -perioden
+        afterCmp: s.compare !== "kein" ? `<select data-k="ccount" title="${t("Anzahl Vergleichszeiträume")}">${COMPARE_COUNTS.map((n) =>
+          `<option value="${n}" ${n === s.compareCount ? "selected" : ""}>${n} ${t(s.compare === "vorperiode" ? (n === 1 ? "Periode" : "Perioden") : (n === 1 ? "Jahr" : "Jahre"))}</option>`).join("")}</select>` : "" })}
       <div class="grid">
-        ${tile(t("Brutto"), money(r.brutto, cur), `${cmpTxt("brutto", (v) => money(v, cur))} ${delta(dp.brutto)}`)}
-        ${tile(t("Netto"), money(r.netto, cur), `${cmpTxt("netto", (v) => money(v, cur))} ${delta(dp.netto)}`)}
+        ${tile(t("Brutto"), money(r.brutto, cur), `${cmpTxt("brutto", (v) => money(v, cur))} ${delta(dp.brutto)}${endTxt("brutto", (v) => money(v, cur))}`)}
+        ${tile(t("Netto"), money(r.netto, cur), `${cmpTxt("netto", (v) => money(v, cur))} ${delta(dp.netto)}${endTxt("netto", (v) => money(v, cur))}`)}
         ${tile(t("Kosten"), money(r.kosten, cur), `${pct(r.kostenquote_prozent)} ${delta(dpp.kostenquote_prozent, "pp", true)}`)}
-        ${tile(t("Auslastung"), pct(r.auslastung_prozent, 0), `${r.naechte} ${t("Nächte")} · ${r.gesperrt_naechte} ${t("Gesperrt")} ${delta(dpp.auslastung_prozent, "pp")}`)}
-        ${tile(t("Netto/Nacht"), money(r.netto_pro_nacht, cur), `${t("Brutto/Nacht")} ${money(r.brutto_pro_nacht, cur)} ${delta(dp.netto_pro_nacht)}`)}
-        ${tile(t("Buchungen"), num(r.buchungen), `${r.stornos} ${t("Stornos")} (${pct(r.stornoquote_prozent, 0)}) ${delta(dp.buchungen)}`)}
+        ${tile(t("Auslastung"), pct(r.auslastung_prozent, 0), `${r.naechte} ${t("Nächte")} · ${r.gesperrt_naechte} ${t("Gesperrt")} ${delta(dpp.auslastung_prozent, "pp")}${endTxt("auslastung_prozent", (v) => pct(v, 0), true)}`)}
+        ${tile(t("Netto/Nacht"), money(r.netto_pro_nacht, cur), `${t("Brutto/Nacht")} ${money(r.brutto_pro_nacht, cur)} ${delta(dp.netto_pro_nacht)}${endTxt("netto_pro_nacht", (v) => money(v, cur))}`)}
+        ${tile(t("Buchungen"), num(r.buchungen), `${r.stornos} ${t("Stornos")} (${pct(r.stornoquote_prozent, 0)}) ${delta(dp.buchungen)}${endTxt("buchungen", (v) => num(v))}`)}
         ${tile(t("Ø Aufenthalt"), `${num(r.aufenthalt_schnitt, 1)} N`, `${cmpTxt("aufenthalt_schnitt", (v) => num(v, 1))} ${delta(dp.aufenthalt_schnitt)}`)}
         ${tile(t("Ø Vorlauf"), `${num(r.vorlauf_schnitt)} ${t("Tage")}`, `Median ${num(r.vorlauf_median)} · ${cmpTxt("vorlauf_schnitt", (v) => num(v))}`)}
         ${tile(t("Ø Personen"), num(r.personen_schnitt, 1), `${r.hunde} × 🐕 · ${money(r.preis_pro_buchung, cur)} je Buchung`)}
@@ -2297,7 +2455,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       <h3>${t("Diagramm")}</h3>
       <div class="row"><div class="seg">${Object.keys(METRIC_LABEL).map((k) => `<button data-metric="${k}" aria-pressed="${m === k}">${t(METRIC_LABEL[k])}</button>`).join("")}</div>
         ${line ? `<span class="sub">┄ ${esc(line.label)}</span>` : ""}</div>
-      <div class="split"><div>${barChart({ labels: reihe.labels, stacks, line, fmt, daily: reihe.einheit === "tag", extra })}
+      <div class="split"><div>${barChart({ labels: reihe.labels, stacks, line, fmt, unit: reihe.einheit, daily: reihe.einheit === "tag", extra, starts: reihe.starts })}
           ${legendHtml.replace("</div>", (line ? `<span><i class="ln"></i><em>${esc(line.label)} ${fmt((line.values || []).reduce((x, y) => x + (y || 0), 0))}</em></span>` : "")
             + extra.map((e) => `<span><i class="ln" style="opacity:${e.op};border-top-style:${e.dash === "2 3" ? "dotted" : "dashed"}"></i><em>${esc(e.label)} ${fmt(e.values.reduce((x, y) => x + (y || 0), 0))}</em></span>`).join("") + "</div>")}
           <div class="tip" data-k="tip"></div></div>
@@ -2330,13 +2488,9 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       ${gloss(["PP", "Δ", "Ø", "N"])}`;
   }
   bind(root) {
-    const s = this._state;
-    root.querySelector('[data-k="period"]')?.addEventListener("change", (e) => this.setState({ period: e.target.value }, true));
-    root.querySelector('[data-k="compare"]')?.addEventListener("change", (e) => this.setState({ compare: e.target.value }, true));
+    // Filterleiste wie Statistik (v1.18.0b8)
+    bindFilterBar(this, root);
     root.querySelector('[data-k="ccount"]')?.addEventListener("change", (e) => this.setState({ compareCount: Number(e.target.value) }, true));
-    root.querySelector('[data-k="from"]')?.addEventListener("change", (e) => this.setState({ from: e.target.value }, true));
-    root.querySelector('[data-k="to"]')?.addEventListener("change", (e) => this.setState({ to: e.target.value }, true));
-    root.querySelectorAll("[data-ch]").forEach((el) => el.addEventListener("click", () => this.setState({ channels: toggleChannel(s.channels, el.dataset.ch) }, true)));
     root.querySelectorAll("[data-metric]").forEach((el) => el.addEventListener("click", () => this.setState({ metric: el.dataset.metric })));
     const tip = root.querySelector('[data-k="tip"]');
     root.querySelectorAll("rect.hit").forEach((el) => {
@@ -3844,19 +3998,8 @@ class SmoobuStatsCard extends SmoobuCard {
     .lede p { margin: 8px 0 0; font-size: 1.02rem; line-height: 1.5; max-width: 72ch; color: var(--sm-ink); }
     .lede p.m { color: var(--sm-muted); font-size: .92rem; margin-top: 4px; }
     .kick { font-size: .8rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--sm-accent); margin-bottom: 6px; }
-    /* Filterleiste: bleibt beim Scrollen oben (unter der HA-Kopfzeile) */
-    .fbar { position: sticky; top: var(--header-height, 0px); z-index: 4; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center;
-      padding: 10px 12px; margin: 0 0 var(--sm-gap); background: color-mix(in srgb, var(--sm-surf) 94%, transparent);
-      border: 1px solid var(--sm-line); border-radius: var(--sm-r); backdrop-filter: blur(6px); }
-    .fbar .grp { display: inline-flex; align-items: center; gap: 6px; }
-    .fbar .lbl { font-size: .74rem; color: var(--sm-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
-    .fbar .sep { width: 1px; align-self: stretch; background: var(--sm-line); }
-    .fbar .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .fbar .chip { padding: 4px 10px; font-size: .8rem; }
-    .step { border: 1px solid var(--sm-line); background: var(--sm-surf); color: var(--sm-ink); border-radius: 999px; width: 30px; height: 30px;
-      cursor: pointer; font: inherit; font-size: 1rem; line-height: 1; }
-    .step:hover { border-color: var(--sm-accent); }
-    .plabel { font-weight: 650; min-width: 9ch; text-align: center; white-space: nowrap; }
+    /* Filterleiste: gemeinsam mit Finanzen (FBAR_CSS, v1.18.0b8) */
+    ${FBAR_CSS}
     .seg button { white-space: nowrap; }
     /* Modul 1: Kennzahlenleiste */
     .kpis { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--sm-surf); border: 1px solid var(--sm-line);
@@ -4005,9 +4148,6 @@ class SmoobuStatsCard extends SmoobuCard {
     td .sub2 { display: block; font-size: .7rem; color: var(--sm-muted); }
     @media (max-width: 700px) {
       .panel { padding: 14px 14px; }
-      /* am Handy nicht mitlaufen lassen: die Leiste wäre höher als ein Drittel des Bildschirms */
-      .fbar { padding: 8px 10px; gap: 6px 8px; position: static; }
-      .fbar .sep { display: none; }
       .kpi { padding: 10px 12px 8px; }
       .kv { font-size: 1.3rem; }
       .fc .big { font-size: 1.8rem; }
@@ -4184,32 +4324,12 @@ class SmoobuStatsCard extends SmoobuCard {
     return `${t("Vorperiode")} ${statsLabel(s.ptype, d.cmp.range)}`;
   }
 
-  // ---- Filterleiste ----
+  // ---- Filterleiste (v1.18.0b8: gemeinsam mit Finanzen, filterBarHtml) ----
   filterBar(d) {
     const s = this._state;
-    const simple = d.simple;
-    const ptypes = PERIOD_TYPES.filter(([k]) => !simple || k !== "frei");
-    const period = `<div class="seg" role="group" aria-label="${t("Zeitraum")}">${ptypes.map(([k, l]) =>
-      `<button data-ptype="${k}" aria-pressed="${s.ptype === k}">${k === "frei" && LANG !== "de" ? "Custom" : t(l)}</button>`).join("")}</div>`;
-    const anchor = s.ptype === "frei"
-      ? `<span class="grp"><input type="date" data-k="from" value="${iso(d.range[0])}"> – <input type="date" data-k="to" value="${iso(addDays(d.range[1], -1))}"></span>`
-      : `<span class="grp"><button class="step" data-step="-1" aria-label="${t("Zurück")}">‹</button><span class="plabel">${esc(statsLabel(s.ptype, d.range))}</span>
-          <button class="step" data-step="1" aria-label="${t("Weiter")}">›</button></span>`;
-    const cmp = `<select data-k="compare" aria-label="${t("Vergleich")}">${STATS_COMPARE.map(([k, l]) =>
-      `<option value="${k}" ${k === s.compare ? "selected" : ""}>${t("Vergleich")}: ${t(l)}</option>`).join("")}</select>`;
-    if (simple) return `<div class="fbar">${period}${anchor}${cmp}</div>`;
-    const ws = d.info.wohnungen;
-    const sel = this.target.apartment_id;
-    const apts = ws.length > 1 && !this._config.apartment_id && !HeaderApts.n
-      ? `<span class="sep"></span><span class="grp"><span class="lbl">${t("Wohnung")}</span><div class="seg">
-          <button data-apt="${ALL}" aria-pressed="${sel === ALL}">${t("Alle")}</button>${ws.map((w) =>
-          `<button data-apt="${w.apartment_id}" aria-pressed="${sel === w.apartment_id}" title="${esc(w.name)}">${esc(w.kuerzel || w.name)}</button>`).join("")}</div></span>` : "";
-    const raster = `<span class="grp"><span class="lbl">${t("Raster")}</span><div class="seg">${RASTER.map(([k, l]) =>
-      `<button data-raster="${k}" aria-pressed="${s.raster === k}">${t(l)}</button>`).join("")}</div></span>`;
     const tools = `<span class="grow"></span><button class="btn flat sm" data-k="builder" aria-pressed="${s.builder}">＋ ${t("Modul")}</button>
       <button class="btn flat sm" data-k="edit" aria-pressed="${s.edit}">${s.edit ? t("Fertig") : t("Anordnen")}</button>`;
-    return `<div class="fbar">${period}${anchor}${cmp}<span class="sep"></span>${raster}${apts}
-      <span class="sep"></span><div class="chips">${channelChips(d.apt, s.channels)}</div>${tools}</div>`;
+    return filterBarHtml(this, d, { simple: d.simple, tools });
   }
 
   // ---- Modul 1: Kennzahlenleiste ----
@@ -4555,27 +4675,9 @@ class SmoobuStatsCard extends SmoobuCard {
         this._reload();
       } catch (e) { toast(`${t("Fehler")}: ${e?.message || e}`); }
     }));
-    const shift = (dir) => {
-      const [a] = statsRange(s, this._data.today);
-      this.setState({ anchor: iso(addMonths(a, dir * PERIOD_MONTHS[s.ptype])), paceYear: null }, true);
-    };
-    root.querySelectorAll("[data-ptype]").forEach((el) => el.addEventListener("click", () => {
-      const [a, b] = statsRange(s, this._data.today);
-      const p = el.dataset.ptype;
-      // Beim Wechsel auf „Frei“ den bisherigen Zeitraum übernehmen; sonst den Zeitraum, der heute bzw. den bisherigen Beginn enthält
-      if (p === "frei") this.setState({ ptype: p, from: iso(a), to: iso(addDays(b, -1)) }, true);
-      else this.setState({ ptype: p, anchor: iso(s.anchor ? a : D(this._data.today)) }, true);
-    }));
-    root.querySelectorAll("[data-step]").forEach((el) => el.addEventListener("click", () => shift(Number(el.dataset.step))));
-    root.querySelector('[data-k="compare"]')?.addEventListener("change", (e) => this.setState({ compare: e.target.value }, true));
-    root.querySelector('[data-k="from"]')?.addEventListener("change", (e) => this.setState({ from: e.target.value }, true));
-    root.querySelector('[data-k="to"]')?.addEventListener("change", (e) => this.setState({ to: e.target.value }, true));
+    // Filterleiste (gemeinsam mit Finanzen); Blättern setzt das Pace-Jahr zurück auf „folgt dem Zeitraum“
+    bindFilterBar(this, root, { paceYear: null });
     root.querySelector('[data-k="paceyear"]')?.addEventListener("change", (e) => this.setState({ paceYear: Number(e.target.value) }, true));
-    root.querySelectorAll("[data-raster]").forEach((el) => el.addEventListener("click", () => this.setState({ raster: el.dataset.raster }, true)));
-    root.querySelectorAll("[data-ch]").forEach((el) => el.addEventListener("click", () => this.setState({ channels: toggleChannel(s.channels, el.dataset.ch) }, true)));
-    root.querySelectorAll("[data-apt]").forEach((el) => el.addEventListener("click", () => {
-      AptSel.value = el.dataset.apt === ALL ? ALL : Number(el.dataset.apt);
-    }));
     root.querySelectorAll("[data-matrix]").forEach((el) => el.addEventListener("click", () => this.setState({ matrix: el.dataset.matrix }, true)));
     // Fokus-Kennzahl: Verlauf darunter; Matrix folgt, wenn sie die Kennzahl kennt
     root.querySelectorAll("[data-focus]").forEach((el) => el.addEventListener("click", () => {
@@ -4680,7 +4782,10 @@ class SmoobuStatsCard extends SmoobuCard {
 // Zusätzlich färbt sie den Seitenhintergrund passend zum gewählten Modus,
 // damit zwischen den Karten keine helle HA-Fläche im Dunkelmodus bleibt.
 const DEFAULT_PAGES = [
-  { name: "Übersicht", path: "smoobu" }, { name: "Belegung", path: "smoobu-belegung" },
+  // v1.18.0b8: Seite „Belegung“ heißt jetzt „Kalender“, auch im Pfad (Wunsch Betreiber 17.11.2026).
+  // legacy: hat das Dashboard noch die alte Ansicht „smoobu-belegung“ (und keine neue), zeigt der Reiter
+  // dorthin – so bleiben bestehende Dashboards anderer Nutzer ohne Anpassung funktionsfähig
+  { name: "Übersicht", path: "smoobu" }, { name: "Kalender", path: "smoobu-kalender", legacy: "smoobu-belegung" },
   { name: "Buchungen", path: "smoobu-buchungen" }, { name: "Finanzen", path: "smoobu-finanzen" },
   // Statistik-Werkbank (Teilschritt 2): optional = Reiter erscheint nur, wenn das Dashboard eine Ansicht
   // mit diesem Pfad hat (die Seite selbst kommt in Teilschritt 5) – so entsteht vorher kein toter Link
@@ -4775,7 +4880,9 @@ class SmoobuHeaderCard extends SmoobuCard {
     const known = this.viewPaths();
     // v1.18.0: Seiten ohne Recht ausblenden (Rechte über alle Wohnungen des Kontos)
     const rights = rightsOf(allApartment(info));
-    const pages = (this._config.pages || []).filter((p) => (!p.optional || !known || known.has(p.path))
+    // Alte Pfade auflösen (z. B. smoobu-belegung → smoobu-kalender, v1.18.0b8), nur wenn das Dashboard
+    // die neue Ansicht nicht kennt, die alte aber schon
+    const pages = (this._config.pages || []).map((p) => (p.legacy && known && !known.has(p.path) && known.has(p.legacy) ? { ...p, path: p.legacy } : p)).filter((p) => (!p.optional || !known || known.has(p.path))
       && (p.path === "smoobu" ? rights.has("gaeste") : rights.has(pageRight(p.path))));
     const home = this._config.home?.path ? `<a class="home" data-href="${esc(this.href(this._config.home.path))}" title="${esc(t("Zurück zu"))} ${esc(this._config.home.name || "")}">← ${esc(t(this._config.home.name || "Zurück"))}</a><span class="hsep"></span>` : "";
     const tabs = home + pages.map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${p.icon && ICON_SVG[p.icon] ? `${ICON_SVG[p.icon]}<span class="lbl">${esc(t(p.name))}</span>` : esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");

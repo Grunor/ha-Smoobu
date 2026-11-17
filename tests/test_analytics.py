@@ -165,3 +165,25 @@ def test_compare_count():
     assert [(v["von"], v["bis"]) for v in p["vergleiche"]] == [("2026-02-01", "2026-03-01"), ("2026-01-01", "2026-02-01")]
     s = analyze_with_compare(RECS, *period_range("jahr", TODAY), None, "vorjahr_stand", series=False, today=TODAY, count=2)
     assert [v["stichtag"] for v in s["vergleiche"]] == ["2025-11-15", "2024-11-15"]
+
+
+def test_raster_v118b8():
+    """v1.18.0b8: Raster der Reihe (Finanzen-Filterleiste wie Statistik): Tag, Woche, Monat, Auto."""
+    march = (date(2026, 3, 1), date(2026, 4, 1))
+    # Auto = bisheriges Verhalten (bis 62 Tage je Tag)
+    assert analyze(RECS, *march)["reihe"]["einheit"] == "tag"
+    w = analyze(RECS, *march, raster="woche")["reihe"]
+    # 01.03.2026 ist ein Sonntag → erste ISO-Woche KW 9, gekürzt auf den 01.03.; März reicht bis KW 14
+    assert w["einheit"] == "woche" and w["labels"][0] == "2026-W09" and w["labels"][-1] == "2026-W14"
+    assert w["starts"][0] == "2026-03-01" and w["starts"][1] == "2026-03-02"
+    # Summe der Wochen = Gesamtwert (Rand-Wochen sind gekürzt, nichts doppelt)
+    assert round(sum(w["brutto"]), 2) == analyze(RECS, *march, series=False)["brutto"]
+    m = analyze(RECS, *march, raster="monat")["reihe"]
+    assert m["einheit"] == "monat" and m["labels"] == ["2026-03"]
+    year = period_range("jahr", TODAY)
+    assert analyze(RECS, *year, raster="tag")["reihe"]["einheit"] == "tag"
+    # sehr lange Zeiträume je Tag → Wochen (Lesbarkeit)
+    assert analyze(RECS, date(2025, 1, 1), date(2027, 1, 1), raster="tag")["reihe"]["einheit"] == "woche"
+    # Vergleich nutzt dasselbe Raster
+    c = analyze_with_compare(RECS, *march, None, "vorjahr", raster="woche")
+    assert c["reihe"]["einheit"] == c["vergleich"]["reihe"]["einheit"] == "woche"

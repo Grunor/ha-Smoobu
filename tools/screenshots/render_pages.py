@@ -37,7 +37,7 @@ APTS = int(os.environ.get("SMOOBU_WOHNUNGEN", "1"))
 CHIPS: list[str] = []
 PAGES = {
     "uebersicht": [["smoobu-header-card", {}], ["smoobu-overview-card", {"entities": CHIPS}]],
-    "belegung": [["smoobu-header-card", {}], ["smoobu-timeline-card", {"months": 2}]],
+    "kalender": [["smoobu-header-card", {}], ["smoobu-timeline-card", {"months": 2}]],
     "buchungen": [["smoobu-header-card", {}], ["smoobu-bookings-card", {}]],
     "finanzen": [["smoobu-header-card", {}], ["smoobu-analytics-card", {}]],
     "nachrichten": [["smoobu-header-card", {}], ["smoobu-inbox-card", {"message_entity": "sensor.smoobu_letzte_gastenachricht"}]],

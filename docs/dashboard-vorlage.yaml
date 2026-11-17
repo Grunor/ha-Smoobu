@@ -1,6 +1,6 @@
 # Smoobu – Dashboard-Vorlage (ab v1.15.0)
 # =============================================================================
-# Zweck: Komplettes Smoobu-Dashboard mit 7 Seiten (Übersicht, Belegung,
+# Zweck: Komplettes Smoobu-Dashboard mit 7 Seiten (Übersicht, Kalender,
 # Buchungen, Finanzen, Statistik, Nachrichten, Assistent). So sehen die Seiten aus: docs/screenshots/
 #
 # Einrichtung
@@ -46,9 +46,9 @@ views:
             #   - climate.ferienwohnung
             #   - binary_sensor.ferienwohnung_eingangstuer
 
-  # --- Seite 2: Belegung (Monate mit Preisen, sperren, Preise setzen) -----------
-  - title: Belegung
-    path: smoobu-belegung
+  # --- Seite 2: Kalender (Monate mit Preisen, sperren, Preise setzen) -----------
+  - title: Kalender
+    path: smoobu-kalender
     icon: mdi:calendar-month
     type: panel
     subview: true

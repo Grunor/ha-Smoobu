@@ -406,8 +406,12 @@ def analyze(
     series: bool = True,
     units: int = 1,
     today: date | None = None,
+    raster: str = "auto",
 ) -> dict[str, Any]:
-    """Kennzahlen gesamt, je Kanal und (optional) als Monats-/Tagesreihe.
+    """Kennzahlen gesamt, je Kanal und (optional) als Monats-/Wochen-/Tagesreihe.
+
+    `raster` (v1.18.0b8): Fachgröße der Reihe – "auto" (bis 62 Tage je Tag, sonst je Monat, wie bisher),
+    "tag", "woche" (ISO-Woche, Mo–So) oder "monat".
 
     `today` (v1.17.0) trennt freie Nächte in vergangen (entgangen) und kommend (Potenzial)
     und markiert überfällige offene Zahlungen; ohne Angabe gilt das heutige Datum.
@@ -463,7 +467,7 @@ def analyze(
     result["einheiten"] = units
     result.update(_extras(records, start, end, match, units, result, today or date.today()))
     if series:
-        result["reihe"] = _series(records, start, end, match)
+        result["reihe"] = _series(records, start, end, match, raster)
     return result
 
 
@@ -556,16 +560,36 @@ def _extras(records, start: date, end: date, match, units: int, result: dict[str
     }
 
 
-def _series(records, start: date, end: date, match) -> dict[str, Any]:
-    """Reihe je Monat (bzw. je Tag bei Zeiträumen bis 62 Tage), aufgeteilt nach Kanal."""
-    daily = (end - start).days <= 62
-    if daily:
-        buckets = [start + timedelta(days=i) for i in range((end - start).days)]
+# Raster der Reihe (v1.18.0b8, Filterleiste der Finanzen wie in der Statistik)
+RASTERS = ["auto", "tag", "woche", "monat"]
+# Obergrenze für Tagesfächer: mehr Balken sind im Diagramm nicht mehr lesbar (und kosten Rechenzeit)
+MAX_DAY_BUCKETS = 400
+
+
+def _series(records, start: date, end: date, match, raster: str = "auto") -> dict[str, Any]:
+    """Reihe je Monat, Woche oder Tag, aufgeteilt nach Kanal.
+
+    "auto" = bisheriges Verhalten: bis 62 Tage je Tag, sonst je Monat. "tag" fällt bei sehr langen
+    Zeiträumen (> MAX_DAY_BUCKETS Tage) auf Wochen zurück. Wochen sind ISO-Wochen (Mo–So); die erste
+    und letzte Woche werden auf den Zeitraum gekürzt, damit die Summe der Reihe dem Gesamtwert entspricht.
+    """
+    days = (end - start).days
+    unit = raster if raster in ("tag", "woche", "monat") else ("tag" if days <= 62 else "monat")
+    if unit == "tag" and days > MAX_DAY_BUCKETS:
+        unit = "woche"
+    if unit == "tag":
+        buckets = [start + timedelta(days=i) for i in range(days)]
         step = lambda b: b + timedelta(days=1)  # noqa: E731
+    elif unit == "woche":
+        first = start - timedelta(days=start.weekday())  # Montag der Woche, in der der Zeitraum beginnt
+        buckets = [first + timedelta(weeks=i) for i in range(((end - first).days + 6) // 7)]
+        step = lambda b: b + timedelta(days=7)  # noqa: E731
     else:
         buckets = _months(start, end)
         step = lambda b: _add_months(b, 1)  # noqa: E731
+    daily = unit == "tag"
     labels, brutto, netto, nights, costs = [], [], [], [], []
+    starts: list[str] = []  # nur bei Wochen: erster Tag je Fach (für Beschriftung und Tooltip)
     # je Kanal: Brutto (bisheriges Feld „kanaele“) plus ab v1.17.0 Netto, Nächte und Kosten (Provision + Gebühren)
     by = {"brutto": {}, "netto": {}, "naechte": {}, "kosten": {}}
     for i, b in enumerate(buckets):
@@ -585,14 +609,20 @@ def _series(records, start: date, end: date, match) -> dict[str, Any]:
                 if v:
                     row = by[key].setdefault(r["kanal"], [0] * len(buckets))
                     row[i] = row[i] + v
-        labels.append(b.isoformat() if daily else b.strftime("%Y-%m"))
+        if unit == "woche":
+            # Kennung „2026-W45“ (ISO-Jahr + Woche) wie in smoobu/stats; Startdatum für die Beschriftung
+            iy, iw, _ = b.isocalendar()
+            labels.append(f"{iy}-W{iw:02d}")
+            starts.append(max(b, start).isoformat())
+        else:
+            labels.append(b.isoformat() if daily else b.strftime("%Y-%m"))
         brutto.append(round(acc["brutto"], 2))
         netto.append(round(acc["netto"], 2))
         nights.append(acc["naechte"])
         costs.append(round(acc["provision"] + acc["zahlungsgebuehren"], 2))
     rnd = lambda d: {k: [round(x, 2) for x in v] for k, v in d.items()}  # noqa: E731
-    return {
-        "einheit": "tag" if daily else "monat",
+    out = {
+        "einheit": unit,
         "labels": labels,
         "brutto": brutto,
         "netto": netto,
@@ -603,6 +633,9 @@ def _series(records, start: date, end: date, match) -> dict[str, Any]:
         "kanaele_naechte": by["naechte"],
         "kanaele_kosten": rnd(by["kosten"]),
     }
+    if unit == "woche":
+        out["starts"] = starts
+    return out
 
 
 def change(new: float | None, old: float | None) -> float | None:
@@ -658,6 +691,7 @@ def analyze_with_compare(
     today: date | None = None,
     units: int = 1,
     count: int = 1,
+    raster: str = "auto",
 ) -> dict[str, Any]:
     """Auswertung + Vergleichszeitraum + Veränderungen je Kennzahl.
 
@@ -666,7 +700,7 @@ def analyze_with_compare(
     „vergleich“ und alle Veränderungen beziehen sich weiter auf den ersten (wie bisher);
     ab 2 kommt die Liste „vergleiche“ dazu (neuester zuerst).
     """
-    result = analyze(records, start, end, selection, series, units, today)
+    result = analyze(records, start, end, selection, series, units, today, raster)
     count = max(1, min(int(count or 1), MAX_COMPARE_COUNT))
     first_day = min((date.fromisoformat(r["anreise"]) for r in records), default=None)
     comparisons: list[dict[str, Any]] = []
@@ -680,7 +714,8 @@ def analyze_with_compare(
         if mode == "vorjahr_stand":
             stichtag = _prev_year(stichtag)
             base = as_of(records, stichtag)
-        cmp = analyze(base, rng[0], rng[1], selection, series, units, today)
+        # Gleiches Raster wie der Zeitraum, damit Vergleichslinie und Balken Fach für Fach übereinanderliegen
+        cmp = analyze(base, rng[0], rng[1], selection, series, units, today, raster)
         if mode == "vorjahr_stand":
             cmp["stichtag"] = stichtag.isoformat()
         # Zeitraum vor dem ältesten geladenen Datensatz → als „keine Daten“ markieren (statt 0 €)
