@@ -8,6 +8,14 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+**Deutsch**
+- **Übersicht → „Wartet auf dich“ als Aufgaben-Board:** Reiter mit Zählern (Alle · Nachrichten · Rechnungen · Preise · Last-Minute · Lücken). Neu dabei: Preisempfehlungen der Monate (senken/erhöhen), Feiertagsnächte und Wochenend-Aufschlag, Last-Minute-Nächte mit Vorschlag und kurze Lücken – jeweils mit „Übernehmen …“ bzw. „Anpassen …“ (gleicher Dialog wie in der Statistik). Jede Aufgabe hat „✓ Erledigt“ (ausblenden) und „Später“ (morgen wieder), gespeichert im Backend und damit für alle Benutzer gleich; ändert sich der Inhalt (neue Gastnachricht, anderer Preisvorschlag), erscheint sie wieder. „Alle“ zeigt je Kategorie höchstens 2 mit Link „weitere“. Welche Kategorien erscheinen, steht in den Einstellungen unter Allgemein & Abruf (Option `task_categories`). Neue Websocket-Befehle `smoobu/tasks/get` und `smoobu/tasks/set` (Recht je Kategorie: Nachrichten = Antworten, Rechnungen = Belegung, Preise/Last-Minute/Lücken = Preise)
+- **Übersicht ohne Recht „Finanzen“:** Umsatz-Kacheln und Fußzeile entfallen, Rest bleibt nutzbar (vorher Fehler)
+
+**English**
+- **Overview → "Waiting for you" as a task board:** tabs with counts (all · messages · invoices · prices · last minute · gaps). New: monthly price recommendations (lower/raise), holiday nights and weekend markup, last-minute nights with a suggestion and short gaps – each with "Apply …" or "Adjust …" (same dialog as in statistics). Every task has "✓ Done" (hide) and "Later" (back tomorrow), stored in the backend and therefore the same for all users; if the content changes (new guest message, different price suggestion) it reappears. "All" shows at most 2 per category with a "more" link. Which categories appear is set under settings → general & polling (option `task_categories`). New websocket commands `smoobu/tasks/get` and `smoobu/tasks/set` (permission per category: messages = reply, invoices = occupancy, prices/last minute/gaps = prices)
+- **Overview without the "finances" permission:** revenue tiles and footer are omitted, the rest stays usable (previously an error)
+
 ## 1.18.0b4 – 2026-11-17
 
 > Beta / Pre-release

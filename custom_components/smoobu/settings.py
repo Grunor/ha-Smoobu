@@ -30,6 +30,9 @@ from .codes import all_codes, clean_code
 from .deckungsbeitrag import parse_grid_share, parse_markups
 from . import rechte
 from .const import (
+    CONF_TASK_CATEGORIES,
+    DEFAULT_TASK_CATEGORIES,
+    TASK_CATEGORIES,
     CONF_LASTMINUTE_DAYS,
     CONF_LASTMINUTE_MAX_DISCOUNT,
     DEFAULT_LASTMINUTE_DAYS,
@@ -203,6 +206,7 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_CHANNEL_MARKUPS: {str(k): float(v) for k, v in (o.get(CONF_CHANNEL_MARKUPS, DEFAULT_CHANNEL_MARKUPS)).items()},
         CONF_GENIUS_DISCOUNT: float(o.get(CONF_GENIUS_DISCOUNT, DEFAULT_GENIUS_DISCOUNT)),
         CONF_GENIUS_SHARE: float(o.get(CONF_GENIUS_SHARE, DEFAULT_GENIUS_SHARE)),
+        CONF_TASK_CATEGORIES: list(o.get(CONF_TASK_CATEGORIES, DEFAULT_TASK_CATEGORIES)),
         CONF_LASTMINUTE_DAYS: int(o.get(CONF_LASTMINUTE_DAYS, DEFAULT_LASTMINUTE_DAYS)),
         CONF_LASTMINUTE_MAX_DISCOUNT: float(o.get(CONF_LASTMINUTE_MAX_DISCOUNT, DEFAULT_LASTMINUTE_MAX_DISCOUNT)),
     }
@@ -472,6 +476,7 @@ FIELDS: dict[str, Any] = {
     CONF_CHANNEL_MARKUPS: _markups,
     CONF_GENIUS_DISCOUNT: _num(0, 50),
     CONF_GENIUS_SHARE: _num(0, 100),
+    CONF_TASK_CATEGORIES: vol.All(_names, [vol.In(TASK_CATEGORIES)]),
     CONF_LASTMINUTE_DAYS: _int(1, 14),
     CONF_LASTMINUTE_MAX_DISCOUNT: _num(0, 30),
     **{f"notify_{kind}": bool for kind in NOTIFY_TYPES},

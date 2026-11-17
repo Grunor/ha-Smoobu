@@ -428,7 +428,8 @@ def _hints(records, prices, min_stay, table: CostTable, factors, today: date, un
                         hist.append(prev in occupied)
                 found.append({"datum": iso, "name": name, "vorjahre_belegt": sum(hist), "vorjahre": len(hist)})
         if found:
-            out.append({"typ": "feiertag", "titel": f"{len(found)} Feiertagsnächte zum Normalpreis",
+            word = "Feiertagsnacht" if len(found) == 1 else "Feiertagsnächte"
+            out.append({"typ": "feiertag", "titel": f"{len(found)} {word} zum Normalpreis",
                         "text": "Nächte vor Feiertagen und über Weihnachten/Silvester sind gefragter – Aufschlag (z. B. +20 %) "
                                 "oder Mindestaufenthalt prüfen.", "tage": found, "prozent": 20})
 

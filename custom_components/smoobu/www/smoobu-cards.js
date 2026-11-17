@@ -41,7 +41,10 @@ const EN = {
   "Feiertag": "holiday", "eigener Preis": "own price", "Last-Minute": "Last minute", "Fenster": "Window", "max. Rabatt": "max. discount",
   "kein Rabatt empfohlen": "no discount recommended", "Smoobu liefert": "Smoobu provides", "teilweise": "partly",
   "Wert hier wird genutzt": "value here is used", "Genius-Check": "Genius check", "Gemessenen Anteil übernehmen": "Use measured share",
-  "passt zur Einstellung": "matches the setting", "Direktkanal": "direct channel", "keine Buchungen": "no bookings",
+  "passt zur Einstellung": "matches the setting", "Rechnungen": "Invoices",
+  "Erledigt": "Done", "Später": "Later", "Morgen wieder da": "Back tomorrow", "weitere": "more", "erledigt bzw. später – ausgeblendet": "done or later – hidden",
+  "Als erledigt ausblenden": "Hide as done", "Morgen wieder zeigen": "Show again tomorrow", "Preis senken": "Lower price", "Preis erhöhen": "Raise price",
+  "Aufgaben-Board „Wartet auf dich“": "Task board \"Waiting for you\"", "Anpassen …": "Adjust …", "übernehmen": "apply", "Direktkanal": "direct channel", "keine Buchungen": "no bookings",
   "Provision von Smoobu (24 Monate)": "Commission from Smoobu (24 months)", "Weitere Kanäle mit Buchungen": "Other channels with bookings", "auf die freien Nächte": "on the free nights", "Lücke": "Gap", "Kanalpreise bei": "Channel prices at",
   "Kosten & Preise": "Costs & prices", "Bewertung & Empfehlung": "Assessment & recommendation", "Basispreis heute": "Base price today",
   "Basispreis": "Base price", "netto je Nacht": "net per night", "Schwach": "Weak", "Normal": "Normal", "Stark": "Strong",
@@ -351,6 +354,8 @@ const HeaderApts = {
 // v1.18.0: Benutzerrollen – Rechte des angemeldeten Benutzers je Wohnung (Backend prüft zusätzlich)
 const ALL_RIGHTS = ["finanzen", "gaeste", "nachrichten", "antworten", "belegung", "preise", "einstellungen"];
 const rightsOf = (apt) => new Set(apt?.zugriff?.rechte ?? ALL_RIGHTS);
+// v1.18.0: Kategorien des Aufgaben-Boards (gleiche Schlüssel wie const.TASK_CATEGORIES)
+const TASK_CATS = [["nachrichten", "Nachrichten"], ["rechnungen", "Rechnungen"], ["preise", "Preise"], ["lastminute", "Last-Minute"], ["luecken", "Lücken"]];
 // Seite (Pfad) → nötiges Recht; Seiten ohne Eintrag sind für jede Rolle außer „Kein Zugriff“ sichtbar
 const PAGE_RIGHT = { finanzen: "finanzen", statistik: "finanzen", nachrichten: "nachrichten", assistent: "nachrichten",
   einstellungen: "einstellungen", buchungen: "gaeste", belegung: "gaeste" };
@@ -858,6 +863,15 @@ class SmoobuOverviewCard extends SmoobuCard {
     this._unsub = () => { base?.(); clearInterval(timer); };
   }
   static css = `
+    /* v1.18.0: Aufgaben-Board „Wartet auf dich“ */
+    .tchips { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 10px; }
+    .tchips button { border: 1px solid var(--sm-line); background: none; font: inherit; font-size: .8rem; padding: 4px 10px; border-radius: 999px; cursor: pointer; color: var(--sm-muted); }
+    .tchips button[aria-pressed="true"] { background: var(--sm-accent); border-color: var(--sm-accent); color: var(--sm-acc-ink); }
+    .tchips button b { font-weight: 700; margin-left: 2px; }
+    .todo .tcat { display: inline-block; font-size: .68rem; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--sm-muted); margin-bottom: 2px; }
+    .todo .tact { display: inline-flex; gap: 10px; margin-left: auto; font-size: .78rem; }
+    .todo .tact .lnk { color: var(--sm-muted); }
+
     :host { padding-top: 4px; }
     ha-card { background: none; border: 0; padding: 0; overflow: visible; }
     .panel { background: var(--sm-surf); border: 1px solid var(--sm-line); border-radius: var(--sm-r); padding: 18px 20px; min-width: 0; }
@@ -985,14 +999,20 @@ class SmoobuOverviewCard extends SmoobuCard {
     // Status-Satz, Lücken und Antwortstatus mitverändern. Daher separat: 60 Tage zurück bis morgen, nur Portale
     // (Backend-Filter „portale“ = Kanalgruppe Portal). 60 Tage = genug Puffer für Rechnungen, ohne Altlasten
     // aus Jahren vor der Einführung der Markierung anzuzeigen.
-    const [month, ytd, last12, prevYear, list, portalList, ...rates] = await Promise.all([
-      this.store.ws("smoobu/analytics", { ...tg, period: "monat", compare: "vorjahr_stand" }),
-      this.store.ws("smoobu/analytics", { ...tg, period: "jahr_bis_heute", compare: "vorjahr" }),
-      this.store.ws("smoobu/analytics", { ...tg, start: iso(addMonths(m0, -11)), end: iso(addMonths(m0, 1)), compare: "vorjahr" }),
-      this.store.ws("smoobu/analytics", { ...tg, period: "vorjahr", compare: "kein" }).catch(() => null),
+    // v1.18.0: Finanzen nur mit Recht „finanzen“ (sonst bleibt die Übersicht ohne Umsatz-Kacheln nutzbar)
+    const fin = can("finanzen", tg.apartment_id);
+    const none = Promise.resolve(null);
+    const [month, ytd, last12, prevYear, list, portalList, taskState, emp, ...rates] = await Promise.all([
+      fin ? this.store.ws("smoobu/analytics", { ...tg, period: "monat", compare: "vorjahr_stand" }) : none,
+      fin ? this.store.ws("smoobu/analytics", { ...tg, period: "jahr_bis_heute", compare: "vorjahr" }) : none,
+      fin ? this.store.ws("smoobu/analytics", { ...tg, start: iso(addMonths(m0, -11)), end: iso(addMonths(m0, 1)), compare: "vorjahr" }) : none,
+      fin ? this.store.ws("smoobu/analytics", { ...tg, period: "vorjahr", compare: "kein" }).catch(() => null) : none,
       this.store.ws("smoobu/bookings", { ...tg, start: iso(addDays(D(today), -1)), end: iso(addDays(D(today), 180)) }),
       this.store.ws("smoobu/bookings", { ...tg, start: iso(addDays(D(today), -60)), end: iso(addDays(D(today), 1)), channels: ["portale"] })
         .then((r) => r.buchungen).catch(() => []),
+      // v1.18.0: Aufgaben-Board – erledigt/später (Backend) und Preis-/Last-Minute-/Lücken-Aufgaben aus der Empfehlung
+      this.store.ws("smoobu/tasks/get", tg, { cache: false }).catch(() => ({ zustand: {}, kategorien: [] })),
+      fin ? this.store.ws("smoobu/stats", { ...tg, mode: "empfehlung" }).catch(() => null) : none,
       ...apts.map((w) => this.store.ws("smoobu/rates", { ...tg, apartment_id: w.apartment_id, start: today, end: rateEnd })
         .then((r) => r.preise).catch(() => ({}))),
     ]);
@@ -1007,7 +1027,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     const ratesBy = Object.fromEntries(apts.map((w, i) => [w.apartment_id, rates[i] || {}]));
     // Anreise ≤ heute, nicht storniert/gesperrt, ohne offenen Betrag (sonst normaler Weg) und noch nicht markiert
     const portalOpen = portalList.filter((b) => !b.storniert && !b.blockiert && portalPay(b) && !b.bezahlt && b.anreise <= today);
-    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy, portalOpen };
+    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy, portalOpen, taskState, emp, fin };
   }
 
   // ---- Kopf ----------------------------------------------------------------
@@ -1016,8 +1036,8 @@ class SmoobuOverviewCard extends SmoobuCard {
     const cur = apt.currency;
     const s = stayStatus(apt, bookings, today, nowHM(this._hass));
     const open = bookings.filter((b) => status[b.id]?.offen);
-    const dm = month.veraenderung_prozent?.brutto;
-    const lead2 = `${monthName(today)}: ${money(month.brutto, cur)} gebucht${dm !== null && dm !== undefined ? `, ${dm >= 0 ? "+" : "−"}${num(Math.abs(dm), 0)} % ggü. dem Buchungsstand des Vorjahres` : ""}. Auslastung ${pct(month.auslastung_prozent, 0)}.`;
+    const dm = month?.veraenderung_prozent?.brutto;
+    const lead2 = !month ? "" : `${monthName(today)}: ${money(month.brutto, cur)} gebucht${dm !== null && dm !== undefined ? `, ${dm >= 0 ? "+" : "−"}${num(Math.abs(dm), 0)} % ggü. dem Buchungsstand des Vorjahres` : ""}. Auslastung ${pct(month.auslastung_prozent, 0)}.`;
     const guestCard = (b, label) => {
       if (!b) return `<div class="guest none"><div class="gl">${t(label)}</div><div class="gm">${t("keine")}</div></div>`;
       const portal = b.gruppe === "Portal";
@@ -1224,10 +1244,8 @@ class SmoobuOverviewCard extends SmoobuCard {
     // v1.17.0 (Portal): Portal-Buchungen ohne Markierung ab dem Anreisetag, älteste zuerst (Rechnung am längsten
     // fällig), max. 3 – Rest als Anzahl/Summe-Zeile wie „Später fällig“
     const portalAll = [...portalOpen].sort((a, b) => a.anreise.localeCompare(b.anreise) || a.id - b.id);
-    const portalShow = portalAll.slice(0, 3);
-    const portalRest = portalAll.slice(3);
     // v1.17.0: für die Buttons „✓ Erhalten“ / „✓ Anzahlung“ (bind sucht die Buchung per ID)
-    this._payBookings = new Map([...unpaid, ...portalShow].map((b) => [b.id, b]));
+    this._payBookings = new Map([...unpaid, ...portalAll].map((b) => [b.id, b]));
     this._payCur = cur;
     const later = unpaidAll.filter((b) => !unpaid.includes(b));
     const ago = (s) => {
@@ -1240,37 +1258,110 @@ class SmoobuOverviewCard extends SmoobuCard {
       if (LANG !== "de") return h < 1 ? t("gerade eben") : h < 24 ? `${h} h ago` : `${dd} ${dd === 1 ? "day" : "days"} ago`;
       return h < 1 ? t("gerade eben") : h < 24 ? `vor ${h} Std.` : `vor ${dd} ${dd === 1 ? "Tag" : "Tagen"}`;
     };
-    const todo = [
-      ...open.map((b) => `<div class="todo msg"><div class="tt">${esc(b.gast)} ${t("wartet auf Antwort")}${this.code(b)}</div>
+    // v1.18.0: Aufgaben-Board „Wartet auf dich“ (Wunsch Betreiber 17.11.2026): Reiter mit Zählern je Kategorie,
+    // „✓ Erledigt“ / „Später“ je Aufgabe (im Backend gespeichert, für alle Benutzer gleich). Der Schlüssel
+    // enthält, was die Aufgabe ausmacht (z. B. Zeitpunkt der letzten Gastnachricht, empfohlener Preis) –
+    // ändert sich das, erscheint die Aufgabe wieder. Kategorien sind in den Einstellungen wählbar.
+    const tasks = [];
+    const add = (cat, key, html, sort) => tasks.push({ cat, key, html, sort: sort || "9" });
+    open.forEach((b) => add("nachrichten", `msg:${b.id}:${status[b.id].letzte_zeit || ""}`, `<div class="tt">${esc(b.gast)} ${t("wartet auf Antwort")}${this.code(b)}</div>
         ${status[b.id].letzte_text ? `<p>„${esc(status[b.id].letzte_text)}“</p>` : "<p></p>"}
-        <div class="ta"><button class="btn" data-id="${b.id}">${t("Antworten")}</button><span class="ago">${ago(status[b.id].letzte_zeit)}</span></div></div>`),
-      // v1.17.0 (Portal): vor den Direkt-Zahlungen, weil schon fällig (Anreise erreicht) und damit „Später fällig“
-      // direkt unter den Direkt-Zahlungen bleibt, zu denen die Summe gehört. Kanalname statt rotem Betrag;
-      // Brutto gedämpft (.amt.muted), weil kein Geld offen ist, sondern nur die Markierung „erhalten“ fehlt
-      ...portalShow.map((b) => `<div class="todo"><div class="tt">${t("Nicht als erhalten markiert")}${this.code(b)}
+        <div class="ta"><button class="btn" data-id="${b.id}">${t("Antworten")}</button><span class="ago">${ago(status[b.id].letzte_zeit)}</span>`, "0"));
+    // Portal-Rechnung noch nicht als erhalten markiert (Anreise erreicht) – älteste zuerst
+    portalAll.forEach((b) => add("rechnungen", `rechnung:${b.id}`, `<div class="tt">${t("Nicht als erhalten markiert")}${this.code(b)}
         <button class="lnk" style="margin-left:auto" data-id="${b.id}">${t("Buchung öffnen")}</button></div>
         <p>${esc(b.gast)}, ${t("Anreise")} ${fdowLong(b.anreise)} · <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span> ${esc(chn(b.kanal))}</p>
         <div class="ta"><span class="amt muted">${money(b.brutto, cur, 2)}</span>
-          <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t("Erhalten")}</button></div></div>`),
-      portalRest.length ? `<div class="sub" style="padding:4px 2px">${t("Weitere ohne Markierung")}: ${plural(portalRest.length, t("Buchung"), t("Buchungen"))}, ${money(portalRest.reduce((a, b) => a + (b.brutto || 0), 0), cur, 2)}</div>` : "",
-      // v1.17.0: „✓ Erhalten“ (Gesamtbetrag) und ggf. „✓ Anzahlung“ direkt hier; „Buchung öffnen“ als Textlink,
-      // damit Betrag + Buttons auch in der schmalen Spalte in eine Zeile passen
-      ...unpaid.map((b) => { const p = payInfo(b); return `<div class="todo"><div class="tt">${t("Zahlung offen")}${this.code(b)}
+          <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t("Erhalten")}</button>`, `1${b.anreise}`));
+    unpaid.forEach((b) => { const p = payInfo(b); add("rechnungen", `zahlung:${b.id}`, `<div class="tt">${t("Zahlung offen")}${this.code(b)}
         <button class="lnk" style="margin-left:auto" data-id="${b.id}">${t("Buchung öffnen")}</button></div>
         <p>${esc(b.gast)}, ${t("Anreise")} ${fdowLong(b.anreise)}${p.canPre ? ` · ${t("Anzahlung")} ${money(p.pre, cur, 2)} ${t("offen")}` : ""}</p>
         <div class="ta"><span class="amt">${money(b.offen, cur, 2)}</span>
           ${p.canPre ? `<button class="btn flat" data-pay="anzahlung" data-pid="${b.id}">✓ ${t("Anzahlung")}</button>` : ""}
-          <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t("Erhalten")}</button></div></div>`; }),
-      later.length ? `<div class="sub" style="padding:4px 2px">${t("Später fällig")}: ${plural(later.length, t("Buchung"), t("Buchungen"))}, ${money(later.reduce((a, b) => a + b.offen, 0), cur, 2)}</div>` : "",
-    ].join("");
+          <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t("Erhalten")}</button>`, `2${b.anreise}`); });
+    // Preise, Last-Minute, Lücken aus der Empfehlung (nur mit Recht „preise“: ohne lassen sie sich nicht erledigen)
+    this._taskApplies = [];
+    const applyBtn = (label, cfg, primary = true) => {
+      this._taskApplies.push(cfg);
+      return `<button class="btn ${primary ? "" : "flat"}" data-tapply="${this._taskApplies.length - 1}">${esc(t(label))}</button>`;
+    };
+    for (const w of d.emp?.wohnungen || []) {
+      if (!w.darf_aendern) continue;
+      const ctx = { apt: w.apartment_id, cur, kanaele: w.kanaele, basis: w.basispreis?.heute };
+      const tag = this.multi ? codeTag(aptCode(d.info, w.apartment_id)) : "";
+      for (const mo of w.monate || []) {
+        const e = mo.empfehlung || {};
+        if (!e.preis_neu || e.aktion === "halten") continue;
+        const label = D(`${mo.monat}-01`).toLocaleDateString(locale(), { month: "long", year: "numeric" });
+        const von = mo.monat + "-01" < today ? today : mo.monat + "-01";
+        const bis = iso(addDays(new Date(Number(mo.monat.slice(0, 4)), Number(mo.monat.slice(5, 7)), 1), -1));
+        const floors = Object.fromEntries(Object.entries(mo.untergrenze || {}).map(([k, f]) => [k, f["2"]]));
+        add("preise", `preis:${w.apartment_id}:${mo.monat}:${e.aktion}:${e.preis_neu}`, `<div class="tt">${esc(label)}: ${e.aktion === "senken" ? t("Preis senken") : t("Preis erhöhen")}${tag}</div>
+          <p>${esc(t(e.grund || ""))}</p>
+          <div class="ta"><span class="amt">${money(mo.basispreis, cur)} → ${money(e.preis_neu, cur)}</span>
+            ${applyBtn("Übernehmen …", { ...ctx, title: `${label}: ${e.aktion === "senken" ? t("Preis senken") : t("Preis erhöhen")}`, grund: e.grund, untergrenze: floors,
+              vorgabe: { von, bis, preis: e.preis_neu, ohne_feiertage: e.aktion === "senken", nur_basispreis: true, label: `${label}: ${e.aktion}` } })}`, `3${mo.monat}`);
+      }
+      for (const h of w.hinweise || []) {
+        if (h.typ === "feiertag" && h.tage?.length) add("preise", `feiertag:${w.apartment_id}:${h.tage.map((x) => x.datum).join(",")}`,
+          `<div class="tt">${esc(t(h.titel))}${tag}</div><p>${h.tage.map((x) => `${fdate(x.datum)} ${esc(t(x.name))}`).join(" · ")}</p>
+          <div class="ta">${applyBtn(`+${h.prozent} % ${t("übernehmen")} …`, { ...ctx, title: h.titel, grund: h.text,
+            vorgabe: { tage: h.tage.map((x) => x.datum), prozent: h.prozent, label: h.titel } })}`, `4${h.tage[0].datum}`);
+        if (h.typ === "wochenende" && h.prozent) add("preise", `wochenende:${w.apartment_id}:${h.prozent}`,
+          `<div class="tt">${esc(t(h.titel))}${tag}</div><p>${esc(t(h.text))}</p>
+          <div class="ta">${applyBtn(`Fr/Sa +${h.prozent} % …`, { ...ctx, title: h.titel, grund: h.text,
+            vorgabe: { von: today, bis: iso(addDays(D(today), 59)), wochentage: h.wochentage, prozent: h.prozent, nur_basispreis: true, label: h.titel } })}`, "5");
+        if (h.typ === "lastminute") for (const x of h.naechte || []) {
+          if (!x.vorschlag_preis) continue;
+          add("lastminute", `lm:${w.apartment_id}:${x.datum}:${x.vorschlag_preis}`, `<div class="tt">${t("Last-Minute")} ${fdowLong(x.datum)}${tag}</div>
+            <p>${esc(t(x.grund))} · ${t("Untergrenze")} ${money(x.untergrenze, cur)}</p>
+            <div class="ta"><span class="amt">${money(x.preis, cur)} → ${money(x.vorschlag_preis, cur)}</span>
+              ${applyBtn("Übernehmen …", { ...ctx, title: `${t("Last-Minute")} ${fdate(x.datum)}`, grund: x.grund,
+                untergrenze: Object.fromEntries((w.kanaele || []).map((k) => [k.kanal, x.untergrenze])),
+                vorgabe: { tage: [x.datum], preis: x.vorschlag_preis, label: `Last-Minute ${x.datum}` } })}`, `0${x.datum}`);
+        }
+        if (h.typ === "luecke") for (const x of h.luecken || []) {
+          add("luecken", `luecke:${w.apartment_id}:${x.von}:${x.naechte}`, `<div class="tt">${t("Lücke")} ${fdowLong(x.von)} · ${plural(x.naechte, t("Nacht"), t("Nächte"))}${tag}</div>
+            <p>${x.buchbar ? t("Einzelne Nächte zwischen zwei Gästen bucht kaum jemand zum vollen Preis.") : `${t("Mindestaufenthalt")} ${x.mindestaufenthalt} – ${t("so nicht buchbar")}`}</p>
+            <div class="ta"><span class="amt">${money(x.preis, cur)}${x.vorschlag_preis ? ` → ${money(x.vorschlag_preis, cur)}` : ""}</span>
+              ${applyBtn("Anpassen …", { ...ctx, title: `${t("Lücke")} ${fdate(x.von)}`, grund: "",
+                untergrenze: Object.fromEntries((w.kanaele || []).map((k) => [k.kanal, x.untergrenze])),
+                vorgabe: { tage: x.tage, preis: x.vorschlag_preis, mindestaufenthalt: x.buchbar ? null : x.naechte, label: `Lücke ${x.von}` } })}`, `6${x.von}`);
+        }
+      }
+    }
+    const zustand = d.taskState?.zustand || {};
+    const cats = (d.taskState?.kategorien?.length ? d.taskState.kategorien : TASK_CATS.map(([k]) => k));
+    const visible = tasks.filter((x) => cats.includes(x.cat) && !zustand[x.key]).sort((a, b) => a.sort.localeCompare(b.sort));
+    const hidden = tasks.filter((x) => cats.includes(x.cat) && zustand[x.key]).length;
+    const sel = cats.includes(this._state.taskTab) ? this._state.taskTab : "alle";
+    const count = (c) => visible.filter((x) => x.cat === c).length;
+    const chipsHtml = `<div class="tchips"><button data-ttab="alle" aria-pressed="${sel === "alle"}">${t("Alle")} <b>${visible.length}</b></button>${TASK_CATS
+      .filter(([k]) => cats.includes(k)).map(([k, l]) => `<button data-ttab="${k}" aria-pressed="${sel === k}">${t(l)}${count(k) ? ` <b>${count(k)}</b>` : ""}</button>`).join("")}</div>`;
+    // „Alle“: je Kategorie höchstens 2 (Spalte bleibt kurz), dann Hinweis auf den Reiter
+    let shown = visible.filter((x) => sel === "alle" || x.cat === sel);
+    const more = [];
+    if (sel === "alle") {
+      const per = {};
+      shown = shown.filter((x) => { per[x.cat] = (per[x.cat] || 0) + 1; return per[x.cat] <= 2; });
+      for (const [k, l] of TASK_CATS) if (count(k) > 2) more.push(`<button class="lnk" data-ttab="${k}">${t(l)}: ${t("weitere")} ${count(k) - 2}</button>`);
+    }
+    const catLabel = Object.fromEntries(TASK_CATS);
+    const todo = shown.map((x) => `<div class="todo ${x.cat === "nachrichten" ? "msg" : ""}" data-cat="${x.cat}">${sel === "alle" ? `<span class="tcat">${t(catLabel[x.cat])}</span>` : ""}${x.html}
+        <span class="tact"><button class="lnk" data-tdone="${esc(x.key)}" data-tcat="${x.cat}" title="${t("Als erledigt ausblenden")}">✓ ${t("Erledigt")}</button>
+        <button class="lnk" data-tlater="${esc(x.key)}" data-tcat="${x.cat}" title="${t("Morgen wieder zeigen")}">${t("Später")}</button></span></div></div>`).join("")
+      + (sel === "alle" || sel === "rechnungen" ? (later.length ? `<div class="sub" style="padding:4px 2px">${t("Später fällig")}: ${plural(later.length, t("Buchung"), t("Buchungen"))}, ${money(later.reduce((a, b) => a + b.offen, 0), cur, 2)}</div>` : "") : "")
+      + (more.length ? `<div class="sub" style="padding:4px 2px">${more.join(" · ")}</div>` : "")
+      + (hidden ? `<div class="sub" style="padding:4px 2px">${hidden} ${t("erledigt bzw. später – ausgeblendet")}</div>` : "");
     return `<section class="three">
       <div class="panel"><div class="ph"><h2>${t("Nächste Anreisen")}</h2></div>${arrivals || `<div class="done">${t("Keine Anreisen geplant.")}</div>`}</div>
       <div class="panel"><div class="ph"><h2>${t("Freie Zeiträume")}</h2><span class="sub">${t("nächste")} ${this._config.gap_days} ${t("Tage")}</span></div>${gapRows || `<div class="done">${t("Keine Lücken.")}</div>`}</div>
-      <div class="panel"><div class="ph"><h2>${t("Wartet auf dich")}</h2></div>${todo || `<div class="done">✓ ${t("Alles erledigt.")}</div>`}</div></section>`;
+      <div class="panel"><div class="ph"><h2>${t("Wartet auf dich")}</h2></div>${chipsHtml}${todo || `<div class="done">✓ ${t("Alles erledigt.")}</div>`}</div></section>`;
   }
 
   body(d) {
     const { month, ytd, today } = d;
+    if (!d.fin) return `${this.multi ? this.heroMulti(d) : this.heroSingle(d)}${this.band(d)}${this.lists(d)}`;
     return `${this.multi ? this.heroMulti(d) : this.heroSingle(d)}${this.band(d)}${this.kpis(d)}${this.lists(d)}
       <p class="foot">${t("Vergleich")}: ${monthName(today)} ${t("ggü. Buchungsstand am")} ${fdate(month.stichtag_vergleich)},
         ${t("Jahr ggü.")} ${fdate(ytd.vergleich?.von)}–${fdate(iso(addDays(D(ytd.vergleich?.bis || today), -1)))}. ${t("PP = Prozentpunkte")}.
@@ -1278,6 +1369,22 @@ class SmoobuOverviewCard extends SmoobuCard {
   }
   bind(root) {
     root.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); this.openBooking(Number(el.dataset.id)); }));
+    // v1.18.0: Aufgaben-Board – Reiter, Übernehmen, Erledigt/Später (gespeichert im Backend)
+    root.querySelectorAll("[data-ttab]").forEach((el) => el.addEventListener("click", () => this.setState({ taskTab: el.dataset.ttab })));
+    root.querySelectorAll("[data-tapply]").forEach((el) => el.addEventListener("click", async () => {
+      const cfg = this._taskApplies?.[Number(el.dataset.tapply)];
+      if (cfg && (await priceDialog(this, cfg))) this._reload();
+    }));
+    const taskSet = async (el, aktion) => {
+      el.disabled = true;
+      try {
+        await this.store.ws("smoobu/tasks/set", { ...this.target, key: el.dataset.tdone || el.dataset.tlater, kategorie: el.dataset.tcat, aktion }, { cache: false });
+        toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : t("Morgen wieder da"));
+        this._reload();
+      } catch (e) { el.disabled = false; toast(`${t("Fehler")}: ${e?.message || e}`); }
+    };
+    root.querySelectorAll("[data-tdone]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); taskSet(el, "erledigt"); }));
+    root.querySelectorAll("[data-tlater]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); taskSet(el, "spaeter"); }));
     // v1.17.0: Zahlung/Anzahlung direkt als erhalten markieren (Neuladen übernimmt store.service)
     root.querySelectorAll("[data-pay]").forEach((el) => el.addEventListener("click", async (e) => {
       e.stopPropagation();
@@ -4793,7 +4900,10 @@ class SmoobuSettingsCard extends SmoobuCard {
     const d = this._draft;
     const codes = meta.wohnungen.map((w) => this.fld(w.name, `<input type="text" data-code="${esc(w.id)}" maxlength="4" style="width:90px"
       value="${esc(d.apartment_codes[w.id] || "")}" placeholder="${esc(w.auto)}">`, `${t("Leer = automatisch")} (${w.auto})`, `apartment_codes.${w.id}`)).join("");
-    return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
+    const board = `<div class="grp"><div class="gh"><div class="grow"><b>${t("Aufgaben-Board „Wartet auf dich“")}</b>
+        <span class="sub">${t("Welche Kategorien in der Übersicht erscheinen. Erledigt/Später gilt für alle Benutzer.")}</span></div></div>
+      <div class="gb">${this.pick("task_categories", TASK_CATS.map(([k]) => k), (k) => t(Object.fromEntries(TASK_CATS)[k] || k))}${this.err("task_categories")}</div></div>`;
+    return `${board}<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
         ${this.fld("Webhook (Echtzeit)", this.sw("use_webhook", "Webhook"), "Smoobu meldet Änderungen sofort über Nabu Casa.")}
         ${this.fld("Abfrageintervall", this.numIn("scan_interval", 1, 120, 1, "min"), "Zusätzlicher Abgleich neben dem Webhook.", "scan_interval")}
         ${this.fld("Tage Rückblick", this.numIn("days_back", 0, 365, 1, "Tage"), "", "days_back")}

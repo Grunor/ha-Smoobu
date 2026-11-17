@@ -19,6 +19,8 @@ Befehle (alle nur für angemeldete HA-Benutzer):
 - smoobu/rates/apply       Preise/Mindestaufenthalt übernehmen (Vorschau mit dry_run), v1.18.0
 - smoobu/rates/undo        gespeicherte Preisänderung rückgängig machen (v1.18.0)
 - smoobu/rates/changes     letzte Preisänderungen (v1.18.0)
+- smoobu/tasks/get         Aufgaben-Board: erledigte/verschobene Aufgaben + sichtbare Kategorien (v1.18.0)
+- smoobu/tasks/set         Aufgabe erledigen / später / zurücksetzen (v1.18.0)
 
 Ab v1.18.0 prüfen alle Befehle die Benutzerrolle (rechte.py): Finanzen/Statistik nur mit
 „finanzen“, Buchungen mit „gaeste“ (Preisfelder nur mit „finanzen“), Nachrichten mit
@@ -62,7 +64,7 @@ from .api import SmoobuError
 from .stats import DIMENSIONS, MEASURES, gaps as stats_gaps, pace as stats_pace, query as stats_query
 from .stats import service as stats_service, storno as stats_storno
 from .empfehlung import recommend as stats_recommend
-from .const import DOMAIN
+from .const import CONF_TASK_CATEGORIES, DEFAULT_TASK_CATEGORIES, DOMAIN, TASK_CATEGORIES, TASK_RIGHTS
 from .coordinator import SmoobuCoordinator
 from .models import strip_html
 from . import settings as smoobu_settings
@@ -178,6 +180,8 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_rates_apply)
     websocket_api.async_register_command(hass, ws_rates_undo)
     websocket_api.async_register_command(hass, ws_rates_changes)
+    websocket_api.async_register_command(hass, ws_tasks_get)
+    websocket_api.async_register_command(hass, ws_tasks_set)
 
 
 _TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): _apt_id}
@@ -872,3 +876,46 @@ async def ws_rates_changes(hass: HomeAssistant, connection: websocket_api.Active
     changes = [ch for ch in await c.async_price_changes() if ch["wohnung_id"] == apt]
     connection.send_result(msg["id"], {"aenderungen": changes[:10],
                                        "darf_aendern": rechte.allowed(connection.user, c.config_entry.options, "preise")})
+
+
+# ---------------------------------------------------------------------------
+# Aufgaben-Board „Wartet auf dich“ (v1.18.0)
+# ---------------------------------------------------------------------------
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/tasks/get", **_TARGET})
+@websocket_api.async_response
+async def ws_tasks_get(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Zustand je Konto (bei „Alle Wohnungen“ zusammengeführt). Die Aufgaben selbst baut die Karte."""
+    try:
+        pairs = _targets(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c for c, _ in pairs], "gaeste"):
+        return
+    state: dict[str, Any] = {}
+    cats: list[str] = []
+    for c in dict.fromkeys(c for c, _ in pairs):
+        state.update(await c.async_task_state())
+        for cat in c.config_entry.options.get(CONF_TASK_CATEGORIES, DEFAULT_TASK_CATEGORIES):
+            if cat not in cats:
+                cats.append(cat)
+    connection.send_result(msg["id"], {"zustand": state, "kategorien": cats})
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/tasks/set", **_TARGET, vol.Required("key"): vol.All(str, vol.Length(max=200)),
+     vol.Required("kategorie"): vol.In(TASK_CATEGORIES),
+     vol.Required("aktion"): vol.In(["erledigt", "spaeter", "zuruecksetzen"]),
+     vol.Optional("tage", default=1): vol.All(vol.Coerce(int), vol.Range(min=1, max=30))}
+)
+@websocket_api.async_response
+async def ws_tasks_set(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        c, _apt = _resolve(hass, msg) if msg.get("apartment_id") != ALL else (_targets(hass, msg)[0][0], None)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c], TASK_RIGHTS[msg["kategorie"]]):
+        return
+    state = await c.async_set_task(msg["key"], msg["aktion"], connection.user.name if connection.user else None, msg["tage"])
+    connection.send_result(msg["id"], {"zustand": state})

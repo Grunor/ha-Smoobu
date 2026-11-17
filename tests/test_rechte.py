@@ -80,3 +80,28 @@ async def test_admin_vergibt_rollen(hass, setup, hass_ws_client, hass_read_only_
     assert entry.options["user_roles"] == {hass_read_only_user.id: "lesen"} and entry.options["default_role"] == "mitarbeiter"
     res = (await _call(ws, 3, type="smoobu/settings/set", changes={"user_roles": {"x": "chef"}}))["result"]
     assert res["fehler"] == {"user_roles": "invalid_role"}
+
+
+async def test_aufgaben_board(hass, setup, hass_ws_client, hass_read_only_access_token, hass_read_only_user):  # noqa: F811
+    """v1.18.0: Aufgaben erledigen/verschieben – gemeinsam gespeichert, Recht je Kategorie."""
+    ws = await hass_ws_client(hass)
+    res = (await _call(ws, 1, type="smoobu/tasks/get"))["result"]
+    assert res["kategorien"] == ["nachrichten", "rechnungen", "preise", "lastminute", "luecken"] and res["zustand"] == {}
+    res = (await _call(ws, 2, type="smoobu/tasks/set", key="preis:123:2026-11:senken", kategorie="preise", aktion="spaeter", tage=2))["result"]
+    assert res["zustand"]["preis:123:2026-11:senken"]["status"] == "spaeter"
+    await _call(ws, 3, type="smoobu/tasks/set", key="msg:1:x", kategorie="nachrichten", aktion="erledigt")
+    res = (await _call(ws, 4, type="smoobu/tasks/get"))["result"]
+    assert set(res["zustand"]) == {"preis:123:2026-11:senken", "msg:1:x"}
+    await _call(ws, 5, type="smoobu/tasks/set", key="msg:1:x", kategorie="nachrichten", aktion="zuruecksetzen")
+    assert "msg:1:x" not in (await _call(ws, 6, type="smoobu/tasks/get"))["result"]["zustand"]
+    # Mitarbeiter darf Nachrichten-Aufgaben erledigen, aber keine Preis-Aufgaben
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "user_roles": {hass_read_only_user.id: "mitarbeiter"},
+                                                          "task_categories": ["nachrichten"]})
+    await hass.async_block_till_done()
+    guest = await hass_ws_client(hass, hass_read_only_access_token)
+    assert (await _call(guest, 7, type="smoobu/tasks/get"))["result"]["kategorien"] == ["nachrichten"]
+    res = await _call(guest, 8, type="smoobu/tasks/set", key="preis:x", kategorie="preise", aktion="erledigt")
+    assert res["error"]["code"] == "unauthorized"
+    res = await _call(guest, 9, type="smoobu/tasks/set", key="msg:2:y", kategorie="nachrichten", aktion="erledigt")
+    assert res["success"] is True

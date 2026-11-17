@@ -155,6 +155,9 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         # v1.18.0: Preisänderungen aus der Karte (für „Rückgängig“), neueste zuerst, max. PRICE_CHANGES_MAX
         self._changes_store: Store = Store(hass, 1, f"{DOMAIN}_preis_aenderungen_{entry.entry_id}")
         self._changes: list[dict[str, Any]] | None = None
+        # v1.18.0: Aufgaben-Board – erledigte/verschobene Aufgaben (gemeinsam für alle Benutzer)
+        self._tasks_store: Store = Store(hass, 1, f"{DOMAIN}_aufgaben_{entry.entry_id}")
+        self._tasks: dict[str, dict[str, Any]] | None = None
         self._resp: dict[str, dict[str, Any]] | None = None
         self._resp_task: Any = None
         self._resp_last: Any = None
@@ -460,6 +463,34 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         await self._changes_store.async_save(changes)
         self._after_price_write(apt, entry, "preise_zurueckgesetzt", user)
         return {"tage": len(tage), "abweichend": preisaktion.verify(tage, after, restore=True)}
+
+    async def async_task_state(self) -> dict[str, dict[str, Any]]:
+        """Erledigte/verschobene Aufgaben; abgelaufene „Später“ und Einträge > 90 Tage fallen weg."""
+        if self._tasks is None:
+            self._tasks = dict(await self._tasks_store.async_load() or {})
+        now = dt_util.now()
+        cutoff = (now - timedelta(days=90)).isoformat()
+        stale = [k for k, v in self._tasks.items()
+                 if v.get("zeit", "") < cutoff or (v.get("status") == "spaeter" and v.get("bis", "") <= now.isoformat())]
+        for key in stale:
+            self._tasks.pop(key, None)
+        if stale:
+            self._tasks_store.async_delay_save(lambda: self._tasks or {}, 5)
+        return self._tasks
+
+    async def async_set_task(self, key: str, action: str, user: str | None, days: int = 1) -> dict[str, Any]:
+        """Aufgabe erledigen, um `days` Tage verschieben oder zurücksetzen (Schlüssel bestimmt die Karte)."""
+        tasks = await self.async_task_state()
+        now = dt_util.now()
+        if action == "zuruecksetzen":
+            tasks.pop(key, None)
+        else:
+            entry = {"status": action, "zeit": now.isoformat(timespec="seconds"), "benutzer": user}
+            if action == "spaeter":
+                entry["bis"] = (now + timedelta(days=days)).isoformat(timespec="seconds")
+            tasks[key] = entry
+        await self._tasks_store.async_save(tasks)
+        return tasks
 
     def _after_price_write(self, apartment_id: int, entry: dict[str, Any], kind: str, user: str | None) -> None:
         # Tagespreise beim nächsten Abruf neu laden und sofort aktualisieren; Ereignis für Logbuch/Automationen
