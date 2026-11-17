@@ -153,6 +153,11 @@ DEFAULT_CHANNEL_MARKUPS = {"Airbnb": 33.0, "Booking.com": 45.0, "HomeToGo": 10.0
 DEFAULT_GENIUS_DISCOUNT = 10.0
 # Konservativ: ohne Angabe wird angenommen, dass jeder Booking.com-Gast Genius-Rabatt bekommt
 DEFAULT_GENIUS_SHARE = 100.0
+# Last-Minute (Betreiber 17.11.2026): Fenster in Tagen vor Anreise und höchster Rabatt für gezielte Nächte
+CONF_LASTMINUTE_DAYS = "lastminute_days"
+CONF_LASTMINUTE_MAX_DISCOUNT = "lastminute_max_discount"
+DEFAULT_LASTMINUTE_DAYS = 3
+DEFAULT_LASTMINUTE_MAX_DISCOUNT = 10.0
 
 SERVICE_ASSIST_SUGGEST = "assistant_suggest"
 SERVICE_ASSIST_IMPORT = "assistant_import"

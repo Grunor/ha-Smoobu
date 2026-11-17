@@ -102,7 +102,9 @@
           "cost_grid_share": "Grid share per month (Jan … Dec, %)",
           "channel_markups": "Markups per channel (Smoobu pricing tool)",
           "genius_discount": "Booking.com Genius discount",
-          "genius_share": "Share of Genius bookings"
+          "genius_share": "Share of Genius bookings",
+          "lastminute_days": "Last-minute window",
+          "lastminute_max_discount": "Maximum last-minute discount"
         },
         "data_description": {
           "cost_heating_year": "From the utility bill (holiday flat share only).",
@@ -110,7 +112,9 @@
           "cost_pv_value": "PV power used by the guest would otherwise have been fed in.",
           "cost_grid_share": "12 values, e.g. 72, 55, 15, 11, 7, 10, 5, 26, 20, 47, 67, 80 (grid import ÷ house consumption).",
           "channel_markups": "Format: channel=percent; channel=percent (e.g. Airbnb=33; Booking.com=45; HomeToGo=10).",
-          "genius_share": "Leave at 100 % if unknown (cautious assumption)."
+          "genius_share": "Leave at 100 % if unknown (cautious assumption).",
+          "lastminute_days": "A free night this many days before arrival counts as last minute (1–14).",
+          "lastminute_max_discount": "Only for gaps between two guests or weakly booked months, never below the floor."
         }
       },
       "assistent": {

@@ -212,7 +212,7 @@ async def test_options_and_unload(hass, setup):
     assert result["type"] == "form" and result["step_id"] == "kosten"
     cost = {"cost_cleaning": 20, "cost_laundry": 5, "cost_heating_year": 400, "cost_hot_water_year": 100,
             "cost_ref_year": 2025, "cost_water_night": 0.5, "cost_power_kwh": 4, "cost_grid_price": 30,
-            "cost_pv_value": 8, "genius_discount": 10, "genius_share": 60,
+            "cost_pv_value": 8, "genius_discount": 10, "genius_share": 60, "lastminute_days": 5, "lastminute_max_discount": 10,
             "cost_grid_share": "70, 50, 15", "channel_markups": "Airbnb=33"}
     bad = await hass.config_entries.options.async_configure(result["flow_id"], cost)
     assert bad["errors"] == {"cost_grid_share": "invalid_grid_share"}

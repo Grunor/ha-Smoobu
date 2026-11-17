@@ -53,6 +53,9 @@ class PriceConfig:
     direct_channels: list[str] = field(default_factory=lambda: ["Direct booking", "Website"])
     genius_discount: float = 10.0
     genius_share: float = 100.0
+    # Last-Minute (Wunsch Betreiber 17.11.2026): Fenster in Tagen vor Anreise und höchster Rabatt in %
+    lastminute_days: int = 3
+    lastminute_max_discount: float = 10.0
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +219,9 @@ def recommend(
         out_months.append(_month(records, prices, table, cfg, factors, today, start, _next_month(start), first))
 
     hints = _hints(records, prices, min_stay, table, factors, today, uniform, base_now)
+    lm = _lastminute(records, prices, table, factors, cfg, today, {m["monat"]: m["bewertung"] for m in out_months})
+    if lm:
+        hints.insert(1 if hints and hints[0]["typ"] == "einheitlich" else 0, lm)
     return {
         "heute": today.isoformat(),
         "basispreis": {
@@ -459,12 +465,110 @@ def _hints(records, prices, min_stay, table: CostTable, factors, today: date, un
     return out
 
 
+def _lead_stats(records: list[dict[str, Any]], days: int, today: date) -> dict[str, Any]:
+    """Last-Minute (Vorlauf ≤ days) gegen frühere Buchungen, letzte 24 Monate.
+
+    Roh: Anteil und Netto je Nacht. Bereinigt: Unterschied Netto/Nacht innerhalb desselben Kanals
+    und derselben Saison (Monat), gewichtet nach Nächten – so verfälschen der Booking-Aufschlag
+    (+45 %) oder ein teurer Sommer den Vergleich nicht. Nur Gruppen mit je ≥ 2 Buchungen zählen.
+    """
+    since = _shift_years(today, 2).isoformat()
+    valid = [r for r in records if not r["blockiert"] and not r["storniert"] and r["naechte"] and r["brutto"]
+             and r["vorlauf_tage"] is not None and since <= r["anreise"] < today.isoformat()]
+    lm = [r for r in valid if r["vorlauf_tage"] <= days]
+    early = [r for r in valid if r["vorlauf_tage"] > days]
+
+    def per_night(items):
+        n = sum(r["naechte"] for r in items)
+        return (sum(r["netto"] for r in items) / n) if n else None
+
+    groups: dict[tuple[str, int], dict[str, list]] = {}
+    for r in valid:
+        g = groups.setdefault((r["kanal"], int(r["anreise"][5:7])), {"lm": [], "fr": []})
+        g["lm" if r["vorlauf_tage"] <= days else "fr"].append(r)
+    diff_w = weight = 0.0
+    for g in groups.values():
+        if len(g["lm"]) >= 2 and len(g["fr"]) >= 2:
+            a, b = per_night(g["lm"]), per_night(g["fr"])
+            w = sum(r["naechte"] for r in g["lm"])
+            diff_w += (a - b) / b * w
+            weight += w
+    return {
+        "buchungen": len(lm), "anteil": round(len(lm) / len(valid) * 100) if valid else None,
+        "netto_lm": round(per_night(lm), 2) if lm else None, "netto_frueh": round(per_night(early), 2) if early else None,
+        "aufenthalt_lm": round(sum(r["naechte"] for r in lm) / len(lm), 1) if lm else None,
+        "bereinigt_prozent": round(diff_w / weight * 100, 1) if weight else None,
+        "bereinigt_naechte": int(weight),
+    }
+
+
+def _lastminute(records, prices, table: CostTable, factors, cfg: PriceConfig, today: date,
+                ratings: dict[str, str]) -> dict[str, Any] | None:
+    """Freie Nächte im Last-Minute-Fenster + Empfehlung je Nacht.
+
+    Standard: kein Rabatt (beim Betreiber bringen Last-Minute-Buchungen netto am meisten). Rabatt (bis
+    cfg.lastminute_max_discount, nie unter der Untergrenze) nur für eine Nacht, die eine Lücke
+    zwischen zwei Gästen ist, oder in einem Monat mit Bewertung „schwach“. Aufschlag (+5 %) nur,
+    wenn der bereinigte Vergleich (gleicher Kanal, gleicher Monat) eine Prämie ≥ 5 % auf
+    mindestens 10 Nächten zeigt und der Monat nicht schwach ist.
+    """
+    days = max(int(cfg.lastminute_days), 1)
+    stats = _lead_stats(records, days, today)
+    occ = _occupied(records)
+    free = []
+    for i in range(days):
+        night = today + timedelta(days=i)
+        iso = night.isoformat()
+        if night in occ or iso not in prices:
+            continue
+        price = prices[iso]
+        # Lücke: belegt am Vortag und spätestens 2 Nächte danach wieder belegt
+        gap = (night - timedelta(days=1)) in occ and any((night + timedelta(days=k)) in occ for k in (1, 2))
+        weak = ratings.get(iso[:7]) == "schwach"
+        floor = max((fp for f in factors.values() if (fp := floor_price(table, night, 1 if gap else 2, f))), default=None)
+        proposal, why = None, ""
+        if gap or weak:
+            proposal = round(price * (1 - cfg.lastminute_max_discount / 100))
+            if floor and proposal < floor:
+                proposal = int(-(-floor // 1))
+            if proposal >= price:
+                proposal, why = None, "Untergrenze erreicht – kein Rabatt möglich"
+            else:
+                why = "Lücke zwischen zwei Gästen" if gap else "Monat schwach gebucht"
+        free.append({"datum": iso, "preis": price, "luecke": gap, "monat_schwach": weak,
+                     "untergrenze": round(floor, 2) if floor else None, "vorschlag_preis": proposal, "grund": why})
+    premium = (stats["bereinigt_prozent"] is not None and stats["bereinigt_prozent"] >= 5
+               and stats["bereinigt_naechte"] >= 10)
+    if not free and not stats["buchungen"]:
+        return None
+    discount = [f for f in free if f["vorschlag_preis"]]
+    if not free:
+        title = f"Last-Minute: die nächsten {days} Tage sind belegt"
+    elif discount:
+        title = f"Last-Minute: {len(discount)} von {len(free)} freien Nächten gezielt günstiger"
+    else:
+        title = f"Last-Minute: {len(free)} freie Nächte – kein Rabatt empfohlen"
+    raw = (f"{stats['anteil']} % der Buchungen kommen in den letzten {days} Tagen vor Anreise "
+           f"(netto {stats['netto_lm']:.0f} € je Nacht gegen {stats['netto_frueh']:.0f} € bei früherer Buchung, "
+           f"Ø {stats['aufenthalt_lm']} Nächte)." if stats["netto_lm"] and stats["netto_frueh"] else "")
+    adj = (f" Bereinigt um Kanal und Monat: {stats['bereinigt_prozent']:+.0f} % netto je Nacht "
+           f"({stats['bereinigt_naechte']} Nächte)." if stats["bereinigt_prozent"] is not None else
+           " Für einen bereinigten Vergleich (gleicher Kanal und Monat) gibt es noch zu wenige Buchungen.")
+    advice = (" Kurzfristige Gäste zahlen also eher mehr – ein Rabatt würde vor allem Geld verschenken."
+              if (stats["netto_lm"] or 0) >= (stats["netto_frueh"] or 0) else
+              " Kurzfristige Buchungen bringen hier weniger – ein moderater Rabatt kann freie Nächte retten.")
+    return {"typ": "lastminute", "titel": title, "text": (raw + adj + advice).strip(), "tage_fenster": days,
+            "naechte": free, "statistik": stats, "aufschlag_prozent": 5 if premium else None,
+            "rabatt_max": cfg.lastminute_max_discount}
+
+
 def from_options(options: Any, commissions: dict[str, float], commission_other: float,
                  direct: list[str]) -> PriceConfig:
     """PriceConfig aus den Optionen des Eintrags."""
     from .const import (  # noqa: PLC0415
-        CONF_CHANNEL_MARKUPS, CONF_GENIUS_DISCOUNT, CONF_GENIUS_SHARE,
-        DEFAULT_CHANNEL_MARKUPS, DEFAULT_GENIUS_DISCOUNT, DEFAULT_GENIUS_SHARE,
+        CONF_CHANNEL_MARKUPS, CONF_GENIUS_DISCOUNT, CONF_GENIUS_SHARE, CONF_LASTMINUTE_DAYS,
+        CONF_LASTMINUTE_MAX_DISCOUNT, DEFAULT_CHANNEL_MARKUPS, DEFAULT_GENIUS_DISCOUNT, DEFAULT_GENIUS_SHARE,
+        DEFAULT_LASTMINUTE_DAYS, DEFAULT_LASTMINUTE_MAX_DISCOUNT,
     )
 
     o = options or {}
@@ -473,5 +577,7 @@ def from_options(options: Any, commissions: dict[str, float], commission_other: 
         commissions=dict(commissions), commission_other=float(commission_other), direct_channels=list(direct),
         genius_discount=float(o.get(CONF_GENIUS_DISCOUNT, DEFAULT_GENIUS_DISCOUNT)),
         genius_share=float(o.get(CONF_GENIUS_SHARE, DEFAULT_GENIUS_SHARE)),
+        lastminute_days=int(o.get(CONF_LASTMINUTE_DAYS, DEFAULT_LASTMINUTE_DAYS)),
+        lastminute_max_discount=float(o.get(CONF_LASTMINUTE_MAX_DISCOUNT, DEFAULT_LASTMINUTE_MAX_DISCOUNT)),
     )
 

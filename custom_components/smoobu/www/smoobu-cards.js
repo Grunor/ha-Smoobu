@@ -38,7 +38,8 @@ const EN = {
   "Recht": "Permission", "Verwalter": "Manager", "Betrieb": "Operations", "Mitarbeiter": "Staff", "Nur lesen": "Read only",
   "Kein Zugriff": "No access", "Tage übernommen und in Smoobu geprüft": "days applied and verified in Smoobu",
   "Tage zurückgesetzt": "days reset", "Keine Änderung nötig": "No change needed", "ausgelassen": "skipped",
-  "Feiertag": "holiday", "eigener Preis": "own price", "Lücke": "Gap", "Kanalpreise bei": "Channel prices at",
+  "Feiertag": "holiday", "eigener Preis": "own price", "Last-Minute": "Last minute", "Fenster": "Window", "max. Rabatt": "max. discount",
+  "kein Rabatt empfohlen": "no discount recommended", "auf die freien Nächte": "on the free nights", "Lücke": "Gap", "Kanalpreise bei": "Channel prices at",
   "Kosten & Preise": "Costs & prices", "Bewertung & Empfehlung": "Assessment & recommendation", "Basispreis heute": "Base price today",
   "Basispreis": "Base price", "netto je Nacht": "net per night", "Schwach": "Weak", "Normal": "Normal", "Stark": "Strong",
   "Zu wenig Daten": "Not enough data", "↓ Preis senken": "↓ Lower price", "↑ Preis erhöhen": "↑ Raise price", "→ Preis halten": "→ Keep price",
@@ -3133,6 +3134,22 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
             title: h.titel, grund: h.text, vorgabe: { von: d.today, bis: end60, wochentage: h.wochentage, prozent: h.prozent, nur_basispreis: true, label: h.titel } })}</div>`;
           if (h.typ === "feiertag" && h.tage?.length) extra += `<div class="row" style="margin-top:5px">${applyBtn(`Feiertagsnächte +${h.prozent} % …`, {
             title: h.titel, grund: h.text, vorgabe: { tage: h.tage.map((x) => x.datum), prozent: h.prozent, label: h.titel } })}</div>`;
+          // v1.18.0: Last-Minute – freie Nächte im Fenster; Rabatt nur gezielt (Lücke/schwacher Monat), Aufschlag nur bei belegter Prämie
+          if (h.typ === "lastminute") {
+            const st = h.statistik || {};
+            extra += `<div class="chips">${(h.naechte || []).map((x) => {
+              const tip = `${t("Preis")} ${money(x.preis, cur)} · ${t("Untergrenze")} ${money(x.untergrenze, cur)}${x.grund ? ` · ${t(x.grund)}` : ` · ${t("kein Rabatt empfohlen")}`}`;
+              const b = x.vorschlag_preis ? applyBtn(`${fdate(x.datum)} → ${money(x.vorschlag_preis, cur)}`, {
+                title: `${t("Last-Minute")} ${fdate(x.datum)}`, grund: tip,
+                untergrenze: Object.fromEntries((w.kanaele || []).map((k) => [k.kanal, x.untergrenze])),
+                vorgabe: { tage: [x.datum], preis: x.vorschlag_preis, label: `Last-Minute ${x.datum}` } }, false) : "";
+              return b || `<span class="chip" data-tip="${esc(tip)}">${fdate(x.datum)} · ${money(x.preis, cur)}</span>`;
+            }).join("")}</div>`;
+            const free = (h.naechte || []).map((x) => x.datum);
+            if (h.aufschlag_prozent && free.length) extra += `<div class="row" style="margin-top:5px">${applyBtn(`+${h.aufschlag_prozent} % ${t("auf die freien Nächte")} …`, {
+              title: h.titel, grund: h.text, vorgabe: { tage: free, prozent: h.aufschlag_prozent, label: `Last-Minute +${h.aufschlag_prozent} %` } }, false)}</div>`;
+            extra += `<div class="ks" style="white-space:normal">${t("Fenster")}: ${num(h.tage_fenster)} ${t("Tage")} · ${t("max. Rabatt")} ${num(h.rabatt_max)} % · ${t("einstellbar unter Einstellungen → Kosten & Preise")}${st.buchungen ? ` · n = ${num(st.buchungen)}` : ""}</div>`;
+          }
           if (h.typ === "einzelnacht" && h.mindestaufenthalt) extra += `<div class="row" style="margin-top:5px">${applyBtn(`Mindestaufenthalt ${h.mindestaufenthalt} setzen …`, {
             title: h.titel, grund: h.text, vorgabe: { von: d.today, bis: iso(addDays(D(d.today), 29)), mindestaufenthalt: h.mindestaufenthalt, label: `Mindestaufenthalt ${h.mindestaufenthalt}` } }, false)}</div>`;
           if (h.typ === "feiertag") extra = extra + `<div class="chips">${h.tage.map((x) => `<span class="chip" data-tip="${esc(`${t("In den Vorjahren belegt")}: ${x.vorjahre_belegt} ${t("von")} ${x.vorjahre}`)}">${fdate(x.datum)} · ${esc(t(x.name))}</span>`).join("")}</div>`;
@@ -4538,7 +4555,7 @@ const SET_FIELD_TAB = (key) => {
   if (key.startsWith("notify_") || key === "assist_briefing_time") return "benachrichtigungen";
   if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key)) return "assistent";
   if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels"].includes(key)) return "provisionen";
-  if (key.startsWith("cost_") || ["channel_markups", "genius_discount", "genius_share"].includes(key)) return "kosten";
+  if (key.startsWith("cost_") || key.startsWith("lastminute_") || ["channel_markups", "genius_discount", "genius_share"].includes(key)) return "kosten";
   if (["user_roles", "default_role", "settings_users"].includes(key)) return "rechte";
   return "allgemein";
 };
@@ -4718,7 +4735,11 @@ class SmoobuSettingsCard extends SmoobuCard {
       <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Aufschlag")}</th><th></th></tr></thead><tbody>${mk}</tbody></table></div>
         <div class="inline"><button class="btn flat" data-madd>＋ ${t("Kanal hinzufügen")}</button></div>${this.err("channel_markups")}
         ${this.fld("Booking.com Genius-Rabatt", this.numIn("genius_discount", 0, 50, 1, "%"), "Genius-Gäste zahlen weniger als den Kanalpreis.", "genius_discount")}
-        ${this.fld("Anteil Genius-Buchungen", this.numIn("genius_share", 0, 100, 1, "%"), "Unbekannt? 100 % lassen – vorsichtige Annahme (siehe Booking.com-Extranet).", "genius_share")}</div></div>`;
+        ${this.fld("Anteil Genius-Buchungen", this.numIn("genius_share", 0, 100, 1, "%"), "Unbekannt? 100 % lassen – vorsichtige Annahme (siehe Booking.com-Extranet).", "genius_share")}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Last-Minute")}</b>
+        <span class="sub">${t("Standard: kein Rabatt. Nur Lücken zwischen zwei Gästen oder Nächte in schwach gebuchten Monaten bekommen einen Vorschlag – nie unter der Untergrenze.")}</span></div></div><div class="gb">
+        ${this.fld("Last-Minute-Fenster", this.numIn("lastminute_days", 1, 14, 1, "Tage"), "So viele Tage vor Anreise gilt eine freie Nacht als Last-Minute.", "lastminute_days")}
+        ${this.fld("Höchster Rabatt", this.numIn("lastminute_max_discount", 0, 30, 1, "%"), "", "lastminute_max_discount")}</div></div>`;
   }
   // v1.18.0: Benutzerrollen – nur Admins vergeben Rollen; alle sehen die Übersicht Rolle × Recht
   tabRights(meta) {

@@ -102,7 +102,9 @@
           "cost_grid_share": "Netzanteil je Monat (Jan … Dez, %)",
           "channel_markups": "Aufschläge je Kanal (Smoobu-Preistool)",
           "genius_discount": "Booking.com Genius-Rabatt",
-          "genius_share": "Anteil Genius-Buchungen"
+          "genius_share": "Anteil Genius-Buchungen",
+          "lastminute_days": "Last-Minute-Fenster",
+          "lastminute_max_discount": "Höchster Last-Minute-Rabatt"
         },
         "data_description": {
           "cost_heating_year": "Aus der Nebenkostenabrechnung (nur der Anteil der Ferienwohnung).",
@@ -110,7 +112,9 @@
           "cost_pv_value": "PV-Strom, den der Gast nutzt, wäre sonst eingespeist worden.",
           "cost_grid_share": "12 Werte, z. B. 72, 55, 15, 11, 7, 10, 5, 26, 20, 47, 67, 80 (Netzbezug ÷ Hausverbrauch).",
           "channel_markups": "Format: Kanal=Prozent; Kanal=Prozent (z. B. Airbnb=33; Booking.com=45; HomeToGo=10).",
-          "genius_share": "Ohne Kenntnis 100 % lassen (vorsichtige Annahme)."
+          "genius_share": "Ohne Kenntnis 100 % lassen (vorsichtige Annahme).",
+          "lastminute_days": "So viele Tage vor Anreise gilt eine freie Nacht als Last-Minute (1–14).",
+          "lastminute_max_discount": "Nur für Lücken zwischen zwei Gästen oder schwach gebuchte Monate, nie unter der Untergrenze."
         }
       },
       "assistent": {

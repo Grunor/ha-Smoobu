@@ -63,6 +63,8 @@ from .const import (
     CONF_COST_WATER_NIGHT,
     CONF_GENIUS_DISCOUNT,
     CONF_GENIUS_SHARE,
+    CONF_LASTMINUTE_DAYS,
+    CONF_LASTMINUTE_MAX_DISCOUNT,
     CONF_COMMISSION_OTHER,
     CONF_DAYS_AHEAD,
     CONF_DAYS_BACK,
@@ -102,6 +104,8 @@ from .const import (
     DEFAULT_COST_WATER_NIGHT,
     DEFAULT_GENIUS_DISCOUNT,
     DEFAULT_GENIUS_SHARE,
+    DEFAULT_LASTMINUTE_DAYS,
+    DEFAULT_LASTMINUTE_MAX_DISCOUNT,
     DEFAULT_DAYS_AHEAD,
     DEFAULT_DAYS_BACK,
     DEFAULT_DIRECT_CHANNELS,
@@ -407,9 +411,10 @@ class SmoobuOptionsFlow(OptionsFlow):
             data: dict[str, Any] = {}
             for key in (CONF_COST_CLEANING, CONF_COST_LAUNDRY, CONF_COST_HEATING_YEAR, CONF_COST_HOT_WATER_YEAR,
                         CONF_COST_WATER_NIGHT, CONF_COST_POWER_KWH, CONF_COST_GRID_PRICE, CONF_COST_PV_VALUE,
-                        CONF_GENIUS_DISCOUNT, CONF_GENIUS_SHARE):
+                        CONF_GENIUS_DISCOUNT, CONF_GENIUS_SHARE, CONF_LASTMINUTE_MAX_DISCOUNT):
                 data[key] = float(user_input[key])
             data[CONF_COST_REF_YEAR] = int(user_input[CONF_COST_REF_YEAR])
+            data[CONF_LASTMINUTE_DAYS] = int(user_input[CONF_LASTMINUTE_DAYS])
             try:
                 data[CONF_COST_GRID_SHARE] = parse_grid_share(user_input.get(CONF_COST_GRID_SHARE))
             except ValueError:
@@ -439,6 +444,8 @@ class SmoobuOptionsFlow(OptionsFlow):
             num(CONF_COST_PV_VALUE, DEFAULT_COST_PV_VALUE, 0, 200, 0.01, "ct/kWh"),
             num(CONF_GENIUS_DISCOUNT, DEFAULT_GENIUS_DISCOUNT, 0, 50, 1, "%"),
             num(CONF_GENIUS_SHARE, DEFAULT_GENIUS_SHARE, 0, 100, 1, "%"),
+            num(CONF_LASTMINUTE_DAYS, DEFAULT_LASTMINUTE_DAYS, 1, 14, 1, "d"),
+            num(CONF_LASTMINUTE_MAX_DISCOUNT, DEFAULT_LASTMINUTE_MAX_DISCOUNT, 0, 30, 1, "%"),
         ]
         share = opts.get(CONF_COST_GRID_SHARE, DEFAULT_COST_GRID_SHARE)
         markups = opts.get(CONF_CHANNEL_MARKUPS, DEFAULT_CHANNEL_MARKUPS)

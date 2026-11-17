@@ -93,3 +93,22 @@ def test_hinweise():
     feiertage = {t["datum"] for t in typen["feiertag"]["tage"]}
     assert "2026-12-24" in feiertage
     assert typen["wochenende"]["titel"].startswith("Wochenend-Aufschlag")
+
+
+def test_lastminute():
+    from custom_components.smoobu.empfehlung import _lead_stats
+
+    today = date(2026, 11, 17)
+    rates = {(today + timedelta(days=i)).isoformat(): {"price": 62, "min_length_of_stay": 1} for i in range(60)}
+    cfg = PriceConfig(markups=PCFG.markups, commissions=PCFG.commissions, lastminute_days=7, lastminute_max_discount=10)
+    res = recommend(R, rates, TABLE, cfg, today, first=date(2023, 1, 1))
+    lm = next(h for h in res["hinweise"] if h["typ"] == "lastminute")
+    assert lm["tage_fenster"] == 7
+    by = {n["datum"]: n for n in lm["naechte"]}
+    assert "2026-11-18" not in by  # belegt
+    gap = by["2026-11-20"]  # Nacht zwischen zwei Gästen
+    assert gap["luecke"] and gap["vorschlag_preis"] is not None and gap["vorschlag_preis"] < 62
+    assert gap["vorschlag_preis"] >= (gap["untergrenze"] or 0)
+    # Vorlauf-Statistik: Buchungen mit ≤ 14 Tagen Vorlauf (Airbnb-Einzelnächte, 13 Tage)
+    st = _lead_stats(R, 14, today)
+    assert st["buchungen"] >= 1 and st["netto_lm"] and st["netto_frueh"]
