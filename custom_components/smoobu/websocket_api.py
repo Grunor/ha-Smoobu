@@ -175,6 +175,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_assistant_suggest)
     websocket_api.async_register_command(hass, ws_assistant_send)
     websocket_api.async_register_command(hass, ws_assistant_job)
+    websocket_api.async_register_command(hass, ws_assistant_preview)
     websocket_api.async_register_command(hass, ws_settings_get)
     websocket_api.async_register_command(hass, ws_settings_set)
     websocket_api.async_register_command(hass, ws_rates_apply)
@@ -737,6 +738,24 @@ async def ws_assistant_job(hass: HomeAssistant, connection: websocket_api.Active
         else:
             await a.apply_gap(msg.get("arg") or "")
             connection.send_result(msg["id"])
+    except (vol.Invalid, SmoobuError) as err:
+        connection.send_error(msg["id"], "assistant_error", str(err))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/assistant/preview", **_TARGET, vol.Optional("reservation_id"): vol.Coerce(int),
+     vol.Optional("probelauf", default=False): bool,
+     vol.Optional("anlass", default="antwort"): vol.In(["antwort", "willkommen", "anreise", "abreise", "bewertung"])}
+)
+@websocket_api.async_response
+async def ws_assistant_preview(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """v1.18.0b6: Was geht an die KI? Ohne Buchung = zuletzt gesendeter Text, mit Buchung = Probelauf.
+
+    Recht „antworten“ wie bei den Vorschlägen – der Text enthält die (geschützte) Gästenachricht.
+    """
+    try:
+        a = _assistant(hass, msg, connection, "antworten")
+        connection.send_result(msg["id"], await a.preview(msg.get("reservation_id"), msg["anlass"], msg["probelauf"]))
     except (vol.Invalid, SmoobuError) as err:
         connection.send_error(msg["id"], "assistant_error", str(err))
 

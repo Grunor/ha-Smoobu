@@ -112,6 +112,19 @@ def _shots(base: str, token: str, set_options) -> list[str]:
         card("posteingang", "smoobu-inbox-card", {"message_entity": "sensor.smoobu_letzte_gastenachricht"},
              prepare=lambda el: el.locator(".item", has_text="Lukas Berg").click(), wait_text="Keine Antwort nötig")
         card("assistent", "smoobu-assistant-card")
+        # v1.18.0b6: Datenschutz-Stufe im Reiter KI-Assistent + Probelauf „Was geht an die KI?“
+        page.set_viewport_size({"width": 1212, "height": 1400})
+        card("einstellungen_datenschutz", "smoobu-settings-card", {"tab": "assistent"}, wait_text="Datenschutz-Stufe")
+        page.locator("smoobu-settings-card").get_by_text("Probelauf nächste Buchung").click()
+        page.get_by_text("Probelauf: so ginge es jetzt an die KI").wait_for(timeout=15000)
+        page.set_viewport_size({"width": 1000, "height": 900})
+        # Zum interessanten Teil scrollen (Buchung, Status, Beispiele mit Platzhaltern)
+        page.evaluate("() => { const pre = document.querySelector('pre'); const i = pre.textContent.indexOf('BUCHUNG:');"
+                      " pre.scrollTop = Math.max(0, pre.scrollHeight * i / pre.textContent.length - 30); }")
+        page.wait_for_timeout(400)
+        page.screenshot(path=str(OUT / "datenschutz_probelauf.png"))
+        done.append("datenschutz_probelauf.png")
+        page.get_by_text("Schließen").click()
         page.set_viewport_size({"width": 1212, "height": 1000})
         card("buchungsdetails", "smoobu-bookings-card",
              prepare=lambda el: el.locator("tr[data-id]", has_text="Lukas Berg").first.click(), dialog=True)

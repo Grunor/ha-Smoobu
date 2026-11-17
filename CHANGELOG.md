@@ -8,6 +8,22 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.18.0b6 – 2026-11-17
+
+> Beta / Pre-release
+
+**Deutsch**
+- **Datenschutz-Stufe für die KI** (Optionen → KI-Assistent und Einstellungskarte → KI-Assistent → Datenschutz): Standard (Voreinstellung, auch für bestehende Installationen), Streng, Maximal, Individuell. Standard ersetzt bekannte Gastnamen durch Platzhalter (`[GAST_VORNAME]`, `[GAST_NAME]`, `[GAST_NACHNAME]`) und setzt sie nach der Antwort lokal wieder ein, schwärzt zusätzlich Adresse, PLZ/Ort, Kennzeichen, Geburtsdatum und Ausweisnummer und gibt Daten relativ an (`[ANREISE]`/`[ABREISE]` im Entwurf, lokal ersetzt). Gilt für Gästenachricht, Verlauf, Lernbeispiele (Name des Gastes der jeweiligen Buchung), Status-Entitäten (laufende und nahe Gäste) und „Wissen erzeugen“ (Vorlagen mit Buchungsbezug ab dem nächsten Import). Streng: nur 2 Nachrichten Verlauf, ohne Kanal/Bezahlstatus. Maximal: nur Gästenachricht + Wissensdatenbank. Individuell: neun Einzelschalter mit Beschreibung der Einbuße. Neue Optionen `ai_privacy`, `ai_pseudonym`, `ai_redact_extended`, `ai_dates_relative`, `ai_send_dates`, `ai_send_guests`, `ai_send_payment`, `ai_history`, `ai_examples`, `ai_status`, `ai_host_names`
+- **Eigene Namen** (`ai_host_names`, Standard: Wörter aus dem Kontonamen) werden nie ersetzt – sonst würde z. B. eure Signatur bei einem gleichnamigen Gast zum Platzhalter
+- **„Was geht an die KI?“** in der Einstellungskarte: letzte KI-Anfrage (exakter Text, nur im Speicher) und Probelauf mit der laufenden/nächsten Buchung ohne KI-Aufruf (auch bei gesperrter KI). Neuer Websocket-Befehl `smoobu/assistant/preview` (Recht „Antworten“); Assistent-Zustand mit `datenschutz` und `letzte_ki_anfrage`
+- Grenzen: nur bekannte Namen und typische Muster; die Gästenachricht bleibt Freitext. Details in der README unter „Datenschutz-Stufe für die KI“
+
+**English**
+- **Privacy level for the AI** (options → AI assistant and settings card → AI assistant → privacy): Standard (default, also for existing installations), Strict, Maximum, Custom. Standard replaces known guest names with placeholders (`[GAST_VORNAME]`, `[GAST_NAME]`, `[GAST_NACHNAME]`) and restores them locally after the reply, additionally redacts address, postcode/town, licence plate, date of birth and ID number, and uses relative dates (`[ANREISE]`/`[ABREISE]` in the draft, replaced locally). Applies to guest message, history, learning examples (name of the guest of that booking), status entities (current and upcoming guests) and "build knowledge" (templates with booking reference from the next import). Strict: only 2 messages of history, no channel/payment status. Maximum: guest message + knowledge base only. Custom: nine individual switches with a description of the loss. New options `ai_privacy`, `ai_pseudonym`, `ai_redact_extended`, `ai_dates_relative`, `ai_send_dates`, `ai_send_guests`, `ai_send_payment`, `ai_history`, `ai_examples`, `ai_status`, `ai_host_names`
+- **Own names** (`ai_host_names`, default: words of the account name) are never replaced – otherwise e.g. your signature would become a placeholder for a guest with the same name
+- **"What goes to the AI?"** in the settings card: last AI request (exact text, memory only) and a dry run with the current/next booking without calling the AI (works with AI locked too). New websocket command `smoobu/assistant/preview` (permission "reply"); assistant state with `datenschutz` and `letzte_ki_anfrage`
+- Limits: only known names and typical patterns; the guest message stays free text. Details in the README under "Privacy level for the AI"
+
 ## 1.18.0b5 – 2026-11-17
 
 > Beta / Pre-release

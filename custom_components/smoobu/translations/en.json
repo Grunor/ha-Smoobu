@@ -119,20 +119,52 @@
       },
       "assistent": {
         "title": "AI assistant",
-        "description": "Reply suggestions for guest messages with a knowledge base and learning from your replies. Nothing is sent to guests without confirmation. When AI is allowed, guest messages and booking data are sent to the chosen AI provider. Knowledge base, learning, import, daily briefing and gap report also work without AI.",
+        "description": "Reply suggestions for guest messages with a knowledge base and learning from your replies. Nothing is sent to guests without confirmation. When AI is allowed, guest messages and booking data are sent to the chosen AI provider. Knowledge base, learning, import, daily briefing and gap report also work without AI. The privacy level decides what the AI sees (guest names are replaced by placeholders by default).",
         "data": {
           "ai_enabled": "Allow AI features",
           "assistant": "Automatic reply suggestions for new guest messages",
           "ai_entity": "AI (AI task)",
           "assist_status": "HA entities as context",
-          "assist_path": "Dashboard page for \"Edit\""
+          "assist_path": "Dashboard page for \"Edit\"",
+          "ai_privacy": "Privacy level"
         },
         "data_description": {
           "ai_enabled": "Off = AI fully locked: no suggestions, no \"build knowledge\", no data sent to an AI provider. The AI buttons in the cards are greyed out.",
           "assistant": "On by default. Only works when AI is allowed. On-demand suggestions (✨ in the card) work without this option.",
           "ai_entity": "e.g. Google Gemini, called via ai_task.generate_data.",
           "assist_status": "e.g. heating, door, outdoor temperature – helps with problem reports.",
-          "assist_path": "e.g. /dashboard-apartment/smoobu-messages"
+          "assist_path": "e.g. /dashboard-apartment/smoobu-messages",
+          "ai_privacy": "Standard: guest names → placeholders (restored locally), address/plate/date of birth redacted, relative dates – practically no loss. Strict: additionally only 2 messages of history, no payment status/channel. Maximum: only the guest message + knowledge base (noticeably more generic replies). Custom: individual switches below."
+        },
+        "sections": {
+          "datenschutz_einzeln": {
+            "name": "Privacy – individual switches (only for “Custom”)",
+            "description": "Only applies when the level “Custom” is selected. With a fixed level its values are shown here.",
+            "data": {
+              "ai_pseudonym": "Replace guest names with placeholders",
+              "ai_redact_extended": "Extended redaction (address, plate, date of birth, ID)",
+              "ai_dates_relative": "Relative dates instead of calendar dates",
+              "ai_send_dates": "Send travel dates and occupancy before/after",
+              "ai_send_guests": "Send persons, children, dog",
+              "ai_send_payment": "Send channel, booking status, payment status",
+              "ai_history": "Messages from the history",
+              "ai_examples": "Send earlier replies as style examples",
+              "ai_status": "Send status entities",
+              "ai_host_names": "Own names (never replaced)"
+            },
+            "data_description": {
+              "ai_pseudonym": "Loss: none – the AI writes [GAST_VORNAME], the integration inserts the name. Off = the name is sent.",
+              "ai_redact_extended": "Loss: small, occasionally harmless text is redacted. Pattern based, no guarantee.",
+              "ai_dates_relative": "“Fri, in 3 days” instead of 21.11.2026; the integration inserts the date into the draft. Loss: small.",
+              "ai_send_dates": "Off: no early check-in/late check-out, no answers about times. Loss: medium.",
+              "ai_send_guests": "Off: questions about cot, dog, number of guests stay open. Loss: small to medium.",
+              "ai_send_payment": "Off: questions about payment and portal stay open. Loss: small.",
+              "ai_history": "0–6. Fewer = references (“as discussed”) are lost. Loss: medium at 0.",
+              "ai_examples": "Off: greeting, tone and sign-off are no longer yours. Loss: high.",
+              "ai_status": "Off: no hints for problems (heating, door). Loss: medium for problem reports.",
+              "ai_host_names": "Comma separated. Default: words of the account name. These names stay (e.g. your signature)."
+            }
+          }
         }
       },
       "benachrichtigungen": {
@@ -677,6 +709,14 @@
       "options": {
         "guest": "Guest",
         "host": "Host (note)"
+      }
+    },
+    "ai_privacy": {
+      "options": {
+        "standard": "Standard (recommended)",
+        "streng": "Strict",
+        "maximal": "Maximum",
+        "individuell": "Custom"
       }
     }
   },

@@ -61,6 +61,10 @@ const EN = {
   "Netzstrompreis": "Grid price", "Wert PV-Strom": "Value of PV power", "Netzanteil je Monat": "Grid share per month",
   "Aufschläge je Kanal": "Markups per channel", "Booking.com Genius-Rabatt": "Booking.com Genius discount",
   "Anteil Genius-Buchungen": "Share of Genius bookings", "Kosten je Nacht relativ zum Januar": "Cost per night relative to January",
+  "Datenschutz": "Privacy", "Standard (empfohlen)": "Standard (recommended)", "Streng": "Strict", "Maximal": "Maximum",
+  "Individuell": "Custom", "Einbuße": "Loss", "keine": "none", "gering": "small", "mittel": "medium", "hoch": "high",
+  "Letzte KI-Anfrage": "Last AI request", "Probelauf nächste Buchung": "Dry run next booking", "Was geht an die KI?": "What goes to the AI?",
+  "Eigene Namen": "Own names", "Nachrichten aus dem Verlauf": "Messages from the history",
   "Einstellungen": "Settings", "Benachrichtigungen": "Notifications", "KI-Assistent": "AI assistant",
   "Provisionen & Kanäle": "Commissions & channels", "Allgemein & Abruf": "General & polling", "Speichern": "Save",
   "Verwerfen": "Discard", "Alles gespeichert.": "All saved.", "ungespeicherte Änderung": "unsaved change",
@@ -4663,7 +4667,7 @@ const PUSH_TIME = { zahlung: "notify_zahlung_time", briefing: "assist_briefing_t
 // Feld → Reiter (für Fehler: der Reiter mit dem ersten Fehler wird geöffnet)
 const SET_FIELD_TAB = (key) => {
   if (key.startsWith("notify_") || key === "assist_briefing_time") return "benachrichtigungen";
-  if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key)) return "assistent";
+  if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key) || key.startsWith("ai_")) return "assistent";
   if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels"].includes(key)) return "provisionen";
   if (key.startsWith("cost_") || key.startsWith("lastminute_") || ["channel_markups", "genius_discount", "genius_share"].includes(key)) return "kosten";
   if (["user_roles", "default_role", "settings_users"].includes(key)) return "rechte";
@@ -4681,6 +4685,40 @@ const HEAT_PROMILLE = [170, 150, 130, 80, 40, 13.33, 13.33, 13.34, 30, 80, 120, 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const phoneName = (svc) => svc.replace(/^notify\.mobile_app_/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+// v1.18.0b6: Datenschutz für die KI – Stufen und Einzelschalter mit Einbuße (Texte wie im Options-Dialog)
+const PRIVACY_LEVELS = [
+  ["standard", "Standard (empfohlen)", "Gastnamen → Platzhalter (vor dem Senden wieder eingesetzt), Adresse/Kennzeichen/Geburtsdatum/Ausweis geschwärzt, Daten relativ. Einbuße: praktisch keine."],
+  ["streng", "Streng", "Wie Standard, dazu nur 2 Nachrichten Verlauf und ohne Kanal/Bezahlstatus. Einbuße: gering – Rückbezüge und Zahlungsfragen bleiben eher offen."],
+  ["maximal", "Maximal", "Nur Gästenachricht (geschützt) und Wissensdatenbank. Keine Buchungsdaten, kein Verlauf, keine Beispiele, keine Status-Entitäten. Einbuße: hoch – Antworten allgemeiner, Ton nicht mehr eurer, Zeiten und Probleme bleiben offen."],
+  ["individuell", "Individuell", "Jeder Schalter einzeln (unten)."],
+];
+const PRIVACY_FLAGS = [
+  ["ai_pseudonym", "Gastnamen durch Platzhalter ersetzen", "keine", "Die KI schreibt [GAST_VORNAME], die Integration setzt den Namen ein. Aus = Name geht an die KI."],
+  ["ai_redact_extended", "Erweitert schwärzen", "gering", "Adresse, PLZ/Ort, Kennzeichen, Geburtsdatum, Ausweisnummer. Musterbasiert, kein Garant."],
+  ["ai_dates_relative", "Daten relativ", "gering", "„Fr., in 3 Tagen“ statt Kalenderdatum; im Entwurf wird das Datum eingesetzt."],
+  ["ai_send_dates", "Reisedaten und Belegung senden", "mittel", "Aus: kein früher Check-in/später Check-out, keine Antworten zu Zeiten."],
+  ["ai_send_guests", "Personen, Kinder, Hund senden", "gering", "Aus: Fragen zu Kinderbett, Hund, Personenzahl bleiben offen."],
+  ["ai_send_payment", "Kanal und Bezahlstatus senden", "gering", "Aus: Fragen zu Zahlung und Portal bleiben offen."],
+  ["ai_examples", "Frühere Antworten als Stilvorlage", "hoch", "Aus: Anrede, Ton und Gruß sind nicht mehr eure."],
+  ["ai_status", "Status-Entitäten senden", "mittel", "Aus: keine Hinweise bei Problemen (Heizung, Tür)."],
+];
+// Vorschau-Fenster: zeigt den Text genau so, wie er an die KI geht (bzw. gehen würde)
+function promptDialog(title, res) {
+  const p = PAL[DARK ? "dark" : "light"];
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10002;display:flex;align-items:center;justify-content:center;padding:16px";
+  const when = res.zeit ? new Date(res.zeit).toLocaleString(locale()) : "";
+  const body = res.text ? `<pre style="white-space:pre-wrap;word-break:break-word;font:12.5px/1.45 ui-monospace,Menlo,monospace;margin:0;max-height:60vh;overflow:auto;background:${p.surf2};padding:12px;border-radius:10px">${esc(res.text)}</pre>`
+    : `<div>${t("Seit dem letzten Neustart ging noch keine Anfrage an die KI.")}</div>`;
+  wrap.innerHTML = `<div style="background:${p.surf};color:${p.ink};padding:20px;border-radius:16px;width:min(760px,100%);font:14px/1.45 ${FONT_ATTR};border:1px solid ${p.line};box-shadow:0 12px 40px rgba(0,0,0,.3)">
+    <div style="font-weight:650;font-size:16px;margin-bottom:4px">${esc(t(title))}</div>
+    <div style="color:${p.mut};font-size:12.5px;margin-bottom:12px">${esc(t("Datenschutz-Stufe"))}: ${esc(t((PRIVACY_LEVELS.find((l) => l[0] === res.stufe) || [0, res.stufe])[1]))}${when ? ` · ${esc(when)}` : ""}${res.ki ? ` · ${esc(res.ki)}` : ""}
+      ${res.quelle === "vorschau" ? ` · ${t("Probelauf mit den gespeicherten Einstellungen – nichts wurde gesendet.")}` : ""}</div>
+    ${body}<div style="display:flex;justify-content:flex-end;margin-top:14px"><button data-v="1" style="font:600 14px ${FONT_ATTR};padding:8px 16px;border-radius:999px;border:none;background:${p.acc};color:${p.accInk};cursor:pointer">${t("Schließen")}</button></div></div>`;
+  wrap.addEventListener("click", (e) => { if (e.target?.dataset?.v || e.target === wrap) wrap.remove(); });
+  document.body.appendChild(wrap);
+}
 
 class SmoobuSettingsCard extends SmoobuCard {
   // tab: Start-Reiter (benachrichtigungen | assistent | provisionen | kosten | allgemein)
@@ -4791,7 +4829,28 @@ class SmoobuSettingsCard extends SmoobuCard {
           ${this.fld("Automatische Antwortvorschläge", this.sw("assistant", "Automatische Antwortvorschläge"), "Wirkt nur, wenn die KI erlaubt ist.")}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Kontext & Links")}</b></div></div>
         <div class="gb">${this.fld("Kontext-Entitäten", status, "Zustände, die die KI bei Antworten kennen darf (z. B. Heizung, Tür).", "assist_status")}
-          ${this.fld("Dashboard-Pfad für „Bearbeiten“", `<input type="text" data-txt="assist_path" value="${esc(d.assist_path)}">`, "Ziel des Buttons „Bearbeiten“ im Push.", "assist_path")}</div></div>`;
+          ${this.fld("Dashboard-Pfad für „Bearbeiten“", `<input type="text" data-txt="assist_path" value="${esc(d.assist_path)}">`, "Ziel des Buttons „Bearbeiten“ im Push.", "assist_path")}</div></div>
+      ${this.privacyGroup()}`;
+  }
+  // v1.18.0b6: Datenschutz-Stufe, Einzelschalter (nur bei „Individuell“), eigene Namen, Vorschau
+  privacyGroup() {
+    const d = this._draft;
+    const lvl = d.ai_privacy || "standard";
+    const levels = PRIVACY_LEVELS.map(([k, l]) => `<button class="chip" data-privacy="${k}" aria-pressed="${lvl === k}">${esc(t(l))}</button>`).join("");
+    const desc = (PRIVACY_LEVELS.find((x) => x[0] === lvl) || PRIVACY_LEVELS[0])[2];
+    const flags = lvl !== "individuell" ? "" : PRIVACY_FLAGS.map(([k, l, loss, hint]) =>
+      this.fld(l, this.sw(k, l), `${t("Einbuße")} ${t(loss)}: ${hint}`, k)).join("")
+      + this.fld("Nachrichten aus dem Verlauf", this.numIn("ai_history", 0, 6, 1), "0–6. Weniger = Rückbezüge („wie besprochen“) gehen verloren.", "ai_history");
+    const names = `<input type="text" data-names="ai_host_names" value="${esc((d.ai_host_names || []).join(", "))}">`;
+    const changed = this.dirty && Object.keys(this.changes()).some((k) => k.startsWith("ai_"));
+    return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Datenschutz")}</b>
+        <span class="sub">${t("Was an die KI geht. Nicht garantiert anonym: Die Gästenachricht ist Freitext, nur bekannte Namen und typische Muster werden ersetzt.")}</span></div></div>
+      <div class="gb">${this.fld("Datenschutz-Stufe", `<div class="chips">${levels}</div>`, desc, "ai_privacy")}
+        ${flags}
+        ${this.fld("Eigene Namen", names, "Kommagetrennt, werden nie ersetzt (z. B. eure Signatur). Standard: Wörter aus dem Kontonamen.", "ai_host_names")}
+        ${this.fld("Was geht an die KI?", `<button class="btn flat" data-prompt="letzte">${t("Letzte KI-Anfrage")}</button>
+          <button class="btn flat" data-prompt="probe">${t("Probelauf nächste Buchung")}</button>`,
+          changed ? "Probelauf nutzt die gespeicherten Einstellungen – erst speichern." : "Zeigt den exakten Text. Der Probelauf ruft die KI nicht auf.")}</div></div>`;
   }
   tabProv(meta) {
     const d = this._draft;
@@ -5038,6 +5097,27 @@ class SmoobuSettingsCard extends SmoobuCard {
       this._draft = clone(this._data.werte); this.setState({ errors: {} });
     });
     root.querySelector("[data-save]")?.addEventListener("click", () => this.save());
+    // Datenschutz-Stufe: feste Stufe setzt die Einzelschalter auf deren Voreinstellung, damit
+    // „Individuell“ danach mit der zuletzt gewählten Stufe beginnt
+    root.querySelectorAll("[data-privacy]").forEach((b) => b.addEventListener("click", () => {
+      const lvl = b.dataset.privacy;
+      const preset = this._data?.meta?.datenschutz_stufen?.[lvl];
+      if (preset) Object.assign(d, preset);
+      d.ai_privacy = lvl; redraw();
+    }));
+    root.querySelectorAll("[data-names]").forEach((inp) => inp.addEventListener("input", () => {
+      d[inp.dataset.names] = inp.value.split(/[,;]/).map((x) => x.trim()).filter(Boolean); this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-prompt]").forEach((b) => b.addEventListener("click", async () => {
+      const probe = b.dataset.prompt === "probe";
+      b.disabled = true;
+      try {
+        const res = await this.store.ws("smoobu/assistant/preview", { entry_id: this._data.entry_id, ...(probe ? { probelauf: true } : {}) }, { cache: false });
+        promptDialog(probe ? "Probelauf: so ginge es jetzt an die KI" : "Zuletzt an die KI gesendet", res);
+      } catch (e) {
+        toast(`${t("Fehler")}: ${e?.message || e}`);
+      } finally { b.disabled = false; }
+    }));
   }
   async save() {
     const changes = this.changes();

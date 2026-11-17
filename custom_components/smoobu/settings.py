@@ -120,6 +120,7 @@ from .const import (
     NOTIFY_TYPES,
 )
 from .notifications import opt_enabled, opt_recipients
+from . import privacy
 
 # Kanäle, die immer zur Auswahl stehen (wie im Options-Dialog), dazu alle aus den Buchungen
 BASE_CHANNELS = ["Airbnb", "Booking.com", "FeWo-direkt", "Expedia", "Vrbo", "HomeToGo", "Direct booking", "Website"]
@@ -177,6 +178,12 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_AI_ENTITY: o.get(CONF_AI_ENTITY) or None,
         CONF_ASSIST_STATUS: list(o.get(CONF_ASSIST_STATUS) or []),
         CONF_ASSIST_PATH: str(o.get(CONF_ASSIST_PATH, "/lovelace")),
+        # Datenschutz für die KI (v1.18.0b6): Stufe + Einzelschalter. Die Einzelschalter zeigen bei einer
+        # festen Stufe deren Voreinstellung (zum Vergleich), wirksam werden sie nur bei „individuell“.
+        privacy.CONF_AI_PRIVACY: privacy.level(o),
+        **({**privacy.resolve(o), **{k: o[k] for k in privacy.FLAGS if k in o}}
+           if privacy.level(o) == "individuell" else privacy.resolve(o)),
+        privacy.CONF_AI_HOST_NAMES: privacy.host_names(o, entry.title),
         # Benachrichtigungen: Zeiten und Ruhezeit
         CONF_ASSIST_BRIEFING_TIME: str(o.get(CONF_ASSIST_BRIEFING_TIME, "07:30"))[:5],
         CONF_NOTIFY_GAPS_TIME: str(o.get(CONF_NOTIFY_GAPS_TIME, DEFAULT_NOTIFY_GAPS_TIME))[:5],
@@ -311,6 +318,8 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
         # v1.18.0: Rollen × Rechte und eigene Rolle (Anzeige im Reiter „Benutzer & Rechte“)
         "rollen": rechte.matrix(),
         "zugriff": rechte.describe(user, entry.options),
+        # v1.18.0b6: Voreinstellungen der Datenschutz-Stufen (Karte setzt die Einzelschalter beim Wechsel)
+        "datenschutz_stufen": privacy.PRESETS,
     }
 
 
@@ -452,6 +461,10 @@ FIELDS: dict[str, Any] = {
     CONF_AI_ENTITY: vol.Any(None, vol.Match(r"^ai_task\.[a-z0-9_]+$")),
     CONF_ASSIST_STATUS: _pattern_list(_ENTITY_RE),
     CONF_ASSIST_PATH: vol.All(str, vol.Length(max=200)),
+    privacy.CONF_AI_PRIVACY: vol.In(privacy.PRIVACY_LEVELS),
+    privacy.CONF_AI_HISTORY: _int(0, privacy.MAX_HISTORY),
+    **{k: bool for k in privacy.FLAGS if k != privacy.CONF_AI_HISTORY},
+    privacy.CONF_AI_HOST_NAMES: _names,
     CONF_ASSIST_BRIEFING_TIME: _hhmm,
     CONF_NOTIFY_GAPS_TIME: _hhmm,
     CONF_NOTIFY_PAYMENT_TIME: _hhmm,

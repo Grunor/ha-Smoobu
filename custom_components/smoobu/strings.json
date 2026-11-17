@@ -119,20 +119,52 @@
       },
       "assistent": {
         "title": "KI-Assistent",
-        "description": "Antwortvorschläge für Gästenachrichten mit Wissensdatenbank und Lernen aus euren Antworten. Nichts wird ohne Bestätigung an Gäste gesendet. Ist die KI erlaubt, gehen Gästenachrichten und Buchungsdaten an den gewählten KI-Anbieter. Wissensdatenbank, Lernen, Import, Tagesbriefing und Lücken-Meldung funktionieren auch ohne KI.",
+        "description": "Antwortvorschläge für Gästenachrichten mit Wissensdatenbank und Lernen aus euren Antworten. Nichts wird ohne Bestätigung an Gäste gesendet. Ist die KI erlaubt, gehen Gästenachrichten und Buchungsdaten an den gewählten KI-Anbieter. Wissensdatenbank, Lernen, Import, Tagesbriefing und Lücken-Meldung funktionieren auch ohne KI. Die Datenschutz-Stufe legt fest, was davon die KI sieht (Gastnamen werden standardmäßig durch Platzhalter ersetzt).",
         "data": {
           "ai_enabled": "KI-Funktionen erlauben",
           "assistant": "Automatische Antwortvorschläge bei neuen Gästenachrichten",
           "ai_entity": "KI (KI-Aufgabe)",
           "assist_status": "HA-Entitäten als Kontext",
-          "assist_path": "Dashboard-Seite für „Bearbeiten“"
+          "assist_path": "Dashboard-Seite für „Bearbeiten“",
+          "ai_privacy": "Datenschutz-Stufe"
         },
         "data_description": {
           "ai_enabled": "Aus = KI vollständig gesperrt: keine Vorschläge, kein „Wissen erzeugen“, keine Daten an einen KI-Anbieter. Die KI-Buttons in den Karten werden ausgegraut.",
           "assistant": "Standard an. Wirkt nur, wenn die KI erlaubt ist. Vorschläge auf Abruf (✨ in der Karte) gehen auch ohne diese Option.",
           "ai_entity": "z. B. Google Gemini. Wird über ai_task.generate_data aufgerufen.",
           "assist_status": "z. B. Heizung, Tür, Außentemperatur – hilft bei Problemmeldungen.",
-          "assist_path": "z. B. /dashboard-ferienwohnung/smoobu-nachrichten"
+          "assist_path": "z. B. /dashboard-ferienwohnung/smoobu-nachrichten",
+          "ai_privacy": "Standard: Gastnamen → Platzhalter (lokal zurückgesetzt), Adresse/Kennzeichen/Geburtsdatum geschwärzt, Daten relativ – praktisch ohne Einbuße. Streng: zusätzlich Verlauf nur 2 Nachrichten, ohne Bezahlstatus/Kanal. Maximal: nur Gästenachricht + Wissensdatenbank (Antworten deutlich allgemeiner, Ton weniger persönlich). Individuell: Einzelschalter unten."
+        },
+        "sections": {
+          "datenschutz_einzeln": {
+            "name": "Datenschutz – Einzelschalter (nur bei „Individuell“)",
+            "description": "Gilt nur, wenn die Stufe „Individuell“ gewählt ist. Bei einer festen Stufe stehen hier deren Werte.",
+            "data": {
+              "ai_pseudonym": "Gastnamen durch Platzhalter ersetzen",
+              "ai_redact_extended": "Erweitert schwärzen (Adresse, Kennzeichen, Geburtsdatum, Ausweis)",
+              "ai_dates_relative": "Daten relativ statt Kalenderdatum",
+              "ai_send_dates": "Reisedaten und Belegung davor/danach senden",
+              "ai_send_guests": "Personen, Kinder, Hund senden",
+              "ai_send_payment": "Kanal, Buchungsstatus, Bezahlstatus senden",
+              "ai_history": "Nachrichten aus dem Verlauf",
+              "ai_examples": "Frühere Antworten als Stilvorlage senden",
+              "ai_status": "Status-Entitäten senden",
+              "ai_host_names": "Eigene Namen (werden nie ersetzt)"
+            },
+            "data_description": {
+              "ai_pseudonym": "Einbuße: keine – die KI schreibt [GAST_VORNAME], die Integration setzt den Namen ein. Aus = Name geht an die KI.",
+              "ai_redact_extended": "Einbuße: gering, selten wird ein harmloser Text geschwärzt. Arbeitet mit Mustern, kein Garant.",
+              "ai_dates_relative": "„Fr., in 3 Tagen“ statt 21.11.2026; im Entwurf setzt die Integration das Datum ein. Einbuße: gering.",
+              "ai_send_dates": "Aus: kein früher Check-in/später Check-out, keine Antworten zu Zeiten. Einbuße: mittel.",
+              "ai_send_guests": "Aus: Fragen zu Kinderbett, Hund, Personenzahl bleiben offen. Einbuße: gering bis mittel.",
+              "ai_send_payment": "Aus: Fragen zu Zahlung und Portal bleiben offen. Einbuße: gering.",
+              "ai_history": "0–6. Weniger = Rückbezüge („wie besprochen“) gehen verloren. Einbuße: mittel bei 0.",
+              "ai_examples": "Aus: Anrede, Ton und Gruß sind nicht mehr eure. Einbuße: hoch.",
+              "ai_status": "Aus: keine Hinweise bei Problemen (Heizung, Tür). Einbuße: mittel bei Problemmeldungen.",
+              "ai_host_names": "Kommagetrennt. Standard: Wörter aus dem Kontonamen. Diese Namen bleiben stehen (z. B. eure Signatur)."
+            }
+          }
         }
       },
       "benachrichtigungen": {
@@ -677,6 +709,14 @@
       "options": {
         "guest": "Guest",
         "host": "Host (note)"
+      }
+    },
+    "ai_privacy": {
+      "options": {
+        "standard": "Standard (empfohlen)",
+        "streng": "Streng",
+        "maximal": "Maximal",
+        "individuell": "Individuell"
       }
     }
   },

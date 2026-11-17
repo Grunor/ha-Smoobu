@@ -31,6 +31,11 @@ KI: HA-Aktion `ai_task.generate_data` mit strukturierter Antwort – der Anbiete
 (Gemini, OpenAI …) wird in den Optionen gewählt; kein eigener API-Schlüssel.
 Die Anweisung verbietet Erfindungen: Unbekanntes wird als [OFFEN: …]
 markiert und als Wissenslücke gemeldet (validiert am 15.11.2026 mit Gemini).
+
+Datenschutz (ab v1.18.0b6): Alles, was an die KI geht, läuft durch privacy.py
+(Datenschutz-Stufe standard/streng/maximal/individuell). Gastnamen werden durch
+Platzhalter ersetzt und nach der Antwort lokal zurückgesetzt; der zuletzt gesendete
+Text bleibt für die Vorschau „Was geht an die KI“ im Speicher (nicht auf der Platte).
 """
 
 from __future__ import annotations
@@ -62,6 +67,7 @@ from .const import (
     DOMAIN,
     ai_allowed,
 )
+from . import privacy
 from .models import free_gaps, strip_html
 from .notifications import opt_enabled, opt_recipients
 
@@ -206,6 +212,8 @@ class SmoobuAssistant:
         self.data: dict[str, Any] = {"wissen": [], "beispiele": [], "vorschlaege": {}, "import": None}
         self.last_error: str | None = None
         self.busy: set[int] = set()
+        # v1.18.0b6: zuletzt an die KI gesendeter Text (Vorschau „Was geht an die KI“), nur im Speicher
+        self.last_prompt: dict[str, Any] | None = None
         self.throttle = 0.2  # Pause zwischen Abfragen beim Import (s)
         self._unsubs: list = []
         self._listeners: list = []
@@ -225,6 +233,29 @@ class SmoobuAssistant:
         """Automatische Vorschläge bei neuen Gästenachrichten – nur mit erlaubter KI."""
         # v1.17.0: nie gespeichert → an (sobald die KI erlaubt ist); bewusst ausgeschaltet bleibt aus
         return self.ai_allowed and bool(self.opts.get(CONF_ASSISTANT, True))
+
+    @property
+    def privacy_flags(self) -> dict[str, Any]:
+        """Wirksame Datenschutz-Schalter (Stufe → Voreinstellung, „individuell“ → Einzelwerte)."""
+        return privacy.resolve(self.opts)
+
+    @property
+    def _pseudo(self) -> privacy.Pseudonymizer:
+        """Ersetzt bekannte Gastnamen; eigene Namen (Option, sonst Kontoname) bleiben stehen."""
+        return privacy.Pseudonymizer(privacy.host_names(self.opts, self.c.config_entry.title))
+
+    def protect(self, text: str, *recs: dict[str, Any] | None, p: dict[str, Any] | None = None) -> str:
+        """Einen Text für die KI aufbereiten: Namen der genannten Buchungen ersetzen, erweitert schwärzen.
+
+        Grundschwärzung (E-Mail, Telefon, IBAN, Codes, Links) passiert schon in clean()/redact().
+        """
+        p = p or self.privacy_flags
+        text = redact(text or "")
+        if p[privacy.CONF_AI_PSEUDONYM]:
+            text = self._pseudo.apply(text, *recs)
+        if p[privacy.CONF_AI_REDACT_EXT]:
+            text = privacy.redact_extended(text)
+        return text
 
     def _require_ai(self) -> None:
         """Vor jeder KI-Funktion: gesperrt → verständlicher Fehler statt stillem Nichtstun."""
@@ -335,7 +366,15 @@ class SmoobuAssistant:
         self._changed()
 
     # --- Kontext -------------------------------------------------------
-    def _status_lines(self) -> list[str]:
+    def _status_lines(self, rec: dict[str, Any] | None = None, p: dict[str, Any] | None = None) -> list[str]:
+        """Status-Entitäten als Kontext. v1.18.0b6: Namen laufender/naher Gäste werden ersetzt –
+        wählt jemand z. B. den Sensor „Aktueller Gast“ als Kontext, ginge sonst der Name mit."""
+        p = p or self.privacy_flags
+        if not p[privacy.CONF_AI_STATUS]:
+            return ["- (nicht übermittelt – Datenschutz-Stufe)"]
+        today = dt_util.now().date().isoformat()
+        soon = (dt_util.now().date() + timedelta(days=30)).isoformat()
+        near = [r for r in self.c.records_all() if r.get("abreise", "") >= today and r.get("anreise", "") <= soon]
         lines = []
         for eid in self.opts.get(CONF_ASSIST_STATUS) or []:
             st = self.hass.states.get(eid)
@@ -349,22 +388,33 @@ class SmoobuAssistant:
                     f"Soll {st.attributes.get('temperature')} °C)"
                 )
             unit = st.attributes.get("unit_of_measurement") or ""
-            lines.append(f"- {name}: {st.state}{(' ' + unit) if unit else ''}{extra}")
+            line = f"- {name}: {st.state}{(' ' + unit) if unit else ''}{extra}"
+            lines.append(self.protect(line, rec, *near, p=p))
         return lines
 
-    def _neighbours(self, rec: dict[str, Any]) -> list[str]:
-        """Fakten für früheren Check-in / späteren Check-out."""
+    def _when(self, value: Any, p: dict[str, Any], placeholder: str | None = None) -> str:
+        """Datum für die KI: relativ („Fr., in 3 Tagen“, mit Platzhalter für die Antwort) oder ISO."""
+        if not p[privacy.CONF_AI_DATES_RELATIVE]:
+            return str(value)
+        rel = privacy.relative(value, dt_util.now().date())
+        return f"{placeholder} ({rel})" if placeholder else rel
+
+    def _neighbours(self, rec: dict[str, Any], p: dict[str, Any] | None = None) -> list[str]:
+        """Fakten für früheren Check-in / späteren Check-out (ohne Namen der anderen Gäste)."""
+        p = p or self.privacy_flags
+        if not p[privacy.CONF_AI_SEND_DATES]:
+            return ["- (nicht übermittelt – Datenschutz-Stufe; früheren Check-in/späteren Check-out nie zusagen)"]
         out = []
         guests = [r for r in self.c.records_all() if not r["storniert"] and r["id"] != rec["id"]]
         prev = [r for r in guests if r["abreise"] == rec["anreise"]]
         nxt = [r for r in guests if r["anreise"] == rec["abreise"]]
         out.append(
-            f"- Am Anreisetag ({rec['anreise']}) reist vorher "
+            f"- Am Anreisetag ({self._when(rec['anreise'], p)}) reist vorher "
             + ("ein anderer Gast/Sperre ab → früher Check-in nur nach Reinigung, eher nicht zusagen."
                if prev else "niemand ab → früher Check-in grundsätzlich möglich (Gastgeber entscheidet).")
         )
         out.append(
-            f"- Am Abreisetag ({rec['abreise']}) reist danach "
+            f"- Am Abreisetag ({self._when(rec['abreise'], p)}) reist danach "
             + ("ein neuer Gast an → späterer Check-out nicht möglich."
                if nxt else "niemand an → späterer Check-out grundsätzlich möglich (Gastgeber entscheidet).")
         )
@@ -384,7 +434,15 @@ class SmoobuAssistant:
             lines = [lines[i] for i in idx]
         return "\n".join(lines) or "- (noch keine Einträge)"
 
-    def _examples_text(self, query: str, k: int = 4) -> str:
+    def _record(self, rid: Any) -> dict[str, Any] | None:
+        return next((r for r in self.c.records_all() if r["id"] == rid), None)
+
+    def _examples_text(self, query: str, k: int = 4, p: dict[str, Any] | None = None) -> str:
+        """Ähnlichste frühere Antworten als Stilvorlage. v1.18.0b6: Namen des jeweiligen Gastes
+        (über die Buchungs-ID des Beispiels) → Platzhalter; die KI lernt so „Hallo [GAST_VORNAME]“."""
+        p = p or self.privacy_flags
+        if not p[privacy.CONF_AI_EXAMPLES]:
+            return "(nicht übermittelt – Datenschutz-Stufe)"
         ex = [b for b in self.data["beispiele"] if b.get("gast")]
         idx = rank(query, [b["gast"] for b in ex], k)
         if not idx:
@@ -393,21 +451,46 @@ class SmoobuAssistant:
         parts = []
         for i in idx:
             b = ex[i]
-            parts.append(f"Gast: {b['gast'][:500]}\nGastgeber: {b['antwort'][:700]}")
+            owner = self._record(b.get("buchung_id"))
+            parts.append(
+                f"Gast: {self.protect(b['gast'][:500], owner, p=p)}\n"
+                f"Gastgeber: {self.protect(b['antwort'][:700], owner, p=p)}"
+            )
         return "\n---\n".join(parts) or "(noch keine Beispiele)"
 
-    def _booking_text(self, rec: dict[str, Any]) -> str:
-        return (
-            f"Gast {rec.get('gast')} (Vorname {rec.get('vorname')}), Kanal {rec.get('kanal')}, "
-            f"Sprache {rec.get('sprache') or 'unbekannt'}, Anreise {rec['anreise']} "
-            f"(Check-in-Zeit laut Smoobu {rec.get('check_in') or 'nicht angegeben'}), Abreise {rec['abreise']} "
-            f"(Check-out-Zeit {rec.get('check_out') or 'nicht angegeben'}), {rec['naechte']} Nächte, "
-            f"{rec['erwachsene']} Erwachsene, {rec['kinder']} Kinder, Hund: {'ja' if rec.get('hund') else 'nein'}, "
-            f"Status {rec['status']}, bezahlt: {'ja' if rec.get('bezahlt') else 'nein'}"
-        )
+    def _booking_text(self, rec: dict[str, Any], p: dict[str, Any] | None = None) -> str:
+        p = p or self.privacy_flags
+        if p[privacy.CONF_AI_PSEUDONYM]:
+            who = f"Gast {privacy.PH_NAME} (Vorname {privacy.PH_FIRST})"
+        else:
+            who = f"Gast {rec.get('gast')} (Vorname {rec.get('vorname')})"
+        parts = [who, f"Sprache {rec.get('sprache') or 'unbekannt'}"]
+        if p[privacy.CONF_AI_SEND_DATES]:
+            parts.append(
+                f"Anreise {self._when(rec['anreise'], p, privacy.PH_ARRIVAL)} "
+                f"(Check-in-Zeit laut Smoobu {rec.get('check_in') or 'nicht angegeben'}), "
+                f"Abreise {self._when(rec['abreise'], p, privacy.PH_DEPARTURE)} "
+                f"(Check-out-Zeit {rec.get('check_out') or 'nicht angegeben'}), {rec['naechte']} Nächte"
+            )
+        if p[privacy.CONF_AI_SEND_GUESTS]:
+            parts.append(
+                f"{rec['erwachsene']} Erwachsene, {rec['kinder']} Kinder, Hund: {'ja' if rec.get('hund') else 'nein'}"
+            )
+        if p[privacy.CONF_AI_SEND_PAYMENT]:
+            parts.append(
+                f"Kanal {rec.get('kanal')}, Status {rec['status']}, bezahlt: {'ja' if rec.get('bezahlt') else 'nein'}"
+            )
+        return ", ".join(parts)
 
-    def build_prompt(self, rec: dict[str, Any], guest_text: str, occasion: str, history: str) -> str:
+    def build_prompt(
+        self, rec: dict[str, Any], guest_text: str, occasion: str, msgs: list[dict[str, Any]] | None = None
+    ) -> str:
+        """Kompletter Text an die KI. Jeder Baustein beachtet die Datenschutz-Stufe (privacy.py)."""
+        p = self.privacy_flags
         today = dt_util.now()
+        # Mit relativen Daten auch „heute“ ohne Kalenderdatum, sonst ließe sich das Datum zurückrechnen
+        heute = today.strftime("%A, %H:%M") if p[privacy.CONF_AI_DATES_RELATIVE] else today.strftime("%A, %d.%m.%Y %H:%M")
+        guest = self.protect(guest_text, rec, p=p) if guest_text else ""
         return f"""ROLLE: Du schreibst Nachrichtenentwürfe für die Gastgeber einer Ferienwohnung. Die Gastgeber prüfen jeden Entwurf vor dem Senden.
 AUFGABE: {OCCASIONS.get(occasion, OCCASIONS['antwort'])}.
 REGELN (strikt):
@@ -416,21 +499,22 @@ REGELN (strikt):
 3. Früherer Check-in / späterer Check-out: nur zusagen, wenn BELEGUNG es erlaubt UND das WISSEN es grundsätzlich erlaubt; sonst [OFFEN: …].
 4. Einträge mit [VERTRAULICH …] nie ausschreiben; schreibe dort [OFFEN: vertrauliche Angabe ergänzen].
 5. Schreibe in der Sprache der Gästenachricht (sonst Buchungssprache), Anrede wie in den BEISPIELEN, herzlich und kurz, Gruß wie in den BEISPIELEN.
-6. Orientiere dich im Ton an den BEISPIELEN, kopiere aber keine Fakten daraus, die nicht zu dieser Buchung passen (z. B. Namen, Daten).
+6. Orientiere dich im Ton an den BEISPIELEN, kopiere aber keine Fakten daraus, die nicht zu dieser Buchung passen (z. B. Daten).
 7. Bei Problemen in der Wohnung (Heizung, Wasser, Strom, Schlüssel, Sicherheit) setze dringend = true und gib den Gastgebern im 'hinweis' konkret an, was laut STATUS los sein könnte.
-HEUTE: {today.strftime('%A, %d.%m.%Y %H:%M')}
+8. Platzhalter {privacy.PH_FIRST}, {privacy.PH_LAST}, {privacy.PH_NAME}, {privacy.PH_ARRIVAL}, {privacy.PH_DEPARTURE} stehen für echte Werte dieser Buchung: übernimm sie unverändert, wo du Name oder Datum schreiben würdest (sie werden vor dem Senden ersetzt). Geschwärzte Angaben wie [ADRESSE], [E-MAIL], [TELEFON] nie erraten oder ausschreiben.
+HEUTE: {heute}
 WISSEN:
 {self._knowledge_text(guest_text or occasion)}
-BUCHUNG: {self._booking_text(rec)}
+BUCHUNG: {self._booking_text(rec, p)}
 BELEGUNG:
-{chr(10).join(self._neighbours(rec))}
+{chr(10).join(self._neighbours(rec, p))}
 STATUS (Home Assistant):
-{chr(10).join(self._status_lines()) or '- (keine Angaben)'}
+{chr(10).join(self._status_lines(rec, p)) or '- (keine Angaben)'}
 BEISPIELE früherer Antworten der Gastgeber:
-{self._examples_text(guest_text or occasion)}
+{self._examples_text(guest_text or occasion, p=p)}
 BISHERIGER VERLAUF (älteste zuerst, gekürzt):
-{history or '(keiner)'}
-GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht aus Anlass oben schreiben)'}
+{self._history(msgs or [], p[privacy.CONF_AI_HISTORY], rec, p) or '(keiner)'}
+GÄSTENACHRICHT: {guest or '(keine – Nachricht aus Anlass oben schreiben)'}
 """
 
     STRUCTURE = {
@@ -456,6 +540,11 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
         # Zentrale Sperre: einzige Stelle mit ai_task-Aufruf → hier greift die Option immer
         self._require_ai()
         entity = self.opts.get(CONF_AI_ENTITY)
+        # Genau diesen Text zeigt die Vorschau „Was geht an die KI“ (nur im Speicher)
+        self.last_prompt = {
+            "zeit": dt_util.now().isoformat(), "aufgabe": task, "ki": entity,
+            "stufe": privacy.level(self.opts), "text": instructions,
+        }
         try:
             async with asyncio.timeout(AI_TIMEOUT):
                 resp = await self.hass.services.async_call(
@@ -483,11 +572,17 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
     def _text(m: dict[str, Any]) -> str:
         return strip_html(m.get("message") or m.get("messageHtml") or m.get("htmlMessage") or "")
 
-    def _history(self, msgs: list[dict[str, Any]], limit: int = 6) -> str:
+    def _history(
+        self, msgs: list[dict[str, Any]], limit: int = privacy.MAX_HISTORY,
+        rec: dict[str, Any] | None = None, p: dict[str, Any] | None = None,
+    ) -> str:
+        """Letzte Nachrichten (Anzahl laut Datenschutz-Stufe, 0 = keine), bereinigt und geschützt."""
+        if limit <= 0:
+            return "(nicht übermittelt – Datenschutz-Stufe)" if msgs else ""
         lines = []
         for m in msgs[-limit:]:
             who = "Gast" if int(m.get("type") or 0) == 1 else "Gastgeber"
-            lines.append(f"{who}: {clean(self._text(m))[:600]}")
+            lines.append(f"{who}: {self.protect(clean(self._text(m))[:600], rec, p=p)}")
         return "\n".join(lines)
 
     async def suggest(
@@ -516,8 +611,14 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
             last_guest = next((m for m in reversed(msgs) if int(m.get("type") or 0) == 1), None)
             if guest_text is None and occasion == "antwort" and last_guest:
                 guest_text = strip_quote(self._text(last_guest))
-            prompt = self.build_prompt(rec, guest_text or "", occasion, self._history(msgs))
+            prompt = self.build_prompt(rec, guest_text or "", occasion, msgs)
             result = await self._ai(prompt, self.STRUCTURE, f"smoobu_{occasion}")
+            # v1.18.0b6: Platzhalter lokal zurücksetzen – echte Namen/Daten nur in HA, nie bei der KI
+            for key in ("antwort", "hinweis", "zusammenfassung"):
+                if isinstance(result.get(key), str):
+                    result[key] = privacy.restore(result[key], rec)
+            if isinstance(result.get("wissensluecke"), str):  # wandert in die Wissensdatenbank → neutral
+                result["wissensluecke"] = privacy.restore(result["wissensluecke"], rec, generic=True)
             self.last_error = None
         except SmoobuError as err:
             self.last_error = str(err)
@@ -834,11 +935,13 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
         self.data["vorlagen_anfang"] = sorted(k for k, v in body_books.items() if _is_tmpl(v))
         # Vorlagentexte (neueste Fassung je Betreff) – Quelle für die Wissensdatenbank
         templates: dict[str, str] = {}
-        for _r, msgs in loaded:
+        template_owner: dict[str, int] = {}  # v1.18.0b6: Buchung je Vorlage → Gastname vor der KI ersetzen
+        for r, msgs in loaded:
             for m in msgs:
                 subj = norm_subject(m.get("subject") or "")
                 if int(m.get("type") or 0) == 2 and subj in self.data["vorlagen_betreff"]:
                     templates[subj] = clean(self._text(m))
+                    template_owner[subj] = r["id"]
         # Paare bilden (frühere Import-Beispiele ersetzen)
         self.data["beispiele"] = [b for b in self.data["beispiele"] if b.get("quelle") != "verlauf"]
         for r, msgs in loaded:
@@ -853,6 +956,7 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
                     state["beispiele"] += len(self.data["beispiele"]) - before
                     last_guest = None
         state["vorlagen"] = {k: v[:3000] for k, v in templates.items()}
+        state["vorlagen_buchung"] = template_owner
         state["laeuft"] = False
         state["ende"] = dt_util.now().isoformat()
         self._changed()
@@ -862,8 +966,18 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
         """Aus eigenen Vorlagen + Antworten Wissensvorschläge erzeugen (Status „vorschlag“)."""
         self._require_ai()
         imp = self.data.get("import") or {}
-        sources = [f"VORLAGE „{k}“:\n{clean(v)[:1800]}" for k, v in (imp.get("vorlagen") or {}).items()]
-        sources += [f"ANTWORT:\n{b['antwort'][:600]}" for b in self.data["beispiele"][-80:]]
+        p = self.privacy_flags
+        owners = imp.get("vorlagen_buchung") or {}
+        # v1.18.0b6: Namen des jeweiligen Gastes ersetzen und erweitert schwärzen. Vorlagen aus einem
+        # Import vor dieser Version haben keine Buchungs-ID → nur Schwärzung (neu importieren hilft).
+        sources = [
+            f"VORLAGE „{k}“:\n{self.protect(clean(v)[:1800], self._record(owners.get(k)), p=p)}"
+            for k, v in (imp.get("vorlagen") or {}).items()
+        ]
+        sources += [
+            f"ANTWORT:\n{self.protect(b['antwort'][:600], self._record(b.get('buchung_id')), p=p)}"
+            for b in self.data["beispiele"][-80:]
+        ]
         if not sources:
             raise SmoobuError("Keine Texte vorhanden – zuerst den Verlauf importieren")
         text = "\n\n".join(sources)[:30000]
@@ -884,11 +998,45 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
             thema, sep, fakt = line.strip(" -•").partition("|")
             if not sep or not fakt.strip() or thema.strip().casefold() in existing:
                 continue
+            thema, fakt = privacy.restore(thema, None, generic=True), privacy.restore(fakt, None, generic=True)
             self.save_knowledge({"thema": thema.strip()[:80], "text": fakt.strip(), "status": "vorschlag",
                                  "quelle": "verlauf"})
             existing.add(thema.strip().casefold())
             count += 1
         return count
+
+    # --- Vorschau „Was geht an die KI“ (v1.18.0b6) -----------------------------------
+    async def preview(self, rid: int | None = None, occasion: str = "antwort", probe: bool = False) -> dict[str, Any]:
+        """Ohne rid: der zuletzt gesendete Text. Mit rid (oder probe = laufende/nächste Buchung):
+        der Text, der für diese Buchung JETZT gehen würde.
+
+        Ruft die KI nicht auf und geht deshalb auch bei gesperrter KI (zum Prüfen vor dem Einschalten).
+        """
+        info = {"stufe": privacy.level(self.opts), "schalter": self.privacy_flags}
+        if rid is None and probe:
+            today = dt_util.now().date().isoformat()
+            guests = sorted(
+                (r for r in self.c.records_all()
+                 if not r["blockiert"] and not r["storniert"] and r["abreise"] >= today),
+                key=lambda r: r["anreise"],
+            )
+            if not guests:
+                raise SmoobuError("Keine laufende oder kommende Buchung für den Probelauf")
+            rid = guests[0]["id"]
+        if rid is None:
+            return {**info, "quelle": "letzte", **(self.last_prompt or {"text": None})}
+        rec = self._record(rid)
+        if rec is None:
+            raise SmoobuError(f"Buchung {rid} nicht gefunden")
+        msgs: list[dict[str, Any]] = []
+        try:
+            msgs = await self._messages(rid)
+        except SmoobuError as err:
+            _LOGGER.debug("Verlauf %s nicht ladbar: %s", rid, err)
+        last_guest = next((m for m in reversed(msgs) if int(m.get("type") or 0) == 1), None)
+        guest_text = strip_quote(self._text(last_guest)) if occasion == "antwort" and last_guest else ""
+        return {**info, "quelle": "vorschau", "buchung_id": rid, "zeit": dt_util.now().isoformat(),
+                "text": self.build_prompt(rec, guest_text, occasion, msgs)}
 
     # --- Zustand für Karte/Sensor ----------------------------------------------
     def state(self) -> dict[str, Any]:
@@ -899,6 +1047,8 @@ GÄSTENACHRICHT: {redact(guest_text) if guest_text else '(keine – Nachricht au
             "ki_erlaubt": self.ai_allowed,
             "ki_sperre": None if self.ai_allowed else (AI_LOCKED if self.opts.get(CONF_AI_ENTITY) else "Keine KI ausgewählt"),
             "ki": self.opts.get(CONF_AI_ENTITY),
+            "datenschutz": privacy.level(self.opts),  # v1.18.0b6
+            "letzte_ki_anfrage": (self.last_prompt or {}).get("zeit"),
             # v1.17.0: Empfänger der Vorschlag-Pushes (aus „Benachrichtigungen“, sonst bisherige)
             "empfaenger": opt_recipients(self.opts, "vorschlag"),
             "status_entitaeten": self.opts.get(CONF_ASSIST_STATUS) or [],

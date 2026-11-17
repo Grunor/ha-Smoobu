@@ -34,6 +34,7 @@ from .api import SmoobuAuthError, SmoobuClient, SmoobuError
 from .codes import all_codes, clean_code
 from .deckungsbeitrag import parse_grid_share, parse_markups
 from .notifications import opt_enabled, opt_recipients
+from . import privacy
 from .const import (
     COMMISSION_FIELDS,
     CONF_AI_ENABLED,
@@ -467,6 +468,16 @@ class SmoobuOptionsFlow(OptionsFlow):
             if user_input.get(CONF_AI_ENABLED) and not user_input.get(CONF_AI_ENTITY):
                 errors[CONF_AI_ENTITY] = "ai_entity_required"
             else:
+                # v1.18.0b6: Abschnitt „Datenschutz – Einzelschalter“ flach speichern. Fehlt er
+                # (nie aufgeklappt), gelten die bisherigen Werte (Abschnitt ohne Default, siehe
+                # _notify_schema zum Frontend-Fehler mit Abschnitts-Defaults).
+                single = self._privacy_section_schema()(user_input.pop("datenschutz_einzeln", None) or {})
+                user_input.update(single)
+                user_input[privacy.CONF_AI_HOST_NAMES] = [
+                    n.strip() for n in str(single.get(privacy.CONF_AI_HOST_NAMES) or "").replace(";", ",").split(",")
+                    if n.strip()
+                ]
+                user_input[privacy.CONF_AI_HISTORY] = int(user_input[privacy.CONF_AI_HISTORY])
                 # Weiter zu „Benachrichtigungen“ und „Wohnungen“; gespeichert wird am Ende alles zusammen.
                 self._assist = user_input
                 return await self.async_step_benachrichtigungen()
@@ -487,9 +498,36 @@ class SmoobuOptionsFlow(OptionsFlow):
                     EntitySelectorConfig(multiple=True)
                 ),
                 vol.Optional(CONF_ASSIST_PATH, default=opts.get(CONF_ASSIST_PATH, "/lovelace")): TextSelector(),
+                # v1.18.0b6: Datenschutz-Stufe (fehlt = „standard“) und Einzelschalter für „individuell“
+                vol.Required(privacy.CONF_AI_PRIVACY, default=privacy.level(opts)): SelectSelector(
+                    SelectSelectorConfig(options=privacy.PRIVACY_LEVELS, translation_key="ai_privacy",
+                                         mode=SelectSelectorMode.LIST)
+                ),
+                vol.Optional("datenschutz_einzeln"): section(self._privacy_section_schema(), {"collapsed": True}),
             }
         )
         return self.async_show_form(step_id="assistent", data_schema=schema, errors=errors)
+
+    def _privacy_section_schema(self) -> vol.Schema:
+        """Einzelschalter Datenschutz (wirksam nur bei Stufe „individuell“). Defaults = bisherige Werte,
+        bei fester Stufe deren Voreinstellung – so startet „individuell“ mit der zuletzt aktiven Stufe."""
+        opts = self.config_entry.options
+        cur = privacy.resolve(opts)
+        if privacy.level(opts) == "individuell":
+            cur = {**cur, **{k: opts[k] for k in privacy.FLAGS if k in opts}}
+        fields: dict = {}
+        for key in privacy.FLAGS:
+            if key == privacy.CONF_AI_HISTORY:
+                fields[vol.Required(key, default=int(cur[key]))] = NumberSelector(
+                    NumberSelectorConfig(min=0, max=privacy.MAX_HISTORY, step=1, mode=NumberSelectorMode.SLIDER)
+                )
+            else:
+                fields[vol.Required(key, default=bool(cur[key]))] = BooleanSelector()
+        fields[vol.Optional(
+            privacy.CONF_AI_HOST_NAMES,
+            default=", ".join(privacy.host_names(opts, self.config_entry.title)),
+        )] = TextSelector()
+        return vol.Schema(fields)
 
     def _notify_services(self) -> list[str]:
         """Push-Empfänger: mobile_app-Dienste (nur diese können Buttons wie Senden/Ignorieren)."""

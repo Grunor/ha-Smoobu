@@ -461,7 +461,25 @@ Antwortvorschläge für Gästenachrichten auf Basis einer Wissensdatenbank, die 
 - **Kontext:** Buchung, Belegung davor/danach (früher Check-in / später Check-out), frei wählbare HA-Entitäten (z. B. Heizung, Tür, Außentemperatur) – bei Problemen („kalt“, „kein Wasser“) Push als **dringend** mit Hinweis.
 - **Zusatzaufgaben (Optionen):** Tagesbriefing per Push, tägliche Meldung nicht buchbarer Lücken (Mindestaufenthalt) mit Button zum Anpassen.
 - **Entitäten/Aktionen:** `sensor.smoobu_assistent_offene_vorschlage`, `smoobu.assistant_suggest` (Anlass: antwort, willkommen, anreise, abreise, bewertung), WebSocket `smoobu/assistant/*`.
-- **Datenschutz:** Nur bei erlaubter KI gehen Gästenachrichten und Buchungsdaten an den gewählten KI-Anbieter (vertrauliche Wissenseinträge nie).
+- **Datenschutz:** Nur bei erlaubter KI gehen Gästenachrichten und Buchungsdaten an den gewählten KI-Anbieter (vertrauliche Wissenseinträge nie). Was genau, legt die **Datenschutz-Stufe** fest (ab 1.18.0b6, siehe unten).
+
+#### Datenschutz-Stufe für die KI (ab 1.18.0b6)
+
+Option **„Datenschutz-Stufe“** (Optionen → KI-Assistent bzw. Einstellungskarte → KI-Assistent → Datenschutz). Fehlt die Option (bestehende Installation), gilt **Standard**.
+
+| Stufe | Was an die KI geht | Einbuße |
+|---|---|---|
+| **Standard** (empfohlen) | Gastnamen als Platzhalter (`[GAST_VORNAME]`, `[GAST_NAME]` …), die Integration setzt sie nach der Antwort lokal wieder ein. Adresse, PLZ/Ort, Kennzeichen, Geburtsdatum und Ausweisnummer geschwärzt. Daten relativ („Fr., in 3 Tagen“, im Entwurf als `[ANREISE]` und lokal ersetzt). Namen in Lernbeispielen (über die Buchung des Beispiels), im Verlauf und in Status-Entitäten (laufende und nahe Gäste) ebenfalls ersetzt. | praktisch keine |
+| **Streng** | wie Standard, dazu nur 2 Nachrichten Verlauf, ohne Kanal und Bezahlstatus | gering |
+| **Maximal** | nur die geschützte Gästenachricht und die Wissensdatenbank – keine Buchungsdaten, kein Verlauf, keine Beispiele, keine Status-Entitäten | hoch: Antworten allgemeiner, Ton nicht mehr eurer, Zeiten und Probleme bleiben `[OFFEN]` |
+| **Individuell** | jeder Schalter einzeln, mit Beschreibung der Einbuße | je nach Wahl |
+
+- **Eigene Namen** (Standard: Wörter aus dem Kontonamen) werden nie ersetzt, z. B. eure Signatur.
+- **„Was geht an die KI?“** in der Einstellungskarte: „Letzte KI-Anfrage“ zeigt den exakt gesendeten Text (nur im Speicher, nach Neustart leer), „Probelauf nächste Buchung“ baut den Text für die laufende bzw. nächste Buchung, ohne die KI aufzurufen (geht auch bei gesperrter KI). WebSocket `smoobu/assistant/preview`.
+- **Grenzen:** Ersetzt werden nur **bekannte** Namen aus den Smoobu-Buchungen. Andere Namen im Freitext (Begleitpersonen, Kinder) und alles, was keinem Muster folgt (z. B. „mein Sohn hat eine Nussallergie“), bleiben stehen. Die Gästenachricht selbst muss die KI lesen, um zu antworten. **Vollständig anonym ist das nicht.** Pseudonymisierte Daten gelten nach DSGVO weiter als personenbezogen; für einen Cloud-Anbieter braucht ihr einen Auftragsverarbeitungsvertrag. Nichts verlässt das Haus nur mit einer lokalen KI (z. B. Ollama als `ai_task`-Entität).
+
+![Datenschutz-Stufe](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_datenschutz.png)
+![Probelauf: was an die KI ginge](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/datenschutz_probelauf.png)
 
 ---
 
@@ -1125,7 +1143,22 @@ Reply suggestions for guest messages based on a knowledge base that learns from 
 - **Context:** booking, occupancy before/after (early check-in / late check-out), selectable HA entities (heating, door, outdoor temperature) – problem reports are pushed as **urgent** with a hint.
 - **Extra tasks (options):** daily briefing push, daily report of unbookable gaps (minimum stay) with a button to adjust.
 - **Entities/actions:** `sensor.smoobu_assistant_open_suggestions`, `smoobu.assistant_suggest`, WebSocket `smoobu/assistant/*`.
-- **Privacy:** only when AI is allowed are guest messages and booking data sent to the chosen AI provider (confidential knowledge entries never).
+- **Privacy:** only when AI is allowed are guest messages and booking data sent to the chosen AI provider (confidential knowledge entries never). What exactly is set by the **privacy level** (since 1.18.0b6, see below).
+
+#### Privacy level for the AI (since 1.18.0b6)
+
+Option **"Privacy level"** (Options → AI assistant, or settings card → AI assistant → Privacy). If the option is missing (existing installation), **Standard** applies.
+
+| Level | What goes to the AI | Loss |
+|---|---|---|
+| **Standard** (recommended) | Guest names as placeholders (`[GAST_VORNAME]`, `[GAST_NAME]` …), restored locally after the reply. Address, postcode/town, licence plate, date of birth and ID number redacted. Relative dates ("Fri, in 3 days", `[ANREISE]` in the draft, replaced locally). Names in learning examples (via the example's booking), the history and status entities (current and upcoming guests) are replaced too. | practically none |
+| **Strict** | like Standard, plus only 2 messages of history, no channel and payment status | small |
+| **Maximum** | only the protected guest message and the knowledge base – no booking data, no history, no examples, no status entities | high: more generic replies, tone no longer yours, times and problems stay `[OFFEN]` |
+| **Custom** | every switch individually, with a description of the loss | depends |
+
+- **Own names** (default: words of the account name) are never replaced, e.g. your signature.
+- **"What goes to the AI?"** in the settings card: "Last AI request" shows the exact text sent (memory only, empty after a restart), "Dry run next booking" builds the text for the current/next booking without calling the AI (works with AI locked too). WebSocket `smoobu/assistant/preview`.
+- **Limits:** only **known** names from the Smoobu bookings are replaced. Other names in free text (companions, children) and anything without a pattern (e.g. "my son has a nut allergy") remain. The AI has to read the guest message to reply. **This is not fully anonymous.** Pseudonymised data is still personal data under GDPR; a cloud provider needs a data processing agreement. Only a local AI (e.g. Ollama as an `ai_task` entity) keeps everything in the house.
 
 ---
 
