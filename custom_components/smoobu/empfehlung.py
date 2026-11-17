@@ -378,7 +378,7 @@ def _hints(records, prices, min_stay, table: CostTable, factors, today: date, un
             out.append({"typ": "wochenende", "titel": f"Wochenend-Aufschlag +{pct} % prüfen",
                         "text": f"Fr/Sa-Nächte sind zu {we_occ:.0f} % belegt, So–Do zu {wk_occ:.0f} % (letzte 24 Monate). "
                                 f"+{pct} % auf Fr/Sa ≈ +{per_year:.0f} € im Jahr bei gleicher Belegung.",
-                        "wert_eur": round(per_year)})
+                        "wert_eur": round(per_year), "prozent": pct, "wochentage": [4, 5]})
         elif base:
             out.append({"typ": "wochenende", "titel": "Kein deutlicher Wochenend-Effekt",
                         "text": f"Fr/Sa {we_occ:.0f} % gegen So–Do {wk_occ:.0f} % Auslastung (letzte 24 Monate) – ein Aufschlag drängt eher Gäste weg."})
@@ -398,7 +398,7 @@ def _hints(records, prices, min_stay, table: CostTable, factors, today: date, un
                         "text": f"Deckungsbeitrag über {worst} heute: 1 Nacht {db1:.0f} €, bei 2 Nächten {db2:.0f} € je Nacht. "
                                 f"Ein Aufschlag für 1 Nacht von ≈ {surcharge:.0f} € (halbe Reinigung + Wäsche) gleicht das aus – "
                                 f"oder Mindestaufenthalt 2 Nächte in schwachen Monaten.",
-                        "wert_eur": round(ones / 2 * surcharge)})
+                        "wert_eur": round(ones / 2 * surcharge), "mindestaufenthalt": 2})
 
     # 4. Feiertage in den nächsten 60 Tagen zum Normalpreis
     if prices and base:
@@ -424,7 +424,7 @@ def _hints(records, prices, min_stay, table: CostTable, factors, today: date, un
         if found:
             out.append({"typ": "feiertag", "titel": f"{len(found)} Feiertagsnächte zum Normalpreis",
                         "text": "Nächte vor Feiertagen und über Weihnachten/Silvester sind gefragter – Aufschlag (z. B. +20 %) "
-                                "oder Mindestaufenthalt prüfen.", "tage": found})
+                                "oder Mindestaufenthalt prüfen.", "tage": found, "prozent": 20})
 
     # 5. Kurze Lücken (1–2 Nächte zwischen zwei Belegungen) in den nächsten 60 Tagen
     occ_all = _occupied(records)
@@ -439,9 +439,18 @@ def _hints(records, prices, min_stay, table: CostTable, factors, today: date, un
         if run <= GAP_MAX_NIGHTS and (day + timedelta(days=run)) in occ_all and day + timedelta(days=run) <= end:
             ms = min_stay.get(day.isoformat())
             floor = max((fp for f in factors.values() if (fp := floor_price(table, day, run, f))), default=None)
+            price = prices.get(day.isoformat())
+            # Vorschlag: −15 %, aber nie unter der Untergrenze (aufgerundet)
+            proposal = None
+            if price:
+                proposal = round(price * 0.85)
+                if floor and proposal < floor:
+                    proposal = int(-(-floor // 1))
+                proposal = min(proposal, price)
             gaps.append({"von": day.isoformat(), "naechte": run, "mindestaufenthalt": ms,
-                         "buchbar": not ms or run >= int(ms), "preis": prices.get(day.isoformat()),
-                         "untergrenze": round(floor, 2) if floor else None})
+                         "buchbar": not ms or run >= int(ms), "preis": price,
+                         "untergrenze": round(floor, 2) if floor else None, "vorschlag_preis": proposal,
+                         "tage": [(day + timedelta(days=i)).isoformat() for i in range(run)]})
         day += timedelta(days=max(run, 1))
     if gaps:
         out.append({"typ": "luecke", "titel": f"{len(gaps)} kurze Lücke{'n' if len(gaps) > 1 else ''} in den nächsten 60 Tagen",

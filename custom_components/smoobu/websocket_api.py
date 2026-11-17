@@ -303,8 +303,8 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         vol.Optional("as_of"): str,
     }
 )
-@callback
-def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+@websocket_api.async_response
+async def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if msg["mode"] == "meta":
         connection.send_result(msg["id"], {
             "kennzahlen": [{"id": k, "art": v[0], "name": v[1], "einheit": v[2]} for k, v in MEASURES.items()],
@@ -337,6 +337,10 @@ def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
                 continue
             res = stats_recommend(c.records(apt), c.rates_now(apt), table, c.price_config, today, first=c.history_start)
             res["wohnung"] = c.apartment_code(apt) if len(pairs) > 1 else ""
+            res["apartment_id"] = apt
+            # v1.18.0: Übernehmen-Buttons nur mit „preise“; letzte Änderungen für „Rückgängig“
+            res["darf_aendern"] = rechte.allowed(connection.user, c.config_entry.options, "preise")
+            res["aenderungen"] = [ch for ch in await c.async_price_changes() if ch["wohnung_id"] == apt][:5]
             res["wohnung_name"] = (c.data.apartments.get(apt) or {}).get("name")
             out.append(res)
         connection.send_result(msg["id"], {"wohnungen": out})

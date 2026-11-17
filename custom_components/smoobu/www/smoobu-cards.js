@@ -316,6 +316,8 @@ function colorOf(apt, name, blocked = false) {
   document.head.appendChild(st);
 })();
 const FONT = `"Smoobu Schibsted", var(--ha-font-family-body, Roboto), system-ui, sans-serif`;
+// Für style="…"-Attribute: doppelte Anführungszeichen würden das Attribut beenden (v1.18.0: Dialoge waren ungestylt)
+const FONT_ATTR = FONT.replace(/"/g, "'");
 
 // Gewählte Wohnung je Gerät: „alle“ oder apartment_id (nur relevant ab 2 Wohnungen)
 const AptSel = {
@@ -332,13 +334,29 @@ const HeaderApts = {
   remove() { this.n = Math.max(0, this.n - 1); this.listeners.forEach((l) => l()); },
 };
 // Virtuelle „Wohnung“ für die Gesamtansicht: Kanäle aller Wohnungen, Währung der ersten
+// v1.18.0: Benutzerrollen – Rechte des angemeldeten Benutzers je Wohnung (Backend prüft zusätzlich)
+const ALL_RIGHTS = ["finanzen", "gaeste", "nachrichten", "antworten", "belegung", "preise", "einstellungen"];
+const rightsOf = (apt) => new Set(apt?.zugriff?.rechte ?? ALL_RIGHTS);
+// Seite (Pfad) → nötiges Recht; Seiten ohne Eintrag sind für jede Rolle außer „Kein Zugriff“ sichtbar
+const PAGE_RIGHT = { finanzen: "finanzen", statistik: "finanzen", nachrichten: "nachrichten", assistent: "nachrichten",
+  einstellungen: "einstellungen", buchungen: "gaeste", belegung: "gaeste" };
+// Darf der Benutzer `right` für Wohnung aptId (undefined = erste, „alle“ = alle)? Aus dem gecachten smoobu/info
+function can(right, aptId) {
+  const info = window.__smoobuStore?.info;
+  if (!info) return true; // noch keine Info → nicht vorab sperren, das Backend prüft ohnehin
+  const apt = aptId === ALL ? allApartment(info) : info.wohnungen.find((w) => w.apartment_id === aptId) || info.wohnungen[0];
+  return rightsOf(apt).has(right);
+}
+const pageRight = (path) => Object.entries(PAGE_RIGHT).find(([k]) => String(path).includes(k))?.[1] || "gaeste";
 function allApartment(info) {
   const ws = info.wohnungen;
   const seen = new Map();
   for (const w of ws) for (const k of w.kanaele) if (!seen.has(k.name)) seen.set(k.name, k);
   return { apartment_id: ALL, name: t("Alle Wohnungen"), kuerzel: "", currency: ws[0]?.currency || "EUR",
     kanaele: [...seen.values()], direktkanaele: ws[0]?.direktkanaele, check_in: ws[0]?.check_in, check_out: ws[0]?.check_out,
-    erster_tag: ws.map((w) => w.erster_tag).filter(Boolean).sort()[0] || null, alle: true };
+    erster_tag: ws.map((w) => w.erster_tag).filter(Boolean).sort()[0] || null, alle: true,
+    // Rechte über alle Wohnungen: nur, was in jeder Wohnung erlaubt ist
+    zugriff: { rechte: ALL_RIGHTS.filter((r) => ws.every((w) => rightsOf(w).has(r))) } };
 }
 const aptCode = (info, id) => info?.wohnungen.find((w) => w.apartment_id === id)?.kuerzel || "";
 const codeTag = (code) => (code ? `<em class="ak">${esc(code)}</em>` : "");
@@ -599,7 +617,7 @@ class SmoobuCard extends HTMLElement {
   }
   render() {
     const body = this._error
-      ? `<div class="err">${t("Fehler")}: ${esc(this._error)}</div>`
+      ? (/Keine Berechtigung/.test(this._error) ? `<div class="empty">🔒 ${esc(t(this._error))}</div>` : `<div class="err">${t("Fehler")}: ${esc(this._error)}</div>`)
       : this._data ? this.body(this._data) : `<div class="empty">${t("Laden …")}</div>`;
     const scroll = this.shadowRoot.querySelector(".scroll")?.scrollLeft;
     DARK = Theme.dark(this._hass);
@@ -1400,7 +1418,7 @@ class SmoobuTimelineCard extends SmoobuCard {
           : p === "rate" ? `<label>${t("Preis/Nacht")} <input data-k="price" type="number" min="1" step="1"></label>
             <label>${t("Mindestaufenthalt")} <input data-k="min" type="number" min="1" max="90" style="width:70px" value="${this._state.preMin || ""}"></label>
             <button class="btn" data-act="do-rate">${t("Speichern")}</button>`
-          : `<button class="btn" data-act="block">🔒 ${t("Sperren")}</button><button class="btn" data-act="rate">€ ${t("Preis setzen")}</button>`}
+          : `${can("belegung", this.target.apartment_id) ? `<button class="btn" data-act="block">🔒 ${t("Sperren")}</button>` : ""}${can("preise", this.target.apartment_id) ? `<button class="btn" data-act="rate">€ ${t("Preis setzen")}</button>` : ""}`}
         <button class="btn flat" data-act="clear">${t("Abbrechen")}</button></div>`
       : `<div class="legend">${t("Tage markieren: erst ersten, dann letzten Tag antippen")}</div>`;
     const chans = apts.flatMap((w) => w.kanaele).filter((c, i, a) => a.findIndex((x) => x.name === c.name) === i);
@@ -1467,15 +1485,115 @@ function confirmDialog(text) {
     const wrap = document.createElement("div");
     const p = PAL[DARK ? "dark" : "light"];
     wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10002;display:flex;align-items:center;justify-content:center";
-    wrap.innerHTML = `<div style="background:${p.surf};color:${p.ink};padding:22px;border-radius:16px;max-width:380px;font:15px/1.45 ${FONT};border:1px solid ${p.line};box-shadow:0 12px 40px rgba(0,0,0,.3)">
+    wrap.innerHTML = `<div style="background:${p.surf};color:${p.ink};padding:22px;border-radius:16px;max-width:380px;font:15px/1.45 ${FONT_ATTR};border:1px solid ${p.line};box-shadow:0 12px 40px rgba(0,0,0,.3)">
       <div style="margin-bottom:18px">${esc(text)}</div><div style="display:flex;gap:8px;justify-content:flex-end">
-      <button data-v="0" style="font:600 14px ${FONT};padding:8px 16px;border-radius:999px;border:1px solid ${p.line};background:none;color:${p.acc};cursor:pointer">${t("Nein")}</button>
-      <button data-v="1" style="font:600 14px ${FONT};padding:8px 16px;border-radius:999px;border:none;background:${p.acc};color:${p.accInk};cursor:pointer">${t("Ja")}</button></div></div>`;
+      <button data-v="0" style="font:600 14px ${FONT_ATTR};padding:8px 16px;border-radius:999px;border:1px solid ${p.line};background:none;color:${p.acc};cursor:pointer">${t("Nein")}</button>
+      <button data-v="1" style="font:600 14px ${FONT_ATTR};padding:8px 16px;border-radius:999px;border:none;background:${p.acc};color:${p.accInk};cursor:pointer">${t("Ja")}</button></div></div>`;
     wrap.addEventListener("click", (e) => {
       const v = e.target?.dataset?.v;
       if (v !== undefined || e.target === wrap) { wrap.remove(); resolve(v === "1"); }
     });
     document.body.appendChild(wrap);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// v1.18.0: Preis übernehmen (Empfehlung/Hinweis) – Dialog mit änderbaren Werten, Vorschau, Bestätigung
+// Entscheidungen Betreiber 17.11.2026: Standard ab heute bis Monatsende; beim Senken Feiertagsnächte
+// auslassen und Tage mit eigenem Preis nicht überschreiben (beides Häkchen, vorbelegt); alles
+// änderbar („angepasst übernehmen“). Geschrieben wird der Smoobu-Basispreis – Smoobu überträgt ihn
+// mit den Aufschlägen an alle Portale. Prüfung der Berechtigung im Backend (Recht „preise“).
+// ---------------------------------------------------------------------------
+function priceDialog(card, d) {
+  return new Promise((resolve) => {
+    const p = PAL[DARK ? "dark" : "light"];
+    const v = { ...d.vorgabe };
+    const mode = v.prozent !== undefined && v.prozent !== null ? "prozent" : v.preis !== undefined && v.preis !== null ? "preis" : "min";
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10002;display:flex;align-items:center;justify-content:center;padding:12px";
+    const inp = `font:15px ${FONT_ATTR};padding:7px 10px;border-radius:10px;border:1px solid ${p.line};background:${p.surf2};color:${p.ink};box-sizing:border-box`;
+    const btn = (primary) => `font:600 14px ${FONT_ATTR};padding:8px 16px;border-radius:999px;cursor:pointer;${primary ? `border:none;background:${p.acc};color:${p.accInk}` : `border:1px solid ${p.line};background:none;color:${p.acc}`}`;
+    const days = v.tage ? `<div style="font-size:13px;color:${p.mut}">${v.tage.length} ${t(v.tage.length === 1 ? "Nacht" : "Nächte")}: ${v.tage.slice(0, 8).map((x) => fdate(x)).join(", ")}${v.tage.length > 8 ? " …" : ""}</div>`
+      : `<label style="display:grid;gap:4px;font-size:13px">${t("Von")}<input type="date" data-f="von" value="${esc(v.von)}" style="${inp}"></label>
+         <label style="display:grid;gap:4px;font-size:13px">${t("Bis (inklusive)")}<input type="date" data-f="bis" value="${esc(v.bis)}" style="${inp}"></label>`;
+    const wd = v.wochentage ? `<div style="font-size:13px;color:${p.mut}">${t("Nur")}: ${v.wochentage.map((i) => t(["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][i])).join(", ")}</div>` : "";
+    const priceField = mode === "prozent"
+      ? `<label style="display:grid;gap:4px;font-size:13px">${t("Änderung zum bisherigen Tagespreis")}<span style="display:flex;gap:6px;align-items:center"><input type="number" data-f="prozent" step="1" min="-80" max="300" value="${esc(v.prozent)}" style="${inp};width:100px">%</span></label>`
+      : `<label style="display:grid;gap:4px;font-size:13px">${t("Neuer Basispreis je Nacht")}<span style="display:flex;gap:6px;align-items:center"><input type="number" data-f="preis" step="1" min="1" value="${esc(v.preis ?? "")}" placeholder="${t("unverändert")}" style="${inp};width:150px">${esc(d.cur === "EUR" ? "€" : d.cur)}</span></label>`;
+    const chk = (k, label) => `<label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" data-c="${k}" ${v[k] ? "checked" : ""}>${esc(t(label))}</label>`;
+    wrap.innerHTML = `<div style="background:${p.surf};color:${p.ink};padding:20px 22px;border-radius:16px;width:min(460px,100%);max-height:92vh;overflow:auto;font:15px/1.45 ${FONT_ATTR};border:1px solid ${p.line};box-shadow:0 12px 40px rgba(0,0,0,.3);display:grid;gap:12px">
+      <div><b style="font-size:17px">${esc(t(d.title))}</b>${d.grund ? `<div style="font-size:13px;color:${p.mut};margin-top:4px">${esc(t(d.grund))}</div>` : ""}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${days}</div>${wd}
+      ${priceField}
+      <label style="display:grid;gap:4px;font-size:13px">${t("Mindestaufenthalt")}<span style="display:flex;gap:6px;align-items:center"><input type="number" data-f="mindestaufenthalt" step="1" min="1" max="90" value="${esc(v.mindestaufenthalt ?? "")}" placeholder="${t("unverändert")}" style="${inp};width:150px">${t("Nächte")}</span></label>
+      ${v.tage ? "" : chk("ohne_feiertage", "Feiertagsnächte auslassen")}
+      ${chk("nur_basispreis", "Tage mit eigenem Preis nicht überschreiben")}
+      <div data-x="kanal" style="font-size:13px;background:${p.surf2};border-radius:10px;padding:8px 10px"></div>
+      <div data-x="vorschau" style="font-size:13px;color:${p.mut}"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <button data-a="abbrechen" style="${btn(false)}">${t("Abbrechen")}</button>
+        <button data-a="vorschau" style="${btn(false)}">${t("Vorschau")}</button>
+        <button data-a="ok" style="${btn(true)}">${t("Übernehmen")}</button></div></div>`;
+    const $ = (sel) => wrap.querySelector(sel);
+    const read = () => {
+      const o = { ...v };
+      wrap.querySelectorAll("[data-f]").forEach((el) => {
+        const k = el.dataset.f;
+        if (k === "von" || k === "bis") o[k] = el.value;
+        else o[k] = el.value === "" ? null : Number(el.value);
+      });
+      wrap.querySelectorAll("[data-c]").forEach((el) => { o[el.dataset.c] = el.checked; });
+      return o;
+    };
+    // Kanalpreise live: Basispreis × (1 + Aufschlag), netto ≈ Basispreis × Netto-Faktor; Warnung unter der Untergrenze
+    const channels = () => {
+      const o = read();
+      const base = o.preis ?? (o.prozent !== null && o.prozent !== undefined && d.basis ? Math.round(d.basis * (1 + o.prozent / 100)) : null);
+      if (!base || !d.kanaele?.length) { $('[data-x="kanal"]').style.display = "none"; return; }
+      $('[data-x="kanal"]').style.display = "";
+      $('[data-x="kanal"]').innerHTML = `<div style="color:${p.mut};margin-bottom:4px">${o.preis ? t("Kanalpreise bei") : t("Kanalpreise am Basispreis-Tag bei")} ${money(base, d.cur)}</div>` + d.kanaele.map((k) => {
+        const floor = d.untergrenze?.[k.kanal];
+        const low = floor && base < floor;
+        return `<div style="display:flex;gap:8px"><span style="flex:1">${esc(chn(k.kanal))}${k.aufschlag ? ` (+${num(k.aufschlag)} %)` : ""}</span>
+          <b>${money(base * (1 + (k.aufschlag || 0) / 100), d.cur)}</b><span style="width:110px;text-align:right;color:${low ? p.bad : p.mut}">${t("netto")} ≈ ${money(base * k.netto_je_euro, d.cur)}${low ? " ⚠" : ""}</span></div>`;
+      }).join("") + (d.kanaele.some((k) => d.untergrenze?.[k.kanal] && base < d.untergrenze[k.kanal]) ? `<div style="color:${p.bad};margin-top:4px">⚠ ${t("Unter der Untergrenze: diese Kanäle bringen bei 2 Nächten keinen Deckungsbeitrag mehr.")}</div>` : "");
+    };
+    const run = async (dry) => {
+      const o = read();
+      const body = { ...card.target, apartment_id: d.apt, vorgabe: o, dry_run: dry };
+      return card.store.ws("smoobu/rates/apply", body, { cache: false });
+    };
+    const summary = (r) => {
+      const why = {};
+      for (const x of r.uebersprungen || []) why[x.grund] = (why[x.grund] || 0) + 1;
+      const first = (r.tage || []).slice(0, 4).map((x) => `${fdate(x.datum)} ${x.preis_neu !== null ? `${money(x.preis_alt, d.cur)} → ${money(x.preis_neu, d.cur)}` : ""}${x.min_neu ? ` · ☾${x.min_neu}` : ""}`).join("<br>");
+      return `<b>${r.tage.length} ${t(r.tage.length === 1 ? "Tag wird geändert" : "Tage werden geändert")}</b>${Object.keys(why).length ? ` · ${t("ausgelassen")}: ${Object.entries(why).map(([k, n]) => `${n} ${t(k)}`).join(", ")}` : ""}<br>${first}${r.tage.length > 4 ? "<br>…" : ""}`;
+    };
+    wrap.addEventListener("input", channels);
+    wrap.addEventListener("click", async (e) => {
+      const a = e.target?.dataset?.a;
+      if (e.target === wrap || a === "abbrechen") { wrap.remove(); resolve(null); return; }
+      if (a === "vorschau") {
+        try { $('[data-x="vorschau"]').innerHTML = summary(await run(true)); }
+        catch (err) { $('[data-x="vorschau"]').innerHTML = `<span style="color:${p.bad}">${esc(err?.message || err)}</span>`; }
+      }
+      if (a === "ok") {
+        let prev;
+        try { prev = await run(true); } catch (err) { $('[data-x="vorschau"]').innerHTML = `<span style="color:${p.bad}">${esc(err?.message || err)}</span>`; return; }
+        if (!prev.tage.length) { $('[data-x="vorschau"]').innerHTML = `${t("Keine Änderung nötig")} – ${summary(prev)}`; return; }
+        if (!(await confirmDialog(`${prev.tage.length} ${t("Tage in Smoobu ändern? Smoobu überträgt den Basispreis mit den Aufschlägen an alle Portale.")}`))) return;
+        try {
+          const r = await run(false);
+          wrap.remove();
+          toast(r.abweichend?.length ? `${t("Übernommen, aber")} ${r.abweichend.length} ${t("Tage weichen in Smoobu ab – bitte prüfen")}`
+            : `✓ ${r.tage.length} ${t("Tage übernommen und in Smoobu geprüft")}`);
+          card.store.invalidate();
+          resolve(r);
+        } catch (err) { $('[data-x="vorschau"]').innerHTML = `<span style="color:${p.bad}">${esc(err?.message || err)}</span>`; }
+      }
+    });
+    document.body.appendChild(wrap);
+    channels();
   });
 }
 
@@ -2223,11 +2341,11 @@ class SmoobuBookingDialog extends HTMLElement {
       ${!b.blockiert ? `<h3>${t("Nachrichten")} (${(d.nachrichten || []).length})</h3>${noReplyHtml(this.st, this.rid)}
         <div class="msgs">${msgs || `<div class="muted">${t("keine")}</div>`}</div>
         ${sugHtml(this.sug)}
-        <textarea data-k="msg" placeholder="${t("Antworten")} ${t("an den Gast")} …" style="margin-top:8px;min-height:110px">${esc(this.draft || "")}</textarea>
-        <div class="row">${aiCtlHtml(this.ai, this.aiAllowed, this.aiReason, this.thinking)}<span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>` : ""}
+        ${can("antworten", b.wohnung_id) ? `<textarea data-k="msg" placeholder="${t("Antworten")} ${t("an den Gast")} …" style="margin-top:8px;min-height:110px">${esc(this.draft || "")}</textarea>
+        <div class="row">${aiCtlHtml(this.ai, this.aiAllowed, this.aiReason, this.thinking)}<span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>` : ""}` : ""}
       <div class="acts">
-        ${b.blockiert ? `<button class="btn danger" data-act="unblock">🔓 ${t("Sperre löschen")}</button>` : ""}
-        ${canCancel ? `<button class="btn danger" data-act="cancel">${t("Stornieren")}</button>` : ""}
+        ${b.blockiert && can("belegung", b.wohnung_id) ? `<button class="btn danger" data-act="unblock">🔓 ${t("Sperre löschen")}</button>` : ""}
+        ${canCancel && can("belegung", b.wohnung_id) ? `<button class="btn danger" data-act="cancel">${t("Stornieren")}</button>` : ""}
         <span class="grow"></span>
         <a class="btn flat" href="https://login.smoobu.com/" target="_blank" rel="noopener" style="text-decoration:none"
           title="${esc(`${t("Smoobu-Anmeldung öffnen – Buchung dort über die ID suchen")}: ${b.id}`)}">${t("Smoobu öffnen")} ↗</a>
@@ -2435,9 +2553,9 @@ class SmoobuInboxCard extends SmoobuCard {
         ${noReplyHtml(status[s.sel], s.sel)}
         <div class="msgs">${msgs || `<div class="muted">${t("keine")}</div>`}</div>
         ${sugHtml(s.sug)}
-        <textarea data-k="msg" placeholder="${t("Antworten")} …" style="margin-top:8px;min-height:140px">${esc(s.draft || "")}</textarea>
+        ${can("antworten", this.target.apartment_id) ? `<textarea data-k="msg" placeholder="${t("Antworten")} …" style="margin-top:8px;min-height:140px">${esc(s.draft || "")}</textarea>
         <div class="row">${aiCtlHtml(s.ai, s.aiAllowed, s.aiReason, s.thinking)}
-          <span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>`;
+          <span class="grow"></span><button class="btn" data-act="send">✉ ${t("Senden")}</button></div>` : `<div class="sub">🔒 ${t("Antworten nur mit dem Recht „Antworten“")}</div>`}`;
     return `<div class="head"><h2>${esc(this._config.title || t("Posteingang"))}</h2>${openCount ? `<span class="opencount">💬 ${openCount} ${t("warten auf Antwort")}</span>` : ""}</div>${lastHtml}
       <div class="wrap"><div>${items || `<div class="empty">${t("Keine Daten")}</div>`}</div><div>${right}</div></div>`;
   }
@@ -2949,8 +3067,17 @@ const STATS_MODULES = {
     load: (c) => c.card.store.ws("smoobu/stats", { ...c.target, mode: "empfehlung" }),
     render: (card, d, m) => {
       const cur = d.apt.currency;
+      card._applies = []; // Dialog-Vorgaben der Übernehmen-Buttons (Index = data-apply)
       const blocks = (m.wohnungen || []).map((w) => {
         const bp = w.basispreis || {};
+        // Übernehmen-Button: Vorgabe + Kontext (Kanäle, Untergrenzen) für priceDialog
+        const floors2 = (mo) => Object.fromEntries(Object.entries(mo?.untergrenze || {}).map(([k, f]) => [k, f["2"]]));
+        const applyBtn = (label, cfg, primary = true) => {
+          if (!w.darf_aendern) return "";
+          card._applies.push({ apt: w.apartment_id, cur, kanaele: w.kanaele, basis: bp.heute, ...cfg });
+          return `<button class="btn ${primary ? "" : "flat"} sm" data-apply="${card._applies.length - 1}">${esc(t(label))}</button>`;
+        };
+        const monthEnd = (key) => iso(addDays(new Date(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 1), -1));
         const head = `<div class="emp-head"><div><div class="kl">${t("Basispreis heute")}</div><div class="kv">${money(bp.heute, cur)}</div>
             <div class="ks">${bp.einheitlich ? t("gleich an allen") + ` ${num(bp.tage)} ` + t("Tagen") : `${money(bp.min, cur)} – ${money(bp.max, cur)}`}</div></div>
           ${(w.kanaele || []).map((k) => `<div data-tip="${esc(`${k.kanal}: ${t("Aufschlag")} ${num(k.aufschlag)} %${k.genius ? ` · Genius` : ""} · ${t("Kostenquote")} ${pct(k.kostenquote, 1)} (${t(k.kostenquote_quelle)})
@@ -2977,18 +3104,46 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
             <div class="ks">${t("Netto-RevPAR")} ${money(mo.netto_revpar_stand, cur, 2)} · DB-RevPAR ${money(mo.db_revpar_stand, cur, 2)} · ${num(mo.frei_ab_heute)} ${t("Nächte frei")}${mo.gesperrt ? ` · ${num(mo.gesperrt)} ${t("gesperrt")}` : ""}
               ${mo.prognose_auslastung !== null && mo.prognose_auslastung !== undefined ? ` · ${t("Prognose")} ${pct(mo.prognose_auslastung, 0)}` : ""}</div>
             <div class="emp-r ${ac}"><b>${t(al)}${e.preis_neu ? ` ${t("auf")} ${money(e.preis_neu, cur)} (${e.prozent > 0 ? "+" : ""}${num(e.prozent)} %)` : ""}</b><span>${esc(t(e.grund || ""))}</span>
-              ${mo.untergrenze_massgeblich ? `<span class="ks">${t("Untergrenze")} (2 N., ${t("teuerster Kanal")}): ${money(mo.untergrenze_massgeblich, cur)}</span>` : ""}</div>
+              ${mo.untergrenze_massgeblich ? `<span class="ks">${t("Untergrenze")} (2 N., ${t("teuerster Kanal")}): ${money(mo.untergrenze_massgeblich, cur)}</span>` : ""}
+              ${(() => {
+                const von = mo.monat + "-01" < d.today ? d.today : mo.monat + "-01";
+                const base = { von, bis: monthEnd(mo.monat), nur_basispreis: true, label: `${label}: ${t(al)}` };
+                const cfg = (vorgabe, title) => ({ title, grund: e.grund, untergrenze: floors2(mo), vorgabe: { ...base, ...vorgabe } });
+                const acts = e.preis_neu
+                  ? applyBtn("Übernehmen …", cfg({ preis: e.preis_neu, ohne_feiertage: e.aktion === "senken" }, `${label}: ${t(al)}`))
+                  : "";
+                return `<div class="row" style="gap:6px;margin-top:4px">${acts}${applyBtn("Preis anpassen …", cfg({ preis: mo.basispreis || bp.heute, ohne_feiertage: false }, `${label}: ${t("Preis anpassen")}`), !acts)}</div>`;
+              })()}</div>
             ${ftab}</div>`;
         }).join("");
         const hints = (w.hinweise || []).map((h) => {
           let extra = "";
-          if (h.typ === "feiertag") extra = `<div class="chips">${h.tage.map((x) => `<span class="chip" data-tip="${esc(`${t("In den Vorjahren belegt")}: ${x.vorjahre_belegt} ${t("von")} ${x.vorjahre}`)}">${fdate(x.datum)} · ${esc(t(x.name))}</span>`).join("")}</div>`;
-          if (h.typ === "luecke") extra = `<div class="chips">${h.luecken.map((x) => `<span class="chip ${x.buchbar ? "" : "warn"}" data-tip="${esc(`${t("Preis")} ${money(x.preis, cur)} · ${t("Untergrenze")} ${money(x.untergrenze, cur)}${x.buchbar ? "" : ` · ${t("Mindestaufenthalt")} ${x.mindestaufenthalt} – ${t("so nicht buchbar")}`}`)}">${fdate(x.von)} · ${num(x.naechte)} N.</span>`).join("")}</div>`;
+          const end60 = iso(addDays(D(d.today), 59));
+          if (h.typ === "wochenende" && h.prozent) extra += `<div class="row" style="margin-top:5px">${applyBtn(`Fr/Sa +${h.prozent} % übernehmen …`, {
+            title: h.titel, grund: h.text, vorgabe: { von: d.today, bis: end60, wochentage: h.wochentage, prozent: h.prozent, nur_basispreis: true, label: h.titel } })}</div>`;
+          if (h.typ === "feiertag" && h.tage?.length) extra += `<div class="row" style="margin-top:5px">${applyBtn(`Feiertagsnächte +${h.prozent} % …`, {
+            title: h.titel, grund: h.text, vorgabe: { tage: h.tage.map((x) => x.datum), prozent: h.prozent, label: h.titel } })}</div>`;
+          if (h.typ === "einzelnacht" && h.mindestaufenthalt) extra += `<div class="row" style="margin-top:5px">${applyBtn(`Mindestaufenthalt ${h.mindestaufenthalt} setzen …`, {
+            title: h.titel, grund: h.text, vorgabe: { von: d.today, bis: iso(addDays(D(d.today), 29)), mindestaufenthalt: h.mindestaufenthalt, label: `Mindestaufenthalt ${h.mindestaufenthalt}` } }, false)}</div>`;
+          if (h.typ === "feiertag") extra = extra + `<div class="chips">${h.tage.map((x) => `<span class="chip" data-tip="${esc(`${t("In den Vorjahren belegt")}: ${x.vorjahre_belegt} ${t("von")} ${x.vorjahre}`)}">${fdate(x.datum)} · ${esc(t(x.name))}</span>`).join("")}</div>`;
+          if (h.typ === "luecke") extra += `<div class="chips">${h.luecken.map((x) => {
+            const tip = `${t("Preis")} ${money(x.preis, cur)} · ${t("Untergrenze")} ${money(x.untergrenze, cur)}${x.buchbar ? "" : ` · ${t("Mindestaufenthalt")} ${x.mindestaufenthalt} – ${t("so nicht buchbar")}`}`;
+            const btn = applyBtn(`${fdate(x.von)} · ${num(x.naechte)} N.${x.vorschlag_preis ? ` → ${money(x.vorschlag_preis, cur)}` : ""}`, {
+              title: `${t("Lücke")} ${fdate(x.von)} (${num(x.naechte)} N.)`, grund: tip,
+              untergrenze: Object.fromEntries((w.kanaele || []).map((k) => [k.kanal, x.untergrenze])),
+              vorgabe: { tage: x.tage, preis: x.vorschlag_preis, mindestaufenthalt: x.buchbar ? null : x.naechte, label: `Lücke ${x.von}` } }, false);
+            return btn || `<span class="chip ${x.buchbar ? "" : "warn"}" data-tip="${esc(tip)}">${fdate(x.von)} · ${num(x.naechte)} N.</span>`;
+          }).join("")}</div>`;
           return `<li><b>${esc(t(h.titel))}</b>${h.wert_eur ? ` <span class="badge good">≈ +${money(h.wert_eur, cur)}/${t("Jahr")}</span>` : ""}<div class="sub">${esc(t(h.text))}</div>${extra}</li>`;
         }).join("");
+        // Letzte Preisänderungen aus der Karte mit „Rückgängig“
+        const changes = (w.aenderungen || []).map((c) => `<li><span class="grow">${esc(c.label || t("Preisänderung"))} · ${num(c.tage.length)} ${t("Tage")}
+            <span class="sub">${new Date(c.zeit).toLocaleString(locale(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}${c.benutzer ? ` · ${esc(c.benutzer)}` : ""}</span></span>
+          ${c.rueckgaengig ? `<span class="badge">${t("rückgängig gemacht")}</span>` : w.darf_aendern ? `<button class="btn flat sm" data-undo="${esc(c.id)}" data-apt="${w.apartment_id}">↶ ${t("Rückgängig")}</button>` : ""}</li>`).join("");
         const title = w.wohnung ? `<h3 class="emp-apt">${esc(w.wohnung_name || w.wohnung)}</h3>` : "";
         return `${title}${head}<div class="emp-grid">${months}</div>
           ${hints ? `<div class="kl" style="margin:14px 0 6px">${t("Hinweise")}</div><ul class="emp-h">${hints}</ul>` : ""}
+          ${changes ? `<div class="kl" style="margin:14px 0 6px">${t("Letzte Preisänderungen")}</div><ul class="emp-c">${changes}</ul>` : ""}
           <div class="ks emp-foot" style="margin-top:10px">${(w.annahmen || []).map((a) => esc(t(a))).join(" · ")}${w.kurzfristig_prozent !== null && w.kurzfristig_prozent !== undefined ? ` · ${num(w.kurzfristig_prozent)} % ${t("der Nächte werden im selben oder im Vormonat gebucht")}` : ""}</div>`;
       }).join("") || `<div class="empty">${t("Keine Daten")}</div>`;
       return panel(t("Bewertung & Empfehlung"), t("Buchungsstand gegen die Vorjahre am gleichen Tag · Preisuntergrenzen aus den variablen Kosten"),
@@ -3483,6 +3638,9 @@ class SmoobuStatsCard extends SmoobuCard {
     ul.emp-h { margin: 0; padding-left: 18px; display: grid; gap: 10px; font-size: .9rem; }
     ul.emp-h .chips { margin-top: 5px; } .chip.warn { border-color: var(--sm-warn); }
     .emp-apt { margin: 16px 0 8px; font-size: 1rem; }
+    ul.emp-c { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: .88rem; }
+    ul.emp-c li { display: flex; gap: 8px; align-items: center; } ul.emp-c .sub { display: block; }
+    .emp-r .row .btn.sm, ul.emp-h .btn.sm { padding: 5px 12px; font-size: .84rem; }
     /* Modul 3: Saison-Matrix */
     .mx { display: grid; gap: 3px; font-size: .8rem; min-width: 560px; }
     .mx .h { color: var(--sm-muted); font-weight: 600; text-align: center; padding: 2px 0 4px; font-size: .76rem; }
@@ -4060,6 +4218,20 @@ class SmoobuStatsCard extends SmoobuCard {
   }
   bind(root) {
     const s = this._state;
+    // v1.18.0: Empfehlung/Hinweis übernehmen bzw. Preisänderung rückgängig machen
+    root.querySelectorAll("[data-apply]").forEach((el) => el.addEventListener("click", async () => {
+      const cfg = this._applies?.[Number(el.dataset.apply)];
+      if (cfg && (await priceDialog(this, cfg))) this._reload();
+    }));
+    root.querySelectorAll("[data-undo]").forEach((el) => el.addEventListener("click", async () => {
+      if (!(await confirmDialog(t("Diese Preisänderung rückgängig machen? Die vorherigen Tagespreise werden in Smoobu wieder gesetzt.")))) return;
+      try {
+        const r = await this.store.ws("smoobu/rates/undo", { ...this.target, apartment_id: Number(el.dataset.apt), aenderung_id: el.dataset.undo }, { cache: false });
+        toast(r.abweichend?.length ? `${t("Zurückgesetzt, aber")} ${r.abweichend.length} ${t("Tage weichen ab – bitte prüfen")}` : `✓ ${r.tage} ${t("Tage zurückgesetzt")}`);
+        this.store.invalidate();
+        this._reload();
+      } catch (e) { toast(`${t("Fehler")}: ${e?.message || e}`); }
+    }));
     const shift = (dir) => {
       const [a] = statsRange(s, this._data.today);
       this.setState({ anchor: iso(addMonths(a, dir * PERIOD_MONTHS[s.ptype])), paceYear: null }, true);
@@ -4232,6 +4404,7 @@ class SmoobuHeaderCard extends SmoobuCard {
   // und verwirft den Eintrag bei neuer Nachricht, eigenem Senden und „keine Antwort nötig“)
   async countOpen(info) {
     if (!(this._config.pages || []).some((p) => p.badge === "nachrichten")) return 0;
+    if (!rightsOf(allApartment(info)).has("nachrichten")) return 0; // v1.18.0: ohne Recht kein Abruf
     try {
       const list = await this.store.ws("smoobu/bookings", { ...this.target, start: iso(addDays(D(info.heute), -14)), end: iso(addDays(D(info.heute), 60)) });
       // Gleiche Auswahl wie der Posteingang (Standard 14 Tage zurück / 60 voraus, inkl. abgereister Gäste,
@@ -4277,7 +4450,10 @@ class SmoobuHeaderCard extends SmoobuCard {
   body({ info, open }) {
     const here = location.pathname.split("/").filter(Boolean).pop();
     const known = this.viewPaths();
-    const pages = (this._config.pages || []).filter((p) => !p.optional || !known || known.has(p.path));
+    // v1.18.0: Seiten ohne Recht ausblenden (Rechte über alle Wohnungen des Kontos)
+    const rights = rightsOf(allApartment(info));
+    const pages = (this._config.pages || []).filter((p) => (!p.optional || !known || known.has(p.path))
+      && (p.path === "smoobu" ? rights.has("gaeste") : rights.has(pageRight(p.path))));
     const home = this._config.home?.path ? `<a class="home" data-href="${esc(this.href(this._config.home.path))}" title="${esc(t("Zurück zu"))} ${esc(this._config.home.name || "")}">← ${esc(t(this._config.home.name || "Zurück"))}</a><span class="hsep"></span>` : "";
     const tabs = home + pages.map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${p.icon && ICON_SVG[p.icon] ? `${ICON_SVG[p.icon]}<span class="lbl">${esc(t(p.name))}</span>` : esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
     const ws = info.wohnungen;
@@ -4335,7 +4511,7 @@ class SmoobuHeaderCard extends SmoobuCard {
 // ===========================================================================
 const SET_TABS = [
   ["benachrichtigungen", "Benachrichtigungen"], ["assistent", "KI-Assistent"],
-  ["provisionen", "Provisionen & Kanäle"], ["kosten", "Kosten & Preise"], ["allgemein", "Allgemein & Abruf"],
+  ["provisionen", "Provisionen & Kanäle"], ["kosten", "Kosten & Preise"], ["rechte", "Benutzer & Rechte"], ["allgemein", "Allgemein & Abruf"],
 ];
 const PUSH_INFO = {
   buchung: ["Neue Buchung", "Sobald eine neue Buchung eingeht (keine Sperrzeiten)."],
@@ -4353,6 +4529,7 @@ const SET_FIELD_TAB = (key) => {
   if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key)) return "assistent";
   if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels"].includes(key)) return "provisionen";
   if (key.startsWith("cost_") || ["channel_markups", "genius_discount", "genius_share"].includes(key)) return "kosten";
+  if (["user_roles", "default_role", "settings_users"].includes(key)) return "rechte";
   return "allgemein";
 };
 const SET_ERR = {
@@ -4360,7 +4537,7 @@ const SET_ERR = {
   invalid_entity: "Ungültige Entität", invalid_list: "Ungültige Liste", invalid_code: "Nur Buchstaben und Ziffern",
   duplicate_code: "Kürzel schon vergeben", ai_entity_required: "Bitte eine KI wählen oder „KI erlauben“ ausschalten",
   admin_only: "Nur Admins können das ändern", unknown_field: "Unbekanntes Feld",
-  invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_grid_share: "12 Werte zwischen 0 und 100",
+  invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_role: "Unbekannte Rolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
 };
 // Gradtagszahlen (Promille je Monat) – gleiche Tabelle wie deckungsbeitrag.HEAT_PROMILLE (nur für die Vorschau)
 const HEAT_PROMILLE = [170, 150, 130, 80, 40, 13.33, 13.33, 13.34, 30, 80, 120, 160];
@@ -4533,14 +4710,30 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Booking.com Genius-Rabatt", this.numIn("genius_discount", 0, 50, 1, "%"), "Genius-Gäste zahlen weniger als den Kanalpreis.", "genius_discount")}
         ${this.fld("Anteil Genius-Buchungen", this.numIn("genius_share", 0, 100, 1, "%"), "Unbekannt? 100 % lassen – vorsichtige Annahme (siehe Booking.com-Extranet).", "genius_share")}</div></div>`;
   }
+  // v1.18.0: Benutzerrollen – nur Admins vergeben Rollen; alle sehen die Übersicht Rolle × Recht
+  tabRights(meta) {
+    const d = this._draft;
+    const m = meta.rollen || { rollen: [], rechte: [] };
+    const roleName = (id) => m.rollen.find((r) => r.id === id)?.name || id;
+    const head = `<tr><th>${t("Recht")}</th>${m.rollen.map((r) => `<th class="n">${esc(t(r.name))}</th>`).join("")}</tr>`;
+    const rows = m.rechte.map((x) => `<tr><td>${esc(t(x.name))}</td>${m.rollen.map((r) => `<td class="n">${r.rechte.includes(x.id) ? "✓" : "–"}</td>`).join("")}</tr>`).join("");
+    const opts = (val, withDefault) => `${withDefault ? `<option value="" ${!val ? "selected" : ""}>${t("Standard")} (${esc(t(roleName(d.default_role)))})</option>` : ""}
+      ${m.rollen.map((r) => `<option value="${r.id}" ${val === r.id ? "selected" : ""}>${esc(t(r.name))}</option>`).join("")}`;
+    const own = meta.zugriff ? `<div class="note">${t("Deine Rolle")}: <b>${esc(t(meta.zugriff.rolle_name))}</b>${meta.zugriff.admin ? ` – ${t("Admins dürfen immer alles und vergeben die Rollen.")}` : ""}</div>` : "";
+    const users = meta.admin ? meta.benutzer.map((u) => u.admin
+      ? this.fld(u.name, `<span class="badge good">${t("Admin")}</span>`, t("HA-Admin: immer alle Rechte"))
+      : this.fld(u.name, `<select data-role="${esc(u.id)}">${opts(d.user_roles?.[u.id] || "", true)}</select>`, "", `user_roles`)).join("") : "";
+    return `${own}
+      ${meta.admin ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Rollen der Benutzer")}</b>
+        <span class="sub">${t("Gilt für die Smoobu-Seiten und -Aktionen. Normale HA-Entitäten kann HA nicht je Benutzer sperren.")}</span></div></div>
+        <div class="gb">${users}${this.fld("Standardrolle", `<select data-sel="default_role">${opts(d.default_role, false)}</select>`, "Für Benutzer ohne eigene Rolle (bisheriges Verhalten: Betrieb).", "default_role")}</div></div>` : ""}
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Was darf welche Rolle?")}</b></div></div>
+        <div class="gb"><div class="scroll"><table class="prov">${head}${rows}</table></div></div></div>`;
+  }
   tabGeneral(meta) {
     const d = this._draft;
     const codes = meta.wohnungen.map((w) => this.fld(w.name, `<input type="text" data-code="${esc(w.id)}" maxlength="4" style="width:90px"
       value="${esc(d.apartment_codes[w.id] || "")}" placeholder="${esc(w.auto)}">`, `${t("Leer = automatisch")} (${w.auto})`, `apartment_codes.${w.id}`)).join("");
-    const users = meta.admin ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Wer darf hier ändern")}</b>
-        <span class="sub">${t("Admins dürfen immer. Zusätzlich diese HA-Benutzer:")}</span></div></div>
-      <div class="gb">${this.pick("settings_users", meta.benutzer.filter((u) => !u.admin).map((u) => u.id),
-        (id) => meta.benutzer.find((u) => u.id === id)?.name || id)}${this.err("settings_users")}</div></div>` : "";
     return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
         ${this.fld("Webhook (Echtzeit)", this.sw("use_webhook", "Webhook"), "Smoobu meldet Änderungen sofort über Nabu Casa.")}
         ${this.fld("Abfrageintervall", this.numIn("scan_interval", 1, 120, 1, "min"), "Zusätzlicher Abgleich neben dem Webhook.", "scan_interval")}
@@ -4555,8 +4748,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Jahre Historie", this.numIn("history_years", 1, 5, 1, "Jahre"), "Wird ignoriert, wenn „Daten abrufen seit“ gesetzt ist.", "history_years")}
         ${this.fld("Daten abrufen seit", `<input type="date" data-txt="history_since" value="${esc(d.history_since || "")}">${d.history_since ? `<button class="lnk" data-clear="history_since">${t("Leeren")}</button>` : ""}`,
           "Leer = „Jahre Historie“ gilt. Mindestens ab 01.01. des Vorjahres.", "history_since")}</div></div>
-      ${codes ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Wohnungskürzel")}</b><span class="sub">${t("Höchstens 4 Buchstaben/Ziffern, eindeutig über alle Konten.")}</span></div></div><div class="gb">${codes}</div></div>` : ""}
-      ${users}`;
+      ${codes ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Wohnungskürzel")}</b><span class="sub">${t("Höchstens 4 Buchstaben/Ziffern, eindeutig über alle Konten.")}</span></div></div><div class="gb">${codes}</div></div>` : ""}`;
   }
   body(res) {
     if (!res.erlaubt) return `<div class="head"><h2>${esc(t(this._config.title))}</h2></div><div class="empty">${t("Keine Berechtigung für die Smoobu-Einstellungen.")}</div>`;
@@ -4566,6 +4758,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const tabs = SET_TABS.map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
     const konten = res.konten.length > 1 ? `<select data-entry>${res.konten.map((k) => `<option value="${esc(k.entry_id)}" ${k.entry_id === res.entry_id ? "selected" : ""}>${esc(k.title)}</option>`).join("")}</select>` : "";
     const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "kosten" ? this.tabCost(meta)
+      : tab === "rechte" ? this.tabRights(meta)
       : tab === "allgemein" ? this.tabGeneral(meta) : this.tabPush(meta);
     const n = this.dirty ? Object.keys(this.changes()).length : 0;
     const status = this._state.saving ? t("Speichere … die Integration lädt danach neu.")
@@ -4635,6 +4828,12 @@ class SmoobuSettingsCard extends SmoobuCard {
       d.commissions = { ...d.commissions, [name]: d.commission_other };
       redraw();
     });
+    // Benutzerrollen (nur Admins sehen die Auswahl); leer = Standardrolle
+    root.querySelectorAll("[data-role]").forEach((sel) => sel.addEventListener("change", () => {
+      const roles = { ...(d.user_roles || {}) };
+      if (sel.value) roles[sel.dataset.role] = sel.value; else delete roles[sel.dataset.role];
+      d.user_roles = roles; this.refreshFoot();
+    }));
     // Kosten & Preise: Netzanteil je Monat, Aufschläge (Kanal umbenennen, entfernen, hinzufügen)
     root.querySelectorAll("[data-share]").forEach((inp) => inp.addEventListener("input", () => {
       const list = [...(d.cost_grid_share || [])];

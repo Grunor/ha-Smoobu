@@ -50,6 +50,7 @@ PAGES = {
     "einstellungen_provisionen": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "provisionen"}]],
     "einstellungen_allgemein": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "allgemein"}]],
     "einstellungen_kosten": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "kosten"}]],
+    "einstellungen_rechte": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "rechte"}]],
 }
 # Geräte: Breite des Fensters (Media-Queries und Standardansicht Werkbank/Einfach hängen daran)
 DEVICES = {"pc": (1440, 900, ""), "handy": (390, 844, "_handy")}
@@ -94,6 +95,15 @@ def _shots(base: str, token: str) -> list[str]:
                 " && !e.shadowRoot.textContent.includes('Laden …'))", timeout=30000)
             page.wait_for_timeout(700)
             path = OUT / f"seite_{name}{suffix}{dsuffix}_{theme}.png"
+            # Prüfhilfe v1.18.0: SMOOBU_KLICK=<CSS-Selektor> klickt das erste passende Element in einer Karte
+            # (z. B. einen Übernehmen-Button) und fotografiert dann das ganze Fenster (Dialoge hängen am body)
+            if klick := os.environ.get("SMOOBU_KLICK"):
+                page.evaluate("""(sel) => { for (const c of document.querySelectorAll('#stage > *')) {
+                    const el = c.shadowRoot && c.shadowRoot.querySelector(sel); if (el) { el.scrollIntoView(); el.click(); return; } } }""", klick)
+                page.wait_for_timeout(900)
+                page.screenshot(path=str(path))
+                done.append(path.name)
+                continue
             page.locator("#stage").screenshot(path=str(path))
             done.append(path.name)
         browser.close()
