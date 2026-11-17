@@ -30,7 +30,12 @@ from .analytics import as_of
 from .deckungsbeitrag import CostTable
 from .stats import query
 
-HORIZON_DAYS = 60       # Empfehlungen nur für Monate, die innerhalb von 60 Tagen beginnen
+HORIZON_DAYS = 60       # Hinweise (Feiertage, Lücken) für die nächsten 60 Tage
+# Preisempfehlungen nur für Monate, die innerhalb von 31 Tagen beginnen (laufender + nächster Monat):
+# beim Betreiber werden 71 % der Nächte im selben oder im Vormonat gebucht – weiter voraus sagt ein
+# niedriger Stand wenig, eine Senkung käme zu früh
+ACT_DAYS = 31
+MIN_GAP_PP = 10         # Mindestabstand zum Median der Vorjahre (Prozentpunkte), sonst „normal“
 STEP = 10               # % Preisschritt
 STEP_STRONG = 15        # % Preisschritt, wenn deutlich unter allen Vorjahren
 MIN_YEARS = 2           # mindestens 2 Vergleichsjahre für eine Empfehlung
@@ -280,9 +285,9 @@ def _month(records, prices, table: CostTable, cfg: PriceConfig, factors, today: 
     cur = occ["wert"] or 0.0
     if len(comp) < MIN_YEARS:
         rating = "unbekannt"
-    elif cur < (p25 or 0):
+    elif cur < (p25 or 0) and (p50 or 0) - cur >= MIN_GAP_PP:
         rating = "schwach"
-    elif cur > (p75 or 0):
+    elif cur > (p75 or 0) and cur - (p50 or 0) >= MIN_GAP_PP:
         rating = "stark"
     else:
         rating = "normal"
@@ -303,8 +308,9 @@ def _month(records, prices, table: CostTable, cfg: PriceConfig, factors, today: 
     days_ahead = (start - today).days
     if rating == "unbekannt":
         reason = f"Zu wenig Vergleichsjahre (n = {len(comp)}) für eine Empfehlung."
-    elif days_ahead > HORIZON_DAYS:
-        reason = "Noch außerhalb des Buchungshorizonts – ein niedriger Stand sagt hier wenig."
+    elif days_ahead > ACT_DAYS:
+        reason = (f"Noch früh: beginnt in {days_ahead} Tagen, die meisten Nächte werden erst im selben oder im Vormonat "
+                  "gebucht. Erneut prüfen, wenn der Vormonat läuft.")
     elif free == 0:
         reason = "Keine freien Nächte mehr."
     elif rating == "schwach":

@@ -49,6 +49,7 @@ PAGES = {
     "einstellungen_ki": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "assistent"}]],
     "einstellungen_provisionen": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "provisionen"}]],
     "einstellungen_allgemein": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "allgemein"}]],
+    "einstellungen_kosten": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "kosten"}]],
 }
 # Geräte: Breite des Fensters (Media-Queries und Standardansicht Werkbank/Einfach hängen daran)
 DEVICES = {"pc": (1440, 900, ""), "handy": (390, 844, "_handy")}

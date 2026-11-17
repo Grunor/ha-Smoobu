@@ -28,6 +28,22 @@ const SMOOBU_CARDS_VERSION = "1.18.0b1";
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
 // ---------------------------------------------------------------------------
 const EN = {
+  // v1.18.0: Kosten & Preise, Bewertung & Empfehlung
+  "Kosten & Preise": "Costs & prices", "Bewertung & Empfehlung": "Assessment & recommendation", "Basispreis heute": "Base price today",
+  "Basispreis": "Base price", "netto je Nacht": "net per night", "Schwach": "Weak", "Normal": "Normal", "Stark": "Strong",
+  "Zu wenig Daten": "Not enough data", "↓ Preis senken": "↓ Lower price", "↑ Preis erhöhen": "↑ Raise price", "→ Preis halten": "→ Keep price",
+  "auf": "to", "Untergrenze": "Floor", "teuerster Kanal": "most expensive channel", "Untergrenze je Kanal": "Floor per channel",
+  "Variable Kosten je Nacht": "Variable costs per night", "Heizung": "Heating", "Warmwasser": "Hot water", "Strom": "Electricity",
+  "Wasser": "Water", "je Aufenthalt": "per stay", "Nächte frei": "nights free", "Hinweise": "Notes",
+  "Vorjahre": "Previous years", "Vorjahre am gleichen Tag": "Previous years on the same day",   "In den Vorjahren belegt": "Booked in previous years", "so nicht buchbar": "not bookable this way",   "Aufschlag": "Markup", "Netto je € Basispreis": "Net per € base price", "gemessen": "measured",
+  "Option": "option", "direkt": "direct", "gleich an allen": "same on all",   "der Nächte werden im selben oder im Vormonat gebucht": "of nights are booked in the same or the previous month",
+  "Buchungsstand gegen die Vorjahre am gleichen Tag · Preisuntergrenzen aus den variablen Kosten": "Bookings on hand vs. previous years on the same day · price floors from variable costs",
+  "Je Aufenthalt": "Per stay", "Wäsche": "Laundry", "Heizung & Warmwasser": "Heating & hot water",
+  "Heizkosten im Abrechnungsjahr": "Heating costs in billing year", "Warmwasser im Abrechnungsjahr": "Hot water in billing year",
+  "Abrechnungsjahr": "Billing year", "Wasser & Strom je Nacht": "Water & electricity per night", "Wasser/Abwasser": "Water/sewage",
+  "Netzstrompreis": "Grid price", "Wert PV-Strom": "Value of PV power", "Netzanteil je Monat": "Grid share per month",
+  "Aufschläge je Kanal": "Markups per channel", "Booking.com Genius-Rabatt": "Booking.com Genius discount",
+  "Anteil Genius-Buchungen": "Share of Genius bookings", "Kosten je Nacht relativ zum Januar": "Cost per night relative to January",
   "Einstellungen": "Settings", "Benachrichtigungen": "Notifications", "KI-Assistent": "AI assistant",
   "Provisionen & Kanäle": "Commissions & channels", "Allgemein & Abruf": "General & polling", "Speichern": "Save",
   "Verwerfen": "Discard", "Alles gespeichert.": "All saved.", "ungespeicherte Änderung": "unsaved change",
@@ -147,6 +163,9 @@ const GLOSSARY = {
   ADR: "Ø Preis je belegter Nacht (brutto)",
   RevPAR: "Umsatz je verfügbarer Nacht = ADR × Auslastung",
   "Netto-RevPAR": "Netto (nach Provision und Gebühren) je verfügbarer Nacht",
+  DB: "Deckungsbeitrag = Netto − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom)",
+  "DB-RevPAR": "Deckungsbeitrag je verfügbarer Nacht",
+  Untergrenze: "Basispreis, ab dem eine Buchung über diesen Kanal noch einen positiven Deckungsbeitrag bringt",
   PP: "Prozentpunkte – Veränderung einer Quote",
   n: "Anzahl Buchungen, auf denen der Wert beruht",
   "Vgl.": "Vergleichszeitraum",
@@ -2729,9 +2748,9 @@ function binLabel(fach, long = false) {
 // Anordnung (Reihenfolge, ausgeblendete Module, eigene Baukasten-Module) je Gerät in localStorage –
 // Entscheidung Betreiber: „speichern je Gerät“ (kein Server-Speicher, kein Abgleich zwischen Geräten).
 const STATS_LAYOUT_KEY = "smoobu-statistik-layout";
-const STATS_BUILTIN = ["kennzahlen", "tempo", "saison", "belegung", "kanaele", "fenster", "buchungszeit", "luecken", "stornos", "gaeste", "service", "tabelle"];
+const STATS_BUILTIN = ["kennzahlen", "empfehlung", "tempo", "saison", "belegung", "kanaele", "fenster", "buchungszeit", "luecken", "stornos", "gaeste", "service", "tabelle"];
 const STATS_TITLES = {
-  kennzahlen: "Kennzahlen", tempo: "Buchungstempo & Prognose", saison: "Saison-Matrix", belegung: "Belegung nach Wochentag",
+  kennzahlen: "Kennzahlen", empfehlung: "Bewertung & Empfehlung", tempo: "Buchungstempo & Prognose", saison: "Saison-Matrix", belegung: "Belegung nach Wochentag",
   kanaele: "Kanal-Wirtschaftlichkeit", fenster: "Buchungsfenster & Aufenthalt", buchungszeit: "Buchungszeitpunkt", luecken: "Verlorene Nächte", stornos: "Stornos",
   gaeste: "Gäste", service: "Service", tabelle: "Datentabelle",
 };
@@ -2756,6 +2775,8 @@ function statsLayout() {
   const custom = Array.isArray(l.custom) ? l.custom.filter((c) => c && c.id && c.measure && c.dimension) : [];
   const known = [...STATS_BUILTIN, ...custom.map((c) => c.id)];
   const order = (Array.isArray(l.order) ? l.order : []).filter((id) => known.includes(id));
+  // v1.18.0: „Bewertung & Empfehlung“ direkt nach den Kennzahlen einfügen (statt hinten), auch in gespeicherten Layouts
+  if (order.length && !order.includes("empfehlung")) order.splice(order.indexOf("kennzahlen") + 1, 0, "empfehlung");
   for (const id of known) if (!order.includes(id)) order.push(id); // neue Module hinten anhängen
   const hidden = (Array.isArray(l.hidden) ? l.hidden : []).filter((id) => known.includes(id));
   // v1.17.1: Datentabelle doppelt die Seite „Buchungen“ (inkl. CSV) → einmalig ausblenden; über ↺ wieder einblendbar
@@ -2920,7 +2941,60 @@ function bookingCalendar(card, d, m, controls) {
 }
 
 // Module 4–11: load(ctx) holt die Daten (parallel), render(card, d, data) baut das HTML
+const RATING = { schwach: ["bad", "Schwach"], normal: ["", "Normal"], stark: ["good", "Stark"], unbekannt: ["", "Zu wenig Daten"] };
+const ACTION = { senken: ["warn", "↓ Preis senken"], erhoehen: ["good", "↑ Preis erhöhen"], "erhöhen": ["good", "↑ Preis erhöhen"], halten: ["", "→ Preis halten"] };
 const STATS_MODULES = {
+  // v1.18.0: Bewertung & Empfehlung – Pace je Monat, Preisuntergrenzen, Hinweise (Backend: empfehlung.py)
+  empfehlung: {
+    load: (c) => c.card.store.ws("smoobu/stats", { ...c.target, mode: "empfehlung" }),
+    render: (card, d, m) => {
+      const cur = d.apt.currency;
+      const blocks = (m.wohnungen || []).map((w) => {
+        const bp = w.basispreis || {};
+        const head = `<div class="emp-head"><div><div class="kl">${t("Basispreis heute")}</div><div class="kv">${money(bp.heute, cur)}</div>
+            <div class="ks">${bp.einheitlich ? t("gleich an allen") + ` ${num(bp.tage)} ` + t("Tagen") : `${money(bp.min, cur)} – ${money(bp.max, cur)}`}</div></div>
+          ${(w.kanaele || []).map((k) => `<div data-tip="${esc(`${k.kanal}: ${t("Aufschlag")} ${num(k.aufschlag)} %${k.genius ? ` · Genius` : ""} · ${t("Kostenquote")} ${pct(k.kostenquote, 1)} (${t(k.kostenquote_quelle)})
+${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
+            <div class="kl"><span class="dot" style="background:${chColor(k.kanal)}"></span> ${esc(chn(k.kanal))}</div><div class="kv sm">${money(k.netto_je_nacht, cur)}</div>
+            <div class="ks">${t("netto je Nacht")}${k.aufschlag ? ` · +${num(k.aufschlag)} %` : ""}${k.genius ? " · Genius" : ""}</div></div>`).join("")}</div>`;
+        const months = (w.monate || []).map((mo) => {
+          const [rc, rl] = RATING[mo.bewertung] || ["", mo.bewertung];
+          const e = mo.empfehlung || {};
+          const [ac, al] = ACTION[e.aktion] || ["", e.aktion];
+          const v = mo.vergleich || {};
+          // Spanne P25–P75 der Vorjahre als Band, Punkt = Stand heute, Strich = Median
+          const band = v.n ? `<div class="band" data-tip="${esc(`${t("Vorjahre am gleichen Tag")}: ${(v.jahre || []).map((j) => `${j.jahr} ${pct(j.stand, 0)} → ${pct(j.ende, 0)}`).join(" · ")}`)}">
+              <span class="b" style="left:${v.p25}%;width:${Math.max(v.p75 - v.p25, 1)}%"></span><span class="md" style="left:${v.median}%"></span>
+              <span class="pt ${rc}" style="left:${Math.min(mo.auslastung_stand, 100)}%"></span></div>
+            <div class="ks">${t("Stand")} ${pct(mo.auslastung_stand, 0)} · ${t("Vorjahre")} P25–P75 ${pct(v.p25, 0)}–${pct(v.p75, 0)} (Median ${pct(v.median, 0)}, n = ${v.n} ${t("Jahre")})</div>` : "";
+          const floors = Object.entries(mo.untergrenze || {});
+          const ftab = floors.length ? `<details><summary>${t("Untergrenze je Kanal")} (${t("Basispreis")})</summary><table class="mini"><thead><tr><th>${t("Kanal")}</th><th class="n">1 N.</th><th class="n">2 N.</th><th class="n">3 N.</th></tr></thead>
+            <tbody>${floors.map(([k, f]) => `<tr><td>${esc(chn(k))}</td>${["1", "2", "3"].map((n) => `<td class="n${mo.basispreis && f[n] > mo.basispreis ? " neg" : ""}">${money(f[n], cur)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+            <div class="ks">${t("Variable Kosten je Nacht")}: ${money(mo.kosten_je_nacht?.summe, cur, 2)} (${t("Heizung")} ${money(mo.kosten_je_nacht?.heizung, cur, 2)}, ${t("Warmwasser")} ${money(mo.kosten_je_nacht?.warmwasser, cur, 2)}, ${t("Strom")} ${money(mo.kosten_je_nacht?.strom, cur, 2)}, ${t("Wasser")} ${money(mo.kosten_je_nacht?.wasser, cur, 2)}) + ${money(w.je_aufenthalt, cur)} ${t("je Aufenthalt")}</div></details>` : "";
+          const label = D(`${mo.monat}-01`).toLocaleDateString(locale(), { month: "long", year: "numeric" });
+          return `<div class="emp-m"><div class="row"><b class="grow">${esc(label)}</b><span class="badge ${rc}">${t(rl)}</span></div>
+            ${band}
+            <div class="ks">${t("Netto-RevPAR")} ${money(mo.netto_revpar_stand, cur, 2)} · DB-RevPAR ${money(mo.db_revpar_stand, cur, 2)} · ${num(mo.frei_ab_heute)} ${t("Nächte frei")}${mo.gesperrt ? ` · ${num(mo.gesperrt)} ${t("gesperrt")}` : ""}
+              ${mo.prognose_auslastung !== null && mo.prognose_auslastung !== undefined ? ` · ${t("Prognose")} ${pct(mo.prognose_auslastung, 0)}` : ""}</div>
+            <div class="emp-r ${ac}"><b>${t(al)}${e.preis_neu ? ` ${t("auf")} ${money(e.preis_neu, cur)} (${e.prozent > 0 ? "+" : ""}${num(e.prozent)} %)` : ""}</b><span>${esc(t(e.grund || ""))}</span>
+              ${mo.untergrenze_massgeblich ? `<span class="ks">${t("Untergrenze")} (2 N., ${t("teuerster Kanal")}): ${money(mo.untergrenze_massgeblich, cur)}</span>` : ""}</div>
+            ${ftab}</div>`;
+        }).join("");
+        const hints = (w.hinweise || []).map((h) => {
+          let extra = "";
+          if (h.typ === "feiertag") extra = `<div class="chips">${h.tage.map((x) => `<span class="chip" data-tip="${esc(`${t("In den Vorjahren belegt")}: ${x.vorjahre_belegt} ${t("von")} ${x.vorjahre}`)}">${fdate(x.datum)} · ${esc(t(x.name))}</span>`).join("")}</div>`;
+          if (h.typ === "luecke") extra = `<div class="chips">${h.luecken.map((x) => `<span class="chip ${x.buchbar ? "" : "warn"}" data-tip="${esc(`${t("Preis")} ${money(x.preis, cur)} · ${t("Untergrenze")} ${money(x.untergrenze, cur)}${x.buchbar ? "" : ` · ${t("Mindestaufenthalt")} ${x.mindestaufenthalt} – ${t("so nicht buchbar")}`}`)}">${fdate(x.von)} · ${num(x.naechte)} N.</span>`).join("")}</div>`;
+          return `<li><b>${esc(t(h.titel))}</b>${h.wert_eur ? ` <span class="badge good">≈ +${money(h.wert_eur, cur)}/${t("Jahr")}</span>` : ""}<div class="sub">${esc(t(h.text))}</div>${extra}</li>`;
+        }).join("");
+        const title = w.wohnung ? `<h3 class="emp-apt">${esc(w.wohnung_name || w.wohnung)}</h3>` : "";
+        return `${title}${head}<div class="emp-grid">${months}</div>
+          ${hints ? `<div class="kl" style="margin:14px 0 6px">${t("Hinweise")}</div><ul class="emp-h">${hints}</ul>` : ""}
+          <div class="ks emp-foot" style="margin-top:10px">${(w.annahmen || []).map((a) => esc(t(a))).join(" · ")}${w.kurzfristig_prozent !== null && w.kurzfristig_prozent !== undefined ? ` · ${num(w.kurzfristig_prozent)} % ${t("der Nächte werden im selben oder im Vormonat gebucht")}` : ""}</div>`;
+      }).join("") || `<div class="empty">${t("Keine Daten")}</div>`;
+      return panel(t("Bewertung & Empfehlung"), t("Buchungsstand gegen die Vorjahre am gleichen Tag · Preisuntergrenzen aus den variablen Kosten"),
+        `${blocks}${gloss(["Netto-RevPAR", "DB-RevPAR", "Untergrenze", "Pace", "n"])}`);
+    },
+  },
   // 4: Belegungs-Heatmap Wochentag × KW + Auslastung/ADR je Wochentag
   belegung: {
     load: async (c) => {
@@ -3389,6 +3463,26 @@ class SmoobuStatsCard extends SmoobuCard {
     .fc dt { color: var(--sm-muted); } .fc dd { margin: 0; text-align: right; font-weight: 600; white-space: nowrap; }
     .fc .note { font-size: .78rem; color: var(--sm-muted); margin-top: 12px; line-height: 1.4; }
     .fc.low .big { opacity: .5; }
+    /* v1.18.0: Bewertung & Empfehlung */
+    .emp-head { display: flex; flex-wrap: wrap; gap: 10px 26px; margin-bottom: 14px; }
+    .emp-head .kv.sm { font-size: 1.15rem; }
+    .emp-head .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+    .emp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: var(--sm-gap); }
+    .emp-m { border: 1px solid var(--sm-line); border-radius: var(--sm-r); padding: 12px 14px; display: grid; gap: 8px; align-content: start; }
+    .emp-m .ks, .emp-r .ks, .emp-foot { white-space: normal; overflow: visible; }
+    .emp-m .row { display: flex; gap: 8px; align-items: center; }
+    .band { position: relative; height: 10px; border-radius: 5px; background: var(--sm-surf2); border: 1px solid var(--sm-line); margin-top: 4px; }
+    .band .b { position: absolute; top: -1px; bottom: -1px; border-radius: 5px; background: color-mix(in srgb, var(--sm-accent) 28%, transparent); }
+    .band .md { position: absolute; top: -4px; width: 2px; height: 16px; background: var(--sm-muted); transform: translateX(-1px); }
+    .band .pt { position: absolute; top: -4px; width: 14px; height: 14px; border-radius: 50%; background: var(--sm-ink); border: 2px solid var(--sm-surf); transform: translateX(-7px); }
+    .band .pt.bad { background: var(--sm-bad); } .band .pt.good { background: var(--sm-good); }
+    .emp-r { display: grid; gap: 3px; padding: 9px 11px; border-radius: var(--sm-rs); background: var(--sm-surf2); border-left: 4px solid var(--sm-line); font-size: .88rem; }
+    .emp-r.warn { border-left-color: var(--sm-warn); } .emp-r.good { border-left-color: var(--sm-good); }
+    .emp-m details summary { cursor: pointer; font-size: .84rem; color: var(--sm-muted); }
+    table.mini { width: 100%; font-size: .84rem; margin: 6px 0; } table.mini td.neg { color: var(--sm-bad); font-weight: 600; }
+    ul.emp-h { margin: 0; padding-left: 18px; display: grid; gap: 10px; font-size: .9rem; }
+    ul.emp-h .chips { margin-top: 5px; } .chip.warn { border-color: var(--sm-warn); }
+    .emp-apt { margin: 16px 0 8px; font-size: 1rem; }
     /* Modul 3: Saison-Matrix */
     .mx { display: grid; gap: 3px; font-size: .8rem; min-width: 560px; }
     .mx .h { color: var(--sm-muted); font-weight: 600; text-align: center; padding: 2px 0 4px; font-size: .76rem; }
@@ -3522,7 +3616,8 @@ class SmoobuStatsCard extends SmoobuCard {
     }
     // Modul 3: Saison-Matrix Monate × Jahre (nur Werkbank)
     const layout = statsLayout();
-    const visible = simple ? [] : layout.order.filter((id) => !layout.hidden.includes(id));
+    // v1.18.0: „Bewertung & Empfehlung“ auch in „Einfach“ (am Handy die wichtigste Handlungsanweisung)
+    const visible = simple ? (layout.hidden.includes("empfehlung") ? [] : ["empfehlung"]) : layout.order.filter((id) => !layout.hidden.includes(id));
     let matrix = null;
     if (visible.includes("saison")) {
       const since = Math.max(Number(this._config.matrix_since) || firstYear, ty - 10);
@@ -3912,7 +4007,7 @@ class SmoobuStatsCard extends SmoobuCard {
       <h1>${esc(sen.h)}</h1>${sen.p ? `<p>${sen.p}</p>` : ""}<p class="m">${esc(sen.m)} · ${t("Vergleich")}: ${esc(this.cmpName(d))}</p></div>${modeSeg}</div>`;
     const tt = `<div class="tt" hidden></div>`;
     if (simple) {
-      return `${head}${this.filterBar(d)}${this.kpiBar(d)}<div class="two">${this.forecastCard(d)}</div>
+      return `${head}${this.filterBar(d)}${this.kpiBar(d)}${d.mods.empfehlung ? `<section class="mod">${this.module("empfehlung", d)}</section>` : ""}<div class="two">${this.forecastCard(d)}</div>
         <div class="hint">${t("Buchungstempo, Verlauf und Saison-Matrix:")} <button class="lnk" data-mode="werkbank">${t("Werkbank öffnen")}</button></div>${tt}`;
     }
     const L = d.layout;
@@ -4423,7 +4518,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Heizkosten im Abrechnungsjahr", this.numIn("cost_heating_year", 0, 100000, 0.01, "€"), "", "cost_heating_year")}
         ${this.fld("Warmwasser im Abrechnungsjahr", this.numIn("cost_hot_water_year", 0, 100000, 0.01, "€"), "Im Sommer deckt die Solarthermie – gleiche Verteilung wie die Heizung.", "cost_hot_water_year")}
         ${this.fld("Abrechnungsjahr", this.numIn("cost_ref_year", 2015, 2100, 1), "", "cost_ref_year")}
-        <div class="hint">${t("Kosten je Nacht relativ zum Januar")}: ${esc(dist)}</div></div></div>
+        <div class="sub">${t("Kosten je Nacht relativ zum Januar")}: ${esc(dist)}</div></div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Wasser & Strom je Nacht")}</b>
         <span class="sub">${t("Strompreis je Monat = Netzanteil × Netzpreis + Rest × Wert des PV-Stroms (entgangene Einspeisevergütung).")}</span></div></div><div class="gb">
         ${this.fld("Wasser/Abwasser", this.numIn("cost_water_night", 0, 100, 0.01, "€"), "", "cost_water_night")}
