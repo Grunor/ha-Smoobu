@@ -110,3 +110,24 @@ async def test_settings_kosten(hass, setup, hass_ws_client):  # noqa: F811
     o = setup.options
     assert o["cost_cleaning"] == 19.5 and o["cost_grid_share"] == [60.0] * 12
     assert o["channel_markups"] == {"Airbnb": 30.0, "Expedia": 20.0}
+
+
+def test_provision_herkunft():
+    """v1.18.0: je Kanal markieren, ob Smoobu eine gültige Provision mitliefert."""
+    from datetime import date
+
+    from custom_components.smoobu.analytics import build_records
+    from custom_components.smoobu.settings import commission_sources
+    from tests.test_analytics import bk, costs
+
+    recs = build_records([
+        bk(1, "2026-03-01", "2026-03-03", "Booking.com", 200, **{"commission-included": 30}),
+        bk(2, "2026-04-01", "2026-04-03", "Booking.com", 200, **{"commission-included": 30}),
+        bk(3, "2026-05-01", "2026-05-03", "Airbnb", 200),
+        bk(4, "2026-05-10", "2026-05-12", "Airbnb", 200, **{"commission-included": 29}),
+        bk(5, "2026-06-01", "2026-06-03", "Expedia", 200, **{"commission-included": 150}),  # 75 % → unplausibel
+    ], costs, [], date(2026, 11, 17))
+    src = commission_sources(recs, date(2026, 11, 17))
+    assert src["Booking.com"]["status"] == "smoobu" and src["Booking.com"]["prozent_schnitt"] == 15.0
+    assert src["Airbnb"]["status"] == "teilweise" and src["Airbnb"]["mit_provision"] == 1
+    assert src["Expedia"]["status"] == "option" and src["Expedia"]["ungueltig"] == 1

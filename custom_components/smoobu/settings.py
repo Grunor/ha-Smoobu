@@ -213,6 +213,41 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
     return values
 
 
+def commission_sources(records: list[dict[str, Any]], today: date) -> dict[str, dict[str, Any]]:
+    """Je Kanal: liefert Smoobu eine gültige Provision mit der Buchung? (v1.18.0, Wunsch Betreiber)
+
+    Grundlage: Gästebuchungen mit Preis der letzten 24 Monate (ohne Stornos). „Gültig“ = Smoobu
+    liefert `commission-included` > 0 und der Anteil liegt zwischen 1 % und 40 % des Preises –
+    darüber ist es eher ein Datenfehler. Status:
+    - smoobu: ≥ 80 % der Buchungen mit gültiger Provision → die Option ist nur Rückfall
+    - teilweise: einige Buchungen mit, andere ohne → für die ohne gilt die Option
+    - option: keine → immer der %-Wert aus den Optionen
+    """
+    since = date(today.year - 2, today.month, 1).isoformat()
+    acc: dict[str, dict[str, Any]] = {}
+    for r in records:
+        if r["blockiert"] or r["storniert"] or not r["brutto"] or r["anreise"] < since:
+            continue
+        a = acc.setdefault(r["kanal"], {"buchungen": 0, "smoobu": 0, "ungueltig": 0, "_pct": [], "letzte": None})
+        a["buchungen"] += 1
+        if r.get("provision_quelle") == "smoobu":
+            pct = r["provision"] / r["brutto"] * 100
+            if 1 <= pct <= 40:
+                a["smoobu"] += 1
+                a["_pct"].append(pct)
+                a["letzte"] = max(a["letzte"] or "", r["anreise"])
+            else:
+                a["ungueltig"] += 1
+    out = {}
+    for ch, a in acc.items():
+        share = a["smoobu"] / a["buchungen"]
+        status = "smoobu" if share >= 0.8 else "teilweise" if a["smoobu"] else "option"
+        out[ch] = {"status": status, "buchungen": a["buchungen"], "mit_provision": a["smoobu"],
+                   "ungueltig": a["ungueltig"], "prozent_schnitt": round(sum(a["_pct"]) / len(a["_pct"]), 1) if a["_pct"] else None,
+                   "letzte": a["letzte"]}
+    return out
+
+
 async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, Any]:
     """Auswahlmöglichkeiten für die Karte: Handys, KI-Entitäten, Kanäle, Wohnungen, Benutzer."""
     phones = sorted(
@@ -249,6 +284,9 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
         "feste_provisionen": list(COMMISSION_FIELDS.values()),
         "push_arten": NOTIFY_TYPES,
         "admin": bool(user and user.is_admin),
+        # v1.18.0: je Kanal, ob Smoobu eine gültige Provision liefert (Markierung im Reiter Provisionen)
+        "provision_herkunft": commission_sources(
+            [r for apt_id in (data.apartments if data else {}) for r in coordinator.records(apt_id)], date.today()),
         # v1.18.0: Rollen × Rechte und eigene Rolle (Anzeige im Reiter „Benutzer & Rechte“)
         "rollen": rechte.matrix(),
         "zugriff": rechte.describe(user, entry.options),

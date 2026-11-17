@@ -39,7 +39,9 @@ const EN = {
   "Kein Zugriff": "No access", "Tage übernommen und in Smoobu geprüft": "days applied and verified in Smoobu",
   "Tage zurückgesetzt": "days reset", "Keine Änderung nötig": "No change needed", "ausgelassen": "skipped",
   "Feiertag": "holiday", "eigener Preis": "own price", "Last-Minute": "Last minute", "Fenster": "Window", "max. Rabatt": "max. discount",
-  "kein Rabatt empfohlen": "no discount recommended", "auf die freien Nächte": "on the free nights", "Lücke": "Gap", "Kanalpreise bei": "Channel prices at",
+  "kein Rabatt empfohlen": "no discount recommended", "Smoobu liefert": "Smoobu provides", "teilweise": "partly",
+  "Wert hier wird genutzt": "value here is used", "Direktkanal": "direct channel", "keine Buchungen": "no bookings",
+  "Provision von Smoobu (24 Monate)": "Commission from Smoobu (24 months)", "Weitere Kanäle mit Buchungen": "Other channels with bookings", "auf die freien Nächte": "on the free nights", "Lücke": "Gap", "Kanalpreise bei": "Channel prices at",
   "Kosten & Preise": "Costs & prices", "Bewertung & Empfehlung": "Assessment & recommendation", "Basispreis heute": "Base price today",
   "Basispreis": "Base price", "netto je Nacht": "net per night", "Schwach": "Weak", "Normal": "Normal", "Stark": "Strong",
   "Zu wenig Daten": "Not enough data", "↓ Preis senken": "↓ Lower price", "↑ Preis erhöhen": "↑ Raise price", "→ Preis halten": "→ Keep price",
@@ -4686,13 +4688,29 @@ class SmoobuSettingsCard extends SmoobuCard {
   tabProv(meta) {
     const d = this._draft;
     const fixed = meta.feste_provisionen;
+    // v1.18.0: liefert Smoobu zu diesem Kanal eine gültige Provision? (letzte 24 Monate) → dann greift der %-Wert nur als Rückfall
+    const src = meta.provision_herkunft || {};
+    const srcBadge = (ch) => {
+      const x = src[ch];
+      if ((d.direct_channels || []).includes(ch)) return `<span class="muted">${t("Direktkanal")}</span>`;
+      if (!x) return `<span class="muted">${t("keine Buchungen")}</span>`;
+      const tip = `${x.mit_provision} ${t("von")} ${x.buchungen} ${t("Buchungen mit Provision von Smoobu")}${x.prozent_schnitt !== null ? ` · Ø ${num(x.prozent_schnitt, 1)} %` : ""}${x.ungueltig ? ` · ${x.ungueltig} ${t("unplausibel (> 40 %) – ignoriert")}` : ""}`;
+      if (x.status === "smoobu") return `<span class="badge good" data-tip="${esc(tip)}" title="${esc(tip)}">✓ ${t("Smoobu liefert")}${x.prozent_schnitt !== null ? ` · Ø ${num(x.prozent_schnitt, 1)} %` : ""}</span>`;
+      if (x.status === "teilweise") return `<span class="badge warn" title="${esc(tip)}">◐ ${t("teilweise")} (${x.mit_provision}/${x.buchungen})</span>`;
+      return `<span class="badge" title="${esc(tip)}">${t("Wert hier wird genutzt")}</span>`;
+    };
     const rows = Object.entries(d.commissions).map(([ch, pct]) => `<tr><td>${fixed.includes(ch) ? esc(chn(ch))
         : `<input type="text" class="name" data-cname="${esc(ch)}" value="${esc(ch)}">`}</td>
       <td class="n"><span class="inline" style="justify-content:flex-end"><input type="number" data-comm="${esc(ch)}" min="0" max="50" step="0.1" value="${esc(pct)}"><span class="unit">%</span></span></td>
+      <td>${srcBadge(ch)}</td>
       <td>${fixed.includes(ch) ? "" : `<button class="lnk" data-cdel="${esc(ch)}">${t("Entfernen")}</button>`}</td></tr>`).join("");
+    // Kanäle mit Buchungen, aber ohne eigene Zeile (laufen über „Alle übrigen Portale“)
+    const others = Object.keys(src).filter((ch) => !(ch in d.commissions) && !(d.direct_channels || []).includes(ch));
+    const otherNote = others.length ? `<div class="sub" style="margin-top:6px">${t("Weitere Kanäle mit Buchungen")}: ${others.map((ch) => `${esc(chn(ch))} ${srcBadge(ch)}`).join(" · ")}</div>` : "";
     return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Provision je Kanal")}</b>
         <span class="sub">${t("Gilt nur für Buchungen, zu denen Smoobu keine Provision liefert.")}</span></div></div>
-      <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Provision")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Provision")}</th><th>${t("Provision von Smoobu (24 Monate)")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+        ${otherNote}
         <div class="inline"><button class="btn flat" data-cadd>＋ ${t("Kanal hinzufügen")}</button></div>${this.err("commissions")}
         ${this.fld("Alle übrigen Portale", this.numIn("commission_other", 0, 50, 0.1, "%"), "", "commission_other")}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Direktkanäle")}</b><span class="sub">${t("Zählen als Direktvermarktung (Direkt vs. Portale).")}</span></div></div>
