@@ -8,6 +8,16 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.17.1b4 – 2026-11-17
+
+> Beta / Pre-release
+
+**Deutsch**
+- **Fix Optionen → Benachrichtigungen:** OK-Button war gesperrt, weil die Abschnitte einen leeren Standardwert hatten und damit die Vorbelegung der Pflichtfelder (z. B. „aktiv“) im Formular überschrieben
+
+**English**
+- **Fix options → notifications:** the OK button was disabled because the sections had an empty default that overrode the pre-filled required fields (e.g. "active") in the form
+
 ## 1.17.1b3 – 2026-11-16
 
 > Beta / Pre-release

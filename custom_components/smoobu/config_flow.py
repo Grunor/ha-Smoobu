@@ -431,25 +431,27 @@ class SmoobuOptionsFlow(OptionsFlow):
             }
             return section(vol.Schema(fields), {"collapsed": collapsed})
 
+        # v1.17.1b4: Abschnitte OHNE default={} – ein Abschnitts-Default überschreibt im Frontend
+        # die Defaults der Felder darin (Pflichtfeld „aktiv“ bleibt leer → OK-Button gesperrt).
         schema = vol.Schema(
             {
-                vol.Required("buchung", default={}): kind_section("buchung", collapsed=False),
-                vol.Required("storno", default={}): kind_section("storno"),
-                vol.Required("nachricht", default={}): kind_section("nachricht"),
-                vol.Required("vorschlag", default={}): kind_section("vorschlag"),
-                vol.Required("zahlung", default={}): kind_section("zahlung", {
+                vol.Required("buchung"): kind_section("buchung", collapsed=False),
+                vol.Required("storno"): kind_section("storno"),
+                vol.Required("nachricht"): kind_section("nachricht"),
+                vol.Required("vorschlag"): kind_section("vorschlag"),
+                vol.Required("zahlung"): kind_section("zahlung", {
                     vol.Required("tage", default=int(opts.get(CONF_NOTIFY_PAYMENT_DAYS, DEFAULT_NOTIFY_PAYMENT_DAYS))): NumberSelector(
                         NumberSelectorConfig(min=1, max=60, step=1, unit_of_measurement="d", mode=NumberSelectorMode.BOX)
                     ),
                     vol.Required("uhrzeit", default=_time_default(opts.get(CONF_NOTIFY_PAYMENT_TIME, DEFAULT_NOTIFY_PAYMENT_TIME))): hhmm,
                 }),
-                vol.Required("briefing", default={}): kind_section("briefing", {
+                vol.Required("briefing"): kind_section("briefing", {
                     vol.Required("uhrzeit", default=_time_default(opts.get(CONF_ASSIST_BRIEFING_TIME, "07:30"))): hhmm,
                 }),
-                vol.Required("luecken", default={}): kind_section("luecken", {
+                vol.Required("luecken"): kind_section("luecken", {
                     vol.Required("uhrzeit", default=_time_default(opts.get(CONF_NOTIFY_GAPS_TIME, DEFAULT_NOTIFY_GAPS_TIME))): hhmm,
                 }),
-                vol.Required("ruhezeit", default={}): section(vol.Schema({
+                vol.Required("ruhezeit"): section(vol.Schema({
                     vol.Required("aktiv", default=bool(opts.get(CONF_NOTIFY_QUIET, False))): BooleanSelector(),
                     vol.Required("von", default=_time_default(opts.get(CONF_NOTIFY_QUIET_FROM, DEFAULT_NOTIFY_QUIET_FROM))): hhmm,
                     vol.Required("bis", default=_time_default(opts.get(CONF_NOTIFY_QUIET_TO, DEFAULT_NOTIFY_QUIET_TO))): hhmm,
