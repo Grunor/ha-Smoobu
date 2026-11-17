@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.18.0b8 – 2026-11-17
+
+> Beta / Pre-release
+
 **Deutsch**
 - **Finanzen: Filter und Vergleich wie in der Statistik.** Gleiche Filterleiste (gemeinsamer Code): Zeitraum Monat/Quartal/Saison/Jahr/Frei mit ‹ › blättern, Vergleich **Stichtag Vorjahr** (neuer Standard) / Ganzes Vorjahr / Vorperiode, Raster, Wohnungsauswahl (ohne Kopfzeilen-Auswahl), Kanal-Chips; die Leiste läuft beim Scrollen mit (am Handy nicht). Was es nur in den Finanzen gibt, bleibt: „Kein Vergleich“, Mehrfachvergleich (1–10 Jahre/Perioden) und die bisherigen Zeiträume als **Schnellwahl** (Vormonat, Folgemonat, Vorjahr, Jahr bis heute, letzte/nächste 12 Monate, gesamter Zeitraum)
 - Finanzen: Bei „Stichtag Vorjahr“ zeigen Brutto, Netto, Auslastung, Netto/Nacht und Buchungen zusätzlich den **Endstand** des Vergleichszeitraums (wie Statistik, nur wenn der Zeitraum am Stichtag noch lief); Kopfzeile nennt das Stichtag-Datum
