@@ -54,6 +54,7 @@ from .analytics import (
 from .api import SmoobuError
 from .stats import DIMENSIONS, MEASURES, gaps as stats_gaps, pace as stats_pace, query as stats_query
 from .stats import service as stats_service, storno as stats_storno
+from .empfehlung import recommend as stats_recommend
 from .const import DOMAIN
 from .coordinator import SmoobuCoordinator
 from .models import strip_html
@@ -254,7 +255,8 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         # "query" = Baukasten (Kennzahl × Gruppierung × Aufteilung), "pace" = Buchungstempo + Prognose,
         # "meta" = verfügbare Kennzahlen/Dimensionen für die Auswahlfelder der Karte
         # Teilschritte 3/4: "gaps" = verlorene Nächte, "storno" = Storno-Auswertung, "service" = Antwortzeiten
-        vol.Required("mode"): vol.In(("query", "pace", "meta", "gaps", "storno", "service")),
+        # v1.18.0: "empfehlung" = Bewertung (Pace je Monat), Preisuntergrenzen und Preis-Hinweise
+        vol.Required("mode"): vol.In(("query", "pace", "meta", "gaps", "storno", "service", "empfehlung")),
         vol.Optional("measure"): vol.In(tuple(MEASURES)),
         vol.Optional("dimension", default="monat"): vol.In(DIMENSIONS),
         vol.Optional("split"): vol.Any(None, vol.In(DIMENSIONS)),
@@ -290,6 +292,20 @@ def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
         first = min((c.history_start for c, _ in pairs), default=None)
         result = stats_pace(recs, msg.get("year") or today.year, today, channels=channels, first=first)
         connection.send_result(msg["id"], result)
+        return
+    if msg["mode"] == "empfehlung":
+        # Preise und Kosten gehören zu genau einer Wohnung → je Wohnung rechnen, bei „Alle
+        # Wohnungen“ eine Liste (die Karte zeigt dann je Wohnung einen Block)
+        out = []
+        for c, apt in pairs:
+            table = c.data.cost_tables.get(apt) if c.data else None
+            if table is None:
+                continue
+            res = stats_recommend(c.records(apt), c.rates_now(apt), table, c.price_config, today, first=c.history_start)
+            res["wohnung"] = c.apartment_code(apt) if len(pairs) > 1 else ""
+            res["wohnung_name"] = (c.data.apartments.get(apt) or {}).get("name")
+            out.append(res)
+        connection.send_result(msg["id"], {"wohnungen": out})
         return
     if msg["mode"] in ("gaps", "storno", "service"):
         start = _date(msg.get("start"), date(today.year, 1, 1))

@@ -54,6 +54,7 @@ from .analytics import build_records, is_cancelled
 from .deckungsbeitrag import apply as db_apply
 from .deckungsbeitrag import build_table as db_build_table
 from .deckungsbeitrag import config_from_options as cost_config_from_options
+from .empfehlung import from_options as price_config_from_options
 from .channels import booking_costs, night_rows
 from .models import (
     PET_MESSAGE_KEY,
@@ -193,6 +194,12 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
     @property
     def direct_channels(self) -> list[str]:
         return list(self.config_entry.options.get(CONF_DIRECT_CHANNELS, DEFAULT_DIRECT_CHANNELS))
+
+    @property
+    def price_config(self):
+        """v1.18.0: Kanal-Aufschläge, Genius und Provisionen für Bewertung & Empfehlung."""
+        return price_config_from_options(self.config_entry.options, self.commissions, self.commission_other,
+                                         self.direct_channels)
 
     def costs(self, booking: dict[str, Any]) -> dict[str, Any]:
         """Kanalgruppe, Provision, Zahlungsgebühr und Netto einer Buchung."""
