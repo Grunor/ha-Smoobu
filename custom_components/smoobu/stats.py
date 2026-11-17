@@ -44,6 +44,12 @@ MEASURES: dict[str, tuple[str, str, str]] = {
     "revpar": ("nacht", "Umsatz je verfügbarer Nacht (RevPAR)", "€"),
     "netto_revpar": ("nacht", "Netto je verfügbarer Nacht", "€"),
     "kostenquote": ("nacht", "Kostenquote", "%"),
+    # v1.18.0: variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom) und
+    # Deckungsbeitrag = Netto − variable Kosten (siehe deckungsbeitrag.py)
+    "var_kosten": ("nacht", "Variable Kosten", "€"),
+    "db": ("nacht", "Deckungsbeitrag", "€"),
+    "db_pro_nacht": ("nacht", "Deckungsbeitrag je belegter Nacht", "€"),
+    "db_revpar": ("nacht", "Deckungsbeitrag je verfügbarer Nacht", "€"),
     "buchungen": ("buchung", "Buchungen", ""),
     "stornos": ("buchung", "Stornos", ""),
     "stornoquote": ("buchung", "Stornoquote", "%"),
@@ -210,6 +216,14 @@ def _value(measure: str, acc: dict[str, Any], available: float) -> float | None:
         return round(acc["brutto"] / available, 2) if available else None
     if measure == "netto_revpar":
         return round(acc["netto"] / available, 2) if available else None
+    if measure == "var_kosten":
+        return round(acc["var"], 2)
+    if measure == "db":
+        return round(acc["netto"] - acc["var"], 2)
+    if measure == "db_pro_nacht":
+        return round((acc["netto_preis"] - acc["var_preis"]) / acc["naechte_preis"], 2) if acc["naechte_preis"] else None
+    if measure == "db_revpar":
+        return round((acc["netto"] - acc["var"]) / available, 2) if available else None
     if measure == "kostenquote":
         return round((acc["brutto"] - acc["netto"]) / acc["brutto"] * 100, 1) if acc["brutto"] else None
     total = acc["buchungen"] + acc["stornos"]
@@ -233,7 +247,7 @@ def _value(measure: str, acc: dict[str, Any], available: float) -> float | None:
 
 
 def _acc() -> dict[str, Any]:
-    return {"brutto": 0.0, "netto": 0.0, "naechte": 0, "brutto_preis": 0.0, "netto_preis": 0.0,
+    return {"brutto": 0.0, "netto": 0.0, "var": 0.0, "var_preis": 0.0, "naechte": 0, "brutto_preis": 0.0, "netto_preis": 0.0,
             "naechte_preis": 0, "buchungen": 0, "stornos": 0, "vorlauf": [], "aufenthalt": [],
             "personen": [], "hund": 0, "wert": 0.0, "ids": set()}
 
@@ -287,16 +301,21 @@ def query(
             if r["storniert"] or r["abreise"] <= s_iso or r["anreise"] >= e_iso or not r["naechte"]:
                 continue
             per_b, per_n = r["brutto"] / r["naechte"], r["netto"] / r["naechte"]
+            var_n = r.get("var_naechte") or []  # variable Kosten je Nacht (deckungsbeitrag.apply)
             day = max(arrival, start)
             last = min(date.fromisoformat(r["abreise"]), end)
             while day < last:
                 a = cells[(_key(dimension, r, day, repeat), _key(split_dim, r, day, repeat))]
+                i = (day - arrival).days
+                v = var_n[i] if i < len(var_n) else 0.0
                 a["brutto"] += per_b
                 a["netto"] += per_n
+                a["var"] += v
                 a["naechte"] += 1
                 if r["brutto"]:  # ADR/Netto je Nacht nur aus Nächten mit Preis (wie v1.9.2)
                     a["brutto_preis"] += per_b
                     a["netto_preis"] += per_n
+                    a["var_preis"] += v
                     a["naechte_preis"] += 1
                 a["ids"].add(r["id"])
                 day += timedelta(days=1)

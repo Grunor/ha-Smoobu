@@ -208,6 +208,16 @@ async def test_options_and_unload(hass, setup):
     result = await hass.config_entries.options.async_configure(result["flow_id"], {
         "commission_airbnb": 20, "commission_booking": 15, "commission_fewo": 8, "commission_website": 0,
         "commission_direct": 0, "commission_other": 15, "commission_custom": "Expedia=18", "direct_channels": ["Direct booking", "Website"]})
+    # v1.18.0: Kosten & Preise (Netzanteil als 12 Werte, Aufschläge als Freitext)
+    assert result["type"] == "form" and result["step_id"] == "kosten"
+    cost = {"cost_cleaning": 20, "cost_laundry": 5, "cost_heating_year": 400, "cost_hot_water_year": 100,
+            "cost_ref_year": 2025, "cost_water_night": 0.5, "cost_power_kwh": 4, "cost_grid_price": 30,
+            "cost_pv_value": 8, "genius_discount": 10, "genius_share": 60,
+            "cost_grid_share": "70, 50, 15", "channel_markups": "Airbnb=33"}
+    bad = await hass.config_entries.options.async_configure(result["flow_id"], cost)
+    assert bad["errors"] == {"cost_grid_share": "invalid_grid_share"}
+    cost["cost_grid_share"] = "70, 50, 15, 10, 5, 5, 5, 20, 20, 45, 65, 80"
+    result = await hass.config_entries.options.async_configure(result["flow_id"], cost)
     assert result["type"] == "form" and result["step_id"] == "assistent"
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"assistant": False})
     # v1.17.0: Benachrichtigungen (Abschnitte je Push-Art) und Wohnungskürzel
@@ -228,6 +238,7 @@ async def test_options_and_unload(hass, setup):
     assert result["type"] == "create_entry"
     o = setup.options
     assert o["commissions"]["Airbnb"] == 20 and o["commissions"]["Expedia"] == 18
+    assert o["cost_cleaning"] == 20 and o["cost_grid_share"][0] == 70 and o["channel_markups"] == {"Airbnb": 33.0}
     assert o["notify_buchung"] is True and o["notify_buchung_to"] == ["notify.mobile_app_test"]
     assert o["notify_zahlung_days"] == 5 and o["notify_zahlung_time"] == "08:15"
     assert o["notify_quiet"] is True and o["notify_quiet_from"] == "22:00" and o["notify_quiet_to"] == "06:30"

@@ -32,6 +32,7 @@ from homeassistant.helpers.selector import (
 
 from .api import SmoobuAuthError, SmoobuClient, SmoobuError
 from .codes import all_codes, clean_code
+from .deckungsbeitrag import parse_grid_share, parse_markups
 from .notifications import opt_enabled, opt_recipients
 from .const import (
     COMMISSION_FIELDS,
@@ -47,8 +48,21 @@ from .const import (
     CONF_ASSIST_PATH,
     CONF_ASSIST_STATUS,
     CONF_CHECKOUT_BUFFER,
+    CONF_CHANNEL_MARKUPS,
     CONF_COMMISSIONS,
     CONF_COMMISSION_CUSTOM,
+    CONF_COST_CLEANING,
+    CONF_COST_GRID_PRICE,
+    CONF_COST_GRID_SHARE,
+    CONF_COST_HEATING_YEAR,
+    CONF_COST_HOT_WATER_YEAR,
+    CONF_COST_LAUNDRY,
+    CONF_COST_POWER_KWH,
+    CONF_COST_PV_VALUE,
+    CONF_COST_REF_YEAR,
+    CONF_COST_WATER_NIGHT,
+    CONF_GENIUS_DISCOUNT,
+    CONF_GENIUS_SHARE,
     CONF_COMMISSION_OTHER,
     CONF_DAYS_AHEAD,
     CONF_DAYS_BACK,
@@ -73,8 +87,21 @@ from .const import (
     DEFAULT_CHECKIN,
     DEFAULT_CHECKOUT,
     DEFAULT_CHECKOUT_BUFFER,
+    DEFAULT_CHANNEL_MARKUPS,
     DEFAULT_COMMISSIONS,
     DEFAULT_COMMISSION_OTHER,
+    DEFAULT_COST_CLEANING,
+    DEFAULT_COST_GRID_PRICE,
+    DEFAULT_COST_GRID_SHARE,
+    DEFAULT_COST_HEATING_YEAR,
+    DEFAULT_COST_HOT_WATER_YEAR,
+    DEFAULT_COST_LAUNDRY,
+    DEFAULT_COST_POWER_KWH,
+    DEFAULT_COST_PV_VALUE,
+    DEFAULT_COST_REF_YEAR,
+    DEFAULT_COST_WATER_NIGHT,
+    DEFAULT_GENIUS_DISCOUNT,
+    DEFAULT_GENIUS_SHARE,
     DEFAULT_DAYS_AHEAD,
     DEFAULT_DAYS_BACK,
     DEFAULT_DIRECT_CHANNELS,
@@ -330,8 +357,8 @@ class SmoobuOptionsFlow(OptionsFlow):
                     CONF_COMMISSION_OTHER: float(user_input[CONF_COMMISSION_OTHER]),
                     CONF_DIRECT_CHANNELS: list(user_input[CONF_DIRECT_CHANNELS]),
                 }
-                # Weiter zum Schritt „Assistent“; alle Schritte werden zusammen gespeichert.
-                return await self.async_step_assistent()
+                # Weiter zum Schritt „Kosten & Preise“ (v1.18.0); alle Schritte werden zusammen gespeichert.
+                return await self.async_step_kosten()
 
         def pct(field: str) -> vol.Required:
             channel = COMMISSION_FIELDS[field]
@@ -366,6 +393,62 @@ class SmoobuOptionsFlow(OptionsFlow):
             }
         )
         return self.async_show_form(step_id="provisionen", data_schema=schema, errors=errors)
+
+    async def async_step_kosten(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """v1.18.0: variable Kosten (Deckungsbeitrag) und Smoobu-Preisaufschläge je Kanal.
+
+        Netzanteil je Monat und Aufschläge sind Freitext (12 Zahlen bzw. „Kanal=Prozent“), weil
+        ein Formular mit 12 Einzelfeldern im Options-Dialog unübersichtlich wäre. Die Karte
+        „Einstellungen“ im Dashboard zeigt dieselben Werte als Einzelfelder.
+        """
+        opts = self.config_entry.options
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            data: dict[str, Any] = {}
+            for key in (CONF_COST_CLEANING, CONF_COST_LAUNDRY, CONF_COST_HEATING_YEAR, CONF_COST_HOT_WATER_YEAR,
+                        CONF_COST_WATER_NIGHT, CONF_COST_POWER_KWH, CONF_COST_GRID_PRICE, CONF_COST_PV_VALUE,
+                        CONF_GENIUS_DISCOUNT, CONF_GENIUS_SHARE):
+                data[key] = float(user_input[key])
+            data[CONF_COST_REF_YEAR] = int(user_input[CONF_COST_REF_YEAR])
+            try:
+                data[CONF_COST_GRID_SHARE] = parse_grid_share(user_input.get(CONF_COST_GRID_SHARE))
+            except ValueError:
+                errors[CONF_COST_GRID_SHARE] = "invalid_grid_share"
+            try:
+                data[CONF_CHANNEL_MARKUPS] = parse_markups(user_input.get(CONF_CHANNEL_MARKUPS))
+            except ValueError:
+                errors[CONF_CHANNEL_MARKUPS] = "invalid_custom"
+            if not errors:
+                self._cost = data
+                return await self.async_step_assistent()
+
+        def num(key: str, default: Any, lo: float, hi: float, step: float, unit: str) -> tuple:
+            return (vol.Required(key, default=opts.get(key, default)),
+                    NumberSelector(NumberSelectorConfig(min=lo, max=hi, step=step, unit_of_measurement=unit,
+                                                        mode=NumberSelectorMode.BOX)))
+
+        fields = [
+            num(CONF_COST_CLEANING, DEFAULT_COST_CLEANING, 0, 1000, 0.5, "€"),
+            num(CONF_COST_LAUNDRY, DEFAULT_COST_LAUNDRY, 0, 1000, 0.5, "€"),
+            num(CONF_COST_HEATING_YEAR, DEFAULT_COST_HEATING_YEAR, 0, 100000, 0.01, "€"),
+            num(CONF_COST_HOT_WATER_YEAR, DEFAULT_COST_HOT_WATER_YEAR, 0, 100000, 0.01, "€"),
+            num(CONF_COST_REF_YEAR, DEFAULT_COST_REF_YEAR, 2015, 2100, 1, ""),
+            num(CONF_COST_WATER_NIGHT, DEFAULT_COST_WATER_NIGHT, 0, 100, 0.01, "€"),
+            num(CONF_COST_POWER_KWH, DEFAULT_COST_POWER_KWH, 0, 200, 0.1, "kWh"),
+            num(CONF_COST_GRID_PRICE, DEFAULT_COST_GRID_PRICE, 0, 200, 0.01, "ct/kWh"),
+            num(CONF_COST_PV_VALUE, DEFAULT_COST_PV_VALUE, 0, 200, 0.01, "ct/kWh"),
+            num(CONF_GENIUS_DISCOUNT, DEFAULT_GENIUS_DISCOUNT, 0, 50, 1, "%"),
+            num(CONF_GENIUS_SHARE, DEFAULT_GENIUS_SHARE, 0, 100, 1, "%"),
+        ]
+        share = opts.get(CONF_COST_GRID_SHARE, DEFAULT_COST_GRID_SHARE)
+        markups = opts.get(CONF_CHANNEL_MARKUPS, DEFAULT_CHANNEL_MARKUPS)
+        schema = vol.Schema({
+            **dict(fields),
+            vol.Required(CONF_COST_GRID_SHARE, default=", ".join(f"{float(x):g}" for x in share)): TextSelector(),
+            vol.Optional(CONF_CHANNEL_MARKUPS, default="; ".join(f"{k}={float(v):g}" for k, v in markups.items())):
+                TextSelector(),
+        })
+        return self.async_show_form(step_id="kosten", data_schema=schema, errors=errors)
 
     async def async_step_assistent(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """KI-Assistent: KI-Hauptschalter, KI-Entität, Push-Empfänger, Kontext-Entitäten, Zusatzaufgaben."""
@@ -515,7 +598,8 @@ class SmoobuOptionsFlow(OptionsFlow):
                 if code:
                     seen.add(code)
             if not errors:
-                merged = {**entry.options, **self._general, **self._prov, **self._assist, **self._notify,
+                merged = {**entry.options, **self._general, **self._prov, **getattr(self, "_cost", {}),
+                          **self._assist, **self._notify,
                           CONF_APARTMENT_CODES: own}
                 # Ohne Auswahl entfernt der Selektor den Schlüssel nicht → explizit leeren,
                 # damit eine abgewählte KI-Entität nicht aus den alten Optionen weiterlebt.

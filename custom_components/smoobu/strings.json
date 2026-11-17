@@ -86,6 +86,33 @@
           "direct_channels": "Revenue from these channels counts as direct; all others as portal."
         }
       },
+      "kosten": {
+        "title": "Costs & prices",
+        "description": "Variable costs for the contribution margin (net − variable costs) and the markups from the Smoobu pricing tool for recommendations. Fixed costs (property tax, insurance, internet …) don't belong here – a booking doesn't change them. Heating and hot water are spread over the months by heating degree days (January ≈ 12× July) and scaled to the guest nights of the billing year.",
+        "data": {
+          "cost_cleaning": "Cleaning per stay",
+          "cost_laundry": "Laundry per stay",
+          "cost_heating_year": "Heating costs in billing year",
+          "cost_hot_water_year": "Hot water costs in billing year",
+          "cost_ref_year": "Billing year",
+          "cost_water_night": "Water/sewage per night",
+          "cost_power_kwh": "Electricity per night",
+          "cost_grid_price": "Grid electricity price",
+          "cost_pv_value": "Value of PV power (feed-in tariff)",
+          "cost_grid_share": "Grid share per month (Jan … Dec, %)",
+          "channel_markups": "Markups per channel (Smoobu pricing tool)",
+          "genius_discount": "Booking.com Genius discount",
+          "genius_share": "Share of Genius bookings"
+        },
+        "data_description": {
+          "cost_heating_year": "From the utility bill (holiday flat share only).",
+          "cost_ref_year": "Year of the bill – the annual costs are spread over its guest nights.",
+          "cost_pv_value": "PV power used by the guest would otherwise have been fed in.",
+          "cost_grid_share": "12 values, e.g. 72, 55, 15, 11, 7, 10, 5, 26, 20, 47, 67, 80 (grid import ÷ house consumption).",
+          "channel_markups": "Format: channel=percent; channel=percent (e.g. Airbnb=33; Booking.com=45; HomeToGo=10).",
+          "genius_share": "Leave at 100 % if unknown (cautious assumption)."
+        }
+      },
       "assistent": {
         "title": "KI-Assistent",
         "description": "Antwortvorschläge für Gästenachrichten mit Wissensdatenbank und Lernen aus euren Antworten. Nichts wird ohne Bestätigung an Gäste gesendet. Ist die KI erlaubt, gehen Gästenachrichten und Buchungsdaten an den gewählten KI-Anbieter. Wissensdatenbank, Lernen, Import, Tagesbriefing und Lücken-Meldung funktionieren auch ohne KI.",
@@ -213,7 +240,8 @@
       "invalid_custom": "Format: Channel=percent; Channel=percent",
       "ai_entity_required": "Please select an AI or turn off \"Allow AI features\".",
       "invalid_code": "Letters and digits only.",
-      "duplicate_code": "Code already in use."
+      "duplicate_code": "Code already in use.",
+      "invalid_grid_share": "Please enter exactly 12 values between 0 and 100."
     }
   },
   "entity": {

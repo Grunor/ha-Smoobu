@@ -43,6 +43,8 @@ class SmoobuData:
     last_message: dict[str, Any] | None = None
     # Wohnungs-ID → aufbereitete Buchungsdatensätze für Auswertungen (analytics.py)
     records: dict[int, list] = field(default_factory=dict)
+    # Wohnungs-ID → Kostentabelle (deckungsbeitrag.CostTable) für variable Kosten je Nacht
+    cost_tables: dict[int, Any] = field(default_factory=dict)
 
 
 def parse_time(value: Any, fallback: time | None) -> time | None:

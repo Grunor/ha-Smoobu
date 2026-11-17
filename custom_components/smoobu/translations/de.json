@@ -86,6 +86,33 @@
           "direct_channels": "Umsatz dieser Kanäle zählt als Direkt, alle anderen als Portal."
         }
       },
+      "kosten": {
+        "title": "Kosten & Preise",
+        "description": "Variable Kosten für den Deckungsbeitrag (Netto − variable Kosten) und die Preisaufschläge aus dem Smoobu-Preistool für Empfehlungen. Fixkosten (Grundsteuer, Versicherung, Internet …) gehören nicht hierher – sie ändern sich durch eine Buchung nicht. Heizung und Warmwasser werden nach Gradtagszahlen auf die Monate verteilt (Januar ≈ 12× Juli) und auf die Gästenächte des Abrechnungsjahres skaliert.",
+        "data": {
+          "cost_cleaning": "Reinigung je Aufenthalt",
+          "cost_laundry": "Wäsche je Aufenthalt",
+          "cost_heating_year": "Heizkosten im Abrechnungsjahr",
+          "cost_hot_water_year": "Warmwasserkosten im Abrechnungsjahr",
+          "cost_ref_year": "Abrechnungsjahr",
+          "cost_water_night": "Wasser/Abwasser je Nacht",
+          "cost_power_kwh": "Strom je Nacht",
+          "cost_grid_price": "Netzstrompreis",
+          "cost_pv_value": "Wert PV-Strom (Einspeisevergütung)",
+          "cost_grid_share": "Netzanteil je Monat (Jan … Dez, %)",
+          "channel_markups": "Aufschläge je Kanal (Smoobu-Preistool)",
+          "genius_discount": "Booking.com Genius-Rabatt",
+          "genius_share": "Anteil Genius-Buchungen"
+        },
+        "data_description": {
+          "cost_heating_year": "Aus der Nebenkostenabrechnung (nur der Anteil der Ferienwohnung).",
+          "cost_ref_year": "Jahr der Abrechnung – darüber werden die Jahreskosten auf dessen Gästenächte verteilt.",
+          "cost_pv_value": "PV-Strom, den der Gast nutzt, wäre sonst eingespeist worden.",
+          "cost_grid_share": "12 Werte, z. B. 72, 55, 15, 11, 7, 10, 5, 26, 20, 47, 67, 80 (Netzbezug ÷ Hausverbrauch).",
+          "channel_markups": "Format: Kanal=Prozent; Kanal=Prozent (z. B. Airbnb=33; Booking.com=45; HomeToGo=10).",
+          "genius_share": "Ohne Kenntnis 100 % lassen (vorsichtige Annahme)."
+        }
+      },
       "assistent": {
         "title": "KI-Assistent",
         "description": "Antwortvorschläge für Gästenachrichten mit Wissensdatenbank und Lernen aus euren Antworten. Nichts wird ohne Bestätigung an Gäste gesendet. Ist die KI erlaubt, gehen Gästenachrichten und Buchungsdaten an den gewählten KI-Anbieter. Wissensdatenbank, Lernen, Import, Tagesbriefing und Lücken-Meldung funktionieren auch ohne KI.",
@@ -213,7 +240,8 @@
       "invalid_custom": "Format: Kanal=Prozent; Kanal=Prozent",
       "ai_entity_required": "Bitte eine KI auswählen oder „KI-Funktionen erlauben“ ausschalten.",
       "invalid_code": "Nur Buchstaben und Ziffern.",
-      "duplicate_code": "Kürzel bereits vergeben."
+      "duplicate_code": "Kürzel bereits vergeben.",
+      "invalid_grid_share": "Bitte genau 12 Werte zwischen 0 und 100 angeben."
     }
   },
   "entity": {

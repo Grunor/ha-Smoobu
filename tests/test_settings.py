@@ -82,7 +82,7 @@ async def test_options_notify_sections_have_inner_defaults(hass, setup):  # noqa
     from homeassistant.helpers import config_validation as cv
 
     flow = await hass.config_entries.options.async_init(setup.entry_id)
-    for _ in range(3):  # init → provisionen → assistent → benachrichtigungen (Standardwerte übernehmen)
+    for _ in range(4):  # init → provisionen → kosten → assistent → benachrichtigungen (Standardwerte übernehmen)
         schema = flow["data_schema"]
         data = {str(k): k.default() for k in schema.schema if callable(getattr(k, "default", None))}
         flow = await hass.config_entries.options.async_configure(flow["flow_id"], data)
@@ -91,3 +91,22 @@ async def test_options_notify_sections_have_inner_defaults(hass, setup):  # noqa
     for field in fields:
         assert "default" not in field, field["name"]
         assert any("default" in sub for sub in field["schema"])
+
+
+async def test_settings_kosten(hass, setup, hass_ws_client):  # noqa: F811
+    """v1.18.0: Kosten & Preise in der Einstellungskarte – Standardwerte, Prüfung, Speichern."""
+    ws = await hass_ws_client(hass)
+    werte = (await _call(ws, 1, type="smoobu/settings/get"))["result"]["werte"]
+    assert werte["cost_cleaning"] == 17.0 and werte["cost_ref_year"] == 2025 and len(werte["cost_grid_share"]) == 12
+    assert werte["channel_markups"]["Booking.com"] == 45.0 and werte["genius_share"] == 100.0
+    res = (await _call(ws, 2, type="smoobu/settings/set", changes={
+        "cost_grid_share": [1, 2, 3], "genius_discount": 80, "cost_cleaning": "abc"}))["result"]
+    assert res["fehler"] == {"cost_grid_share": "invalid_grid_share", "genius_discount": "invalid_number",
+                             "cost_cleaning": "invalid_number"}
+    res = (await _call(ws, 3, type="smoobu/settings/set", changes={
+        "cost_cleaning": "19,5", "cost_grid_share": [60] * 12, "channel_markups": {"Airbnb": 30, "Expedia": "20"}}))["result"]
+    await hass.async_block_till_done()
+    assert res["ok"] is True
+    o = setup.options
+    assert o["cost_cleaning"] == 19.5 and o["cost_grid_share"] == [60.0] * 12
+    assert o["channel_markups"] == {"Airbnb": 30.0, "Expedia": 20.0}

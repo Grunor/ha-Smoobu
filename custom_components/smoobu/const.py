@@ -118,6 +118,37 @@ MAX_CODE_LEN = 4
 # Einstellungen im Dashboard (v1.18.0): HA-Benutzer-IDs, die außer den Admins ändern dürfen
 CONF_SETTINGS_USERS = "settings_users"
 
+# Kosten & Preise (v1.18.0, Entscheidung Betreiber 17.11.2026): variable Kosten für den
+# Deckungsbeitrag und Smoobu-Preisaufschläge je Kanal für Empfehlungen.
+# Standardwerte = Nebenkostenabrechnung der Referenz-Ferienwohnung 2025 (siehe deckungsbeitrag.py)
+CONF_COST_CLEANING = "cost_cleaning"            # € je Aufenthalt
+CONF_COST_LAUNDRY = "cost_laundry"              # € je Aufenthalt
+CONF_COST_HEATING_YEAR = "cost_heating_year"    # € Heizung im Bezugsjahr
+CONF_COST_HOT_WATER_YEAR = "cost_hot_water_year"  # € Warmwasser im Bezugsjahr
+CONF_COST_REF_YEAR = "cost_ref_year"            # Abrechnungsjahr der Jahreswerte
+CONF_COST_WATER_NIGHT = "cost_water_night"      # € Wasser/Abwasser je Nacht
+CONF_COST_POWER_KWH = "cost_power_kwh"          # kWh Strom je Nacht
+CONF_COST_GRID_PRICE = "cost_grid_price"        # ct/kWh Netzstrom
+CONF_COST_PV_VALUE = "cost_pv_value"            # ct/kWh PV-Strom (Einspeisevergütung)
+CONF_COST_GRID_SHARE = "cost_grid_share"        # 12 Werte: % Netzbezug je Monat
+CONF_CHANNEL_MARKUPS = "channel_markups"        # {Kanal: % Aufschlag auf den Smoobu-Basispreis}
+CONF_GENIUS_DISCOUNT = "genius_discount"        # % Booking.com-Genius-Rabatt
+CONF_GENIUS_SHARE = "genius_share"              # % der Booking.com-Buchungen mit Genius
+DEFAULT_COST_CLEANING = 17.0
+DEFAULT_COST_LAUNDRY = 5.0
+DEFAULT_COST_HEATING_YEAR = 473.31
+DEFAULT_COST_HOT_WATER_YEAR = 161.53
+DEFAULT_COST_REF_YEAR = 2025
+DEFAULT_COST_WATER_NIGHT = 0.47
+DEFAULT_COST_POWER_KWH = 4.6
+DEFAULT_COST_GRID_PRICE = 30.54
+DEFAULT_COST_PV_VALUE = 8.2
+DEFAULT_COST_GRID_SHARE = [72, 55, 15, 11, 7, 10, 5, 26, 20, 47, 67, 80]
+DEFAULT_CHANNEL_MARKUPS = {"Airbnb": 33.0, "Booking.com": 45.0, "HomeToGo": 10.0}
+DEFAULT_GENIUS_DISCOUNT = 10.0
+# Konservativ: ohne Angabe wird angenommen, dass jeder Booking.com-Gast Genius-Rabatt bekommt
+DEFAULT_GENIUS_SHARE = 100.0
+
 SERVICE_ASSIST_SUGGEST = "assistant_suggest"
 SERVICE_ASSIST_IMPORT = "assistant_import"
 SERVICE_ASSIST_KNOWLEDGE = "assistant_build_knowledge"

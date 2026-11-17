@@ -4240,7 +4240,7 @@ class SmoobuHeaderCard extends SmoobuCard {
 // ===========================================================================
 const SET_TABS = [
   ["benachrichtigungen", "Benachrichtigungen"], ["assistent", "KI-Assistent"],
-  ["provisionen", "Provisionen & Kanäle"], ["allgemein", "Allgemein & Abruf"],
+  ["provisionen", "Provisionen & Kanäle"], ["kosten", "Kosten & Preise"], ["allgemein", "Allgemein & Abruf"],
 ];
 const PUSH_INFO = {
   buchung: ["Neue Buchung", "Sobald eine neue Buchung eingeht (keine Sperrzeiten)."],
@@ -4257,6 +4257,7 @@ const SET_FIELD_TAB = (key) => {
   if (key.startsWith("notify_") || key === "assist_briefing_time") return "benachrichtigungen";
   if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key)) return "assistent";
   if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels"].includes(key)) return "provisionen";
+  if (key.startsWith("cost_") || ["channel_markups", "genius_discount", "genius_share"].includes(key)) return "kosten";
   return "allgemein";
 };
 const SET_ERR = {
@@ -4264,13 +4265,16 @@ const SET_ERR = {
   invalid_entity: "Ungültige Entität", invalid_list: "Ungültige Liste", invalid_code: "Nur Buchstaben und Ziffern",
   duplicate_code: "Kürzel schon vergeben", ai_entity_required: "Bitte eine KI wählen oder „KI erlauben“ ausschalten",
   admin_only: "Nur Admins können das ändern", unknown_field: "Unbekanntes Feld",
+  invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_grid_share: "12 Werte zwischen 0 und 100",
 };
+// Gradtagszahlen (Promille je Monat) – gleiche Tabelle wie deckungsbeitrag.HEAT_PROMILLE (nur für die Vorschau)
+const HEAT_PROMILLE = [170, 150, 130, 80, 40, 13.33, 13.33, 13.34, 30, 80, 120, 160];
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const phoneName = (svc) => svc.replace(/^notify\.mobile_app_/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 class SmoobuSettingsCard extends SmoobuCard {
-  // tab: Start-Reiter (benachrichtigungen | assistent | provisionen | allgemein)
+  // tab: Start-Reiter (benachrichtigungen | assistent | provisionen | kosten | allgemein)
   static defaults = { title: "Einstellungen", entry_id: null, tab: "benachrichtigungen" };
   static initialState = (c) => ({ tab: c.tab || "benachrichtigungen", errors: {}, saving: false });
   static css = `
@@ -4397,6 +4401,43 @@ class SmoobuSettingsCard extends SmoobuCard {
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Zahlung über das Portal")}</b><span class="sub">${t("Buchungen dieser Kanäle zählen nicht als offene Zahlung.")}</span></div></div>
         <div class="gb">${this.pick("payment_excluded_channels", meta.kanaele, chn, true)}${this.err("payment_excluded_channels")}</div></div>`;
   }
+  // v1.18.0: variable Kosten (Deckungsbeitrag) und Preisaufschläge aus dem Smoobu-Preistool
+  tabCost(meta) {
+    const d = this._draft;
+    const share = d.cost_grid_share || [];
+    const months = MONTHS_SHORT.map((m, i) => `<label class="inline" style="gap:4px"><span class="unit" style="width:28px">${esc(t(m))}</span>
+      <input type="number" data-share="${i}" min="0" max="100" step="1" value="${esc(share[i] ?? "")}" style="width:64px"><span class="unit">%</span></label>`).join("");
+    const mk = Object.entries(d.channel_markups || {}).map(([ch, pct]) => `<tr><td><input type="text" class="name" data-mname="${esc(ch)}" value="${esc(ch)}"></td>
+      <td class="n"><span class="inline" style="justify-content:flex-end"><input type="number" data-mk="${esc(ch)}" min="-50" max="300" step="1" value="${esc(pct)}"><span class="unit">%</span></span></td>
+      <td><button class="lnk" data-mdel="${esc(ch)}">${t("Entfernen")}</button></td></tr>`).join("");
+    // Vorschau Heizkosten-Verteilung: Anteil je Monat relativ zum Januar (je Nacht)
+    const days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const wJan = HEAT_PROMILLE[0] / 31;
+    const dist = MONTHS_SHORT.map((m, i) => `${t(m)} ${num((HEAT_PROMILLE[i] / days[i]) / wJan * 100, 0)} %`).join(" · ");
+    return `<div class="note">${t("Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.")}</div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Je Aufenthalt")}</b></div></div><div class="gb">
+        ${this.fld("Reinigung", this.numIn("cost_cleaning", 0, 1000, 0.5, "€"), "", "cost_cleaning")}
+        ${this.fld("Wäsche", this.numIn("cost_laundry", 0, 1000, 0.5, "€"), "", "cost_laundry")}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Heizung & Warmwasser")}</b>
+        <span class="sub">${t("Jahreskosten aus der Nebenkostenabrechnung. Verteilung nach Gradtagszahlen, skaliert auf die Gästenächte des Abrechnungsjahres.")}</span></div></div><div class="gb">
+        ${this.fld("Heizkosten im Abrechnungsjahr", this.numIn("cost_heating_year", 0, 100000, 0.01, "€"), "", "cost_heating_year")}
+        ${this.fld("Warmwasser im Abrechnungsjahr", this.numIn("cost_hot_water_year", 0, 100000, 0.01, "€"), "Im Sommer deckt die Solarthermie – gleiche Verteilung wie die Heizung.", "cost_hot_water_year")}
+        ${this.fld("Abrechnungsjahr", this.numIn("cost_ref_year", 2015, 2100, 1), "", "cost_ref_year")}
+        <div class="hint">${t("Kosten je Nacht relativ zum Januar")}: ${esc(dist)}</div></div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Wasser & Strom je Nacht")}</b>
+        <span class="sub">${t("Strompreis je Monat = Netzanteil × Netzpreis + Rest × Wert des PV-Stroms (entgangene Einspeisevergütung).")}</span></div></div><div class="gb">
+        ${this.fld("Wasser/Abwasser", this.numIn("cost_water_night", 0, 100, 0.01, "€"), "", "cost_water_night")}
+        ${this.fld("Strom", this.numIn("cost_power_kwh", 0, 200, 0.1, "kWh"), "", "cost_power_kwh")}
+        ${this.fld("Netzstrompreis", this.numIn("cost_grid_price", 0, 200, 0.01, "ct/kWh"), "", "cost_grid_price")}
+        ${this.fld("Wert PV-Strom", this.numIn("cost_pv_value", 0, 200, 0.01, "ct/kWh"), "", "cost_pv_value")}
+        ${this.fld("Netzanteil je Monat", `<div class="chips">${months}</div>`, "Netzbezug ÷ Hausverbrauch, z. B. aus dem Energie-Dashboard.", "cost_grid_share")}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Aufschläge je Kanal")}</b>
+        <span class="sub">${t("Wie im Smoobu-Preistool: Kanalpreis = Basispreis + Aufschlag. Grundlage für Preisuntergrenzen und Empfehlungen.")}</span></div></div>
+      <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Aufschlag")}</th><th></th></tr></thead><tbody>${mk}</tbody></table></div>
+        <div class="inline"><button class="btn flat" data-madd>＋ ${t("Kanal hinzufügen")}</button></div>${this.err("channel_markups")}
+        ${this.fld("Booking.com Genius-Rabatt", this.numIn("genius_discount", 0, 50, 1, "%"), "Genius-Gäste zahlen weniger als den Kanalpreis.", "genius_discount")}
+        ${this.fld("Anteil Genius-Buchungen", this.numIn("genius_share", 0, 100, 1, "%"), "Unbekannt? 100 % lassen – vorsichtige Annahme (siehe Booking.com-Extranet).", "genius_share")}</div></div>`;
+  }
   tabGeneral(meta) {
     const d = this._draft;
     const codes = meta.wohnungen.map((w) => this.fld(w.name, `<input type="text" data-code="${esc(w.id)}" maxlength="4" style="width:90px"
@@ -4429,7 +4470,8 @@ class SmoobuSettingsCard extends SmoobuCard {
     const errTabs = new Set(Object.keys(this._state.errors).map((k) => SET_FIELD_TAB(k.split(".")[0])));
     const tabs = SET_TABS.map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
     const konten = res.konten.length > 1 ? `<select data-entry>${res.konten.map((k) => `<option value="${esc(k.entry_id)}" ${k.entry_id === res.entry_id ? "selected" : ""}>${esc(k.title)}</option>`).join("")}</select>` : "";
-    const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "allgemein" ? this.tabGeneral(meta) : this.tabPush(meta);
+    const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "kosten" ? this.tabCost(meta)
+      : tab === "allgemein" ? this.tabGeneral(meta) : this.tabPush(meta);
     const n = this.dirty ? Object.keys(this.changes()).length : 0;
     const status = this._state.saving ? t("Speichere … die Integration lädt danach neu.")
       : n ? `${n} ${t(n === 1 ? "ungespeicherte Änderung" : "ungespeicherte Änderungen")}` : t("Alles gespeichert.");
@@ -4496,6 +4538,30 @@ class SmoobuSettingsCard extends SmoobuCard {
       let name = t("Neuer Kanal"), i = 2;
       while (name in d.commissions) name = `${t("Neuer Kanal")} ${i++}`;
       d.commissions = { ...d.commissions, [name]: d.commission_other };
+      redraw();
+    });
+    // Kosten & Preise: Netzanteil je Monat, Aufschläge (Kanal umbenennen, entfernen, hinzufügen)
+    root.querySelectorAll("[data-share]").forEach((inp) => inp.addEventListener("input", () => {
+      const list = [...(d.cost_grid_share || [])];
+      list[Number(inp.dataset.share)] = inp.value === "" ? "" : Number(inp.value);
+      d.cost_grid_share = list; this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-mk]").forEach((inp) => inp.addEventListener("input", () => {
+      d.channel_markups = { ...d.channel_markups, [inp.dataset.mk]: inp.value === "" ? "" : Number(inp.value) }; this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-mname]").forEach((inp) => inp.addEventListener("change", () => {
+      const old = inp.dataset.mname, name = inp.value.trim();
+      if (!name || name === old || name in d.channel_markups) { inp.value = old; return; }
+      d.channel_markups = Object.fromEntries(Object.entries(d.channel_markups).map(([k, v]) => [k === old ? name : k, v]));
+      redraw();
+    }));
+    root.querySelectorAll("[data-mdel]").forEach((b) => b.addEventListener("click", () => {
+      const c = { ...d.channel_markups }; delete c[b.dataset.mdel]; d.channel_markups = c; redraw();
+    }));
+    root.querySelector("[data-madd]")?.addEventListener("click", () => {
+      let name = t("Neuer Kanal"), i = 2;
+      while (name in d.channel_markups) name = `${t("Neuer Kanal")} ${i++}`;
+      d.channel_markups = { ...d.channel_markups, [name]: 0 };
       redraw();
     });
     root.querySelector("[data-entry]")?.addEventListener("change", async (e) => {

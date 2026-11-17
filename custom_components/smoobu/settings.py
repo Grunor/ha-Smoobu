@@ -27,7 +27,34 @@ from homeassistant.core import HomeAssistant
 
 from .analytics import channels_of
 from .codes import all_codes, clean_code
+from .deckungsbeitrag import parse_grid_share, parse_markups
 from .const import (
+    CONF_CHANNEL_MARKUPS,
+    DEFAULT_CHANNEL_MARKUPS,
+    CONF_COST_CLEANING,
+    DEFAULT_COST_CLEANING,
+    CONF_COST_GRID_PRICE,
+    DEFAULT_COST_GRID_PRICE,
+    CONF_COST_GRID_SHARE,
+    DEFAULT_COST_GRID_SHARE,
+    CONF_COST_HEATING_YEAR,
+    DEFAULT_COST_HEATING_YEAR,
+    CONF_COST_HOT_WATER_YEAR,
+    DEFAULT_COST_HOT_WATER_YEAR,
+    CONF_COST_LAUNDRY,
+    DEFAULT_COST_LAUNDRY,
+    CONF_COST_POWER_KWH,
+    DEFAULT_COST_POWER_KWH,
+    CONF_COST_PV_VALUE,
+    DEFAULT_COST_PV_VALUE,
+    CONF_COST_REF_YEAR,
+    DEFAULT_COST_REF_YEAR,
+    CONF_COST_WATER_NIGHT,
+    DEFAULT_COST_WATER_NIGHT,
+    CONF_GENIUS_DISCOUNT,
+    DEFAULT_GENIUS_DISCOUNT,
+    CONF_GENIUS_SHARE,
+    DEFAULT_GENIUS_SHARE,
     COMMISSION_FIELDS,
     CONF_AI_ENABLED,
     CONF_AI_ENTITY,
@@ -146,6 +173,20 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_NOTIFY_QUIET_MESSAGES: bool(o.get(CONF_NOTIFY_QUIET_MESSAGES, True)),
         # Wer im Dashboard ändern darf (nur Admins können das selbst ändern)
         CONF_SETTINGS_USERS: list(o.get(CONF_SETTINGS_USERS) or []),
+        # Kosten & Preise (v1.18.0)
+        CONF_COST_CLEANING: float(o.get(CONF_COST_CLEANING, DEFAULT_COST_CLEANING)),
+        CONF_COST_LAUNDRY: float(o.get(CONF_COST_LAUNDRY, DEFAULT_COST_LAUNDRY)),
+        CONF_COST_HEATING_YEAR: float(o.get(CONF_COST_HEATING_YEAR, DEFAULT_COST_HEATING_YEAR)),
+        CONF_COST_HOT_WATER_YEAR: float(o.get(CONF_COST_HOT_WATER_YEAR, DEFAULT_COST_HOT_WATER_YEAR)),
+        CONF_COST_REF_YEAR: int(o.get(CONF_COST_REF_YEAR, DEFAULT_COST_REF_YEAR)),
+        CONF_COST_WATER_NIGHT: float(o.get(CONF_COST_WATER_NIGHT, DEFAULT_COST_WATER_NIGHT)),
+        CONF_COST_POWER_KWH: float(o.get(CONF_COST_POWER_KWH, DEFAULT_COST_POWER_KWH)),
+        CONF_COST_GRID_PRICE: float(o.get(CONF_COST_GRID_PRICE, DEFAULT_COST_GRID_PRICE)),
+        CONF_COST_PV_VALUE: float(o.get(CONF_COST_PV_VALUE, DEFAULT_COST_PV_VALUE)),
+        CONF_COST_GRID_SHARE: [float(x) for x in (o.get(CONF_COST_GRID_SHARE) or DEFAULT_COST_GRID_SHARE)],
+        CONF_CHANNEL_MARKUPS: {str(k): float(v) for k, v in (o.get(CONF_CHANNEL_MARKUPS, DEFAULT_CHANNEL_MARKUPS)).items()},
+        CONF_GENIUS_DISCOUNT: float(o.get(CONF_GENIUS_DISCOUNT, DEFAULT_GENIUS_DISCOUNT)),
+        CONF_GENIUS_SHARE: float(o.get(CONF_GENIUS_SHARE, DEFAULT_GENIUS_SHARE)),
     }
     # Je Push-Art an/aus und Empfänger (gleiche Rückfallregeln wie der Benachrichtigungsdienst)
     for kind in NOTIFY_TYPES:
@@ -255,6 +296,35 @@ def _commissions(value: Any) -> dict[str, float]:
     return out
 
 
+def _num(lo: float, hi: float):
+    """Zahl (auch mit Komma) im Bereich lo–hi."""
+    def check(value: Any) -> float:
+        try:
+            number = float(str(value).replace(",", "."))
+        except ValueError as err:
+            raise vol.Invalid("invalid_number") from err
+        if not lo <= number <= hi:
+            raise vol.Invalid("invalid_number")
+        return round(number, 2)
+    return check
+
+
+def _grid_share(value: Any) -> list[float]:
+    try:
+        return parse_grid_share(value)
+    except (TypeError, ValueError) as err:
+        raise vol.Invalid("invalid_grid_share") from err
+
+
+def _markups(value: Any) -> dict[str, float]:
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    try:
+        return parse_markups(value)
+    except (TypeError, ValueError) as err:
+        raise vol.Invalid("invalid_number") from err
+
+
 def _codes(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         raise vol.Invalid("invalid_list")
@@ -292,6 +362,19 @@ FIELDS: dict[str, Any] = {
     CONF_NOTIFY_QUIET_TO: _hhmm,
     CONF_NOTIFY_QUIET_MESSAGES: bool,
     CONF_SETTINGS_USERS: _names,
+    CONF_COST_CLEANING: _num(0, 1000),
+    CONF_COST_LAUNDRY: _num(0, 1000),
+    CONF_COST_HEATING_YEAR: _num(0, 100000),
+    CONF_COST_HOT_WATER_YEAR: _num(0, 100000),
+    CONF_COST_REF_YEAR: _int(2015, 2100),
+    CONF_COST_WATER_NIGHT: _num(0, 100),
+    CONF_COST_POWER_KWH: _num(0, 200),
+    CONF_COST_GRID_PRICE: _num(0, 200),
+    CONF_COST_PV_VALUE: _num(0, 200),
+    CONF_COST_GRID_SHARE: _grid_share,
+    CONF_CHANNEL_MARKUPS: _markups,
+    CONF_GENIUS_DISCOUNT: _num(0, 50),
+    CONF_GENIUS_SHARE: _num(0, 100),
     **{f"notify_{kind}": bool for kind in NOTIFY_TYPES},
     **{f"notify_{kind}_to": _pattern_list(_NOTIFY_RE) for kind in NOTIFY_TYPES},
 }

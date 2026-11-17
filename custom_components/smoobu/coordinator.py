@@ -51,6 +51,9 @@ from .const import (
     FALLBACK_CHECKOUT,
 )
 from .analytics import build_records, is_cancelled
+from .deckungsbeitrag import apply as db_apply
+from .deckungsbeitrag import build_table as db_build_table
+from .deckungsbeitrag import config_from_options as cost_config_from_options
 from .channels import booking_costs, night_rows
 from .models import (
     PET_MESSAGE_KEY,
@@ -295,6 +298,8 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         b_nights: dict[int, dict[str, int]] = {}
         rows: dict[int, list] = {}
         records: dict[int, list] = {}
+        cost_tables: dict[int, Any] = {}
+        cost_cfg = cost_config_from_options(self.config_entry.options)
         # Aktuellere Daten aus dem Buchungsfenster haben Vorrang (Detaildaten
         # wie Vorname); Umsatzabfrage ergänzt Historie, Stornos und Fernes.
         merged = {int(b.get("id") or 0): b for b in revenue_bookings}
@@ -304,6 +309,10 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             records[apt_id] = build_records(
                 apt_all, self.costs, self.payment_excluded_channels, today
             )
+            # v1.18.0: variable Kosten + Deckungsbeitrag je Buchung (Heizung skaliert auf die
+            # Gästenächte des Bezugsjahres dieser Wohnung)
+            cost_tables[apt_id] = db_build_table(records[apt_id], cost_cfg)
+            db_apply(records[apt_id], cost_tables[apt_id])
             # Für alle bisherigen Umsatzwerte nur gültige Buchungen (ohne Stornos)
             items = [
                 b
@@ -334,6 +343,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             last_message=previous.last_message,
             night_rows=rows,
             records=records,
+            cost_tables=cost_tables,
         )
 
     async def _async_load_rates(
