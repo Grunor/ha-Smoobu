@@ -14,6 +14,11 @@ Befehle (alle nur für angemeldete HA-Benutzer):
 - smoobu/rates             Tagespreise, Mindestaufenthalt, Verfügbarkeit für einen Zeitraum
 - smoobu/stats             Statistik-Werkbank: Baukasten-Abfrage und Pace-Modell (v1.18.0)
 - smoobu/subscribe         Meldung bei jedem neuen Datenstand (Karten laden dann neu)
+- smoobu/settings/get      Optionen + Auswahllisten für die Einstellungskarte (v1.18.0)
+- smoobu/settings/set      geänderte Optionen prüfen und speichern (v1.18.0)
+
+Die beiden settings-Befehle prüfen die Berechtigung selbst: HA-Admins oder die in
+der Option „Einstellungen im Dashboard erlauben für“ gewählten Benutzer.
 
 Ab v1.15.0 akzeptieren bookings, analytics, booking, message_status,
 message_done und der Assistent `apartment_id: "alle"` (Ansicht „Alle
@@ -52,6 +57,7 @@ from .stats import service as stats_service, storno as stats_storno
 from .const import DOMAIN
 from .coordinator import SmoobuCoordinator
 from .models import strip_html
+from . import settings as smoobu_settings
 
 # Feste, gut unterscheidbare Farben je Kanal (Portalfarben angelehnt an die Marken,
 # Direktkanäle in Grüntönen). Unbekannte Kanäle bekommen Farben aus PALETTE.
@@ -158,6 +164,8 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_assistant_suggest)
     websocket_api.async_register_command(hass, ws_assistant_send)
     websocket_api.async_register_command(hass, ws_assistant_job)
+    websocket_api.async_register_command(hass, ws_settings_get)
+    websocket_api.async_register_command(hass, ws_settings_set)
 
 
 _TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): _apt_id}
@@ -654,3 +662,52 @@ async def ws_assistant_job(hass: HomeAssistant, connection: websocket_api.Active
             connection.send_result(msg["id"])
     except (vol.Invalid, SmoobuError) as err:
         connection.send_error(msg["id"], "assistant_error", str(err))
+
+
+# ---------------------------------------------------------------------------
+# Einstellungen im Dashboard (v1.18.0)
+# ---------------------------------------------------------------------------
+def _settings_entry(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]):
+    """Smoobu-Konto, das der Benutzer ändern darf (entry_id oder das erste erlaubte)."""
+    entries = smoobu_settings.editable_entries(hass, connection.user)
+    if entry_id := msg.get("entry_id"):
+        entries = [e for e in entries if e.entry_id == entry_id]
+    return entries[0] if entries else None
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/settings/get", vol.Optional("entry_id"): str})
+@websocket_api.async_response
+async def ws_settings_get(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    entry = _settings_entry(hass, connection, msg)
+    if entry is None:
+        # Kein Fehler, sondern Hinweis in der Karte („keine Berechtigung“)
+        connection.send_result(msg["id"], {"erlaubt": False})
+        return
+    connection.send_result(
+        msg["id"],
+        {
+            "erlaubt": True,
+            "entry_id": entry.entry_id,
+            "konten": [{"entry_id": e.entry_id, "title": e.title}
+                       for e in smoobu_settings.editable_entries(hass, connection.user)],
+            "werte": smoobu_settings.current(entry),
+            "meta": await smoobu_settings.meta(hass, entry, connection.user),
+        },
+    )
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/settings/set", vol.Optional("entry_id"): str, vol.Required("changes"): dict}
+)
+@websocket_api.async_response
+async def ws_settings_set(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    entry = _settings_entry(hass, connection, msg)
+    if entry is None:
+        connection.send_error(msg["id"], "unauthorized", "Keine Berechtigung für die Smoobu-Einstellungen")
+        return
+    options, errors = smoobu_settings.validate(hass, entry, msg["changes"], connection.user)
+    if errors:
+        connection.send_result(msg["id"], {"ok": False, "fehler": errors})
+        return
+    changed = await smoobu_settings.save(hass, entry, options)
+    connection.send_result(msg["id"], {"ok": True, "geaendert": changed, "werte": smoobu_settings.current(entry)})

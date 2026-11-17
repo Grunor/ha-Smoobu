@@ -13,6 +13,7 @@ from homeassistant.data_entry_flow import section
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    SelectOptionDict,
     BooleanSelector,
     DateSelector,
     EntitySelector,
@@ -56,6 +57,7 @@ from .const import (
     CONF_DIRECT_CHANNELS,
     CONF_ENRICH_COUNT,
     CONF_HISTORY_SINCE,
+    CONF_SETTINGS_USERS,
     CONF_HISTORY_YEARS,
     CONF_NOTIFY_GAPS_TIME,
     CONF_NOTIFY_PAYMENT_DAYS,
@@ -213,6 +215,13 @@ class SmoobuOptionsFlow(OptionsFlow):
             return await self.async_step_provisionen()
 
         opts = self.config_entry.options
+        # v1.18.0: HA-Benutzer für „Einstellungen im Dashboard erlauben für“ (Admins dürfen immer)
+        users = [
+            SelectOptionDict(value=u.id, label=f"{u.name or u.id}{' (Admin)' if u.is_admin else ''}")
+            for u in await self.hass.auth.async_get_users()
+            if u.is_active and not u.system_generated
+        ]
+        known = {u["value"] for u in users}
         schema = vol.Schema(
             {
                 vol.Required(
@@ -280,6 +289,12 @@ class SmoobuOptionsFlow(OptionsFlow):
                     CONF_HISTORY_SINCE,
                     description={"suggested_value": opts.get(CONF_HISTORY_SINCE)},
                 ): DateSelector(),
+                # v1.18.0: Wer außer den Admins die Einstellungskarte im Dashboard nutzen darf.
+                # Gelöschte Benutzer fallen still heraus (nur bekannte IDs als Vorbelegung).
+                vol.Optional(
+                    CONF_SETTINGS_USERS,
+                    default=[u for u in opts.get(CONF_SETTINGS_USERS, []) if u in known],
+                ): SelectSelector(SelectSelectorConfig(options=users, multiple=True, mode=SelectSelectorMode.DROPDOWN)),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
@@ -393,10 +408,63 @@ class SmoobuOptionsFlow(OptionsFlow):
             if svc.startswith("mobile_app_")
         )
 
+    def _notify_schema(self) -> vol.Schema:
+        """Formular „Benachrichtigungen“: je Push-Art ein Abschnitt, dazu Ruhezeit.
+
+        v1.18.0: Abschnitte sind Optional OHNE default. Ein Abschnitts-Default (früher `default={}`)
+        überschreibt im Frontend die Defaults der Felder darin → Pflichtfeld „aktiv“ leer →
+        OK-Button gesperrt (Fehler in 1.17.0). Fehlende Abschnitte füllt der Submit-Schritt mit
+        den Feld-Defaults auf (siehe async_step_benachrichtigungen).
+        """
+        opts = self.config_entry.options
+        recipients = SelectSelector(
+            SelectSelectorConfig(options=self._notify_services(), multiple=True, custom_value=True,
+                                 mode=SelectSelectorMode.DROPDOWN)
+        )
+        hhmm = TimeSelector()
+
+        def kind_section(kind: str, extra: dict | None = None, collapsed: bool = True) -> section:
+            fields = {
+                vol.Required("aktiv", default=opt_enabled(opts, kind)): BooleanSelector(),
+                vol.Optional("empfaenger", default=opt_recipients(opts, kind)): recipients,
+                **(extra or {}),
+            }
+            return section(vol.Schema(fields), {"collapsed": collapsed})
+
+        return vol.Schema(
+            {
+                vol.Optional("buchung"): kind_section("buchung", collapsed=False),
+                vol.Optional("storno"): kind_section("storno"),
+                vol.Optional("nachricht"): kind_section("nachricht"),
+                vol.Optional("vorschlag"): kind_section("vorschlag"),
+                vol.Optional("zahlung"): kind_section("zahlung", {
+                    vol.Required("tage", default=int(opts.get(CONF_NOTIFY_PAYMENT_DAYS, DEFAULT_NOTIFY_PAYMENT_DAYS))): NumberSelector(
+                        NumberSelectorConfig(min=1, max=60, step=1, unit_of_measurement="d", mode=NumberSelectorMode.BOX)
+                    ),
+                    vol.Required("uhrzeit", default=_time_default(opts.get(CONF_NOTIFY_PAYMENT_TIME, DEFAULT_NOTIFY_PAYMENT_TIME))): hhmm,
+                }),
+                vol.Optional("briefing"): kind_section("briefing", {
+                    vol.Required("uhrzeit", default=_time_default(opts.get(CONF_ASSIST_BRIEFING_TIME, "07:30"))): hhmm,
+                }),
+                vol.Optional("luecken"): kind_section("luecken", {
+                    vol.Required("uhrzeit", default=_time_default(opts.get(CONF_NOTIFY_GAPS_TIME, DEFAULT_NOTIFY_GAPS_TIME))): hhmm,
+                }),
+                vol.Optional("ruhezeit"): section(vol.Schema({
+                    vol.Required("aktiv", default=bool(opts.get(CONF_NOTIFY_QUIET, False))): BooleanSelector(),
+                    vol.Required("von", default=_time_default(opts.get(CONF_NOTIFY_QUIET_FROM, DEFAULT_NOTIFY_QUIET_FROM))): hhmm,
+                    vol.Required("bis", default=_time_default(opts.get(CONF_NOTIFY_QUIET_TO, DEFAULT_NOTIFY_QUIET_TO))): hhmm,
+                    vol.Required("nachrichten_sofort", default=bool(opts.get(CONF_NOTIFY_QUIET_MESSAGES, True))): BooleanSelector(),
+                }), {"collapsed": False}),
+            }
+        )
+
     async def async_step_benachrichtigungen(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """v1.17.0: Welche Pushes an wen und wann (je Push-Art ein Abschnitt, dazu Ruhezeit)."""
-        opts = self.config_entry.options
+        schema = self._notify_schema()
         if user_input is not None:
+            # Fehlende Abschnitte mit {} ergänzen → die Abschnitts-Schemas setzen die Feld-Defaults
+            # (bisherige Werte), statt dass eine Push-Art stillschweigend „aus“ wird
+            user_input = schema({**{k: {} for k in (*NOTIFY_TYPES, "ruhezeit")}, **user_input})
             flat: dict[str, Any] = {}
             for kind in NOTIFY_TYPES:
                 sec = user_input.get(kind) or {}
@@ -416,49 +484,6 @@ class SmoobuOptionsFlow(OptionsFlow):
             flat[CONF_ASSIST_GAPS] = flat["notify_luecken"]
             self._notify = flat
             return await self.async_step_wohnungen()
-
-        services = self._notify_services()
-        recipients = SelectSelector(
-            SelectSelectorConfig(options=services, multiple=True, custom_value=True, mode=SelectSelectorMode.DROPDOWN)
-        )
-        hhmm = TimeSelector()
-
-        def kind_section(kind: str, extra: dict | None = None, collapsed: bool = True) -> section:
-            fields = {
-                vol.Required("aktiv", default=opt_enabled(opts, kind)): BooleanSelector(),
-                vol.Optional("empfaenger", default=opt_recipients(opts, kind)): recipients,
-                **(extra or {}),
-            }
-            return section(vol.Schema(fields), {"collapsed": collapsed})
-
-        # v1.17.1b4: Abschnitte OHNE default={} – ein Abschnitts-Default überschreibt im Frontend
-        # die Defaults der Felder darin (Pflichtfeld „aktiv“ bleibt leer → OK-Button gesperrt).
-        schema = vol.Schema(
-            {
-                vol.Required("buchung"): kind_section("buchung", collapsed=False),
-                vol.Required("storno"): kind_section("storno"),
-                vol.Required("nachricht"): kind_section("nachricht"),
-                vol.Required("vorschlag"): kind_section("vorschlag"),
-                vol.Required("zahlung"): kind_section("zahlung", {
-                    vol.Required("tage", default=int(opts.get(CONF_NOTIFY_PAYMENT_DAYS, DEFAULT_NOTIFY_PAYMENT_DAYS))): NumberSelector(
-                        NumberSelectorConfig(min=1, max=60, step=1, unit_of_measurement="d", mode=NumberSelectorMode.BOX)
-                    ),
-                    vol.Required("uhrzeit", default=_time_default(opts.get(CONF_NOTIFY_PAYMENT_TIME, DEFAULT_NOTIFY_PAYMENT_TIME))): hhmm,
-                }),
-                vol.Required("briefing"): kind_section("briefing", {
-                    vol.Required("uhrzeit", default=_time_default(opts.get(CONF_ASSIST_BRIEFING_TIME, "07:30"))): hhmm,
-                }),
-                vol.Required("luecken"): kind_section("luecken", {
-                    vol.Required("uhrzeit", default=_time_default(opts.get(CONF_NOTIFY_GAPS_TIME, DEFAULT_NOTIFY_GAPS_TIME))): hhmm,
-                }),
-                vol.Required("ruhezeit"): section(vol.Schema({
-                    vol.Required("aktiv", default=bool(opts.get(CONF_NOTIFY_QUIET, False))): BooleanSelector(),
-                    vol.Required("von", default=_time_default(opts.get(CONF_NOTIFY_QUIET_FROM, DEFAULT_NOTIFY_QUIET_FROM))): hhmm,
-                    vol.Required("bis", default=_time_default(opts.get(CONF_NOTIFY_QUIET_TO, DEFAULT_NOTIFY_QUIET_TO))): hhmm,
-                    vol.Required("nachrichten_sofort", default=bool(opts.get(CONF_NOTIFY_QUIET_MESSAGES, True))): BooleanSelector(),
-                }), {"collapsed": False}),
-            }
-        )
         return self.async_show_form(step_id="benachrichtigungen", data_schema=schema)
 
     async def async_step_wohnungen(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:

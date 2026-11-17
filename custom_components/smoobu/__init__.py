@@ -144,7 +144,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> bo
     return True
 
 
+# v1.18.0: Einträge, deren Neuladen die Einstellungskarte selbst übernimmt (settings.save wartet darauf,
+# damit die Karte erst nach dem Neuladen antwortet) → der Update-Listener lädt dann nicht ein zweites Mal
+SKIP_RELOAD = f"{DOMAIN}_skip_reload"
+
+
 async def _async_reload(hass: HomeAssistant, entry: SmoobuConfigEntry) -> None:
+    skip: set[str] = hass.data.setdefault(SKIP_RELOAD, set())
+    if entry.entry_id in skip:
+        skip.discard(entry.entry_id)
+        return
     await hass.config_entries.async_reload(entry.entry_id)
 
 

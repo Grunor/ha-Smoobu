@@ -128,3 +128,19 @@ views:
         cards:
           - type: custom:smoobu-header-card
           - type: custom:smoobu-assistant-card
+
+  # --- Seite 8: Einstellungen (v1.18.0) -------------------------------------
+  # Gleiche Werte wie der Options-Dialog. Ändern dürfen HA-Admins und die in der Option
+  # „Einstellungen im Dashboard erlauben für“ gewählten Benutzer (Prüfung im Backend).
+  # Die Kopfzeile zeigt den Reiter „Einstellungen“ (Zahnrad) automatisch, sobald diese Ansicht existiert.
+  - title: Einstellungen
+    path: smoobu-einstellungen
+    icon: mdi:cog
+    type: panel
+    subview: true
+    back_path: /dashboard-ferienwohnung/smoobu
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:smoobu-header-card
+          - type: custom:smoobu-settings-card

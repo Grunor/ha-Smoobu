@@ -8,6 +8,22 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.18.0b1 – 2026-11-17
+
+> Beta / Pre-release
+
+**Deutsch**
+- **Einstellungen im Dashboard:** neue Karte `custom:smoobu-settings-card` mit vier Reitern – Benachrichtigungen (je Push-Art an/aus, Empfänger als Handy-Chips, Uhrzeiten, Ruhezeit; Warnung „kein Empfänger“), KI-Assistent (KI erlauben, KI-Entität, Antwortvorschläge, Kontext-Entitäten, Dashboard-Pfad), Provisionen & Kanäle (Provision je Kanal inkl. eigener Kanäle, übrige Portale, Direktkanäle, Kanäle mit Portalzahlung) und Allgemein & Abruf (Webhook, Intervall, Zeiträume, Standardzeiten, Wartezeit, Historie, Wohnungskürzel). Entwurf bleibt bis „Speichern“ lokal, „Verwerfen“ setzt zurück, Fehler erscheinen am Feld und am Reiter. Nach dem Speichern lädt die Integration neu, alle Karten holen danach frische Daten (neues Datenabo)
+- **Berechtigung:** neue Option „Einstellungen im Dashboard erlauben für“ (HA-Benutzer). Admins dürfen immer, die gewählten Benutzer zusätzlich; geprüft im Backend (`smoobu/settings/get|set`), andere sehen „Keine Berechtigung“. Die Liste selbst ändern nur Admins
+- **Kopfzeile:** optionaler Reiter „Einstellungen“ mit Zahnrad (erscheint, sobald das Dashboard eine Ansicht `smoobu-einstellungen` hat; am Handy nur das Zahnrad)
+- **Optionen → Benachrichtigungen:** Abschnitte jetzt optional ohne eigenen Standardwert (Fix aus 1.17.1b4 vervollständigt) – fehlende Abschnitte übernehmen beim Speichern die bisherigen Werte statt abgelehnt zu werden
+
+**English**
+- **Settings in the dashboard:** new card `custom:smoobu-settings-card` with four tabs – notifications (on/off per push type, recipients as phone chips, times, quiet hours; "no recipient" warning), AI assistant (allow AI, AI entity, reply suggestions, context entities, dashboard path), commissions & channels (commission per channel incl. custom channels, other portals, direct channels, channels paid via portal) and general & polling (webhook, interval, ranges, default times, waiting time, history, apartment codes). The draft stays local until "Save", "Discard" resets, errors are shown at the field and the tab. After saving the integration reloads and all cards fetch fresh data (new subscription)
+- **Permission:** new option "Allow dashboard settings for" (HA users). Admins always may, the selected users additionally; checked in the backend (`smoobu/settings/get|set`), others see "No permission". Only admins can change the list itself
+- **Header:** optional "Settings" tab with a gear icon (shown once the dashboard has a view `smoobu-einstellungen`; gear only on phones)
+- **Options → notifications:** sections are now optional without their own default (completes the 1.17.1b4 fix) – missing sections keep the previous values on save instead of being rejected
+
 ## 1.17.1b4 – 2026-11-17
 
 > Beta / Pre-release

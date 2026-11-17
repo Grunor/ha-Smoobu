@@ -115,6 +115,9 @@ DEFAULT_NOTIFY_GAPS_TIME = "09:05"  # bisher fest 09:05
 CONF_APARTMENT_CODES = "apartment_codes"
 MAX_CODE_LEN = 4
 
+# Einstellungen im Dashboard (v1.18.0): HA-Benutzer-IDs, die außer den Admins ändern dürfen
+CONF_SETTINGS_USERS = "settings_users"
+
 SERVICE_ASSIST_SUGGEST = "assistant_suggest"
 SERVICE_ASSIST_IMPORT = "assistant_import"
 SERVICE_ASSIST_KNOWLEDGE = "assistant_build_knowledge"

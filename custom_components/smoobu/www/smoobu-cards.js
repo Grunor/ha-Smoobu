@@ -22,12 +22,19 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.17.1b3";
+const SMOOBU_CARDS_VERSION = "1.18.0b1";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
 // ---------------------------------------------------------------------------
 const EN = {
+  "Einstellungen": "Settings", "Benachrichtigungen": "Notifications", "KI-Assistent": "AI assistant",
+  "Provisionen & Kanäle": "Commissions & channels", "Allgemein & Abruf": "General & polling", "Speichern": "Save",
+  "Verwerfen": "Discard", "Alles gespeichert.": "All saved.", "ungespeicherte Änderung": "unsaved change",
+  "ungespeicherte Änderungen": "unsaved changes", "Empfänger": "Recipients", "Uhrzeit": "Time", "Ruhezeit": "Quiet hours",
+  "Einstellungen gespeichert.": "Settings saved.", "Bitte die markierten Felder prüfen.": "Please check the marked fields.",
+  "Keine Berechtigung für die Smoobu-Einstellungen.": "No permission for the Smoobu settings.",
+  "Speichere … die Integration lädt danach neu.": "Saving … the integration reloads afterwards.",
   "Übersicht": "Overview", "Belegt": "Occupied", "Frei": "Vacant", "frei ab": "free from",
   "Anreise heute": "Arrival today", "Abreise heute": "Departure today", "Gästewechsel heute": "Changeover today",
   "Reinigung heute": "Cleaning today", "Buchungsstand Vorjahr": "Previous year booking status",
@@ -354,17 +361,27 @@ class SmoobuStore {
   }
   subscribe(cb) {
     this.listeners.add(cb);
-    if (!this._sub) {
-      this._sub = this.hass.connection.subscribeMessage((ev) => {
-        // v1.17.0: nur Antwortstatus geändert (auch von anderem Gerät) → Zähler neu zählen
-        if (ev?.art === "nachrichten") { this.messagesChanged(); return; }
-        // Neuer Datenstand → alle Zwischenergebnisse verwerfen und Karten neu laden
-        this._cache.clear();
-        this.info = null;
-        this.listeners.forEach((l) => l());
-      }, { type: "smoobu/subscribe" });
-    }
+    if (!this._sub) this._openSub();
     return () => this.listeners.delete(cb);
+  }
+  // v1.18.0: nach Speichern der Einstellungen lädt die Integration neu – das alte Abo hängt am alten
+  // Coordinator und meldet nichts mehr → schließen, neu öffnen und alle Karten neu laden
+  resubscribe() {
+    const old = this._sub;
+    this._sub = null;
+    old?.then((unsub) => unsub?.()).catch(() => { /* Verbindung schon zu */ });
+    if (this.listeners.size) this._openSub();
+    this.invalidate();
+  }
+  _openSub() {
+    this._sub = this.hass.connection.subscribeMessage((ev) => {
+      // v1.17.0: nur Antwortstatus geändert (auch von anderem Gerät) → Zähler neu zählen
+      if (ev?.art === "nachrichten") { this.messagesChanged(); return; }
+      // Neuer Datenstand → alle Zwischenergebnisse verwerfen und Karten neu laden
+      this._cache.clear();
+      this.info = null;
+      this.listeners.forEach((l) => l());
+    }, { type: "smoobu/subscribe" });
   }
   invalidate() {
     this._cache.clear();
@@ -4078,11 +4095,14 @@ const DEFAULT_PAGES = [
   // mit diesem Pfad hat (die Seite selbst kommt in Teilschritt 5) – so entsteht vorher kein toter Link
   { name: "Statistik", path: "smoobu-statistik", optional: true },
   { name: "Nachrichten", path: "smoobu-nachrichten", badge: "nachrichten" }, { name: "Assistent", path: "smoobu-assistent" },
+  // v1.18.0: nur sichtbar, wenn das Dashboard eine Ansicht „smoobu-einstellungen“ hat; Zahnrad statt Text am Handy
+  { name: "Einstellungen", path: "smoobu-einstellungen", optional: true, icon: "gear" },
 ];
 const ICON_SVG = {
   hell: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,
   dunkel: `<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>`,
   system: `<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>`,
+  gear: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`,
 };
 class SmoobuHeaderCard extends SmoobuCard {
   // home (v1.17.1): optionaler Rücksprung vor den Reitern, z. B. { name: "Host", path: "/dashboard-ferienwohnung/host" }
@@ -4101,6 +4121,8 @@ class SmoobuHeaderCard extends SmoobuCard {
     .right { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .seg button { display: inline-flex; gap: 6px; align-items: center; }
     .seg.theme button[aria-pressed="true"] { background: var(--sm-accent); color: var(--sm-acc-ink); }
+    .tabs svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    @media (max-width: 700px) { .tabs .lbl { display: none; } }
     .seg svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .seg .n { opacity: .7; margin-left: 2px; }
     @media (max-width: 700px) { .seg .lbl { display: none; } }
@@ -4161,7 +4183,7 @@ class SmoobuHeaderCard extends SmoobuCard {
     const known = this.viewPaths();
     const pages = (this._config.pages || []).filter((p) => !p.optional || !known || known.has(p.path));
     const home = this._config.home?.path ? `<a class="home" data-href="${esc(this.href(this._config.home.path))}" title="${esc(t("Zurück zu"))} ${esc(this._config.home.name || "")}">← ${esc(t(this._config.home.name || "Zurück"))}</a><span class="hsep"></span>` : "";
-    const tabs = home + pages.map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
+    const tabs = home + pages.map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${p.icon && ICON_SVG[p.icon] ? `${ICON_SVG[p.icon]}<span class="lbl">${esc(t(p.name))}</span>` : esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
     const ws = info.wohnungen;
     const sel = this.target.apartment_id;
     const showApts = this._config.show_apartments && ws.length > 1 && !this._config.apartment_id;
@@ -4209,6 +4231,310 @@ class SmoobuHeaderCard extends SmoobuCard {
 }
 
 // ===========================================================================
+// v1.18.0: Einstellungen im Dashboard (custom:smoobu-settings-card)
+// Liest/schreibt dieselben Optionen wie der Options-Dialog über smoobu/settings/get|set.
+// Berechtigung prüft das Backend (Admins + Option „Einstellungen im Dashboard erlauben für“).
+// Entwurf (draft) bleibt lokal, bis „Speichern“ gedrückt wird; Eingaben in Textfeldern
+// zeichnen die Karte bewusst NICHT neu (Fokus/Cursor bleiben), nur Schalter/Chips/Reiter.
+// ===========================================================================
+const SET_TABS = [
+  ["benachrichtigungen", "Benachrichtigungen"], ["assistent", "KI-Assistent"],
+  ["provisionen", "Provisionen & Kanäle"], ["allgemein", "Allgemein & Abruf"],
+];
+const PUSH_INFO = {
+  buchung: ["Neue Buchung", "Sobald eine neue Buchung eingeht (keine Sperrzeiten)."],
+  storno: ["Storno & Änderung", "Storniert oder geändert (Zeitraum, Personen, Ankunft, Preis) – mit Vorher → Nachher."],
+  nachricht: ["Gästenachricht", "Neue Nachricht eines Gastes. Mit KI-Vorschlag kommt stattdessen der Vorschlag."],
+  vorschlag: ["KI-Antwortvorschlag", "Vorschlag mit Buttons Senden / Bearbeiten / Ignorieren."],
+  zahlung: ["Zahlungserinnerung", "Offene Zahlung einige Tage vor Anreise (ohne Kanäle mit Zahlung über das Portal)."],
+  briefing: ["Tagesbriefing", "Zusammenfassung des Tages zur festen Uhrzeit."],
+  luecken: ["Nicht buchbare Lücken", "Lücken, die der Mindestaufenthalt sperrt – zur festen Uhrzeit."],
+};
+const PUSH_TIME = { zahlung: "notify_zahlung_time", briefing: "assist_briefing_time", luecken: "notify_luecken_time" };
+// Feld → Reiter (für Fehler: der Reiter mit dem ersten Fehler wird geöffnet)
+const SET_FIELD_TAB = (key) => {
+  if (key.startsWith("notify_") || key === "assist_briefing_time") return "benachrichtigungen";
+  if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key)) return "assistent";
+  if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels"].includes(key)) return "provisionen";
+  return "allgemein";
+};
+const SET_ERR = {
+  invalid: "Ungültiger Wert", invalid_time: "Uhrzeit als HH:MM", invalid_percent: "0–50 %", invalid_date: "Ungültiges Datum",
+  invalid_entity: "Ungültige Entität", invalid_list: "Ungültige Liste", invalid_code: "Nur Buchstaben und Ziffern",
+  duplicate_code: "Kürzel schon vergeben", ai_entity_required: "Bitte eine KI wählen oder „KI erlauben“ ausschalten",
+  admin_only: "Nur Admins können das ändern", unknown_field: "Unbekanntes Feld",
+};
+const clone = (v) => JSON.parse(JSON.stringify(v));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const phoneName = (svc) => svc.replace(/^notify\.mobile_app_/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+class SmoobuSettingsCard extends SmoobuCard {
+  // tab: Start-Reiter (benachrichtigungen | assistent | provisionen | allgemein)
+  static defaults = { title: "Einstellungen", entry_id: null, tab: "benachrichtigungen" };
+  static initialState = (c) => ({ tab: c.tab || "benachrichtigungen", errors: {}, saving: false });
+  static css = `
+    .stabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 16px; border-bottom: 1px solid var(--sm-line); padding-bottom: 10px; }
+    .stabs button { border: 0; background: none; font: inherit; font-size: .9rem; padding: 7px 14px; border-radius: 999px; cursor: pointer; color: var(--sm-muted); }
+    .stabs button[aria-pressed="true"] { background: var(--sm-accent); color: var(--sm-acc-ink); font-weight: 600; }
+    .stabs button .e { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--sm-bad); margin-left: 6px; vertical-align: 1px; }
+    .grp { border: 1px solid var(--sm-line); border-radius: var(--sm-r); margin-bottom: 12px; overflow: hidden; }
+    .grp > .gh { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; }
+    .grp > .gh .grow b { display: block; font-weight: 650; }
+    .grp > .gb { padding: 0 16px 14px; display: grid; gap: 12px; }
+    .grp.off > .gb { display: none; }
+    .fld { display: grid; grid-template-columns: minmax(150px, 230px) 1fr; gap: 6px 14px; align-items: center; }
+    .fld > label { font-size: .88rem; font-weight: 550; }
+    .fld .hint { grid-column: 2; font-size: .78rem; color: var(--sm-muted); margin-top: -2px; }
+    .fld .ferr, .ferr { grid-column: 2; font-size: .8rem; color: var(--sm-bad); font-weight: 600; }
+    .fld input[type=number] { width: 110px; } .fld input[type=text] { width: min(100%, 360px); }
+    .fld select { max-width: 360px; }
+    .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .unit { color: var(--sm-muted); font-size: .84rem; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .chip .x { opacity: .6; margin-left: 2px; }
+    .sw { flex: none; width: 44px; height: 26px; border-radius: 999px; border: 0; background: var(--sm-line); position: relative; cursor: pointer; padding: 0; transition: background .15s; }
+    .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--sm-surf); box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .15s; }
+    .sw[aria-checked="true"] { background: var(--sm-accent); } .sw[aria-checked="true"]::after { left: 21px; }
+    .sw:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 2px; }
+    table.prov td { white-space: normal; } table.prov input { width: 90px; } table.prov input.name { width: 180px; }
+    .foot { position: sticky; bottom: 0; margin: 16px -20px -18px; padding: 12px 20px; background: var(--sm-surf2); border-top: 1px solid var(--sm-line);
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .foot .grow { font-size: .86rem; color: var(--sm-muted); }
+    .foot .grow.dirty { color: var(--sm-warn); font-weight: 600; }
+    .note { padding: 10px 14px; border-radius: var(--sm-rs); background: var(--sm-surf2); border-left: 4px solid var(--sm-accent); font-size: .86rem; margin-bottom: 12px; }
+    @media (max-width: 640px) { .fld { grid-template-columns: 1fr; } .fld .hint, .fld .ferr { grid-column: 1; } }
+  `;
+  async load() {
+    const res = await this.store.ws("smoobu/settings/get", this._config.entry_id ? { entry_id: this._config.entry_id } : {}, { cache: false });
+    // Ungespeicherten Entwurf behalten, solange er zum selben Konto gehört
+    if (!this._draft || !this.dirty || this._draftEntry !== res.entry_id) {
+      this._draft = res.erlaubt ? clone(res.werte) : null;
+      this._draftEntry = res.entry_id;
+    }
+    return res;
+  }
+  // Neuer Datenstand (alle 10 min / Webhook) darf einen offenen Entwurf nicht überschreiben
+  _reload() { if (this.dirty && this._data) return; return super._reload(); }
+  get dirty() { return !!this._data?.werte && !!this._draft && !same(this._data.werte, this._draft); }
+  changes() {
+    const out = {};
+    for (const [k, v] of Object.entries(this._draft || {})) if (!same(v, this._data.werte[k])) out[k] = v;
+    return out;
+  }
+  // --- kleine Bausteine -----------------------------------------------------
+  sw(key, label) {
+    return `<button class="sw" role="switch" aria-checked="${!!this._draft[key]}" aria-label="${esc(t(label))}" data-sw="${esc(key)}"></button>`;
+  }
+  err(key) { const e = this._state.errors[key]; return e ? `<div class="ferr">${esc(t(SET_ERR[e] || e))}</div>` : ""; }
+  fld(label, control, hint = "", key = "") {
+    return `<div class="fld"><label>${esc(t(label))}</label><div class="inline">${control}</div>${hint ? `<div class="hint">${esc(t(hint))}</div>` : ""}${key ? this.err(key) : ""}</div>`;
+  }
+  numIn(key, min, max, step = 1, unit = "") {
+    return `<input type="number" data-num="${esc(key)}" min="${min}" max="${max}" step="${step}" value="${esc(this._draft[key])}">${unit ? `<span class="unit">${esc(t(unit))}</span>` : ""}`;
+  }
+  timeIn(key) { return `<input type="time" data-txt="${esc(key)}" value="${esc(this._draft[key] || "")}">`; }
+  // Mehrfachauswahl als Chips: options = bekannte Werte; gewählte, unbekannte Werte erscheinen zusätzlich
+  pick(key, options, label = (v) => v, custom = false) {
+    const sel = this._draft[key] || [];
+    const all = [...options, ...sel.filter((v) => !options.includes(v))];
+    const chips = all.map((v) => `<button class="chip" data-pick="${esc(key)}" data-v="${esc(v)}" aria-pressed="${sel.includes(v)}">${esc(label(v))}</button>`).join("");
+    const add = custom ? `<input type="text" class="add" data-addto="${esc(key)}" placeholder="${esc(t("Eigener Wert + Enter"))}" style="width:170px">` : "";
+    return `<div class="chips">${chips || `<span class="muted">${t("keine verfügbar")}</span>`}${add}</div>`;
+  }
+  // --- Reiter -----------------------------------------------------------------
+  tabPush(meta) {
+    const d = this._draft;
+    const groups = meta.push_arten.map((kind) => {
+      const [name, desc] = PUSH_INFO[kind] || [kind, ""];
+      const on = d[`notify_${kind}`];
+      let extra = "";
+      if (kind === "zahlung") extra += this.fld("Tage vor Anreise", this.numIn("notify_zahlung_days", 1, 60, 1, "Tage"), "", "notify_zahlung_days");
+      if (PUSH_TIME[kind]) extra += this.fld("Uhrzeit", this.timeIn(PUSH_TIME[kind]), "", PUSH_TIME[kind]);
+      const to = d[`notify_${kind}_to`] || [];
+      return `<div class="grp ${on ? "" : "off"}"><div class="gh"><div class="grow"><b>${esc(t(name))}</b><span class="sub">${esc(t(desc))}</span>
+          ${on && !to.length ? `<div class="ferr">${t("Kein Empfänger gewählt – es kommt kein Push.")}</div>` : ""}</div>${this.sw(`notify_${kind}`, name)}</div>
+        <div class="gb">${this.fld("Empfänger", this.pick(`notify_${kind}_to`, meta.handys, phoneName), "", `notify_${kind}_to`)}${extra}</div></div>`;
+    }).join("");
+    const quiet = `<div class="grp ${d.notify_quiet ? "" : "off"}"><div class="gh"><div class="grow"><b>${t("Ruhezeit")}</b>
+        <span class="sub">${t("Nicht dringende Pushes werden gesammelt und zum Ende der Ruhezeit zugestellt.")}</span></div>${this.sw("notify_quiet", "Ruhezeit")}</div>
+      <div class="gb">${this.fld("Von", this.timeIn("notify_quiet_from"), "", "notify_quiet_from")}${this.fld("Bis", this.timeIn("notify_quiet_to"), "", "notify_quiet_to")}
+        ${this.fld("Gästenachrichten sofort", this.sw("notify_quiet_messages", "Gästenachrichten sofort"), "Nachrichten von Gästen kommen auch in der Ruhezeit sofort.")}</div></div>`;
+    const none = meta.handys.length ? "" : `<div class="note">${t("Kein Handy mit HA-App gefunden (notify.mobile_app_…).")}</div>`;
+    return none + groups + quiet;
+  }
+  tabAssist(meta) {
+    const d = this._draft;
+    const ai = `<select data-sel="ai_entity"><option value="">${t("– keine –")}</option>${meta.ki_entitaeten.map((e) =>
+      `<option value="${esc(e.entity_id)}" ${d.ai_entity === e.entity_id ? "selected" : ""}>${esc(e.name)}</option>`).join("")}
+      ${d.ai_entity && !meta.ki_entitaeten.some((e) => e.entity_id === d.ai_entity) ? `<option value="${esc(d.ai_entity)}" selected>${esc(d.ai_entity)} (${t("nicht gefunden")})</option>` : ""}</select>`;
+    const states = Object.keys(this._hass.states || {}).sort();
+    const status = `<div class="chips">${(d.assist_status || []).map((id) => `<button class="chip" data-rm="assist_status" data-v="${esc(id)}" aria-pressed="true"
+        title="${esc(t("Entfernen"))}">${esc(this._hass.states[id]?.attributes?.friendly_name || id)}<span class="x">✕</span></button>`).join("")}
+      <input type="text" class="add" data-addto="assist_status" list="sm-ents" placeholder="${esc(t("Entität suchen + Enter"))}" style="width:240px">
+      <datalist id="sm-ents">${states.map((s) => `<option value="${esc(s)}">${esc(this._hass.states[s]?.attributes?.friendly_name || "")}</option>`).join("")}</datalist></div>`;
+    return `<div class="grp"><div class="gh"><div class="grow"><b>${t("KI erlauben")}</b><span class="sub">${t("Aus = keinerlei KI-Aufruf, keine Daten an KI-Anbieter.")}</span></div>${this.sw("ai_enabled", "KI erlauben")}</div>
+        <div class="gb">${this.fld("KI-Entität", ai, "ai_task-Entität, die Vorschläge erzeugt.", "ai_entity")}
+          ${this.fld("Automatische Antwortvorschläge", this.sw("assistant", "Automatische Antwortvorschläge"), "Wirkt nur, wenn die KI erlaubt ist.")}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Kontext & Links")}</b></div></div>
+        <div class="gb">${this.fld("Kontext-Entitäten", status, "Zustände, die die KI bei Antworten kennen darf (z. B. Heizung, Tür).", "assist_status")}
+          ${this.fld("Dashboard-Pfad für „Bearbeiten“", `<input type="text" data-txt="assist_path" value="${esc(d.assist_path)}">`, "Ziel des Buttons „Bearbeiten“ im Push.", "assist_path")}</div></div>`;
+  }
+  tabProv(meta) {
+    const d = this._draft;
+    const fixed = meta.feste_provisionen;
+    const rows = Object.entries(d.commissions).map(([ch, pct]) => `<tr><td>${fixed.includes(ch) ? esc(chn(ch))
+        : `<input type="text" class="name" data-cname="${esc(ch)}" value="${esc(ch)}">`}</td>
+      <td class="n"><span class="inline" style="justify-content:flex-end"><input type="number" data-comm="${esc(ch)}" min="0" max="50" step="0.1" value="${esc(pct)}"><span class="unit">%</span></span></td>
+      <td>${fixed.includes(ch) ? "" : `<button class="lnk" data-cdel="${esc(ch)}">${t("Entfernen")}</button>`}</td></tr>`).join("");
+    return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Provision je Kanal")}</b>
+        <span class="sub">${t("Gilt nur für Buchungen, zu denen Smoobu keine Provision liefert.")}</span></div></div>
+      <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Provision")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+        <div class="inline"><button class="btn flat" data-cadd>＋ ${t("Kanal hinzufügen")}</button></div>${this.err("commissions")}
+        ${this.fld("Alle übrigen Portale", this.numIn("commission_other", 0, 50, 0.1, "%"), "", "commission_other")}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Direktkanäle")}</b><span class="sub">${t("Zählen als Direktvermarktung (Direkt vs. Portale).")}</span></div></div>
+        <div class="gb">${this.pick("direct_channels", meta.kanaele, chn, true)}${this.err("direct_channels")}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Zahlung über das Portal")}</b><span class="sub">${t("Buchungen dieser Kanäle zählen nicht als offene Zahlung.")}</span></div></div>
+        <div class="gb">${this.pick("payment_excluded_channels", meta.kanaele, chn, true)}${this.err("payment_excluded_channels")}</div></div>`;
+  }
+  tabGeneral(meta) {
+    const d = this._draft;
+    const codes = meta.wohnungen.map((w) => this.fld(w.name, `<input type="text" data-code="${esc(w.id)}" maxlength="4" style="width:90px"
+      value="${esc(d.apartment_codes[w.id] || "")}" placeholder="${esc(w.auto)}">`, `${t("Leer = automatisch")} (${w.auto})`, `apartment_codes.${w.id}`)).join("");
+    const users = meta.admin ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Wer darf hier ändern")}</b>
+        <span class="sub">${t("Admins dürfen immer. Zusätzlich diese HA-Benutzer:")}</span></div></div>
+      <div class="gb">${this.pick("settings_users", meta.benutzer.filter((u) => !u.admin).map((u) => u.id),
+        (id) => meta.benutzer.find((u) => u.id === id)?.name || id)}${this.err("settings_users")}</div></div>` : "";
+    return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
+        ${this.fld("Webhook (Echtzeit)", this.sw("use_webhook", "Webhook"), "Smoobu meldet Änderungen sofort über Nabu Casa.")}
+        ${this.fld("Abfrageintervall", this.numIn("scan_interval", 1, 120, 1, "min"), "Zusätzlicher Abgleich neben dem Webhook.", "scan_interval")}
+        ${this.fld("Tage Rückblick", this.numIn("days_back", 0, 365, 1, "Tage"), "", "days_back")}
+        ${this.fld("Tage Vorschau", this.numIn("days_ahead", 30, 730, 1, "Tage"), "", "days_ahead")}
+        ${this.fld("Details für nächste Buchungen", this.numIn("enrich_count", 0, 20, 1), "Vorname, Kurtaxe usw. für die laufende + n kommende Buchungen je Wohnung.", "enrich_count")}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Standardzeiten")}</b></div></div><div class="gb">
+        ${this.fld("Check-in", this.timeIn("default_checkin"), "Wenn die Buchung keine Ankunftszeit hat.", "default_checkin")}
+        ${this.fld("Check-out", this.timeIn("default_checkout"), "Wenn die Buchung keine Abreisezeit hat.", "default_checkout")}
+        ${this.fld("Wartezeit nach Check-out", this.numIn("checkout_buffer", 0, 240, 5, "min"), "Freigabe = Abreisezeit + Wartezeit (z. B. bis Reinigungsbeginn).", "checkout_buffer")}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Auswertungen")}</b></div></div><div class="gb">
+        ${this.fld("Jahre Historie", this.numIn("history_years", 1, 5, 1, "Jahre"), "Wird ignoriert, wenn „Daten abrufen seit“ gesetzt ist.", "history_years")}
+        ${this.fld("Daten abrufen seit", `<input type="date" data-txt="history_since" value="${esc(d.history_since || "")}">${d.history_since ? `<button class="lnk" data-clear="history_since">${t("Leeren")}</button>` : ""}`,
+          "Leer = „Jahre Historie“ gilt. Mindestens ab 01.01. des Vorjahres.", "history_since")}</div></div>
+      ${codes ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Wohnungskürzel")}</b><span class="sub">${t("Höchstens 4 Buchstaben/Ziffern, eindeutig über alle Konten.")}</span></div></div><div class="gb">${codes}</div></div>` : ""}
+      ${users}`;
+  }
+  body(res) {
+    if (!res.erlaubt) return `<div class="head"><h2>${esc(t(this._config.title))}</h2></div><div class="empty">${t("Keine Berechtigung für die Smoobu-Einstellungen.")}</div>`;
+    const { meta } = res;
+    const tab = this._state.tab;
+    const errTabs = new Set(Object.keys(this._state.errors).map((k) => SET_FIELD_TAB(k.split(".")[0])));
+    const tabs = SET_TABS.map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
+    const konten = res.konten.length > 1 ? `<select data-entry>${res.konten.map((k) => `<option value="${esc(k.entry_id)}" ${k.entry_id === res.entry_id ? "selected" : ""}>${esc(k.title)}</option>`).join("")}</select>` : "";
+    const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "allgemein" ? this.tabGeneral(meta) : this.tabPush(meta);
+    const n = this.dirty ? Object.keys(this.changes()).length : 0;
+    const status = this._state.saving ? t("Speichere … die Integration lädt danach neu.")
+      : n ? `${n} ${t(n === 1 ? "ungespeicherte Änderung" : "ungespeicherte Änderungen")}` : t("Alles gespeichert.");
+    return `<div class="head"><h2>${esc(t(this._config.title))}</h2>${konten}</div><nav class="stabs">${tabs}</nav>${content}
+      <div class="foot"><span class="grow ${n ? "dirty" : ""}">${esc(status)}</span>
+        <button class="btn flat" data-reset ${!n || this._state.saving ? "disabled" : ""}>${t("Verwerfen")}</button>
+        <button class="btn" data-save ${!n || this._state.saving ? "disabled" : ""}>${t("Speichern")}</button></div>`;
+  }
+  // Nur Fußzeile aktualisieren (bei Texteingaben – ohne die Felder neu zu zeichnen)
+  refreshFoot() {
+    const n = this.dirty ? Object.keys(this.changes()).length : 0;
+    const g = this.$(".foot .grow");
+    if (!g) return;
+    g.textContent = n ? `${n} ${t(n === 1 ? "ungespeicherte Änderung" : "ungespeicherte Änderungen")}` : t("Alles gespeichert.");
+    g.classList.toggle("dirty", !!n);
+    this.$$(".foot button").forEach((b) => { b.disabled = !n || this._state.saving; });
+  }
+  bind(root) {
+    if (!this._draft) return;
+    const d = this._draft;
+    const redraw = () => this.render();
+    root.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => this.setState({ tab: b.dataset.tab })));
+    root.querySelectorAll("[data-sw]").forEach((b) => b.addEventListener("click", () => { d[b.dataset.sw] = !d[b.dataset.sw]; redraw(); }));
+    root.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => {
+      const k = b.dataset.pick, v = b.dataset.v, list = d[k] || [];
+      d[k] = list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+      redraw();
+    }));
+    root.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", () => {
+      d[b.dataset.rm] = (d[b.dataset.rm] || []).filter((x) => x !== b.dataset.v); redraw();
+    }));
+    root.querySelectorAll("[data-addto]").forEach((inp) => inp.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const v = inp.value.trim(), k = inp.dataset.addto;
+      if (v && !(d[k] || []).includes(v)) d[k] = [...(d[k] || []), v];
+      redraw();
+      this.$(`[data-addto="${k}"]`)?.focus();
+    }));
+    root.querySelectorAll("[data-num]").forEach((inp) => inp.addEventListener("input", () => {
+      d[inp.dataset.num] = inp.value === "" ? inp.value : Number(inp.value); this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-txt]").forEach((inp) => inp.addEventListener("input", () => {
+      d[inp.dataset.txt] = inp.dataset.txt === "history_since" ? inp.value || null : inp.value; this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-sel]").forEach((s) => s.addEventListener("change", () => { d[s.dataset.sel] = s.value || null; redraw(); }));
+    root.querySelectorAll("[data-clear]").forEach((b) => b.addEventListener("click", () => { d[b.dataset.clear] = null; redraw(); }));
+    root.querySelectorAll("[data-code]").forEach((inp) => inp.addEventListener("input", () => {
+      d.apartment_codes = { ...d.apartment_codes, [inp.dataset.code]: inp.value }; this.refreshFoot();
+    }));
+    // Provisionen: Prozent, Kanalname umbenennen (bei Verlassen des Feldes), entfernen, hinzufügen
+    root.querySelectorAll("[data-comm]").forEach((inp) => inp.addEventListener("input", () => {
+      d.commissions = { ...d.commissions, [inp.dataset.comm]: inp.value === "" ? "" : Number(inp.value) }; this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-cname]").forEach((inp) => inp.addEventListener("change", () => {
+      const old = inp.dataset.cname, name = inp.value.trim();
+      if (!name || name === old || name in d.commissions) { inp.value = old; return; }
+      d.commissions = Object.fromEntries(Object.entries(d.commissions).map(([k, v]) => [k === old ? name : k, v]));
+      redraw();
+    }));
+    root.querySelectorAll("[data-cdel]").forEach((b) => b.addEventListener("click", () => {
+      const c = { ...d.commissions }; delete c[b.dataset.cdel]; d.commissions = c; redraw();
+    }));
+    root.querySelector("[data-cadd]")?.addEventListener("click", () => {
+      let name = t("Neuer Kanal"), i = 2;
+      while (name in d.commissions) name = `${t("Neuer Kanal")} ${i++}`;
+      d.commissions = { ...d.commissions, [name]: d.commission_other };
+      redraw();
+    });
+    root.querySelector("[data-entry]")?.addEventListener("change", async (e) => {
+      if (this.dirty && !(await confirmDialog(t("Ungespeicherte Änderungen verwerfen?")))) { e.target.value = this._data.entry_id; return; }
+      this._config = { ...this._config, entry_id: e.target.value };
+      this._draft = null; this._data = null; this._state.errors = {};
+      super._reload();
+    });
+    root.querySelector("[data-reset]")?.addEventListener("click", () => {
+      this._draft = clone(this._data.werte); this.setState({ errors: {} });
+    });
+    root.querySelector("[data-save]")?.addEventListener("click", () => this.save());
+  }
+  async save() {
+    const changes = this.changes();
+    if (!Object.keys(changes).length) return;
+    this.setState({ saving: true, errors: {} });
+    try {
+      const r = await this.store.ws("smoobu/settings/set", { entry_id: this._data.entry_id, changes }, { cache: false });
+      if (!r.ok) {
+        const first = Object.keys(r.fehler)[0];
+        this.setState({ saving: false, errors: r.fehler, tab: first ? SET_FIELD_TAB(first.split(".")[0]) : this._state.tab });
+        toast(t("Bitte die markierten Felder prüfen."));
+        return;
+      }
+      this._data.werte = r.werte;
+      this._draft = clone(r.werte);
+      this.setState({ saving: false });
+      toast(t("Einstellungen gespeichert."));
+      // Integration wurde neu geladen → Datenabo erneuern, alle Karten laden neu
+      this.store.resubscribe();
+    } catch (e) {
+      this.setState({ saving: false });
+      toast(`${t("Fehler")}: ${e?.message || e}`);
+    }
+  }
+  getCardSize() { return 10; }
+}
+
+// ===========================================================================
 // Registrierung
 // ===========================================================================
 const CARDS = [
@@ -4220,6 +4546,7 @@ const CARDS = [
   ["smoobu-stats-card", SmoobuStatsCard, "Smoobu Statistik", "Analyse-Werkbank: Kennzahlen mit Vergleich, Buchungstempo mit Prognose, Saison-Matrix"],
   ["smoobu-inbox-card", SmoobuInboxCard, "Smoobu Posteingang", "Nachrichten der Gäste lesen und beantworten"],
   ["smoobu-assistant-card", SmoobuAssistantCard, "Smoobu Assistent", "KI-Assistent: Wissensdatenbank, Lernbeispiele, Vorschläge"],
+  ["smoobu-settings-card", SmoobuSettingsCard, "Smoobu Einstellungen", "Benachrichtigungen, KI-Assistent, Provisionen und Abruf direkt im Dashboard ändern"],
 ];
 for (const [tag, cls] of CARDS) if (!customElements.get(tag)) customElements.define(tag, cls);
 if (!customElements.get("smoobu-booking-dialog")) customElements.define("smoobu-booking-dialog", SmoobuBookingDialog);

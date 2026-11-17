@@ -44,6 +44,11 @@ PAGES = {
     "assistent": [["smoobu-header-card", {}], ["smoobu-assistant-card", {}]],
     # Statistik-Werkbank (Teilschritt 2); Handy-Bilder mit SMOOBU_GERAETE=pc,handy
     "statistik": [["smoobu-header-card", {}], ["smoobu-stats-card", {}]],
+    # v1.18.0: Einstellungen im Dashboard
+    "einstellungen": [["smoobu-header-card", {}], ["smoobu-settings-card", {}]],
+    "einstellungen_ki": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "assistent"}]],
+    "einstellungen_provisionen": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "provisionen"}]],
+    "einstellungen_allgemein": [["smoobu-header-card", {}], ["smoobu-settings-card", {"tab": "allgemein"}]],
 }
 # Geräte: Breite des Fensters (Media-Queries und Standardansicht Werkbank/Einfach hängen daran)
 DEVICES = {"pc": (1440, 900, ""), "handy": (390, 844, "_handy")}
@@ -58,7 +63,7 @@ def _shots(base: str, token: str) -> list[str]:
     pages = {k: v for k, v in PAGES.items() if not only or k in only.split(",")}
     themes = os.environ.get("SMOOBU_MODI", "hell,dunkel").split(",")
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(args=["--no-sandbox", "--lang=de-DE"])
+        browser = pw.chromium.launch(executable_path=os.environ.get("CHROME_PATH") or None, args=["--no-sandbox", "--lang=de-DE"])
         page = browser.new_page(viewport={"width": 1440, "height": 900}, device_scale_factor=SCALE, locale="de-DE",
                                 timezone_id="Europe/Berlin")
         errors: list[str] = []

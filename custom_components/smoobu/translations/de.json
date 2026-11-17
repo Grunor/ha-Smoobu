@@ -51,7 +51,8 @@
           "checkout_buffer": "Wartezeit nach Check-out (Minuten)",
           "payment_excluded_channels": "Kanäle mit Zahlung über das Portal",
           "history_years": "Auswertung: Jahre Historie",
-          "history_since": "Auswertung: Daten abrufen seit"
+          "history_since": "Auswertung: Daten abrufen seit",
+          "settings_users": "Einstellungen im Dashboard erlauben für"
         },
         "data_description": {
           "scan_interval": "Rückfall-Abfrage zusätzlich zum Webhook.",
@@ -62,7 +63,8 @@
           "checkout_buffer": "Zeit nach dem Check-out bis zur tatsächlichen Freigabe, z. B. bis zum Reinigungsstart. Freigabe = Abreisezeit (aus Smoobu, sonst Standard-Check-out) + Wartezeit, z. B. 11:00 + 30 min = 11:30. Nutzen „Belegt“, „Freigabe“ und alle Automationen darauf.",
           "payment_excluded_channels": "Buchungen dieser Kanäle zählen nicht als offene Zahlung (das Portal kassiert, Smoobu meldet trotzdem „unbezahlt“).",
           "history_years": "Jahre vor dem laufenden Jahr, die für Auswertungen und Vergleiche geladen werden. Wird ignoriert, wenn „Daten abrufen seit“ gesetzt ist.",
-          "history_since": "Alternativ zu den Jahren: Buchungen ab diesem Datum laden. Leer lassen = „Jahre Historie“ gilt. Mindestens ab 01.01. des Vorjahres (für die Vorjahresvergleiche)."
+          "history_since": "Alternativ zu den Jahren: Buchungen ab diesem Datum laden. Leer lassen = „Jahre Historie“ gilt. Mindestens ab 01.01. des Vorjahres (für die Vorjahresvergleiche).",
+          "settings_users": "Außer den Admins dürfen diese HA-Benutzer die Smoobu-Einstellungen über die Einstellungskarte im Dashboard ändern."
         }
       },
       "provisionen": {
