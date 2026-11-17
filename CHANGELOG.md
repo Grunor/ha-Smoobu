@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.18.0b5 – 2026-11-17
+
+> Beta / Pre-release
+
 **Deutsch**
 - **Übersicht → „Wartet auf dich“ als Aufgaben-Board:** Reiter mit Zählern (Alle · Nachrichten · Rechnungen · Preise · Last-Minute · Lücken). Neu dabei: Preisempfehlungen der Monate (senken/erhöhen), Feiertagsnächte und Wochenend-Aufschlag, Last-Minute-Nächte mit Vorschlag und kurze Lücken – jeweils mit „Übernehmen …“ bzw. „Anpassen …“ (gleicher Dialog wie in der Statistik). Jede Aufgabe hat „✓ Erledigt“ (ausblenden) und „Später“ (morgen wieder), gespeichert im Backend und damit für alle Benutzer gleich; ändert sich der Inhalt (neue Gastnachricht, anderer Preisvorschlag), erscheint sie wieder. „Alle“ zeigt je Kategorie höchstens 2 mit Link „weitere“. Welche Kategorien erscheinen, steht in den Einstellungen unter Allgemein & Abruf (Option `task_categories`). Neue Websocket-Befehle `smoobu/tasks/get` und `smoobu/tasks/set` (Recht je Kategorie: Nachrichten = Antworten, Rechnungen = Belegung, Preise/Last-Minute/Lücken = Preise)
 - **Übersicht ohne Recht „Finanzen“:** Umsatz-Kacheln und Fußzeile entfallen, Rest bleibt nutzbar (vorher Fehler)
