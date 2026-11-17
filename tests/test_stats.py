@@ -160,3 +160,24 @@ def test_buchungszeitpunkt_matrix():
     res = query(R, "buchungen", "buchungsmonat_im_jahr", date(2025, 1, 1), date(2027, 1, 1))
     werte = {z["fach"]: z["werte"]["Gesamt"]["wert"] for z in res["zeilen"]}
     assert werte["02"] == 1 and werte["12"] == 1 and werte["01"] == 1
+
+
+def test_gesperrte_naechte_nicht_verfuegbar():
+    """Entscheidung 17.11.2026: gesperrte Nächte werden von den verfügbaren abgezogen und gesondert ausgewiesen."""
+    r = recs(
+        bk(10, "2026-03-06", "2026-03-09", "Booking.com", 300),
+        # Sperre 10 Nächte im März (Eigennutzung), stornierte Sperre zählt nicht
+        {"id": 11, "arrival": "2026-03-20", "departure": "2026-03-30", "channel": {"id": 9, "name": "Blocked"},
+         "apartment": {"id": 1}, "is-blocked-booking": True},
+        {"id": 12, "arrival": "2026-03-01", "departure": "2026-03-05", "channel": {"id": 9, "name": "Blocked"},
+         "apartment": {"id": 1}, "is-blocked-booking": True, "type": "cancellation"},
+    )
+    res = query(r, "auslastung", "monat", date(2026, 3, 1), date(2026, 4, 1))
+    zelle = res["zeilen"][0]["werte"]["Gesamt"]
+    assert zelle["verfuegbar"] == 21 and zelle["gesperrt"] == 10
+    assert zelle["wert"] == round(3 / 21 * 100, 1)
+    res = query(r, "revpar", "gesamt", date(2026, 3, 1), date(2026, 4, 1))
+    assert res["zeilen"][0]["werte"]["Gesamt"]["wert"] == round(300 / 21, 2)
+    # Kanalfilter ändert die Sperre nicht (sie gehört der Wohnung)
+    res = query(r, "revpar", "gesamt", date(2026, 3, 1), date(2026, 4, 1), channels=["Booking.com"])
+    assert res["zeilen"][0]["werte"]["Gesamt"]["gesperrt"] == 10

@@ -58,6 +58,8 @@ def test_proration_and_cancellations():
     assert jan["brutto"] == 700.0
     assert jan["gesperrt_naechte"] == 2
     march = analyze(RECS, date(2026, 3, 1), date(2026, 4, 1))
+    # Auslastung über verfügbare Nächte: 31 Tage − 2 gesperrt = 29; belegt 3 + 2 = 5
+    assert march["gesperrt_naechte"] == 2 and march["auslastung_prozent"] == round(5 / 29 * 100, 1)
     assert march["buchungen"] == 2 and march["stornos"] == 1
     assert march["stornoquote_prozent"] == 33.3
     assert march["kanaele"]["Booking.com"]["stornos"] == 1

@@ -439,11 +439,14 @@ def analyze(
             _add_booking(total, r)
             _add_booking(ch, r)
 
-    result = _finish(total, days)
+    # Entscheidung Betreiber 17.11.2026: Auslastung bezieht sich auf verfügbare Nächte =
+    # Tage × Wohnungen − gesperrte Nächte (wie die Statistik-Werkbank); gesperrt wird gesondert ausgewiesen.
+    available = max(days - blocked_nights, 0)
+    result = _finish(total, available)
     result["gesperrt_naechte"] = blocked_nights
     channels = {}
     for name, acc in per_channel.items():
-        done = _finish(acc, days)
+        done = _finish(acc, available)
         if not (done["brutto"] or done["buchungen"] or done["stornos"]):
             continue
         done["gruppe"] = groups.get(name)

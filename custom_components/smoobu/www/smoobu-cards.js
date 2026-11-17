@@ -128,7 +128,7 @@ const EN = {
   "Statistik": "Statistics", "Werkbank": "Workbench", "Einfach": "Simple", "Quartal": "Quarter", "Saison": "Season",
   "Raster": "Grid", "Woche": "Week", "Stichtag Vorjahr": "Same day last year", "Ganzes Vorjahr": "Full previous year",
   "Buchungstempo": "Booking pace", "Saison-Matrix": "Season matrix", "Prognose": "Forecast", "Spanne": "Range",
-  "wahrscheinlich": "likely", "wenig Daten": "low data", "Treiber": "Driver", "Größter Hebel": "Biggest lever",
+  "wahrscheinlich": "likely", "wenig Daten": "low data", "Treiber": "Driver", "Größter Hebel": "Biggest lever", "gesperrt": "blocked",
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
 };
 let LANG = "de";
@@ -2662,7 +2662,7 @@ const STATS_MODE_KEY = "smoobu-statistik-modus";
 // invert = höher ist schlecht
 const STATS_KPIS = [
   { id: "umsatz", label: "Umsatz", hint: "Umsatz brutto, anteilig nach Nächten" },
-  { id: "auslastung", label: "Auslastung", pp: true, hint: "Belegte Nächte ÷ verfügbare Nächte" },
+  { id: "auslastung", label: "Auslastung", pp: true, hint: "Belegte Nächte ÷ verfügbare Nächte (gesperrte Nächte zählen nicht als verfügbar)" },
   { id: "adr", label: "ADR", hint: "Ø Preis je belegter Nacht (brutto)" },
   { id: "revpar", label: "RevPAR", hint: "Umsatz je verfügbarer Nacht = ADR × Auslastung" },
   { id: "netto_revpar", label: "Netto-RevPAR", hint: "Netto (nach Provision und Gebühren) je verfügbarer Nacht" },
@@ -3656,6 +3656,7 @@ class SmoobuStatsCard extends SmoobuCard {
       return `<button class="kpi${low ? " low" : ""}" data-focus="${k.id}" aria-pressed="${this._state.focus === k.id}" data-tip="${esc(tip)}">
         <div class="kl">${esc(t(k.label))}</div><div class="kv">${this.fmt(k.id, v, cur)}${this.dlt(k, v, c)}</div>
         <div class="ks">${t("Vgl.")} ${this.fmt(k.id, c, cur)} · n = ${num(n)}${low ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>
+        ${k.id === "auslastung" && x.tot.gesperrt ? `<div class="ks">${num(x.tot.verfuegbar)} ${t("verfügbar")} · ${num(x.tot.gesperrt)} ${t("gesperrt")}</div>` : ""}
         ${sparkline(x.ser.map((p) => p.wert), x.serC.map((p) => p.wert))}</button>`;
     }).join("")}</section>${gloss([...list.map((k) => k.label).filter((l) => GLOSSARY[l]), ...(list.some((k) => k.pp) ? ["PP"] : []), "Vgl.", "n"])}`;
   }

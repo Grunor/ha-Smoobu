@@ -165,6 +165,23 @@ def _time_key_days(dim: str, start: date, end: date) -> dict[str, int]:
     return out
 
 
+def _blocked_days(records: list[dict[str, Any]], start: date, end: date) -> list[date]:
+    """Gesperrte Nächte im Zeitraum als Liste von Tagen (je Wohnung einmal, daher Mehrfachnennung möglich).
+
+    Stornierte Sperrzeiten liefert Smoobu mit – sie zählen nicht (wie analytics.analyze).
+    """
+    out: list[date] = []
+    for r in records:
+        if not r["blockiert"] or r["storniert"]:
+            continue
+        day = max(date.fromisoformat(r["anreise"]), start)
+        last = min(date.fromisoformat(r["abreise"]), end)
+        while day < last:
+            out.append(day)
+            day += timedelta(days=1)
+    return out
+
+
 def _median(values: list[float]) -> float | None:
     if not values:
         return None
@@ -299,25 +316,42 @@ def query(
             if r["vorlauf_tage"] is not None:
                 a["vorlauf"].append(r["vorlauf_tage"])
 
-    # Verfügbare Nächte je Fach (nur bei Zeit-Dimensionen unterschiedlich)
-    total_days = (end - start).days * max(units, 1)
+    # Verfügbare Nächte je Fach (nur bei Zeit-Dimensionen unterschiedlich).
+    # Entscheidung Betreiber 17.11.2026: gesperrte Nächte (Eigennutzung, Renovierung) sind NICHT
+    # verfügbar – sie werden abgezogen und gesondert ausgewiesen („gesperrt“). So rechnen
+    # Statistik und Finanzen (analytics.analyze) gleich. Gesperrt zählt unabhängig vom
+    # Kanalfilter, denn die Sperre gehört der Wohnung, nicht einem Kanal.
+    blocked_days = _blocked_days(records, start, end)
+    units_ = max(units, 1)
+
+    def _tally(days: list[date]) -> dict[tuple[str | None, str | None], int]:
+        """Tage je (Fach, Aufteilung) vorzählen – inkl. Teilsummen (None = alle), einmal statt je Zelle."""
+        out: dict[tuple[str | None, str | None], int] = defaultdict(int)
+        for day in days:
+            rk = _key(dimension, {}, day, set()) if dimension in TIME_DIMS else None
+            sk = _key(split_dim, {}, day, set()) if split_dim in TIME_DIMS else None
+            out[(rk, sk)] += 1
+        return out
+
+    cal_tally = _tally([start + timedelta(days=i) for i in range((end - start).days)])
+    blk_tally = _tally(blocked_days)
+
+    def _count(tally: dict[tuple[str | None, str | None], int], row: str | None, ser: str | None) -> int:
+        return tally.get((row, ser), 0)
+
+    calendar_days, blocked_days = cal_tally, blk_tally
     days_by_key = (_time_key_days(dimension, start, end) if dimension in TIME_DIMS else {})
-    split_days = (_time_key_days(split_dim, start, end) if split_dim in TIME_DIMS else {})
+
+    def _scope(row: str, ser: str) -> tuple[str | None, str | None]:
+        # Nur Zeit-Dimensionen begrenzen die Tage; andere Dimensionen sehen den ganzen Zeitraum
+        return (row if dimension in TIME_DIMS else None, ser if split_dim in TIME_DIMS else None)
+
+    def blocked(row: str, ser: str) -> int:
+        return _count(blocked_days, *_scope(row, ser))
 
     def available(row: str, ser: str) -> float:
-        if dimension in TIME_DIMS and split_dim in TIME_DIMS:
-            # Schnittmenge zweier Zeit-Dimensionen: Tage zählen, die in beide Fächer fallen
-            n, day = 0, start
-            while day < end:
-                if _key(dimension, {}, day, set()) == row and _key(split_dim, {}, day, set()) == ser:
-                    n += 1
-                day += timedelta(days=1)
-            return n * max(units, 1)
-        if dimension in TIME_DIMS:
-            return days_by_key.get(row, 0) * max(units, 1)
-        if split_dim in TIME_DIMS:
-            return split_days.get(ser, 0) * max(units, 1)
-        return total_days
+        cal = _count(calendar_days, *_scope(row, ser)) * units_
+        return max(cal - blocked(row, ser), 0)
 
     rows = sorted({k[0] for k in cells} | set(days_by_key), key=lambda k: _order(dimension, k))
     series = sorted({k[1] for k in cells}, key=lambda k: _order(split_dim, k))
@@ -329,9 +363,15 @@ def query(
             if acc is None:
                 vals[ser] = {"wert": None if kind == "buchung" else _value(measure, _acc(), available(row, ser)),
                              "n": 0}
+                if kind == "nacht":
+                    vals[ser]["verfuegbar"] = available(row, ser)
+                    vals[ser]["gesperrt"] = blocked(row, ser)
                 continue
             n = len(acc["ids"])
             vals[ser] = {"wert": _value(measure, acc, available(row, ser)), "n": n, "wenig_daten": n < MIN_N}
+            if kind == "nacht":
+                vals[ser]["verfuegbar"] = available(row, ser)
+                vals[ser]["gesperrt"] = blocked(row, ser)
         out_rows.append({"fach": row, "werte": vals})
     return {
         "kennzahl": measure,
