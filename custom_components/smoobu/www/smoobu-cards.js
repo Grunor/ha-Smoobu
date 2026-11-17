@@ -29,6 +29,16 @@ const SMOOBU_CARDS_VERSION = "1.18.0b1";
 // ---------------------------------------------------------------------------
 const EN = {
   // v1.18.0: Kosten & Preise, Bewertung & Empfehlung
+  "Übernehmen …": "Apply …", "Preis anpassen …": "Adjust price …", "Preis anpassen": "Adjust price", "Übernehmen": "Apply", "Vorschau": "Preview",
+  "Neuer Basispreis je Nacht": "New base price per night", "Änderung zum bisherigen Tagespreis": "Change to the current daily price",
+  "unverändert": "unchanged", "Bis (inklusive)": "To (inclusive)", "Feiertagsnächte auslassen": "Skip holiday nights",
+  "Tage mit eigenem Preis nicht überschreiben": "Don't overwrite days with their own price", "Letzte Preisänderungen": "Recent price changes",
+  "rückgängig gemacht": "undone", "Benutzer & Rechte": "Users & permissions", "Deine Rolle": "Your role",
+  "Rollen der Benutzer": "User roles", "Standardrolle": "Default role", "Was darf welche Rolle?": "What can each role do?",
+  "Recht": "Permission", "Verwalter": "Manager", "Betrieb": "Operations", "Mitarbeiter": "Staff", "Nur lesen": "Read only",
+  "Kein Zugriff": "No access", "Tage übernommen und in Smoobu geprüft": "days applied and verified in Smoobu",
+  "Tage zurückgesetzt": "days reset", "Keine Änderung nötig": "No change needed", "ausgelassen": "skipped",
+  "Feiertag": "holiday", "eigener Preis": "own price", "Lücke": "Gap", "Kanalpreise bei": "Channel prices at",
   "Kosten & Preise": "Costs & prices", "Bewertung & Empfehlung": "Assessment & recommendation", "Basispreis heute": "Base price today",
   "Basispreis": "Base price", "netto je Nacht": "net per night", "Schwach": "Weak", "Normal": "Normal", "Stark": "Strong",
   "Zu wenig Daten": "Not enough data", "↓ Preis senken": "↓ Lower price", "↑ Preis erhöhen": "↑ Raise price", "→ Preis halten": "→ Keep price",
