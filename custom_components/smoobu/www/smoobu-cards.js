@@ -168,6 +168,7 @@ const EN = {
   "wahrscheinlich": "likely", "wenig Daten": "low data", "Treiber": "Driver", "Größter Hebel": "Biggest lever", "gesperrt": "blocked",
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
   // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
+  "Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum": "Share of bookings (arrival in period) and of nights in period",
   "Stand": "as of", "Endstand": "Final", "Endstand Vergleichszeitraum": "Final value of comparison period",
   "Pfeil und Farbe vergleichen mit dem Stand am Stichtag, nicht mit dem Endstand.": "Arrow and colour compare with the status on the reference day, not with the final value.",
 };
@@ -3542,26 +3543,45 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
   // 9: Gäste (Personen, Hund, Stammgäste, Sprache)
   gaeste: {
     load: async (c) => {
+      // v1.18.0b7: je Merkmal Buchungen UND Nächte (Wunsch Betreiber 17.11.2026). Bezug wie überall:
+      // Buchungen nach Anreise im Zeitraum, Nächte = belegte Nächte, die in den Zeitraum fallen.
+      // Alternative verworfen: Umschalter Buchungen/Nächte – dann sieht man den Unterschied nie gleichzeitig
+      // (z. B. Hundegäste: wenige Buchungen, aber lange Aufenthalte).
       const dims = ["personen", "hund", "stammgast", "sprache"];
-      const res = await Promise.all(dims.map((x) => c.q("buchungen", x, c.range)));
-      const npn = await c.q("netto_pro_nacht", "stammgast", c.range);
-      return { ...Object.fromEntries(dims.map((x, i) => [x, statSeries(res[i])])), npn: statSeries(npn) };
+      const [res, resN, npn] = await Promise.all([Promise.all(dims.map((x) => c.q("buchungen", x, c.range))),
+        Promise.all(dims.map((x) => c.q("naechte", x, c.range))), c.q("netto_pro_nacht", "stammgast", c.range)]);
+      return { ...Object.fromEntries(dims.map((x, i) => [x, { b: statSeries(res[i]), n: statSeries(resN[i]) }])), npn: statSeries(npn) };
     },
     render: (card, d, m) => {
       const LANGS = { de: "Deutsch", en: "Englisch", nl: "Niederländisch", fr: "Französisch", it: "Italienisch", pl: "Polnisch", cs: "Tschechisch", es: "Spanisch", da: "Dänisch" };
-      const block = (title, rows, label = (x) => x) => {
-        const n = rows.reduce((a, x) => a + (x.wert || 0), 0);
-        const items = rows.filter((x) => x.wert).sort((a, b) => b.wert - a.wert).slice(0, 7)
-          .map((x) => ({ label: label(x.fach), value: n ? (x.wert / n) * 100 : 0, tip: `${label(x.fach)}: ${x.wert} ${t("Buchungen")} (${pct(n ? (x.wert / n) * 100 : null, 0)})` }));
-        return `<div><div class="kl">${title} · n = ${n}${n < 5 ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>${hbars(items, { fmt: (v) => pct(v, 0), max: 100 })}</div>`;
+      // Doppelbalken je Ausprägung: oben Anteil Buchungen (kräftig), darunter Anteil Nächte (hell)
+      const block = (title, data, label = (x) => x) => {
+        const nb = data.b.reduce((a, x) => a + (x.wert || 0), 0);
+        const nn = data.n.reduce((a, x) => a + (x.wert || 0), 0);
+        const byN = new Map(data.n.map((x) => [x.fach, x.wert || 0]));
+        const byB = new Map(data.b.map((x) => [x.fach, x.wert || 0]));
+        // Ausprägungen aus beiden Abfragen (eine Buchung mit Anreise vor dem Zeitraum hat nur Nächte darin)
+        const keys = [...new Set([...byB.keys(), ...byN.keys()])].filter((k) => byB.get(k) || byN.get(k))
+          .sort((a, b) => (byB.get(b) || 0) - (byB.get(a) || 0) || (byN.get(b) || 0) - (byN.get(a) || 0)).slice(0, 7);
+        const share = (v, tot) => (tot ? (v / tot) * 100 : 0);
+        const rows = keys.map((k) => {
+          const b = byB.get(k) || 0, nt = byN.get(k) || 0, pb = share(b, nb), pn = share(nt, nn);
+          const tip = `${label(k)}: ${num(b)} ${t("Buchungen")} (${pct(pb, 0)}) · ${num(nt)} ${t("Nächte")} (${pct(pn, 0)})`;
+          return `<div class="hr" data-tip="${esc(tip)}"><span class="hl">${esc(label(k))}</span>
+            <span class="ht dual"><i style="width:${pb.toFixed(1)}%"></i><i class="n" style="width:${pn.toFixed(1)}%"></i></span>
+            <span class="hv">${pct(pb, 0)}<em>${pct(pn, 0)}</em></span></div>`;
+        }).join("");
+        return `<div><div class="kl">${title} · n = ${num(nb)} ${t("Buchungen")} · ${num(nn)} ${t("Nächte")}${nb < 5 ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div><div class="hb">${rows}</div></div>`;
       };
       const npn = new Map(m.npn.map((x) => [x.fach, x]));
       const sg = npn.get("Stammgast"), nk = npn.get("Neukunde");
-      return panel(t("Gäste"), t("Anteil der Buchungen mit Anreise im Zeitraum"),
+      return panel(t("Gäste"), t("Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum"),
         `<div class="quad">${block(t("Personen"), m.personen, (f) => `${f} ${f === "1" ? t("Person") : t("Personen")}`)}
           ${block(t("Hund"), m.hund, (f) => t(f))}
           ${block(t("Stammgäste"), m.stammgast, (f) => t(f))}
           ${block(t("Sprache"), m.sprache, (f) => t(LANGS[f] || f))}</div>
+          <div class="legend" style="margin-top:8px"><span><i style="background:var(--sm-accent)"></i>${t("Buchungen")}</span>
+            <span><i style="background:color-mix(in srgb, var(--sm-accent) 40%, var(--sm-surf2))"></i>${t("Nächte")}</span></div>
           ${sg?.wert && nk?.wert ? `<div class="sub" style="margin-top:8px">${t("Netto je Nacht")}: ${t("Stammgast")} ${money(sg.wert, d.apt.currency)} (n = ${sg.n}) · ${t("Neukunde")} ${money(nk.wert, d.apt.currency)} (n = ${nk.n})</div>` : ""}`);
     },
   },
@@ -3832,6 +3852,10 @@ class SmoobuStatsCard extends SmoobuCard {
     .hl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
     .ht { height: 12px; background: var(--sm-surf2); border-radius: 4px; display: flex; overflow: hidden; }
     .ht i { display: block; height: 100%; }
+    /* Doppelbalken (Gäste): oben Buchungen, darunter Nächte */
+    .ht.dual { height: 14px; flex-direction: column; gap: 2px; background: none; }
+    .ht.dual i { height: 6px; border-radius: 3px; background: var(--sm-accent); min-width: 0; }
+    .ht.dual i.n { background: color-mix(in srgb, var(--sm-accent) 40%, var(--sm-surf2)); }
     .hv { white-space: nowrap; font-weight: 600; text-align: right; }
     .hv em { font-style: normal; font-weight: 400; color: var(--sm-muted); margin-left: 6px; font-size: .76rem; }
     .hm { display: grid; gap: 2px; font-size: .7rem; min-width: 0; }

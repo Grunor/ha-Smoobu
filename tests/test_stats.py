@@ -181,3 +181,12 @@ def test_gesperrte_naechte_nicht_verfuegbar():
     # Kanalfilter ändert die Sperre nicht (sie gehört der Wohnung)
     res = query(r, "revpar", "gesamt", date(2026, 3, 1), date(2026, 4, 1), channels=["Booking.com"])
     assert res["zeilen"][0]["werte"]["Gesamt"]["gesperrt"] == 10
+
+
+def test_naechte_nach_gaeste_merkmalen():
+    """Modul Gäste (v1.18.0b7): Nächte je Personen/Hund/Stammgast/Sprache – Summe = alle Nächte im Zeitraum."""
+    s, e = date(2026, 1, 1), date(2027, 1, 1)
+    total = query(R, "naechte", "gesamt", s, e)["zeilen"][0]["werte"]["Gesamt"]["wert"]
+    for dim in ("personen", "hund", "stammgast", "sprache"):
+        res = query(R, "naechte", dim, s, e)
+        assert sum(z["werte"]["Gesamt"]["wert"] or 0 for z in res["zeilen"]) == total == 3

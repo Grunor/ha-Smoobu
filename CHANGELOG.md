@@ -9,10 +9,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 ## Unveröffentlicht / Unreleased
 
 **Deutsch**
+- Statistik, Modul Gäste: je Merkmal (Personen, Hund, Stammgäste, Sprache) neben dem Anteil der **Buchungen** auch der Anteil der **Nächte** (Doppelbalken, Tooltip mit Anzahl). Buchungen nach Anreise im Zeitraum, Nächte = belegte Nächte im Zeitraum
 - Statistik, Kennzahlenleiste: Bei „Stichtag Vorjahr“ zeigt jede Kachel zusätzlich den **Endstand** des Vergleichszeitraums (mit Abstand in % bzw. PP) und das Stichtag-Datum. Pfeil und Farbe bewerten weiter gegen den Stand am Stichtag. Nur wenn der Vergleichszeitraum am Stichtag noch lief (sonst sind beide gleich)
 - Statistik: Zeitraum „Saison“ zeigte bei Frühling, Sommer und Herbst „undefined“ statt des Namens (Monatsschlüssel 1-basiert statt 0-basiert)
 
 **English**
+- Statistics, Guests module: for each attribute (people, dog, repeat guests, language) the share of **nights** is shown next to the share of **bookings** (double bar, tooltip with counts). Bookings by arrival in the period, nights = occupied nights within the period
 - Statistics, KPI bar: with "Same day last year" every tile also shows the **final value** of the comparison period (with difference in % or PP) and the reference date. Arrow and colour still rate against the status on the reference day. Only when the comparison period was still running on the reference day (otherwise both are equal)
 - Statistics: period "Season" showed "undefined" instead of the name for spring, summer and autumn (month keys 1-based instead of 0-based)
 
