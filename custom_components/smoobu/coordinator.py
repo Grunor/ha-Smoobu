@@ -21,6 +21,7 @@ from homeassistant.util import dt as dt_util
 
 from .api import SmoobuAuthError, SmoobuClient, SmoobuError
 from .const import (
+    EVENT_SMOOBU,
     CONF_DAYS_AHEAD,
     CONF_DAYS_BACK,
     CONF_DEFAULT_CHECKIN,
@@ -55,6 +56,7 @@ from .deckungsbeitrag import apply as db_apply
 from .deckungsbeitrag import build_table as db_build_table
 from .deckungsbeitrag import config_from_options as cost_config_from_options
 from .empfehlung import from_options as price_config_from_options
+from . import preisaktion
 from .channels import booking_costs, night_rows
 from .models import (
     PET_MESSAGE_KEY,
@@ -85,6 +87,7 @@ REVENUE_REFRESH = timedelta(hours=1)
 # Tagespreise/Verfügbarkeit: 60 Tage Vorschau, stündlich neu laden.
 RATES_DAYS = 60
 RATES_REFRESH = timedelta(hours=1)
+PRICE_CHANGES_MAX = 30  # gespeicherte Preisänderungen für „Rückgängig“ (v1.18.0)
 
 
 class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
@@ -149,6 +152,9 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         #    danach stündlich nur neue/laufende Buchungen. Erster Lauf frühestens 10 min nach dem Start,
         #    damit der HA-Start nicht mit hunderten API-Anfragen belastet wird.
         self._resp_store: Store = Store(hass, 1, f"{DOMAIN}_antwortzeiten_{entry.entry_id}")
+        # v1.18.0: Preisänderungen aus der Karte (für „Rückgängig“), neueste zuerst, max. PRICE_CHANGES_MAX
+        self._changes_store: Store = Store(hass, 1, f"{DOMAIN}_preis_aenderungen_{entry.entry_id}")
+        self._changes: list[dict[str, Any]] | None = None
         self._resp: dict[str, dict[str, Any]] | None = None
         self._resp_task: Any = None
         self._resp_last: Any = None
@@ -395,6 +401,74 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
                 if day >= iso_today and isinstance(value, dict):
                     hist[day] = [value.get("price"), value.get("min_length_of_stay")]
         self._price_store.async_delay_save(lambda: self._price_hist or {}, 30)
+
+    # --- v1.18.0: Preise übernehmen / rückgängig -------------------------
+    async def async_price_changes(self) -> list[dict[str, Any]]:
+        if self._changes is None:
+            self._changes = list(await self._changes_store.async_load() or [])
+        return self._changes
+
+    async def async_apply_prices(self, apartment_id: int, spec: dict[str, Any], *, user: str | None,
+                                 dry_run: bool = False) -> dict[str, Any]:
+        """Vorgabe der Karte anwenden: frische Preise holen, je Tag planen, schreiben, prüfen, merken."""
+        today = dt_util.now().date()
+        days = preisaktion.days_of(spec, today)
+        if not days:
+            raise ValueError("Keine Tage im gewählten Zeitraum (ab heute)")
+        rates = await self.client.get_rates(apartment_id, days[0].isoformat(), days[-1].isoformat())
+        result = preisaktion.plan(spec, rates, today)
+        result["label"] = spec.get("label") or ""
+        if dry_run or not result["tage"]:
+            result["gespeichert"] = False
+            return result
+        await self.client.set_rate_operations(apartment_id, preisaktion.operations(result["tage"]))
+        after = await self.client.get_rates(apartment_id, days[0].isoformat(), days[-1].isoformat())
+        result["abweichend"] = preisaktion.verify(result["tage"], after)
+        entry = {
+            "id": f"{int(dt_util.utcnow().timestamp() * 1000)}",
+            "zeit": dt_util.now().isoformat(timespec="seconds"),
+            "benutzer": user,
+            "wohnung_id": apartment_id,
+            "label": result["label"],
+            "tage": result["tage"],
+            "rueckgaengig": None,
+        }
+        changes = await self.async_price_changes()
+        changes.insert(0, entry)
+        del changes[PRICE_CHANGES_MAX:]
+        await self._changes_store.async_save(changes)
+        result.update(gespeichert=True, aenderung_id=entry["id"])
+        self._after_price_write(apartment_id, entry, "preise_geaendert", user)
+        return result
+
+    async def async_undo_prices(self, change_id: str, *, user: str | None) -> dict[str, Any]:
+        """Eine gespeicherte Änderung zurücknehmen (alte Tageswerte wieder setzen, nur künftige Tage)."""
+        changes = await self.async_price_changes()
+        entry = next((c for c in changes if c["id"] == change_id), None)
+        if entry is None:
+            raise ValueError("Änderung nicht gefunden")
+        if entry.get("rueckgaengig"):
+            raise ValueError("Schon rückgängig gemacht")
+        today = dt_util.now().date().isoformat()
+        tage = [t for t in entry["tage"] if t["datum"] >= today]
+        if not tage:
+            raise ValueError("Alle Tage liegen in der Vergangenheit")
+        apt = entry["wohnung_id"]
+        await self.client.set_rate_operations(apt, preisaktion.operations(tage, restore=True))
+        after = await self.client.get_rates(apt, tage[0]["datum"], tage[-1]["datum"])
+        entry["rueckgaengig"] = {"zeit": dt_util.now().isoformat(timespec="seconds"), "benutzer": user}
+        await self._changes_store.async_save(changes)
+        self._after_price_write(apt, entry, "preise_zurueckgesetzt", user)
+        return {"tage": len(tage), "abweichend": preisaktion.verify(tage, after, restore=True)}
+
+    def _after_price_write(self, apartment_id: int, entry: dict[str, Any], kind: str, user: str | None) -> None:
+        # Tagespreise beim nächsten Abruf neu laden und sofort aktualisieren; Ereignis für Logbuch/Automationen
+        self._rates_loaded = None
+        self.hass.bus.async_fire(EVENT_SMOOBU, {
+            "typ": kind, "wohnung_id": apartment_id, "label": entry["label"], "tage": len(entry["tage"]),
+            "benutzer": user, "aenderung_id": entry["id"],
+        })
+        self.hass.async_create_task(self.async_request_refresh())
 
     def price_history(self, apartment_id: int) -> dict[str, list[Any]]:
         return (self._price_hist or {}).get(str(apartment_id), {})

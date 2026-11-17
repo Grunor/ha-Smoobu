@@ -325,6 +325,16 @@ class SmoobuClient:
         """Buchung stornieren bzw. Sperrzeit löschen (DELETE /api/reservations/{id})."""
         await self.request("DELETE", f"/api/reservations/{reservation_id}")
 
+    async def set_rate_operations(self, apartment_id: int, operations: list[dict[str, Any]]) -> dict[str, Any]:
+        """v1.18.0: mehrere Preis-/Mindestaufenthalt-Operationen in einem Aufruf (POST /api/rates).
+
+        operations = [{"dates": ["YYYY-MM-DD:YYYY-MM-DD", …], "daily_price": …, "min_length_of_stay": …}]
+        """
+        if not operations:
+            return {}
+        body = {"apartments": [apartment_id], "operations": operations}
+        return await self.request("POST", "/api/rates", body=body) or {}
+
     async def set_rates(
         self,
         apartment_id: int,

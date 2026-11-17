@@ -16,6 +16,13 @@ Befehle (alle nur für angemeldete HA-Benutzer):
 - smoobu/subscribe         Meldung bei jedem neuen Datenstand (Karten laden dann neu)
 - smoobu/settings/get      Optionen + Auswahllisten für die Einstellungskarte (v1.18.0)
 - smoobu/settings/set      geänderte Optionen prüfen und speichern (v1.18.0)
+- smoobu/rates/apply       Preise/Mindestaufenthalt übernehmen (Vorschau mit dry_run), v1.18.0
+- smoobu/rates/undo        gespeicherte Preisänderung rückgängig machen (v1.18.0)
+- smoobu/rates/changes     letzte Preisänderungen (v1.18.0)
+
+Ab v1.18.0 prüfen alle Befehle die Benutzerrolle (rechte.py): Finanzen/Statistik nur mit
+„finanzen“, Buchungen mit „gaeste“ (Preisfelder nur mit „finanzen“), Nachrichten mit
+„nachrichten“/„antworten“, Preise übernehmen mit „preise“.
 
 Die beiden settings-Befehle prüfen die Berechtigung selbst: HA-Admins oder die in
 der Option „Einstellungen im Dashboard erlauben für“ gewählten Benutzer.
@@ -168,6 +175,9 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_assistant_job)
     websocket_api.async_register_command(hass, ws_settings_get)
     websocket_api.async_register_command(hass, ws_settings_set)
+    websocket_api.async_register_command(hass, ws_rates_apply)
+    websocket_api.async_register_command(hass, ws_rates_undo)
+    websocket_api.async_register_command(hass, ws_rates_changes)
 
 
 _TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): _apt_id}
@@ -770,3 +780,91 @@ async def ws_settings_set(hass: HomeAssistant, connection: websocket_api.ActiveC
         return
     changed = await smoobu_settings.save(hass, entry, options)
     connection.send_result(msg["id"], {"ok": True, "geaendert": changed, "werte": smoobu_settings.current(entry)})
+
+
+# ---------------------------------------------------------------------------
+# Preise übernehmen / rückgängig (v1.18.0)
+# ---------------------------------------------------------------------------
+_SPEC = vol.Schema({
+    vol.Optional("von"): str,
+    vol.Optional("bis"): str,  # inklusive
+    vol.Optional("tage"): vol.All([str], vol.Length(max=400)),
+    vol.Optional("wochentage"): [vol.All(vol.Coerce(int), vol.Range(min=0, max=6))],
+    vol.Optional("preis"): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=1, max=100000))),
+    vol.Optional("prozent"): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=-80, max=300))),
+    vol.Optional("mindestaufenthalt"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=1, max=90))),
+    vol.Optional("ohne_feiertage", default=False): bool,
+    vol.Optional("nur_basispreis", default=False): bool,
+    vol.Optional("label"): vol.All(str, vol.Length(max=200)),
+})
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/rates/apply", **_TARGET, vol.Required("vorgabe"): _SPEC,
+     vol.Optional("dry_run", default=False): bool}
+)
+@websocket_api.async_response
+async def ws_rates_apply(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Empfehlung bzw. Hinweis übernehmen. dry_run=True liefert nur die Vorschau (je Tag alt → neu)."""
+    if msg.get("apartment_id") == ALL:
+        connection.send_error(msg["id"], "invalid_target", "Preise nur je Wohnung")
+        return
+    try:
+        c, apt = _resolve(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c], "preise"):
+        return
+    spec = msg["vorgabe"]
+    if not spec.get("tage") and not (spec.get("von") and spec.get("bis")):
+        connection.send_error(msg["id"], "invalid_format", "Zeitraum (von/bis) oder Tage angeben")
+        return
+    user = connection.user.name if connection.user else None
+    try:
+        result = await c.async_apply_prices(apt, spec, user=user, dry_run=msg["dry_run"])
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid_format", str(err))
+        return
+    except SmoobuError as err:
+        connection.send_error(msg["id"], "smoobu_error", str(err))
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/rates/undo", **_TARGET, vol.Required("aenderung_id"): str}
+)
+@websocket_api.async_response
+async def ws_rates_undo(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        c, _apt = _resolve(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c], "preise"):
+        return
+    try:
+        result = await c.async_undo_prices(msg["aenderung_id"], user=connection.user.name if connection.user else None)
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid_format", str(err))
+        return
+    except SmoobuError as err:
+        connection.send_error(msg["id"], "smoobu_error", str(err))
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/rates/changes", **_TARGET})
+@websocket_api.async_response
+async def ws_rates_changes(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        c, apt = _resolve(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c], "finanzen"):
+        return
+    changes = [ch for ch in await c.async_price_changes() if ch["wohnung_id"] == apt]
+    connection.send_result(msg["id"], {"aenderungen": changes[:10],
+                                       "darf_aendern": rechte.allowed(connection.user, c.config_entry.options, "preise")})
