@@ -2937,7 +2937,8 @@ const PERIOD_TYPES = [["monat", "Monat"], ["quartal", "Quartal"], ["saison", "Sa
 const PERIOD_MONTHS = { monat: 1, quartal: 3, saison: 3, jahr: 12 };
 const STATS_COMPARE = [["stichtag", "Stichtag Vorjahr"], ["vorjahr", "Ganzes Vorjahr"], ["vorperiode", "Vorperiode"]];
 const RASTER = [["auto", "Auto"], ["woche", "Woche"], ["monat", "Monat"]];
-const SEASON_NAME = { 12: "Winter", 3: "Frühling", 6: "Sommer", 9: "Herbst" };
+// Schlüssel = Startmonat 0-basiert wie Date.getMonth() (11 = Dez, 2 = März, 5 = Juni, 8 = Sep)
+const SEASON_NAME = { 11: "Winter", 2: "Frühling", 5: "Sommer", 8: "Herbst" };
 const MONTHS_SHORT = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
 // Beginn des Zeitraums, der `d` enthält (Saison wie stats.SEASONS: Winter = Dez–Feb)

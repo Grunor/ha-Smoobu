@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+**Deutsch**
+- Statistik: Zeitraum „Saison“ zeigte bei Frühling, Sommer und Herbst „undefined“ statt des Namens (Monatsschlüssel 1-basiert statt 0-basiert)
+
+**English**
+- Statistics: period "Season" showed "undefined" instead of the name for spring, summer and autumn (month keys 1-based instead of 0-based)
+
 ## 1.18.0b6 – 2026-11-17
 
 > Beta / Pre-release
