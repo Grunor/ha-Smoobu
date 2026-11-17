@@ -28,7 +28,11 @@ from homeassistant.core import HomeAssistant
 from .analytics import channels_of
 from .codes import all_codes, clean_code
 from .deckungsbeitrag import parse_grid_share, parse_markups
+from . import rechte
 from .const import (
+    CONF_DEFAULT_ROLE,
+    CONF_USER_ROLES,
+    DEFAULT_ROLE,
     CONF_CHANNEL_MARKUPS,
     DEFAULT_CHANNEL_MARKUPS,
     CONF_COST_CLEANING,
@@ -122,10 +126,14 @@ _ENTITY_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 # Berechtigung
 # ---------------------------------------------------------------------------
 def can_edit(user: Any, entry: ConfigEntry) -> bool:
-    """Admins immer; sonst nur die in den Optionen freigegebenen HA-Benutzer."""
+    """Admins immer; sonst Benutzer mit dem Recht „einstellungen“ (Rolle Verwalter, v1.18.0).
+
+    Ohne Benutzer (interne Aufrufe) gibt es hier bewusst keine Freigabe – die Karte ist immer
+    an einen angemeldeten Benutzer gebunden.
+    """
     if user is None:
         return False
-    return bool(user.is_admin) or user.id in (entry.options.get(CONF_SETTINGS_USERS) or [])
+    return rechte.allowed(user, entry.options, "einstellungen")
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +181,10 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_NOTIFY_QUIET_MESSAGES: bool(o.get(CONF_NOTIFY_QUIET_MESSAGES, True)),
         # Wer im Dashboard ändern darf (nur Admins können das selbst ändern)
         CONF_SETTINGS_USERS: list(o.get(CONF_SETTINGS_USERS) or []),
+        # Benutzerrollen (v1.18.0): nur Admins ändern; Altwert settings_users → „verwalter“
+        CONF_USER_ROLES: {**{u: "verwalter" for u in (o.get(CONF_SETTINGS_USERS) or [])},
+                          **{str(k): str(v) for k, v in (o.get(CONF_USER_ROLES) or {}).items()}},
+        CONF_DEFAULT_ROLE: str(o.get(CONF_DEFAULT_ROLE, DEFAULT_ROLE)),
         # Kosten & Preise (v1.18.0)
         CONF_COST_CLEANING: float(o.get(CONF_COST_CLEANING, DEFAULT_COST_CLEANING)),
         CONF_COST_LAUNDRY: float(o.get(CONF_COST_LAUNDRY, DEFAULT_COST_LAUNDRY)),
@@ -231,6 +243,9 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
         "feste_provisionen": list(COMMISSION_FIELDS.values()),
         "push_arten": NOTIFY_TYPES,
         "admin": bool(user and user.is_admin),
+        # v1.18.0: Rollen × Rechte und eigene Rolle (Anzeige im Reiter „Benutzer & Rechte“)
+        "rollen": rechte.matrix(),
+        "zugriff": rechte.describe(user, entry.options),
     }
 
 
@@ -325,6 +340,25 @@ def _markups(value: Any) -> dict[str, float]:
         raise vol.Invalid("invalid_number") from err
 
 
+def _roles(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    out = {}
+    for uid, role in value.items():
+        if role in (None, ""):
+            continue  # leer = Standardrolle
+        if role not in rechte.ROLES:
+            raise vol.Invalid("invalid_role")
+        out[str(uid)] = str(role)
+    return out
+
+
+def _role(value: Any) -> str:
+    if value not in rechte.ROLES:
+        raise vol.Invalid("invalid_role")
+    return str(value)
+
+
 def _codes(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         raise vol.Invalid("invalid_list")
@@ -362,6 +396,8 @@ FIELDS: dict[str, Any] = {
     CONF_NOTIFY_QUIET_TO: _hhmm,
     CONF_NOTIFY_QUIET_MESSAGES: bool,
     CONF_SETTINGS_USERS: _names,
+    CONF_USER_ROLES: _roles,
+    CONF_DEFAULT_ROLE: _role,
     CONF_COST_CLEANING: _num(0, 1000),
     CONF_COST_LAUNDRY: _num(0, 1000),
     CONF_COST_HEATING_YEAR: _num(0, 100000),
@@ -396,10 +432,12 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
             msg = str(err.msg) if getattr(err, "msg", None) else ""
             errors[key] = msg if msg.startswith("invalid_") else "invalid"
 
-    # Wer im Dashboard ändern darf, legen nur Admins fest
-    if CONF_SETTINGS_USERS in changes and not (user and user.is_admin):
-        if values[CONF_SETTINGS_USERS] != list(entry.options.get(CONF_SETTINGS_USERS) or []):
-            errors[CONF_SETTINGS_USERS] = "admin_only"
+    # Wer im Dashboard ändern darf und welche Rolle jemand hat, legen nur Admins fest
+    if not (user and user.is_admin):
+        before = current(entry)
+        for key in (CONF_SETTINGS_USERS, CONF_USER_ROLES, CONF_DEFAULT_ROLE):
+            if key in changes and key not in errors and values[key] != before[key]:
+                errors[key] = "admin_only"
 
     # KI erlauben ohne KI-Entität ergibt keinen Sinn (gleiche Regel wie im Options-Dialog)
     if values[CONF_AI_ENABLED] and not values[CONF_AI_ENTITY]:
@@ -425,6 +463,9 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
         return {}, errors
 
     merged = {**entry.options, **values}
+    # Rollen gespeichert → Altwert settings_users ist darin aufgegangen (sonst zählte er weiter als „verwalter“)
+    if CONF_USER_ROLES in changes:
+        merged[CONF_SETTINGS_USERS] = []
     # Alte Schalter mitführen (wie der Options-Dialog), damit ein Downgrade dasselbe tut
     merged[CONF_ASSIST_BRIEFING] = merged["notify_briefing"]
     merged[CONF_ASSIST_GAPS] = merged["notify_luecken"]

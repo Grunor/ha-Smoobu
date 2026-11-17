@@ -59,6 +59,7 @@ from .const import DOMAIN
 from .coordinator import SmoobuCoordinator
 from .models import strip_html
 from . import settings as smoobu_settings
+from . import rechte
 
 # Feste, gut unterscheidbare Farben je Kanal (Portalfarben angelehnt an die Marken,
 # Direktkanäle in Grüntönen). Unbekannte Kanäle bekommen Farben aus PALETTE.
@@ -172,6 +173,23 @@ def async_register(hass: HomeAssistant) -> None:
 _TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): _apt_id}
 
 
+def _guard(connection: websocket_api.ActiveConnection, msg: dict[str, Any], coords, right: str) -> bool:
+    """v1.18.0: Benutzerrolle prüfen; ohne Recht Fehler „unauthorized“ senden und False liefern."""
+    for c in dict.fromkeys(coords):
+        if not rechte.allowed(connection.user, c.config_entry.options, right):
+            connection.send_error(msg["id"], "unauthorized", f"Keine Berechtigung: {rechte.RIGHTS[right]}")
+            return False
+    return True
+
+
+def _rights(connection: websocket_api.ActiveConnection, coords) -> frozenset[str]:
+    """Schnittmenge der Rechte über alle beteiligten Konten (für das Ausdünnen von Daten)."""
+    out = frozenset(rechte.RIGHTS)
+    for c in dict.fromkeys(coords):
+        out &= rechte.rights_of(connection.user, c.config_entry.options)
+    return out
+
+
 @websocket_api.websocket_command({vol.Required("type"): "smoobu/info"})
 @callback
 def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -196,6 +214,8 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
                     "check_out": c.config_entry.options.get("default_checkout"),
                     "erster_tag": min((r["anreise"] for r in c.records(apt_id)), default=None),
                     "aktualisiert": c.data.last_update.isoformat() if c.data and c.data.last_update else None,
+                    # v1.18.0: Rolle und Rechte des angemeldeten Benutzers (Karten blenden danach aus)
+                    "zugriff": rechte.describe(connection.user, c.config_entry.options),
                 }
             )
     # v1.17.0: eigene Kürzel aus den Optionen, sonst automatisch (eindeutig über alle Konten)
@@ -228,6 +248,8 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         pairs = _targets(hass, msg)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c for c, _ in pairs], "finanzen"):
         return
     recs = [r for c, a in pairs for r in c.records(a)]
     today = dt_util.now().date()
@@ -283,6 +305,8 @@ def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
         pairs = _targets(hass, msg)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c for c, _ in pairs], "finanzen"):
         return
     recs = [r for c, a in pairs for r in c.records(a)]
     today = dt_util.now().date()
@@ -388,6 +412,9 @@ def ws_bookings(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
+    if not _guard(connection, msg, [c for c, _ in pairs], "gaeste"):
+        return
+    allowed = _rights(connection, [c for c, _ in pairs])
     start, end = _date(msg.get("start")), _date(msg.get("end"))
     names = {n.casefold() for n in msg.get("channels") or []}
     status = set(msg.get("status") or [])
@@ -413,7 +440,7 @@ def ws_bookings(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
             ).casefold()
             if needle not in hay:
                 continue
-        out.append(r)
+        out.append(rechte.strip(r, allowed))
     connection.send_result(msg["id"], {"buchungen": out, "anzahl": len(out)})
 
 
@@ -427,6 +454,9 @@ async def ws_booking(hass: HomeAssistant, connection: websocket_api.ActiveConnec
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
+    if not _guard(connection, msg, [c], "gaeste"):
+        return
+    allowed = _rights(connection, [c])
     rid = msg["reservation_id"]
     record = next((r for r in c.records(apt) if r["id"] == rid), None)
     raw: dict[str, Any] = {}
@@ -434,7 +464,7 @@ async def ws_booking(hass: HomeAssistant, connection: websocket_api.ActiveConnec
     error = None
     try:
         raw = await c.client.get_reservation(rid)
-        if record is None or not record["blockiert"]:
+        if (record is None or not record["blockiert"]) and "nachrichten" in allowed:
             messages = await c.client.get_messages(rid, False)
     except SmoobuError as err:
         error = str(err)
@@ -450,7 +480,8 @@ async def ws_booking(hass: HomeAssistant, connection: websocket_api.ActiveConnec
         }
         for m in sorted(messages, key=lambda m: int(m.get("id") or 0))
     ]
-    connection.send_result(msg["id"], {"buchung": record, "smoobu": raw, "nachrichten": msgs, "fehler": error})
+    connection.send_result(msg["id"], {"buchung": rechte.strip(record, allowed) if record else None,
+                                       "smoobu": rechte.strip(raw or {}, allowed), "nachrichten": msgs, "fehler": error})
 
 
 @websocket_api.websocket_command(
@@ -468,6 +499,8 @@ async def ws_message_status(hass: HomeAssistant, connection: websocket_api.Activ
         pairs = _targets(hass, msg)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c for c, _ in pairs], "nachrichten"):
         return
     # Je Konto nur dessen Buchungen abfragen (Buchungs-IDs gelten je Smoobu-Konto)
     ids = msg["reservation_ids"]
@@ -495,6 +528,8 @@ async def ws_message_done(hass: HomeAssistant, connection: websocket_api.ActiveC
     """Posteingang: Gastnachricht bewusst ohne Antwort abhaken (Status der Buchung zurück)."""
     try:
         c, _apt = _resolve(hass, msg)
+        if not _guard(connection, msg, [c], "antworten"):
+            return
         status = await c.async_set_no_reply(msg["reservation_id"], msg["done"])
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
@@ -518,6 +553,8 @@ async def ws_rates(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
+    if not _guard(connection, msg, [c], "gaeste"):
+        return
     today = dt_util.now().date()
     start = _date(msg.get("start"), today)
     end = _date(msg.get("end"), start + timedelta(days=90))
@@ -529,6 +566,9 @@ async def ws_rates(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
     except SmoobuError as err:
         connection.send_error(msg["id"], "smoobu_error", str(err))
         return
+    if not rechte.allowed(connection.user, c.config_entry.options, "finanzen"):
+        # Ohne „finanzen“ nur Verfügbarkeit und Mindestaufenthalt (Belegungsplan bleibt nutzbar)
+        rates = {d: {k: v for k, v in (x or {}).items() if k != "price"} for d, x in rates.items()}
     connection.send_result(msg["id"], {"preise": rates})
 
 
@@ -569,8 +609,11 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
 # ---------------------------------------------------------------------------
 # KI-Assistent (v1.10.0)
 # ---------------------------------------------------------------------------
-def _assistant(hass: HomeAssistant, msg: dict[str, Any]):
+def _assistant(hass: HomeAssistant, msg: dict[str, Any], connection=None, right: str = "nachrichten"):
     c, _apt = _resolve(hass, msg)
+    # v1.18.0: Lesen = „nachrichten“, Ändern/Senden = „antworten“
+    if connection is not None and not rechte.allowed(connection.user, c.config_entry.options, right):
+        raise vol.Invalid(f"Keine Berechtigung: {rechte.RIGHTS[right]}")
     if c.assistant is None:
         raise vol.Invalid("Assistent nicht geladen")
     return c.assistant
@@ -580,7 +623,7 @@ def _assistant(hass: HomeAssistant, msg: dict[str, Any]):
 @callback
 def ws_assistant_state(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     try:
-        connection.send_result(msg["id"], _assistant(hass, msg).state())
+        connection.send_result(msg["id"], _assistant(hass, msg, connection, "nachrichten").state())
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
 
@@ -601,7 +644,7 @@ def ws_assistant_state(hass: HomeAssistant, connection: websocket_api.ActiveConn
 @callback
 def ws_assistant_knowledge(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     try:
-        connection.send_result(msg["id"], _assistant(hass, msg).save_knowledge(msg["item"]))
+        connection.send_result(msg["id"], _assistant(hass, msg, connection, "antworten").save_knowledge(msg["item"]))
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
 
@@ -614,7 +657,7 @@ def ws_assistant_knowledge(hass: HomeAssistant, connection: websocket_api.Active
 async def ws_assistant_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Wissen/Beispiel löschen; v1.17.0: Vorschlag löschen bzw. ignorieren (item_id = Buchungs-ID)."""
     try:
-        a = _assistant(hass, msg)
+        a = _assistant(hass, msg, connection, "antworten")
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
@@ -640,7 +683,7 @@ async def ws_assistant_delete(hass: HomeAssistant, connection: websocket_api.Act
 @websocket_api.async_response
 async def ws_assistant_suggest(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     try:
-        a = _assistant(hass, msg)
+        a = _assistant(hass, msg, connection, "antworten")
         connection.send_result(msg["id"], await a.suggest(msg["reservation_id"], msg["anlass"], msg.get("text")))
     except (vol.Invalid, SmoobuError) as err:
         connection.send_error(msg["id"], "assistant_error", str(err))
@@ -653,7 +696,7 @@ async def ws_assistant_suggest(hass: HomeAssistant, connection: websocket_api.Ac
 @websocket_api.async_response
 async def ws_assistant_send(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     try:
-        await _assistant(hass, msg).send(msg["reservation_id"], msg["text"])
+        await _assistant(hass, msg, connection, "antworten").send(msg["reservation_id"], msg["text"])
         connection.send_result(msg["id"])
     except (vol.Invalid, SmoobuError) as err:
         connection.send_error(msg["id"], "assistant_error", str(err))
@@ -666,7 +709,7 @@ async def ws_assistant_send(hass: HomeAssistant, connection: websocket_api.Activ
 @websocket_api.async_response
 async def ws_assistant_job(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     try:
-        a = _assistant(hass, msg)
+        a = _assistant(hass, msg, connection, "antworten")
         if msg["job"] == "import":
             # Läuft länger (je Buchung eine Abfrage) → im Hintergrund, Fortschritt über state()
             hass.async_create_background_task(a.import_history(), "smoobu_assistant_import")

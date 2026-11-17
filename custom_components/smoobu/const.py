@@ -117,6 +117,11 @@ MAX_CODE_LEN = 4
 
 # Einstellungen im Dashboard (v1.18.0): HA-Benutzer-IDs, die außer den Admins ändern dürfen
 CONF_SETTINGS_USERS = "settings_users"
+# Benutzerrollen (v1.18.0): {HA-Benutzer-ID: Rolle} und Rolle für Benutzer ohne Eintrag (siehe rechte.py).
+# settings_users bleibt als Altwert lesbar: Benutzer darin gelten als „verwalter“.
+CONF_USER_ROLES = "user_roles"
+CONF_DEFAULT_ROLE = "default_role"
+DEFAULT_ROLE = "betrieb"
 
 # Kosten & Preise (v1.18.0, Entscheidung Betreiber 17.11.2026): variable Kosten für den
 # Deckungsbeitrag und Smoobu-Preisaufschläge je Kanal für Empfehlungen.

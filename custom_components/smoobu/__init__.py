@@ -34,7 +34,7 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import Unauthorized, HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.network import NoURLAvailableError
@@ -43,6 +43,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
 from .api import SmoobuClient, SmoobuError
+from . import rechte
 from .const import (
     ATTR_APARTMENT_ID,
     ATTR_ARRIVAL_FROM,
@@ -403,8 +404,17 @@ def _register_services(hass: HomeAssistant) -> None:
                 entry.runtime_data.force_revenue_refresh = True  # auch Umsatzdaten
                 await entry.runtime_data.async_request_refresh()
 
+    async def _require(call: ServiceCall, coordinator: SmoobuCoordinator, right: str) -> None:
+        """v1.18.0: Benutzerrolle prüfen (Automationen/Skripte ohne Benutzer dürfen immer)."""
+        if call.context.user_id is None:
+            return
+        user = await hass.auth.async_get_user(call.context.user_id)
+        if not rechte.allowed(user, coordinator.config_entry.options, right):
+            raise Unauthorized(context=call.context, permission=f"smoobu.{right}")
+
     async def get_reservations(call: ServiceCall) -> ServiceResponse:
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "gaeste")
         try:
             bookings = await coordinator.client.get_reservations(
                 arrivalFrom=_date_str(call.data.get(ATTR_ARRIVAL_FROM)),
@@ -421,6 +431,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def get_reservation(call: ServiceCall) -> ServiceResponse:
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "gaeste")
         try:
             booking = await coordinator.client.get_reservation(call.data[ATTR_RESERVATION_ID])
         except SmoobuError as err:
@@ -429,6 +440,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def get_messages(call: ServiceCall) -> ServiceResponse:
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "nachrichten")
         try:
             messages = await coordinator.client.get_messages(
                 call.data[ATTR_RESERVATION_ID], call.data.get(ATTR_ONLY_GUEST, False)
@@ -439,6 +451,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def send_message(call: ServiceCall) -> None:
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "antworten")
         to_guest = call.data.get(ATTR_RECIPIENT, "guest") == "guest"
         try:
             if to_guest and not call.data.get(ATTR_SUBJECT) and coordinator.assistant:
@@ -473,6 +486,7 @@ def _register_services(hass: HomeAssistant) -> None:
     async def block_period(call: ServiceCall) -> ServiceResponse:
         """Zeitraum sperren: Buchung über den Sperr-Kanal von Smoobu."""
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "belegung")
         apt = _apartment(coordinator, call)
         start, end = call.data[ATTR_START], call.data[ATTR_END]
         if end <= start:
@@ -502,6 +516,7 @@ def _register_services(hass: HomeAssistant) -> None:
     async def delete_reservation(call: ServiceCall) -> None:
         """Sperrzeit löschen bzw. Direktbuchung stornieren. Portalbuchungen nie."""
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "belegung")
         rid = call.data[ATTR_RESERVATION_ID]
         record = next(
             (r for apt in (coordinator.data.apartments if coordinator.data else {})
@@ -529,6 +544,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def set_rates(call: ServiceCall) -> None:
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "preise")
         apt = _apartment(coordinator, call)
         price, min_stay = call.data.get(ATTR_PRICE), call.data.get(ATTR_MIN_STAY)
         if price is None and min_stay is None:
@@ -544,6 +560,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def update_reservation(call: ServiceCall) -> None:
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "belegung")
         body: dict[str, Any] = {}
         if call.data.get(ATTR_ARRIVAL_TIME):
             body["arrivalTime"] = call.data[ATTR_ARRIVAL_TIME].strftime("%H:%M")
@@ -627,6 +644,7 @@ def _register_services(hass: HomeAssistant) -> None:
     # --- KI-Assistent (v1.10.0) ---------------------------------------
     async def assistant_suggest(call: ServiceCall) -> ServiceResponse:
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "antworten")
         try:
             return await coordinator.assistant.suggest(
                 call.data[ATTR_RESERVATION_ID], call.data.get("anlass", "antwort"),
@@ -636,11 +654,13 @@ def _register_services(hass: HomeAssistant) -> None:
 
     async def assistant_import(call: ServiceCall) -> ServiceResponse:
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "antworten")
         state = await coordinator.assistant.import_history(call.data.get("jahre", 2))
         return {k: v for k, v in state.items() if k != "vorlagen"}
 
     async def assistant_knowledge(call: ServiceCall) -> ServiceResponse:
         coordinator = _get_coordinator(hass, call)
+        await _require(call, coordinator, "antworten")
         try:
             return {"neu": await coordinator.assistant.build_knowledge()}
         except SmoobuError as err:

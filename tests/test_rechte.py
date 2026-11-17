@@ -1,0 +1,82 @@
+"""Benutzerrollen (rechte.py): Rollen, Prüfung in Websocket-Befehlen und Aktionen."""
+from types import SimpleNamespace
+
+import pytest
+
+from homeassistant.core import Context
+from homeassistant.exceptions import Unauthorized
+
+from custom_components.smoobu import rechte
+from custom_components.smoobu.const import DOMAIN
+
+from .test_smoobu import setup  # noqa: F401  (Fixture)
+
+
+async def _call(ws, msg_id, **msg):
+    await ws.send_json({"id": msg_id, **msg})
+    return await ws.receive_json()
+
+
+def test_rollen_und_rechte():
+    admin = SimpleNamespace(id="a", is_admin=True)
+    ma2 = SimpleNamespace(id="l", is_admin=False)
+    other = SimpleNamespace(id="o", is_admin=False)
+    opts = {"user_roles": {"l": "mitarbeiter"}, "settings_users": ["o"]}
+    assert rechte.role_of(admin, opts) == "admin" and rechte.role_of(None, opts) == "system"
+    assert rechte.role_of(ma2, opts) == "mitarbeiter"
+    assert rechte.role_of(other, opts) == "verwalter"  # Altwert „Einstellungen erlauben für“
+    assert rechte.role_of(SimpleNamespace(id="x", is_admin=False), opts) == "betrieb"  # Standardrolle
+    assert rechte.allowed(ma2, opts, "belegung") and not rechte.allowed(ma2, opts, "finanzen")
+    assert not rechte.allowed(ma2, opts, "preise")
+    assert rechte.allowed(None, opts, "preise")  # Automationen dürfen immer
+    stripped = rechte.strip({"id": 1, "brutto": 100, "gast": "Max"}, rechte.ROLES["mitarbeiter"][1])
+    assert stripped == {"id": 1, "gast": "Max"}
+    assert rechte.strip({"id": 1, "gast": "Max", "email": "x"}, frozenset()) == {"id": 1}
+
+
+async def test_websocket_und_aktionen(hass, setup, hass_ws_client, hass_read_only_access_token, hass_read_only_user):  # noqa: F811
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    ws = await hass_ws_client(hass, hass_read_only_access_token)
+    # Ohne Eintrag: Standardrolle „betrieb“ → Finanzen erlaubt, Einstellungen nicht
+    info = (await _call(ws, 1, type="smoobu/info"))["result"]
+    assert info["wohnungen"][0]["zugriff"]["rolle"] == "betrieb"
+    assert (await _call(ws, 2, type="smoobu/analytics"))["success"] is True
+
+    # Rolle „mitarbeiter“: keine Finanzen, Buchungen ohne Preise, keine Preisänderung
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "user_roles": {hass_read_only_user.id: "mitarbeiter"}})
+    await hass.async_block_till_done()
+    res = await _call(ws, 3, type="smoobu/analytics")
+    assert res["success"] is False and res["error"]["code"] == "unauthorized"
+    res = await _call(ws, 4, type="smoobu/stats", mode="query", measure="umsatz", dimension="monat")
+    assert res["error"]["code"] == "unauthorized"
+    buchungen = (await _call(ws, 5, type="smoobu/bookings"))["result"]["buchungen"]
+    assert buchungen and "brutto" not in buchungen[0] and "gast" in buchungen[0]
+    ctx = Context(user_id=hass_read_only_user.id)
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(DOMAIN, "set_rates", {"start_date": "2026-12-01", "end_date": "2026-12-02", "price": 70},
+                                       blocking=True, context=ctx)
+    # Rolle „kein“: nicht einmal Buchungen
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "user_roles": {hass_read_only_user.id: "kein"}})
+    await hass.async_block_till_done()
+    res = await _call(ws, 6, type="smoobu/bookings")
+    assert res["error"]["code"] == "unauthorized"
+
+    # Rollen ändern nur Admins (auch ein Verwalter nicht)
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "user_roles": {hass_read_only_user.id: "verwalter"}})
+    await hass.async_block_till_done()
+    res = (await _call(ws, 7, type="smoobu/settings/set", changes={"user_roles": {hass_read_only_user.id: "kein"}}))["result"]
+    assert res["fehler"] == {"user_roles": "admin_only"}
+
+
+async def test_admin_vergibt_rollen(hass, setup, hass_ws_client, hass_read_only_user):  # noqa: F811
+    ws = await hass_ws_client(hass)
+    res = (await _call(ws, 1, type="smoobu/settings/get"))["result"]
+    assert {r["id"] for r in res["meta"]["rollen"]["rollen"]} == set(rechte.ROLES)
+    res = (await _call(ws, 2, type="smoobu/settings/set", changes={
+        "user_roles": {hass_read_only_user.id: "lesen"}, "default_role": "mitarbeiter"}))["result"]
+    await hass.async_block_till_done()
+    assert res["ok"] is True
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    assert entry.options["user_roles"] == {hass_read_only_user.id: "lesen"} and entry.options["default_role"] == "mitarbeiter"
+    res = (await _call(ws, 3, type="smoobu/settings/set", changes={"user_roles": {"x": "chef"}}))["result"]
+    assert res["fehler"] == {"user_roles": "invalid_role"}
