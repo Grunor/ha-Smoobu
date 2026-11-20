@@ -409,6 +409,8 @@ const CSS_VARS = (p) => `--sm-bg:${p.bg};--sm-surf:${p.surf};--sm-surf2:${p.surf
   --sm-block:${p.block};`;
 
 // v1.17.1: Übergabe Übersicht → Belegungsplan (nur für diesen Tab, wird beim Lesen gelöscht)
+// v1.18.0: Beta-Kennzeichnung „Umbuchen“ – nach Bestätigung mit echten Buchungen entfernen (Konstante + Stellen)
+const BETA_UMBUCHEN = `<span class="beta" title="Beta: Smoobu dokumentiert das Umbuchen per Schnittstelle nicht – Ergebnis wird bei Smoobu nachgelesen">BETA</span>`;
 // v1.18.0 (Entscheidung Betreiber 20.11.2026): Kalender-Auswahl wie eine Buchung – erster Tipp = Anreise,
 // zweiter Tipp = Abreise (19. + 20. = 1 Nacht). Nur ein Tipp (oder zweimal derselbe Tag) = 1 Nacht ab diesem Tag.
 // Ergebnis [Anreise, Abreise) – Abreise exklusiv wie bei Smoobu-Buchungen. Vorher zählte jeder Tag als Nacht.
@@ -2654,7 +2656,10 @@ const aiCtlHtml = (ai, allowed, reason, thinking) => {
     <button class="btn flat ${lock ? "locked" : ""}" data-act="ai" ${thinking || lock ? "disabled" : ""} ${lock ? `title="${tip}"` : ""}>${lock ? `🔒 ${t("KI gesperrt")}` : thinking ? `⏳ ${t("KI denkt …")}` : `✨ ${t("Vorschlag")}`}</button>`;
 };
 const DIALOG_CSS = `
-  /* v1.18.0: Umbuchen */
+  /* v1.18.0: Umbuchen (+ BETA-Kennzeichnung, später entfernen) */
+  .beta { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: .66rem; font-weight: 700;
+    letter-spacing: .06em; vertical-align: 2px; color: var(--sm-warn); border: 1px solid var(--sm-warn);
+    background: color-mix(in srgb, var(--sm-warn) 12%, transparent); }
   .mvbox { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--sm-line); border-radius: var(--sm-rs); display: grid; gap: 8px; }
   .mvbox label { font-size: .84rem; color: var(--sm-muted); display: inline-flex; gap: 6px; align-items: center; }
   .mvres { display: grid; gap: 4px; font-size: .88rem; }
@@ -2808,7 +2813,9 @@ class SmoobuBookingDialog extends HTMLElement {
     if (b.gruppe !== "Direkt") return `<div class="sub" style="margin-top:8px">📅 ${t("Zeitraum oder Unterkunft nur bei")} ${esc(chn(b.kanal))} ${t("änderbar")}</div>`;
     if (!can("belegung", b.wohnung_id)) return "";
     const m = this.move;
-    if (!m) return `<div class="row" style="margin-top:8px"><button class="btn flat" data-act="move">📅 ${t("Umbuchen")}</button></div>`;
+    // BETA-Kennzeichnung (Entscheidung Betreiber 20.11.2026): entfernen, sobald Umbuchen mit echten Smoobu-Buchungen
+    // bestätigt ist (Smoobu dokumentiert Zeitraum/Unterkunft beim Ändern nicht) – Suche: BETA_UMBUCHEN
+    if (!m) return `<div class="row" style="margin-top:8px"><button class="btn flat" data-act="move">📅 ${t("Umbuchen")}${BETA_UMBUCHEN}</button></div>`;
     const info = this.store.info || { wohnungen: [] };
     const entry = info.wohnungen.find((w) => w.apartment_id === b.wohnung_id)?.entry_id;
     const apts = info.wohnungen.filter((w) => w.entry_id === entry);
@@ -2835,7 +2842,7 @@ class SmoobuBookingDialog extends HTMLElement {
         : ck.preis_alt !== undefined ? `<span class="sub">${t("Preis bleibt")} ${money(ck.preis_alt, cur, 2)}</span>` : "";
       res = `<div class="mvres">${lines.map((l) => `<div>${l}</div>`).join("")}${priceRow ? `<div class="row" style="gap:8px;flex-wrap:wrap">${priceRow}</div>` : ""}</div>`;
     }
-    return `<div class="mvbox"><b>📅 ${t("Umbuchen")}</b>
+    return `<div class="mvbox"><b>📅 ${t("Umbuchen")}${BETA_UMBUCHEN}</b>
       <div class="row" style="gap:8px;flex-wrap:wrap">
         <label>${t("Anreise")} <input type="date" data-mv="an" value="${esc(m.an)}"></label>
         <label>${t("Abreise")} <input type="date" data-mv="ab" value="${esc(m.ab)}"></label>${aptSel}</div>
