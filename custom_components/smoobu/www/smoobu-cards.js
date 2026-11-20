@@ -4400,9 +4400,11 @@ class SmoobuStatsCard extends SmoobuCard {
         + (x.fin ? `\n${t("Endstand Vergleichszeitraum")}: ${this.fmt(k.id, fin, cur, true)} · n = ${x.fin.n || 0}`
           + `\n${t("Pfeil und Farbe vergleichen mit dem Stand am Stichtag, nicht mit dem Endstand.")}` : "")
         + `\n${t(k.hint)}`;
+      // v1.18.0 (Wunsch Betreiber 20.11.2026): kein „(Stand Datum)“ mehr in der Kachel – der Stichtag steht in der
+      // Vergleichsauswahl/Kopfzeile; im Tooltip bleibt er als Detail
       return `<button class="kpi${low ? " low" : ""}" data-focus="${k.id}" aria-pressed="${this._state.focus === k.id}" data-tip="${esc(tip)}">
         <div class="kl">${esc(t(k.label))}</div><div class="kv">${this.fmt(k.id, v, cur)}${this.dlt(k, v, c)}</div>
-        <div class="ks">${t("Vgl.")} ${this.fmt(k.id, c, cur)}${asOf && x.fin ? ` (${t("Stand")} ${asOf})` : ""} · n = ${num(n)}${low ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>
+        <div class="ks">${t("Vgl.")} ${this.fmt(k.id, c, cur)} · n = ${num(n)}${low ? ` · <span class="lowtag">${t("wenig Daten")}</span>` : ""}</div>
         ${x.fin ? `<div class="ks">${t("Endstand")} ${this.fmt(k.id, fin, cur)}${fin !== null && c !== null && this.fmt(k.id, fin, cur) !== this.fmt(k.id, c, cur) ? ` (${this.dltText(k, v, fin)})` : ""}</div>` : ""}
         ${k.id === "auslastung" && x.tot.gesperrt ? `<div class="ks">${num(x.tot.verfuegbar)} ${t("verfügbar")} · ${num(x.tot.gesperrt)} ${t("gesperrt")}</div>` : ""}
         ${sparkline(x.ser.map((p) => p.wert), x.serC.map((p) => p.wert))}</button>`;
