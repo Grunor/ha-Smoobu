@@ -53,6 +53,7 @@ from .const import (
 )
 from .analytics import build_records, is_cancelled
 from . import energie
+from .const import CONF_CLEANING_WAGES
 from .deckungsbeitrag import apply as db_apply
 from .deckungsbeitrag import build_table as db_build_table
 from .deckungsbeitrag import config_from_options as cost_config_from_options
@@ -266,6 +267,23 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         return booking_release(booking, self.default_checkout, self.checkout_buffer)
 
     # ------------------------------------------------------------------
+    async def _cleaning_costs(self, records: dict[int, list], cfg: Any) -> dict[Any, float]:
+        """Reinigung je Buchung = Standardzeit × Stundenlohn der Person, die (laut Board) gereinigt hat bzw.
+        zugewiesen ist. Ohne Board-Eintrag oder ohne eigenen Lohn: Standard-Stundenlohn (kein Eintrag nötig)."""
+        board = getattr(self, "cleaning", None)
+        wages = {str(k): float(v) for k, v in (self.config_entry.options.get(CONF_CLEANING_WAGES) or {}).items() if v}
+        if board is None or not wages:
+            return {}
+        state = await board._load()  # noqa: SLF001
+        out: dict[Any, float] = {}
+        for items in records.values():
+            for r in items:
+                s = state.get(f"{r['id']}:{r['abreise']}") or {}
+                who = s.get("gereinigt_von") or s.get("zugewiesen")
+                if who in wages:
+                    out[r["id"]] = wages[who] * cfg.cleaning_minutes / 60
+        return out
+
     async def _async_update_data(self) -> SmoobuData:
         """Wohnungen (24 h gecacht) + Buchungen im Zeitfenster laden."""
         previous = self.data or SmoobuData()
@@ -347,16 +365,18 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
                 items, self.commissions, self.commission_other, self.direct_channels
             )
 
-        # v1.19.0: Stromkosten gemessen (Modus „zaehler“) oder konstant – danach DB je Buchung.
+        # v1.19.0: Strom/Wasser/Heizung gemessen (Modus „zaehler“) oder konstant – danach DB je Buchung.
         # Fehler der Messung sind nie fatal: dann gelten die konstanten Werte.
         energy: dict[int, dict[str, Any]] = {}
         try:
-            energy = await energie.measure(self.hass, self._energy, dict(self.config_entry.options), records,
+            energy = await energie.measure_all(self.hass, self._energy, dict(self.config_entry.options), records,
                                            cost_cfg, self.default_checkin, self.default_checkout)
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Smoobu: Stromkosten aus Messwerten nicht berechnet: %s", err)
+        # v1.19.0: Reinigungskosten je Buchung nach Stundenlohn der Person aus dem Reinigungsboard
+        cleaning_costs = await self._cleaning_costs(records, cost_cfg)
         for apt_id in apartments:
-            db_apply(records[apt_id], cost_tables[apt_id], (energy.get(apt_id) or {}).get("buchungen"))
+            db_apply(records[apt_id], cost_tables[apt_id], energy.get(apt_id), cleaning_costs)
 
         self._maybe_start_response_job()
         return SmoobuData(

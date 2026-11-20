@@ -143,3 +143,19 @@ async def test_rolle_reinigung_und_board(hass, setup, hass_ws_client, hass_read_
     await entry.runtime_data.cleaning._remind(None)
     await hass.async_block_till_done()
     assert len(pushes) == 2 and "Morgen" in pushes[1].data["title"]
+
+    # v1.19.0: Reinigungskosten = Standardzeit × Stundenlohn der Person (Board), sonst Standardlohn
+    assert (await _call(cleaner, 17, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="erledigt"))["success"]
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "cleaning_wages": {hass_read_only_user.id: 20.0},
+                                                          "cost_cleaning": 17.0, "cost_cleaning_minutes": 90})
+    await hass.async_block_till_done()
+    c = entry.runtime_data
+    await c.async_refresh()
+    recs = {r["id"]: r for r in c.records_all()}
+    assert recs[1]["reinigung_kosten"] == 30.0          # 90 min × 20 €/h (Person aus dem Board)
+    assert recs[2]["reinigung_kosten"] == 30.0          # zugewiesen (noch offen) zählt ebenfalls
+    await _call(admin2 := await hass_ws_client(hass), 2, type="smoobu/cleaning/set", entry_id=eid, key=keys[1], aktion="zuweisen", benutzer_id=None)
+    await c.async_refresh()
+    assert {r["id"]: r for r in c.records_all()}[2]["reinigung_kosten"] == 25.5  # 90 min × 17 €/h (Standard)
+    st = (await _call(admin2, 3, type="smoobu/cleaning/stats", start="2026-11-01", end="2026-12-01"))["result"]
+    assert st["kosten"] == 30.0 and st["personen"][0]["stundenlohn"] == 20.0

@@ -127,3 +127,58 @@ async def test_messung_aus_recorder(recorder_mock, hass):
     assert res[1]["buchungen"][7]["kosten"] == 14.4
     # Modus konstant → keine Messung
     assert await measure(hass, data, {**opts, "cost_power_source": "konstant"}, recs, cfg, time(16), time(11)) == {}
+
+
+def test_apply_wasser_und_heizung_gemessen():
+    """Wasser/Heizung aus Zähler ersetzen ihren Schätzanteil; Heizungszähler inkl. Warmwasser lässt dessen Schätzung weg."""
+    cfg = db.CostConfig(cleaning=0, laundry=0, heating_year=0, hot_water_year=0, water_night=2, power_kwh=0,
+                        grid_price=30, pv_value=10, grid_share=tuple([100] * 12))
+    table = db.CostTable(cfg, heat_k=1.0, water_k=1.0)  # Heizung/WW > 0 je Nacht (Gradtage)
+    base = [_rec(1, "2026-01-10", "2026-01-11", 1)]
+    db.apply(base, table)
+    est = base[0]["var_kosten"]
+    recs = [_rec(1, "2026-01-10", "2026-01-11", 1)]
+    measured = {"wasser": {"buchungen": {1: {"kwh": 0.2, "kosten": 1.0, "naechte_kosten": [1.0]}}},
+                "heizung": {"inkl_warmwasser": True, "buchungen": {1: {"kwh": 30, "kosten": 3.0, "naechte_kosten": [3.0]}}}}
+    db.apply(recs, table, measured)
+    r = recs[0]
+    assert r["wasser_quelle"] == r["heizung_quelle"] == "gemessen" and r["strom_quelle"] == "geschätzt"
+    night = table.night(date(2026, 1, 10))
+    assert r["var_kosten"] == round(est - night["wasser"] - night["heizung"] - night["warmwasser"] + 1.0 + 3.0, 2)
+
+
+async def test_wasser_aus_recorder(recorder_mock, hass):
+    """Wasserzähler in Litern → m³, fester Preis je m³, Leerstand separat."""
+    from datetime import timedelta
+
+    from homeassistant.components.recorder.models import StatisticMeanType
+    from homeassistant.components.recorder.statistics import async_import_statistics
+    from pytest_homeassistant_custom_component.components.recorder.common import async_wait_recording_done
+
+    from custom_components.smoobu.energie import EnergyData, measure_meter
+
+    await hass.config.async_set_time_zone(TZ)
+    start = datetime(2026, 11, 1, 0, tzinfo=dt_util.get_time_zone(TZ))
+    meta = {"has_sum": True, "mean_type": StatisticMeanType.NONE, "name": None, "source": "recorder",
+            "statistic_id": "sensor.wasser", "unit_class": "volume", "unit_of_measurement": "L"}
+    async_import_statistics(hass, meta, [{"start": start + timedelta(hours=i), "sum": 10.0 * (i + 1), "state": 10.0 * (i + 1)}
+                                         for i in range(72)])  # 10 L je Stunde
+    await async_wait_recording_done(hass)
+    opts = {"cost_water_source": "zaehler", "cost_water_entities": {"1": "sensor.wasser"}, "cost_water_price": 5.0}
+    res = await measure_meter(EnergyData(hass), "wasser", opts, {1: [_rec(7, "2026-11-01", "2026-11-02", 1)]}, time(16), time(11))
+    b = res[1]["buchungen"][7]
+    assert res[1]["einheit"] == "m³" and b["kwh"] == 0.23          # 23 h × 10 L = 0,23 m³
+    assert b["kosten"] == round(0.23 * 5.0, 2)                      # 1,15 € (Leerstand separat)
+    assert await measure_meter(EnergyData(hass), "wasser", {**opts, "cost_water_source": "konstant"}, {1: []}, time(16), time(11)) == {}
+
+
+def test_reinigung_je_person():
+    cfg = db.CostConfig(cleaning=17, laundry=5, heating_year=0, hot_water_year=0, water_night=0, power_kwh=0)
+    table = db.CostTable(cfg, 0, 0)
+    recs = [_rec(1, "2026-11-01", "2026-11-03", 2), _rec(2, "2026-11-05", "2026-11-06", 1)]
+    db.apply(recs, table, cleaning={1: 30.0})
+    assert recs[0]["reinigung_kosten"] == 30.0 and recs[0]["var_kosten"] == 35.0
+    assert recs[1]["reinigung_kosten"] == 17.0 and recs[1]["var_kosten"] == 22.0
+    # Altwert „€ je Aufenthalt“ = Standard-Stundenlohn bei 60 min → gleicher Betrag
+    assert db.config_from_options({"cost_cleaning": 17.0}).cleaning == 17.0
+    assert db.config_from_options({"cost_cleaning": 20.0, "cost_cleaning_minutes": 90}).cleaning == 30.0

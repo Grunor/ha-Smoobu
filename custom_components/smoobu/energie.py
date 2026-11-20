@@ -49,6 +49,23 @@ CONF_COST_PREHEAT_ENTITIES = "cost_preheat_entities"  # {Wohnungs-ID: sensor.…
 CONF_COST_PREHEAT_HOURS = "cost_preheat_hours"     # Stunden vor Check-in, wenn kein Vorheizstart bekannt
 CONF_COST_VACANCY_MODE = "cost_vacancy_mode"       # Leerstand-Strom: "separat" (Fixkosten) | "anteilig" (auf Buchungen)
 DEFAULT_COST_VACANCY_MODE = "separat"
+# v1.19.0 (Wunsch Betreiber 20.11.2026): dasselbe für Wasser und Heizung – konstant (Standard) oder aus Zähler
+CONF_COST_WATER_SOURCE = "cost_water_source"        # "konstant" | "zaehler"
+CONF_COST_WATER_ENTITIES = "cost_water_entities"    # {Wohnungs-ID: sensor.… (Volumen, m³ oder L)}
+CONF_COST_WATER_PRICE = "cost_water_price"          # € je m³ Frisch- + Abwasser
+CONF_COST_WATER_PRICE_ENTITY = "cost_water_price_entity"
+CONF_COST_HEAT_SOURCE = "cost_heat_source"          # "konstant" | "zaehler"
+CONF_COST_HEAT_ENTITIES = "cost_heat_entities"      # {Wohnungs-ID: sensor.… (Wärme kWh, Gas m³, Öl L …)}
+CONF_COST_HEAT_PRICE = "cost_heat_price"            # € je Einheit des Zählers
+CONF_COST_HEAT_PRICE_ENTITY = "cost_heat_price_entity"
+CONF_COST_HEAT_INCL_HOT_WATER = "cost_heat_incl_hot_water"  # Zähler misst auch das Warmwasser
+DEFAULT_COST_WATER_PRICE = 0.0
+DEFAULT_COST_HEAT_PRICE = 0.0
+# Art → (Quelle, Zähler, fester Preis, Preis-Entität, Einheiten-Umrechnung für die Statistik)
+METER_KINDS: dict[str, tuple[str, str, str, str, dict[str, str] | None]] = {
+    "wasser": (CONF_COST_WATER_SOURCE, CONF_COST_WATER_ENTITIES, CONF_COST_WATER_PRICE, CONF_COST_WATER_PRICE_ENTITY, {"volume": "m³"}),
+    "heizung": (CONF_COST_HEAT_SOURCE, CONF_COST_HEAT_ENTITIES, CONF_COST_HEAT_PRICE, CONF_COST_HEAT_PRICE_ENTITY, None),
+}
 VACANCY_MODES = ("separat", "anteilig")
 DEFAULT_COST_POWER_SOURCE = "konstant"
 DEFAULT_COST_PREHEAT_HOURS = 4
@@ -71,6 +88,15 @@ def price_ct(value: Any, unit: str | None) -> float | None:
     if "€" in u or "eur" in u:
         return v * 100
     return v * 100 if v < 5 else v
+
+
+def unit_price_ct(value: Any, unit: str | None) -> float | None:
+    """Preis je Einheit (Wasser/Heizung) in ct: „ct/…“ → ct, sonst Euro → ×100."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return v if "ct" in (unit or "").casefold() or "cent" in (unit or "").casefold() else v * 100
 
 
 def hour_shares(stats: dict[str, dict[int, float]], grid_from: list[str], grid_to: list[str],
@@ -253,7 +279,7 @@ class EnergyData:
                     out["bat_to"].append(src["stat_energy_to"])
         return {k: [x for x in v if x] for k, v in out.items()}
 
-    async def load(self, statistic_ids: list[str], since: datetime) -> None:
+    async def load(self, statistic_ids: list[str], since: datetime, units: dict[str, str] | None = None) -> None:
         """Stündliche Änderungen (kWh) laden – erstmals ab `since`, danach ab der letzten Stunde."""
         try:
             from homeassistant.components.recorder import get_instance
@@ -276,7 +302,7 @@ class EnergyData:
             start_dt = datetime.fromtimestamp(start_ts, dt_util.UTC)
             try:
                 rows = await instance.async_add_executor_job(
-                    statistics_during_period, self.hass, start_dt, now, ids, "hour", {"energy": "kWh"}, {"change"})
+                    statistics_during_period, self.hass, start_dt, now, ids, "hour", units or {"energy": "kWh"}, {"change"})
             except Exception as err:  # noqa: BLE001
                 self.error = str(err)
                 _LOGGER.warning("Smoobu: Energiestatistik nicht lesbar: %s", err)
@@ -289,6 +315,18 @@ class EnergyData:
                         dst[ts] = float(row["change"])
                 self.fetched_until[sid] = max(dst) + HOUR if dst else start_ts
         self.error = None
+
+    async def unit(self, statistic_id: str) -> str | None:
+        """Einheit einer Statistik (Recorder-Metadaten), z. B. „kWh“, „m³“, „L“."""
+        try:
+            from homeassistant.components.recorder import get_instance
+            from homeassistant.components.recorder.statistics import get_metadata
+
+            meta = await get_instance(self.hass).async_add_executor_job(
+                lambda: get_metadata(self.hass, statistic_ids={statistic_id}))
+            return (meta.get(statistic_id) or (None, {}))[1].get("unit_of_measurement")
+        except Exception:  # noqa: BLE001
+            return None
 
     async def states(self, entity_id: str, since: datetime) -> list[tuple[int, Any, dict[str, Any]]]:
         """Zustandsverlauf (so weit der Recorder ihn hält): [(ts, Zustand, Attribute)]."""
@@ -309,6 +347,73 @@ class EnergyData:
         if cur is not None and (not out or out[-1][1] != cur.state):
             out.append((int(cur.last_changed.timestamp()), cur.state, dict(cur.attributes)))
         return out
+
+
+async def _preheat(data: EnergyData, options: dict[str, Any], apt: int, records: list, checkin: time) -> dict[Any, int]:
+    """Gemessener Vorheizstart je Buchung (Zeitstempel-Entität, so weit der Recorder ihn kennt)."""
+    preheat: dict[Any, int] = {}
+    ents = options.get(CONF_COST_PREHEAT_ENTITIES) or {}
+    pent = ents.get(str(apt)) or ents.get(apt)
+    if not pent:
+        return preheat
+    values = []
+    for _ts, val, _a in await data.states(pent, dt_util.utcnow() - timedelta(days=30)):
+        parsed = dt_util.parse_datetime(str(val))
+        if parsed:
+            values.append(int(parsed.timestamp()))
+    for r in records:
+        if r.get("blockiert") or r.get("storniert"):
+            continue
+        ci = _local(date.fromisoformat(r["anreise"]), _parse_time(r.get("check_in"), checkin))
+        cands = [v for v in values if ci - 12 * HOUR <= v <= ci]
+        if cands:
+            preheat[r["id"]] = max(cands)
+    return preheat
+
+
+async def measure_all(hass: HomeAssistant, data: EnergyData, options: dict[str, Any], records_by_apt: dict[int, list],
+                      cfg: Any, checkin: time, checkout: time) -> dict[int, dict[str, Any]]:
+    """Messergebnisse je Wohnung und Art: {Wohnung: {"strom": …, "wasser": …, "heizung": …}} (nur Arten im Modus „zaehler“)."""
+    out: dict[int, dict[str, Any]] = {}
+    for apt, res in (await measure(hass, data, options, records_by_apt, cfg, checkin, checkout)).items():
+        out.setdefault(apt, {})["strom"] = res
+    for kind in METER_KINDS:
+        for apt, res in (await measure_meter(data, kind, options, records_by_apt, checkin, checkout)).items():
+            out.setdefault(apt, {})[kind] = res
+    return out
+
+
+async def measure_meter(data: EnergyData, kind: str, options: dict[str, Any], records_by_apt: dict[int, list],
+                        checkin: time, checkout: time) -> dict[int, dict[str, Any]]:
+    """Wasser oder Heizung aus Zähler: Menge je Stunde × Preis je Einheit (fest oder aus Entität)."""
+    src_key, ent_key, price_key, price_ent_key, units = METER_KINDS[kind]
+    if options.get(src_key, "konstant") != "zaehler":
+        return {}
+    meters = {int(k): v for k, v in (options.get(ent_key) or {}).items() if v and int(k) in records_by_apt}
+    if not meters:
+        return {}
+    since = datetime(2000, 1, 1, tzinfo=dt_util.UTC)
+    await data.load(list(meters.values()), since, units)
+    points: list[tuple[int, float]] = []
+    if pe := options.get(price_ent_key):
+        for ts, val, attrs in await data.states(pe, since):
+            ct = unit_price_ct(val, attrs.get("unit_of_measurement"))
+            if ct is not None and ct > 0:
+                points.append((ts, ct))
+        points.sort()
+    fixed = float(options.get(price_key) or 0) * 100  # € → ct je Einheit
+    prices = Prices(fixed, 0.0, tuple([100.0] * 12), {}, points)
+    hours = float(options.get(CONF_COST_PREHEAT_HOURS, DEFAULT_COST_PREHEAT_HOURS))
+    mode = options.get(CONF_COST_VACANCY_MODE, DEFAULT_COST_VACANCY_MODE)
+    out: dict[int, dict[str, Any]] = {}
+    for apt, ent in meters.items():
+        preheat = await _preheat(data, options, apt, records_by_apt[apt], checkin)
+        res = allocate(records_by_apt[apt], data.hourly.get(ent, {}), prices, checkin, checkout, hours, preheat, mode == "anteilig")
+        res.update({"leerstand_modus": mode, "entitaet": ent, "preis_entitaet": options.get(price_ent_key) if points else None,
+                    "einheit": "m³" if kind == "wasser" else (await data.unit(ent) or ""), "fehler": data.error,
+                    "inkl_warmwasser": bool(options.get(CONF_COST_HEAT_INCL_HOT_WATER)) if kind == "heizung" else None})
+        out[apt] = res
+    return out
 
 
 async def measure(hass: HomeAssistant, data: EnergyData, options: dict[str, Any], records_by_apt: dict[int, list],
@@ -337,20 +442,7 @@ async def measure(hass: HomeAssistant, data: EnergyData, options: dict[str, Any]
     hours = float(options.get(CONF_COST_PREHEAT_HOURS, DEFAULT_COST_PREHEAT_HOURS))
     out: dict[int, dict[str, Any]] = {}
     for apt, ent in meters.items():
-        preheat: dict[Any, int] = {}
-        if pent := (options.get(CONF_COST_PREHEAT_ENTITIES) or {}).get(str(apt)) or (options.get(CONF_COST_PREHEAT_ENTITIES) or {}).get(apt):
-            values = []
-            for _ts, val, _a in await data.states(pent, dt_util.utcnow() - timedelta(days=30)):
-                parsed = dt_util.parse_datetime(str(val))
-                if parsed:
-                    values.append(int(parsed.timestamp()))
-            for r in records_by_apt[apt]:
-                if r.get("blockiert") or r.get("storniert"):
-                    continue
-                ci = _local(date.fromisoformat(r["anreise"]), _parse_time(r.get("check_in"), checkin))
-                cands = [v for v in values if ci - 12 * HOUR <= v <= ci]
-                if cands:
-                    preheat[r["id"]] = max(cands)
+        preheat = await _preheat(data, options, apt, records_by_apt[apt], checkin)
         res = allocate(records_by_apt[apt], data.hourly.get(ent, {}), prices, checkin, checkout, hours, preheat,
                        options.get(CONF_COST_VACANCY_MODE, DEFAULT_COST_VACANCY_MODE) == "anteilig")
         res["leerstand_modus"] = options.get(CONF_COST_VACANCY_MODE, DEFAULT_COST_VACANCY_MODE)
@@ -358,6 +450,7 @@ async def measure(hass: HomeAssistant, data: EnergyData, options: dict[str, Any]
         res["netzanteil_gemessen"] = bool(shares)
         res["preis_entitaet"] = options.get(CONF_COST_PRICE_ENTITY) if points else None
         res["fehler"] = data.error
+        res["einheit"] = "kWh"
         out[apt] = res
     return out
 

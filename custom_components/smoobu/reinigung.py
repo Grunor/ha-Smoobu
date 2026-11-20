@@ -168,8 +168,12 @@ class CleaningBoard:
         for item in build(self.c.records_all(), self.opts, today, days_back=400, days_ahead=0):
             s = state.get(item["key"], {})
             pending.append({**item, "zugewiesen": s.get("zugewiesen"), "status": s.get("status", "offen")})
+        o = self.opts
+        wages = {str(k): float(v) for k, v in (o.get("cleaning_wages") or {}).items() if v}
+        default = float(o.get("cost_cleaning", 17.0))
         return stats(state, pending, start, end, set(apartments) if apartments is not None else None,
-                     await self._user_names(), codes, today.isoformat())
+                     await self._user_names(), codes, today.isoformat(),
+                     wage=lambda uid: wages.get(uid or "", default), minutes=float(o.get("cost_cleaning_minutes", 60)))
 
     async def _user_names(self) -> dict[str, str]:
         return {u.id: (u.name or u.id) for u in await self.hass.auth.async_get_users() if not u.system_generated}
@@ -309,12 +313,14 @@ def _delay_minutes(snap: dict[str, Any], done: str | None) -> int | None:
 
 
 def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start: str, end: str,
-          apartments: set[Any] | None, names: dict[str, str], codes: dict[Any, str], today: str) -> dict[str, Any]:
+          apartments: set[Any] | None, names: dict[str, str], codes: dict[Any, str], today: str,
+          wage: Callable[[str | None], float] | None = None, minutes: float = 60.0) -> dict[str, Any]:
     """Auswertung „Wer hat wann welche Wohnung gereinigt“ für [start, end).
 
     `pending` = aktuelle Reinigungen mit Zuweisung/Status (für vergangene, nicht abgehakte).
     Je Person: Anzahl, Gästewechsel, mit Hund, Personen und Nächte der abgereisten Gäste (Aufwand),
     Ø Minuten vom Check-out bis zum Abhaken. Dazu Monat × Person, Wohnung × Person und eine Liste.
+    v1.19.0: Kosten je Reinigung = Standardzeit × Stundenlohn der Person (`wage`, sonst Standardlohn).
     """
     done = []
     for key, v in state.items():
@@ -328,6 +334,7 @@ def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start
                      "person": names.get(who) or v.get("gereinigt_name") or v.get("erledigt_von") or "?",
                      "erledigt_um": v.get("erledigt_um"), "abgehakt_von": v.get("erledigt_von"),
                      "verzug_min": _delay_minutes(snap, v.get("erledigt_um")),
+                     "kosten": round((wage(who) if wage else 0.0) * minutes / 60, 2),
                      "kuerzel": codes.get(snap["wohnung_id"], "")})
     done.sort(key=lambda x: (x["datum"], x["key"]), reverse=True)
     people: dict[str, dict[str, Any]] = {}
@@ -335,8 +342,10 @@ def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start
     flats: dict[str, dict[str, int]] = {}
     for x in done:
         p = people.setdefault(x["person"], {"person": x["person"], "anzahl": 0, "wechsel": 0, "hund": 0, "personen": 0,
-                                            "naechte": 0, "_delay": [], "letzte": None, "erste": None})
+                                            "naechte": 0, "_delay": [], "letzte": None, "erste": None, "kosten": 0.0,
+                                            "stundenlohn": wage(x["person_id"]) if wage else None})
         p["anzahl"] += 1
+        p["kosten"] = round(p["kosten"] + x["kosten"], 2)
         p["wechsel"] += int(bool(x["wechsel"]))
         p["hund"] += int(bool(x["hund"]))
         p["personen"] += int(x.get("personen") or 0)
@@ -365,6 +374,8 @@ def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start
               and (apartments is None or x["wohnung_id"] in apartments)]
     return {
         "anzahl": total,
+        "kosten": round(sum(x["kosten"] for x in done), 2),
+        "minuten": minutes,
         "wechsel": sum(1 for x in done if x["wechsel"]),
         "hund": sum(1 for x in done if x["hund"]),
         "nicht_abgehakt": len(missed),
@@ -379,16 +390,17 @@ def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start
 
 def merge_stats(parts: list[dict[str, Any]]) -> dict[str, Any]:
     """Statistik mehrerer Smoobu-Konten zusammenführen (Ansicht „Alle Wohnungen“ über Konten)."""
-    out: dict[str, Any] = {"anzahl": 0, "wechsel": 0, "hund": 0, "nicht_abgehakt": 0, "nicht_abgehakt_ohne_zuweisung": 0,
+    out: dict[str, Any] = {"kosten": 0.0, "minuten": parts[0].get("minuten", 60) if parts else 60, "anzahl": 0, "wechsel": 0, "hund": 0, "nicht_abgehakt": 0, "nicht_abgehakt_ohne_zuweisung": 0,
                            "personen": [], "monate": [], "wohnungen": [], "liste": [], "seit": None}
     people: dict[str, dict[str, Any]] = {}
     months: dict[str, dict[str, int]] = {}
     for p in parts:
         for k in ("anzahl", "wechsel", "hund", "nicht_abgehakt", "nicht_abgehakt_ohne_zuweisung"):
             out[k] += p[k]
+        out["kosten"] = round(out["kosten"] + p.get("kosten", 0.0), 2)
         for x in p["personen"]:
-            q = people.setdefault(x["person"], {**x, "anzahl": 0, "wechsel": 0, "hund": 0, "personen": 0, "naechte": 0})
-            for k in ("anzahl", "wechsel", "hund", "personen", "naechte"):
+            q = people.setdefault(x["person"], {**x, "anzahl": 0, "wechsel": 0, "hund": 0, "personen": 0, "naechte": 0, "kosten": 0.0})
+            for k in ("anzahl", "wechsel", "hund", "personen", "naechte", "kosten"):
                 q[k] += x[k]
             q["letzte"] = max(q.get("letzte") or "", x.get("letzte") or "") or None
         for m in p["monate"]:

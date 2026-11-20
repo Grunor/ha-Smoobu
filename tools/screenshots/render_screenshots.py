@@ -382,7 +382,7 @@ async def test_render_screenshots(socket_enabled, hass: HomeAssistant, aiohttp_c
     jonas = await hass.auth.async_create_user("Jonas")
     roles = {"user_roles": {petra.id: "reinigung", jonas.id: "eigen_haus"},
              "custom_roles": {"eigen_haus": {"name": "Hausmeister", "rechte": ["belegung_sehen", "belegung", "reinigung"]}},
-             "cleaning_phones": {petra.id: "notify.mobile_app_demo"}}
+             "cleaning_phones": {petra.id: "notify.mobile_app_demo"}, "cleaning_wages": {petra.id: 18.0}}
     with patch("custom_components.smoobu.SmoobuClient", lambda *a, **k: demo):
         entry = MockConfigEntry(domain=DOMAIN, unique_id="1000", title="Demo",
                                 data={"api_key": "demo", "api_secret": "demo", "user_id": 1000},

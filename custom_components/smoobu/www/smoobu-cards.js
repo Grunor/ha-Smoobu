@@ -4357,6 +4357,7 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
       const tiles = tilesRow([
         [t("Reinigungen"), num(m.anzahl), m.seit ? `${t("erfasst seit")} ${fdate(m.seit)}` : t("noch keine erfasst"),
           t("Abgehakte Reinigungen im Reinigungsboard mit Abreise im Zeitraum")],
+        [t("Kosten"), money(m.kosten || 0, d.apt.currency), `${num(m.minuten || 60)} min ${t("je Reinigung")}`, t("Reinigungszeit × Stundenlohn der Person (Einstellungen → Kosten & Preise)")],
         [t("Gästewechsel"), num(m.wechsel), m.anzahl ? pct((m.wechsel / m.anzahl) * 100, 0) : "", t("Abreise und Anreise am selben Tag – enges Zeitfenster")],
         [t("Mit Hund"), num(m.hund), m.anzahl ? pct((m.hund / m.anzahl) * 100, 0) : "", t("Abreisende Gäste mit Hund – meist mehr Aufwand")],
         [t("Nicht abgehakt"), num(m.nicht_abgehakt), m.nicht_abgehakt_ohne_zuweisung ? `${num(m.nicht_abgehakt_ohne_zuweisung)} ${t("ohne Zuweisung")}` : "",
@@ -4365,11 +4366,12 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
       if (!m.anzahl) return panel(`🧹 ${t("Reinigung")}`, t("Wer hat wann welche Wohnung gereinigt"),
         `${tiles}<div class="empty">${t("Noch keine abgehakten Reinigungen im Zeitraum – die Auswertung beginnt mit dem Reinigungsboard (Seite Reinigung).")}</div>`);
       const people = m.personen.map((p) => p.person);
-      const per = `<div class="scroll"><table><thead><tr><th>${t("Person")}</th><th class="n">${t("Reinigungen")}</th><th class="n">${t("Anteil")}</th>
+      const per = `<div class="scroll"><table><thead><tr><th>${t("Person")}</th><th class="n">${t("Reinigungen")}</th><th class="n">${t("Anteil")}</th><th class="n">${t("Kosten")}</th>
           <th class="n">${t("Gästewechsel")}</th><th class="n">🐕</th><th class="n" title="${t("Personen je Reinigung (abgereiste Gäste)")}">${t("Gäste Ø")}</th>
           <th class="n" title="${t("Summe der Nächte der abgereisten Gäste")}">${t("Nächte")}</th>
           <th class="n" title="${t("Median: Zeit vom Check-out bis zum Abhaken")}">${t("Abgehakt nach")}</th><th>${t("Zuletzt")}</th></tr></thead><tbody>
         ${m.personen.map((p) => `<tr><td><b>${esc(p.person)}</b></td><td class="n">${num(p.anzahl)}</td><td class="n">${pct(p.anteil_prozent, 0)}</td>
+          <td class="n" title="${p.stundenlohn ? `${num(p.stundenlohn, 2)} €/h` : ""}">${money(p.kosten || 0, d.apt.currency)}</td>
           <td class="n">${num(p.wechsel)}</td><td class="n">${num(p.hund)}</td><td class="n">${p.personen_je_reinigung === null ? "–" : num(p.personen_je_reinigung, 1)}</td>
           <td class="n">${num(p.naechte)}</td><td class="n">${dur(p.verzug_median_min)}</td><td>${fdate(p.letzte)}</td></tr>`).join("")}</tbody></table></div>`;
       const cross = (rows, key, label) => `<div class="scroll"><table><thead><tr><th>${t(label)}</th>${people.map((p) => `<th class="n">${esc(p)}</th>`).join("")}<th class="n">Σ</th></tr></thead><tbody>
@@ -5697,7 +5699,7 @@ const SET_FIELD_TAB = (key) => {
   if (key.startsWith("notify_") || key === "assist_briefing_time") return "benachrichtigungen";
   if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key) || key.startsWith("ai_")) return "assistent";
   if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels"].includes(key)) return "provisionen";
-  if (key.startsWith("cost_") || key.startsWith("lastminute_") || ["channel_markups", "genius_discount", "genius_share"].includes(key)) return "kosten";
+  if (key.startsWith("cost_") || key.startsWith("lastminute_") || ["channel_markups", "genius_discount", "genius_share", "cleaning_wages"].includes(key)) return "kosten";
   if (["user_roles", "default_role", "settings_users", "role_rights", "custom_roles"].includes(key)) return "rechte";
   if (key.startsWith("cleaning_")) return "benachrichtigungen";
   return "allgemein";
@@ -5710,7 +5712,8 @@ const SET_ERR = {
   invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_role: "Unbekannte Rolle",
   // v1.19.0: Rollenkonfigurator
   invalid_right: "Unbekanntes Recht", invalid_role_name: "Name 1–30 Zeichen", duplicate_role_name: "Rollenname schon vergeben",
-  invalid_role_count: "Höchstens 10 eigene Rollen", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
+  invalid_role_count: "Höchstens 10 eigene Rollen", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“",
+  meter_entity_required: "Bitte einen Zähler wählen oder „Konstant“", price_required: "Bitte Preis oder Preis-Entität angeben", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
   // v1.18.0: Saisons
   invalid_season_count: "2 bis 6 Saisons", invalid_season: "Ungültige Saison", invalid_season_name: "Jede Saison braucht einen Namen",
   invalid_season_start: "Startmonat 1–12", invalid_season_duplicate_name: "Saisonnamen doppelt", invalid_season_duplicate_start: "Zwei Saisons mit gleichem Startmonat",
@@ -5969,42 +5972,87 @@ class SmoobuSettingsCard extends SmoobuCard {
         <div class="gb">${this.pick("payment_excluded_channels", meta.kanaele, chn, true)}${this.err("payment_excluded_channels")}</div></div>`;
   }
   // v1.18.0: variable Kosten (Deckungsbeitrag) und Preisaufschläge aus dem Smoobu-Preistool
-  // v1.19.0 (Wunsch Betreiber 20.11.2026): Strom konstant (wie bisher) oder aus Zähler-Entitäten. Gemessen:
-  // Verbrauch je Buchung ab Vorheizstart bis Check-out aus der HA-Statistik, Leerstand je Monat anteilig nach
-  // Gästenächten verteilt, Preis optional aus einer Entität, Netzanteil stündlich aus dem Energie-Dashboard.
+  // v1.19.0 (Wunsch Betreiber 20.11.2026): Strom, Wasser und Heizung jeweils konstant (wie bisher, Standard) oder aus
+  // Zähler-Entitäten. Gemessen: Verbrauch je Buchung ab Vorheizstart bis Check-out aus der stündlichen HA-Statistik,
+  // Leerstand separat (Fixkosten) oder anteilig, Preis fest oder aus einer Entität; Strom zusätzlich mit Netzanteil
+  // stündlich aus dem Energie-Dashboard. Gemeinsame Einstellungen (Vorheizen, Leerstand) in einem eigenen Block.
+  meterInputs(kind, meta) {
+    const d = this._draft;
+    const key = { strom: "cost_power_entities", wasser: "cost_water_entities", heizung: "cost_heat_entities" }[kind];
+    const list = { strom: "sm-zaehler", wasser: "sm-zwasser", heizung: "sm-zheizung" }[kind];
+    const label = { strom: "Stromzähler", wasser: "Wasserzähler", heizung: "Heizungszähler" }[kind];
+    const hint = { strom: "Gesamtzähler der Wohnung (Energie, kWh oder Wh) – wie im Energie-Dashboard.",
+      wasser: "Volumen (m³ oder L), Frischwasser der Wohnung.", heizung: "Wärmemengenzähler (kWh) oder Gas/Öl (m³, L) der Wohnung." }[kind];
+    const apts = meta.wohnungen || [];
+    return apts.map((a) => this.fld(`${t(label)}${apts.length > 1 ? ` · ${a.name}` : ""}`,
+      `<input list="${list}" data-ment="${key}|${esc(a.id)}" value="${esc(d[key]?.[a.id] || "")}" placeholder="sensor.…" style="width:320px">`,
+      apts.length === 1 ? hint : "", key)).join("");
+  }
+  srcSeg(key) {
+    const d = this._draft;
+    return `<div class="seg" role="group">${[["konstant", "Konstant"], ["zaehler", "Aus Zähler (gemessen)"]]
+      .map(([k, l]) => `<button data-msrc="${key}" data-v="${k}" aria-pressed="${d[key] === k}">${t(l)}</button>`).join("")}</div>`;
+  }
+  datalists(meta) {
+    const dl = (id, list) => `<datalist id="${id}">${(list || []).map((e) => `<option value="${esc(e.entity_id)}">${esc(e.name)}${e.unit ? ` (${esc(e.unit)})` : ""}</option>`).join("")}</datalist>`;
+    return dl("sm-zaehler", meta.energie_zaehler) + dl("sm-zwasser", meta.zaehler_wasser) + dl("sm-zheizung", meta.zaehler_heizung)
+      + dl("sm-stempel", meta.energie_zeitstempel) + dl("sm-preise", meta.energie_preise) + dl("sm-epreise", meta.preise_einheit);
+  }
   powerBlock(meta) {
     const d = this._draft;
     const on = d.cost_power_source === "zaehler";
-    const dl = (id, list) => `<datalist id="${id}">${(list || []).map((e) => `<option value="${esc(e.entity_id)}">${esc(e.name)}${e.unit ? ` (${esc(e.unit)})` : ""}</option>`).join("")}</datalist>`;
     const apts = meta.wohnungen || [];
-    const seg = `<div class="seg" role="group">${[["konstant", "Konstant"], ["zaehler", "Aus Zähler (gemessen)"]]
-      .map(([k, l]) => `<button data-psrc="${k}" aria-pressed="${d.cost_power_source === k}">${t(l)}</button>`).join("")}</div>`;
-    let body = "";
-    if (on) {
-      const rows = apts.map((a) => `${this.fld(`${t("Stromzähler")}${apts.length > 1 ? ` · ${a.name}` : ""}`,
-          `<input list="sm-zaehler" data-pent="${esc(a.id)}" value="${esc(d.cost_power_entities?.[a.id] || "")}" placeholder="sensor.…" style="width:320px">`,
-          apts.length === 1 ? "Gesamtzähler der Wohnung (Energie, kWh oder Wh) – wie im Energie-Dashboard." : "", "cost_power_entities")}
-        ${this.fld(`${t("Vorheizstart")}${apts.length > 1 ? ` · ${a.name}` : ""}`,
-          `<input list="sm-stempel" data-preh="${esc(a.id)}" value="${esc(d.cost_preheat_entities?.[a.id] || "")}" placeholder="${t("optional")}" style="width:320px">`,
-          "Zeitstempel-Sensor; nur soweit der Recorder ihn noch kennt (ältere Buchungen: Check-in − Stunden unten).", "cost_preheat_entities")}`).join("");
-      body = `${rows}
-        ${this.fld("Vorheizen vor Check-in", this.numIn("cost_preheat_hours", 0, 24, 0.5, "h"), "Ab hier zählt der Strom zur Buchung, wenn kein Vorheizstart bekannt ist.", "cost_preheat_hours")}
-        ${this.fld("Strom im Leerstand", `<div class="seg" role="group">${[["separat", "Separat (Fixkosten)"], ["anteilig", "Anteilig auf Buchungen"]]
-          .map(([k, l]) => `<button data-vmode="${k}" aria-pressed="${d.cost_vacancy_mode === k}">${t(l)}</button>`).join("")}</div>`,
-          d.cost_vacancy_mode === "anteilig" ? "Leerstand des Monats nach Gästenächten auf die Buchungen verteilt – der DB enthält alle Stromkosten."
-            : "Frostschutz, Kühlschrank, Router ohne Gast: eigene Zeile (Statistik → Deckungsbeitrag), nicht im DB der Buchungen.", "cost_vacancy_mode")}
+    const body = !on ? "" : `${this.meterInputs("strom", meta)}
         ${this.fld("Strompreis aus Entität", `<input list="sm-preise" data-ent="cost_price_entity" value="${esc(d.cost_price_entity || "")}" placeholder="${t("optional – sonst Netzstrompreis oben")}" style="width:320px">`,
           "Verlauf aus dem Recorder; davor gilt der Netzstrompreis oben. Einheit €/kWh oder ct/kWh.", "cost_price_entity")}
         ${this.fld("Netzanteil stündlich messen", this.sw("cost_grid_share_auto", "Netzanteil stündlich messen"),
           "Netzbezug ÷ Hausverbrauch je Stunde aus dem Energie-Dashboard. Aus: feste Monatswerte oben.", "cost_grid_share_auto")}
-        ${apts.map((a) => this.powerResult(meta, a, apts.length > 1)).join("")}
-        ${dl("sm-zaehler", meta.energie_zaehler)}${dl("sm-stempel", meta.energie_zeitstempel)}${dl("sm-preise", meta.energie_preise)}`;
-    }
+        ${apts.map((a) => this.powerResult(meta, a, apts.length > 1, "strom")).join("")}`;
     return `<div class="grp" data-neu="strom"><div class="gh"><div class="grow"><b>${t("Stromkosten")}${neuBadge("opt-strom")}</b>
         <span class="sub">${on ? t("Je Buchung gemessen: Vorheizstart bis Check-out. Ohne Messwert (vor Zählerstart, künftige Buchungen) gelten die konstanten Werte oben.")
           : t("Konstant: Strom je Nacht × Mischpreis aus den festen Werten oben.")}</span></div></div>
-      <div class="gb">${this.fld("Quelle", seg, "", "cost_power_source")}${body}</div></div>`;
+      <div class="gb">${this.fld("Quelle", this.srcSeg("cost_power_source"), "", "cost_power_source")}${body}</div></div>`;
   }
+  meterBlock(meta, kind) {
+    const d = this._draft;
+    const src = kind === "wasser" ? "cost_water_source" : "cost_heat_source";
+    const price = kind === "wasser" ? "cost_water_price" : "cost_heat_price";
+    const pent = kind === "wasser" ? "cost_water_price_entity" : "cost_heat_price_entity";
+    const on = d[src] === "zaehler";
+    const apts = meta.wohnungen || [];
+    const unit = kind === "wasser" ? "€/m³" : "€/Einheit";
+    const body = !on ? "" : `${this.meterInputs(kind, meta)}
+        ${this.fld(kind === "wasser" ? "Preis Frisch- + Abwasser" : "Preis je Einheit des Zählers", this.numIn(price, 0, 100, 0.0001, unit),
+          kind === "wasser" ? "Summe aus Frisch- und Abwasser je m³ (laut Abrechnung des Versorgers)." : "z. B. €/kWh Wärme, €/m³ Gas oder €/L Heizöl – passend zur Einheit des Zählers.", price)}
+        ${this.fld("Preis aus Entität", `<input list="sm-epreise" data-ent="${pent}" value="${esc(d[pent] || "")}" placeholder="${t("optional – sonst fester Preis")}" style="width:320px">`,
+          "Verlauf aus dem Recorder; davor gilt der feste Preis.", pent)}
+        ${kind === "heizung" ? this.fld("Zähler misst auch Warmwasser", this.sw("cost_heat_incl_hot_water", "Zähler misst auch Warmwasser"),
+          "An: die geschätzten Warmwasserkosten entfallen bei gemessenen Buchungen.", "cost_heat_incl_hot_water") : ""}
+        ${apts.map((a) => this.powerResult(meta, a, apts.length > 1, kind)).join("")}`;
+    const title = kind === "wasser" ? "Wasserkosten" : "Heizkosten";
+    return `<div class="grp" data-neu="${kind}"><div class="gh"><div class="grow"><b>${t(title)}</b>
+        <span class="sub">${on ? t("Je Buchung gemessen: Vorheizstart bis Check-out. Ohne Messwert gelten die konstanten Werte oben.")
+          : t(kind === "wasser" ? "Konstant: Wasser/Abwasser je Nacht (oben)." : "Konstant: Jahreskosten aus der Abrechnung, nach Gradtagszahlen verteilt (oben).")}</span></div></div>
+      <div class="gb">${this.fld("Quelle", this.srcSeg(src), "", src)}${body}</div></div>`;
+  }
+  // Gemeinsam für alle Zähler: Beginn der Buchung (Vorheizen) und Umgang mit dem Leerstand
+  measureBlock(meta) {
+    const d = this._draft;
+    if (![d.cost_power_source, d.cost_water_source, d.cost_heat_source].includes("zaehler")) return "";
+    const apts = meta.wohnungen || [];
+    return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Messung (alle Zähler)")}</b>
+        <span class="sub">${t("Ab wann eine Buchung zählt und wohin der Verbrauch ohne Gast geht.")}</span></div></div><div class="gb">
+      ${apts.map((a) => this.fld(`${t("Vorheizstart")}${apts.length > 1 ? ` · ${a.name}` : ""}`,
+        `<input list="sm-stempel" data-preh="${esc(a.id)}" value="${esc(d.cost_preheat_entities?.[a.id] || "")}" placeholder="${t("optional")}" style="width:320px">`,
+        "Zeitstempel-Sensor; nur soweit der Recorder ihn noch kennt (ältere Buchungen: Check-in − Stunden unten).", "cost_preheat_entities")).join("")}
+      ${this.fld("Vorheizen vor Check-in", this.numIn("cost_preheat_hours", 0, 24, 0.5, "h"), "Ab hier zählt der Verbrauch zur Buchung, wenn kein Vorheizstart bekannt ist.", "cost_preheat_hours")}
+      ${this.fld("Verbrauch im Leerstand", `<div class="seg" role="group">${[["separat", "Separat (Fixkosten)"], ["anteilig", "Anteilig auf Buchungen"]]
+        .map(([k, l]) => `<button data-vmode="${k}" aria-pressed="${d.cost_vacancy_mode === k}">${t(l)}</button>`).join("")}</div>`,
+        d.cost_vacancy_mode === "anteilig" ? "Leerstand des Monats nach Gästenächten auf die Buchungen verteilt – der DB enthält alle Kosten."
+          : "Frostschutz, Kühlschrank, Router ohne Gast: eigene Zeile (Statistik → Deckungsbeitrag), nicht im DB der Buchungen.", "cost_vacancy_mode")}
+      ${this.datalists(meta)}</div></div>`;
+  }
+
   // v1.19.0 (Wunsch Betreiber 20.11.2026): Nebenkostenabrechnung hochladen → KI liest die Werte → Vorschlag mit
   // Herleitung, Fundstelle und Prüfung → ausgewählte Werte in den Entwurf übernehmen (gespeichert erst mit „Speichern“).
   billsBlock(meta) {
@@ -6067,22 +6115,30 @@ class SmoobuSettingsCard extends SmoobuCard {
     this._billBusy = false; this.render();
   }
   // Messergebnis einer Wohnung (nach dem Speichern berechnet): letzte 13 Monate + Vorschlag für „konstant“
-  powerResult(meta, a, named) {
-    const m = meta.energie_messung?.[a.id];
+  // Messergebnis einer Wohnung und Art (nach dem Speichern berechnet): letzte 13 Monate + Vorschlag für „konstant“
+  powerResult(meta, a, named, kind = "strom") {
+    const src = { strom: meta.energie_messung, wasser: meta.messung_wasser, heizung: meta.messung_heizung }[kind] || {};
+    const m = src[a.id];
     if (!m) return `<div class="note">${t("Messung erscheint nach dem Speichern.")}</div>`;
     if (!m.monate?.length) return `<div class="note">${t("Keine Stundenwerte für")} ${esc(m.entitaet || "")} ${t("gefunden")}${m.fehler ? ` (${esc(m.fehler)})` : ""}.</div>`;
+    const u = m.einheit || "kWh";
+    const dg = u === "m³" ? 2 : 1;
+    const power = kind === "strom";
     const rows = m.monate.slice().reverse().map((x) => `<tr><td>${esc(D(`${x.monat}-01`).toLocaleDateString(locale(), { month: "short", year: "numeric" }))}${x.vollstaendig ? "" : " *"}</td>
-      <td class="n">${num(x.kwh, 1)}</td><td class="n">${num(x.kwh_aufenthalt, 1)}</td><td class="n">${num(x.kwh_leerstand, 1)}</td>
-      <td class="n">${x.netzanteil_prozent === null ? "–" : pct(x.netzanteil_prozent, 0)}</td><td class="n">${money(x.kosten, "EUR", 2)}</td>
+      <td class="n">${num(x.kwh, dg)}</td><td class="n">${num(x.kwh_aufenthalt, dg)}</td><td class="n">${num(x.kwh_leerstand, dg)}</td>
+      ${power ? `<td class="n">${x.netzanteil_prozent === null ? "–" : pct(x.netzanteil_prozent, 0)}</td>` : ""}<td class="n">${money(x.kosten, "EUR", 2)}</td>
       <td class="n">${num(x.naechte)}</td><td>${x.leerstand_verteilt ? t("verteilt") : `<span class="muted">${t("Fixkosten")} ${money(x.kosten_leerstand, "EUR", 2)}</span>`}</td></tr>`).join("");
     const avg = m.kwh_je_nacht;
+    const d = this._draft;
+    const sugg = !avg ? "" : power ? `<button class="lnk" data-pavg="cost_power_kwh|${avg}">${t("als konstanten Wert übernehmen")}</button>`
+      : kind === "wasser" && d.cost_water_price ? `<button class="lnk" data-pavg="cost_water_night|${Math.round(avg * d.cost_water_price * 100) / 100}">${t("als Wasser je Nacht übernehmen")} (${money(avg * d.cost_water_price, "EUR", 2)})</button>` : "";
     return `<div class="kl" style="margin-top:10px">${t("Gemessen")}${named ? ` · ${esc(a.name)}` : ""}: ${num(m.buchungen_gemessen)} ${t("Buchungen")}
-        · ${t("Netzanteil")} ${m.netzanteil_gemessen ? t("stündlich gemessen") : t("feste Monatswerte")} · ${t("Preis")} ${m.preis_entitaet ? esc(m.preis_entitaet) : t("fest")}</div>
-      <div class="scroll"><table><thead><tr><th>${t("Monat")}</th><th class="n">kWh</th><th class="n">${t("Aufenthalte")}</th><th class="n">${t("Leerstand")}</th>
-        <th class="n">${t("Netzanteil")}</th><th class="n">${t("Kosten")}</th><th class="n">${t("Nächte")}</th><th>${t("Leerstand")}</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="sub">* ${t("Monat unvollständig")}${avg ? ` · Ø ${num(avg, 1)} kWh ${t("je Gästenacht inkl. Leerstand (12 Monate)")}
-        <button class="lnk" data-pavg="${avg}">${t("als konstanten Wert übernehmen")}</button>` : ""}</div>`;
+        ${power ? `· ${t("Netzanteil")} ${m.netzanteil_gemessen ? t("stündlich gemessen") : t("feste Monatswerte")} ` : ""}· ${t("Preis")} ${m.preis_entitaet ? esc(m.preis_entitaet) : t("fest")}</div>
+      <div class="scroll"><table><thead><tr><th>${t("Monat")}</th><th class="n">${esc(u)}</th><th class="n">${t("Aufenthalte")}</th><th class="n">${t("Leerstand")}</th>
+        ${power ? `<th class="n">${t("Netzanteil")}</th>` : ""}<th class="n">${t("Kosten")}</th><th class="n">${t("Nächte")}</th><th>${t("Leerstand")}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="sub">* ${t("Monat unvollständig")}${avg ? ` · Ø ${num(avg, dg)} ${esc(u)} ${t("je Gästenacht inkl. Leerstand (12 Monate)")} ${sugg}` : ""}</div>`;
   }
+
   tabCost(meta) {
     const d = this._draft;
     const share = d.cost_grid_share || [];
@@ -6097,8 +6153,14 @@ class SmoobuSettingsCard extends SmoobuCard {
     const dist = MONTHS_SHORT.map((m, i) => `${t(m)} ${num((HEAT_PROMILLE[i] / days[i]) / wJan * 100, 0)} %`).join(" · ");
     return `<div class="note">${t("Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.")}</div>
       ${this.billsBlock(meta)}
-      <div class="grp"><div class="gh"><div class="grow"><b>${t("Je Aufenthalt")}</b></div></div><div class="gb">
-        ${this.fld("Reinigung", this.numIn("cost_cleaning", 0, 1000, 0.5, "€"), "", "cost_cleaning")}
+      <div class="grp" data-neu="reinigungslohn"><div class="gh"><div class="grow"><b>${t("Je Aufenthalt")}${neuBadge("opt-reinigungslohn")}</b></div></div><div class="gb">
+        ${this.fld("Reinigungszeit (Standard)", this.numIn("cost_cleaning_minutes", 0, 600, 5, "min"), "", "cost_cleaning_minutes")}
+        ${this.fld("Stundenlohn Reinigung (Standard)", this.numIn("cost_cleaning", 0, 1000, 0.5, "€/h"),
+          `${t("Reinigung je Aufenthalt")} = ${num((Number(d.cost_cleaning_minutes) || 0) / 60 * (Number(d.cost_cleaning) || 0), 2)} € · ${t("gilt, wenn für die Person kein eigener Lohn hinterlegt ist")}`, "cost_cleaning")}
+        ${(meta.reinigungskraefte || []).map((u, i, all) => this.fld(`${t("Stundenlohn")} · ${u.name}`,
+          `<input type="number" data-wage="${esc(u.id)}" min="0" max="500" step="0.5" value="${esc(d.cleaning_wages?.[u.id] ?? "")}" placeholder="${esc(num(Number(d.cost_cleaning) || 0, 2))}"><span class="unit">€/h</span>`,
+          i === all.length - 1 ? "Leer = Standard. Gilt für Reinigungen, die die Person laut Reinigungsboard erledigt hat oder die ihr zugewiesen sind." : "",
+          i === all.length - 1 ? "cleaning_wages" : "")).join("")}
         ${this.fld("Wäsche", this.numIn("cost_laundry", 0, 1000, 0.5, "€"), "", "cost_laundry")}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Heizung & Warmwasser")}</b>
         <span class="sub">${t("Jahreskosten aus der Nebenkostenabrechnung. Verteilung nach Gradtagszahlen, skaliert auf die Gästenächte des Abrechnungsjahres.")}</span></div></div><div class="gb">
@@ -6113,7 +6175,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Netzstrompreis", this.numIn("cost_grid_price", 0, 200, 0.01, "ct/kWh"), "", "cost_grid_price")}
         ${this.fld("Wert PV-Strom", this.numIn("cost_pv_value", 0, 200, 0.01, "ct/kWh"), "", "cost_pv_value")}
         ${this.fld("Netzanteil je Monat", `<div class="chips">${months}</div>`, "Netzbezug ÷ Hausverbrauch, z. B. aus dem Energie-Dashboard.", "cost_grid_share")}</div></div>
-      ${this.powerBlock(meta)}
+      ${this.powerBlock(meta)}${this.meterBlock(meta, "wasser")}${this.meterBlock(meta, "heizung")}${this.measureBlock(meta)}
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Aufschläge je Kanal")}</b>
         <span class="sub">${t("Wie im Smoobu-Preistool: Kanalpreis = Basispreis + Aufschlag. Grundlage für Preisuntergrenzen und Empfehlungen.")}</span></div></div>
       <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Aufschlag")}</th><th></th></tr></thead><tbody>${mk}</tbody></table></div>
@@ -6376,6 +6438,12 @@ class SmoobuSettingsCard extends SmoobuCard {
       d.user_roles = Object.fromEntries(Object.entries(d.user_roles || {}).filter(([, r]) => r !== rid));
       redraw();
     }));
+    // v1.19.0: Stundenlohn je Reinigungskraft (leer = Standard)
+    root.querySelectorAll("[data-wage]").forEach((inp) => inp.addEventListener("input", () => {
+      const w = { ...(d.cleaning_wages || {}) };
+      if (inp.value === "") delete w[inp.dataset.wage]; else w[inp.dataset.wage] = Number(inp.value);
+      d.cleaning_wages = w; this.refreshFoot();
+    }));
     // v1.19.0: Nebenkostenabrechnung (Upload, Auswertung, Vorschlag übernehmen)
     root.querySelector("[data-bill-up]")?.addEventListener("click", () => this.billUpload(root.querySelector("[data-bill-file]")?.files?.[0]));
     root.querySelectorAll("[data-bill-show]").forEach((b) => b.addEventListener("click", () => { this._billSel = b.dataset.billShow; this.render(); }));
@@ -6401,17 +6469,24 @@ class SmoobuSettingsCard extends SmoobuCard {
       redraw();
     });
     // v1.19.0: Stromkosten konstant/gemessen
-    root.querySelectorAll("[data-psrc]").forEach((b) => b.addEventListener("click", () => { d.cost_power_source = b.dataset.psrc; redraw(); }));
+    root.querySelectorAll("[data-msrc]").forEach((b) => b.addEventListener("click", () => { d[b.dataset.msrc] = b.dataset.v; redraw(); }));
     root.querySelectorAll("[data-vmode]").forEach((b) => b.addEventListener("click", () => { d.cost_vacancy_mode = b.dataset.vmode; redraw(); }));
     const mapIn = (attr, key) => root.querySelectorAll(`[${attr}]`).forEach((inp) => inp.addEventListener("input", () => {
       const m = { ...(d[key] || {}) }; const id = inp.getAttribute(attr);
       if (inp.value.trim()) m[id] = inp.value.trim(); else delete m[id];
       d[key] = m; this.refreshFoot();
     }));
-    mapIn("data-pent", "cost_power_entities");
+    root.querySelectorAll("[data-ment]").forEach((inp) => inp.addEventListener("input", () => {
+      const [key, id] = inp.dataset.ment.split("|");
+      const m = { ...(d[key] || {}) };
+      if (inp.value.trim()) m[id] = inp.value.trim(); else delete m[id];
+      d[key] = m; this.refreshFoot();
+    }));
     mapIn("data-preh", "cost_preheat_entities");
     root.querySelectorAll("[data-ent]").forEach((inp) => inp.addEventListener("input", () => { d[inp.dataset.ent] = inp.value.trim() || null; this.refreshFoot(); }));
-    root.querySelector("[data-pavg]")?.addEventListener("click", (e) => { d.cost_power_kwh = Number(e.target.dataset.pavg); toast(t("Übernommen – mit „Speichern“ übernehmen")); redraw(); });
+    root.querySelectorAll("[data-pavg]").forEach((b) => b.addEventListener("click", () => {
+      const [key, val] = b.dataset.pavg.split("|"); d[key] = Number(val); toast(t("Übernommen – mit „Speichern“ übernehmen")); redraw();
+    }));
     // v1.19.0: Handy je Reinigungskraft
     root.querySelectorAll("[data-cphone]").forEach((sel) => sel.addEventListener("change", () => {
       const ph = { ...(d.cleaning_phones || {}) };

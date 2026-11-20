@@ -39,6 +39,15 @@ from .energie import (
     CONF_COST_PREHEAT_HOURS,
     CONF_COST_PRICE_ENTITY,
     CONF_COST_VACANCY_MODE,
+    CONF_COST_HEAT_ENTITIES,
+    CONF_COST_HEAT_INCL_HOT_WATER,
+    CONF_COST_HEAT_PRICE,
+    CONF_COST_HEAT_PRICE_ENTITY,
+    CONF_COST_HEAT_SOURCE,
+    CONF_COST_WATER_ENTITIES,
+    CONF_COST_WATER_PRICE,
+    CONF_COST_WATER_PRICE_ENTITY,
+    CONF_COST_WATER_SOURCE,
     DEFAULT_COST_POWER_SOURCE,
     DEFAULT_COST_VACANCY_MODE,
     VACANCY_MODES,
@@ -67,6 +76,9 @@ from .const import (
     CONF_CHANNEL_MARKUPS,
     DEFAULT_CHANNEL_MARKUPS,
     CONF_COST_CLEANING,
+    CONF_COST_CLEANING_MINUTES,
+    DEFAULT_COST_CLEANING_MINUTES,
+    CONF_CLEANING_WAGES,
     DEFAULT_COST_CLEANING,
     CONF_COST_GRID_PRICE,
     DEFAULT_COST_GRID_PRICE,
@@ -233,7 +245,9 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_CLEANING_REMIND_TIME: str(o.get(CONF_CLEANING_REMIND_TIME, DEFAULT_CLEANING_REMIND_TIME))[:5],
         CONF_CLEANING_PHONES: {str(k): str(v) for k, v in (o.get(CONF_CLEANING_PHONES) or {}).items() if v},
         # Kosten & Preise (v1.18.0)
-        CONF_COST_CLEANING: float(o.get(CONF_COST_CLEANING, DEFAULT_COST_CLEANING)),
+        CONF_COST_CLEANING: float(o.get(CONF_COST_CLEANING, DEFAULT_COST_CLEANING)),  # ab v1.19.0: €/h
+        CONF_COST_CLEANING_MINUTES: float(o.get(CONF_COST_CLEANING_MINUTES, DEFAULT_COST_CLEANING_MINUTES)),
+        CONF_CLEANING_WAGES: {str(k): float(v) for k, v in (o.get(CONF_CLEANING_WAGES) or {}).items() if v},
         CONF_COST_LAUNDRY: float(o.get(CONF_COST_LAUNDRY, DEFAULT_COST_LAUNDRY)),
         CONF_COST_HEATING_YEAR: float(o.get(CONF_COST_HEATING_YEAR, DEFAULT_COST_HEATING_YEAR)),
         CONF_COST_HOT_WATER_YEAR: float(o.get(CONF_COST_HOT_WATER_YEAR, DEFAULT_COST_HOT_WATER_YEAR)),
@@ -251,6 +265,16 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_COST_PREHEAT_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_PREHEAT_ENTITIES) or {}).items() if v},
         CONF_COST_PREHEAT_HOURS: float(o.get(CONF_COST_PREHEAT_HOURS, DEFAULT_COST_PREHEAT_HOURS)),
         CONF_COST_VACANCY_MODE: str(o.get(CONF_COST_VACANCY_MODE, DEFAULT_COST_VACANCY_MODE)),
+        # v1.19.0: Wasser und Heizung ebenfalls konstant (Standard) oder aus Zähler
+        CONF_COST_WATER_SOURCE: str(o.get(CONF_COST_WATER_SOURCE, "konstant")),
+        CONF_COST_WATER_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_WATER_ENTITIES) or {}).items() if v},
+        CONF_COST_WATER_PRICE: float(o.get(CONF_COST_WATER_PRICE) or 0),
+        CONF_COST_WATER_PRICE_ENTITY: o.get(CONF_COST_WATER_PRICE_ENTITY) or None,
+        CONF_COST_HEAT_SOURCE: str(o.get(CONF_COST_HEAT_SOURCE, "konstant")),
+        CONF_COST_HEAT_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_HEAT_ENTITIES) or {}).items() if v},
+        CONF_COST_HEAT_PRICE: float(o.get(CONF_COST_HEAT_PRICE) or 0),
+        CONF_COST_HEAT_PRICE_ENTITY: o.get(CONF_COST_HEAT_PRICE_ENTITY) or None,
+        CONF_COST_HEAT_INCL_HOT_WATER: bool(o.get(CONF_COST_HEAT_INCL_HOT_WATER, False)),
         CONF_CHANNEL_MARKUPS: {str(k): float(v) for k, v in (o.get(CONF_CHANNEL_MARKUPS, DEFAULT_CHANNEL_MARKUPS)).items()},
         CONF_GENIUS_DISCOUNT: float(o.get(CONF_GENIUS_DISCOUNT, DEFAULT_GENIUS_DISCOUNT)),
         CONF_GENIUS_SHARE: float(o.get(CONF_GENIUS_SHARE, DEFAULT_GENIUS_SHARE)),
@@ -395,20 +419,31 @@ def energy_meta(hass: HomeAssistant, coordinator: Any) -> dict[str, Any]:
     stamps = [item(st) for st in states if st.domain == "sensor" and st.attributes.get("device_class") == "timestamp"]
     data = coordinator.data if coordinator else None
     today = date.today()
-    measured = {}
-    for apt, res in ((data.energy if data else {}) or {}).items():
+    def summary(res: dict[str, Any]) -> dict[str, Any]:
         months = sorted(res.get("monate", {}).items())[-13:]
-        measured[str(apt)] = {
+        return {
             "entitaet": res.get("entitaet"), "von": res.get("von"), "bis": res.get("bis"), "fehler": res.get("fehler"),
             "netzanteil_gemessen": res.get("netzanteil_gemessen"), "preis_entitaet": res.get("preis_entitaet"),
-            "leerstand_modus": res.get("leerstand_modus"),
+            "leerstand_modus": res.get("leerstand_modus"), "einheit": res.get("einheit") or "kWh",
             "monate": [{"monat": k, **v} for k, v in months],
             "buchungen_gemessen": len(res.get("buchungen", {})),
             "kwh_je_nacht": energie.average_kwh_per_night(res, today),
         }
+    measured: dict[str, dict[str, Any]] = {"strom": {}, "wasser": {}, "heizung": {}}
+    for apt, kinds in ((data.energy if data else {}) or {}).items():
+        for kind, res in kinds.items():
+            measured.setdefault(kind, {})[str(apt)] = summary(res)
+    volumes = [item(st) for st in states if st.domain == "sensor" and st.attributes.get("device_class") in ("water", "gas", "volume", "volume_storage")
+               and st.attributes.get("state_class") in ("total", "total_increasing")]
+    unit_prices = [item(st) for st in states if "/" in str(st.attributes.get("unit_of_measurement") or "")
+                   and any(u in str(st.attributes.get("unit_of_measurement")).casefold() for u in ("€", "eur", "ct"))]
     key = lambda x: x["name"].casefold()  # noqa: E731
     return {"energie_zaehler": sorted(meters, key=key), "energie_preise": sorted(prices, key=key),
-            "energie_zeitstempel": sorted(stamps, key=key), "energie_messung": measured}
+            "energie_zeitstempel": sorted(stamps, key=key), "energie_messung": measured["strom"],
+            "messung_wasser": measured["wasser"], "messung_heizung": measured["heizung"],
+            # Wasser: Volumen-Zähler; Heizung: Wärme-/Energiezähler oder Gas/Öl (Volumen)
+            "zaehler_wasser": sorted([v for v in volumes if v["entity_id"]], key=key),
+            "zaehler_heizung": sorted(meters + volumes, key=key), "preise_einheit": sorted(unit_prices, key=key)}
 
 
 # ---------------------------------------------------------------------------
@@ -581,6 +616,24 @@ def _entity_map(value: Any) -> dict[str, str]:
     return out
 
 
+def _wages(value: Any) -> dict[str, float]:
+    """{HA-Benutzer-ID: €/h}; leer = Standard-Stundenlohn (v1.19.0)."""
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    out = {}
+    for uid, wage in value.items():
+        if wage in (None, ""):
+            continue
+        try:
+            w = float(wage)
+        except (TypeError, ValueError) as err:
+            raise vol.Invalid("invalid_number") from err
+        if not 0 <= w <= 500:
+            raise vol.Invalid("invalid_number")
+        out[str(uid)] = round(w, 2)
+    return out
+
+
 def _phones(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         raise vol.Invalid("invalid_list")
@@ -642,6 +695,8 @@ FIELDS: dict[str, Any] = {
     CONF_CLEANING_REMIND_TIME: _hhmm,
     CONF_CLEANING_PHONES: _phones,
     CONF_COST_CLEANING: _num(0, 1000),
+    CONF_COST_CLEANING_MINUTES: _num(0, 600),
+    CONF_CLEANING_WAGES: _wages,
     CONF_COST_LAUNDRY: _num(0, 1000),
     CONF_COST_HEATING_YEAR: _num(0, 100000),
     CONF_COST_HOT_WATER_YEAR: _num(0, 100000),
@@ -658,6 +713,15 @@ FIELDS: dict[str, Any] = {
     CONF_COST_PREHEAT_ENTITIES: _entity_map,
     CONF_COST_PREHEAT_HOURS: _num(0, 24),
     CONF_COST_VACANCY_MODE: vol.In(VACANCY_MODES),
+    CONF_COST_WATER_SOURCE: vol.In(POWER_SOURCES),
+    CONF_COST_WATER_ENTITIES: _entity_map,
+    CONF_COST_WATER_PRICE: _num(0, 100),
+    CONF_COST_WATER_PRICE_ENTITY: vol.Any(None, "", vol.Match(r"^(sensor|input_number|number)\.[a-z0-9_]+$")),
+    CONF_COST_HEAT_SOURCE: vol.In(POWER_SOURCES),
+    CONF_COST_HEAT_ENTITIES: _entity_map,
+    CONF_COST_HEAT_PRICE: _num(0, 100),
+    CONF_COST_HEAT_PRICE_ENTITY: vol.Any(None, "", vol.Match(r"^(sensor|input_number|number)\.[a-z0-9_]+$")),
+    CONF_COST_HEAT_INCL_HOT_WATER: bool,
     CONF_CHANNEL_MARKUPS: _markups,
     CONF_GENIUS_DISCOUNT: _num(0, 50),
     CONF_GENIUS_SHARE: _num(0, 100),
@@ -708,6 +772,14 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
     # v1.19.0: Modus „zaehler“ braucht mindestens einen Zähler
     if values[CONF_COST_POWER_SOURCE] == "zaehler" and not values[CONF_COST_POWER_ENTITIES] and CONF_COST_POWER_ENTITIES not in errors:
         errors[CONF_COST_POWER_ENTITIES] = "power_entity_required"
+    # Wasser/Heizung aus Zähler: Zähler und ein Preis (fest oder Entität) nötig
+    for src, ents, price, pent in ((CONF_COST_WATER_SOURCE, CONF_COST_WATER_ENTITIES, CONF_COST_WATER_PRICE, CONF_COST_WATER_PRICE_ENTITY),
+                                   (CONF_COST_HEAT_SOURCE, CONF_COST_HEAT_ENTITIES, CONF_COST_HEAT_PRICE, CONF_COST_HEAT_PRICE_ENTITY)):
+        if values[src] == "zaehler":
+            if not values[ents] and ents not in errors:
+                errors[ents] = "meter_entity_required"
+            if not values[price] and not values[pent] and price not in errors:
+                errors[price] = "price_required"
 
     # KI erlauben ohne KI-Entität ergibt keinen Sinn (gleiche Regel wie im Options-Dialog)
     if values[CONF_AI_ENABLED] and not values[CONF_AI_ENTITY]:
@@ -739,9 +811,14 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
                  if rid in rechte.ROLES and frozenset(r) != rechte._clean(rechte.ROLES[rid][1])}
     for key, val in ((CONF_ROLE_RIGHTS, overrides), (CONF_CUSTOM_ROLES, values[CONF_CUSTOM_ROLES]),
                      (CONF_CLEANING_PHONES, values[CONF_CLEANING_PHONES]),
+                     (CONF_CLEANING_WAGES, values[CONF_CLEANING_WAGES]),
                      (CONF_COST_POWER_ENTITIES, values[CONF_COST_POWER_ENTITIES]),
                      (CONF_COST_PREHEAT_ENTITIES, values[CONF_COST_PREHEAT_ENTITIES]),
-                     (CONF_COST_PRICE_ENTITY, values[CONF_COST_PRICE_ENTITY])):
+                     (CONF_COST_PRICE_ENTITY, values[CONF_COST_PRICE_ENTITY]),
+                     (CONF_COST_WATER_ENTITIES, values[CONF_COST_WATER_ENTITIES]),
+                     (CONF_COST_WATER_PRICE_ENTITY, values[CONF_COST_WATER_PRICE_ENTITY]),
+                     (CONF_COST_HEAT_ENTITIES, values[CONF_COST_HEAT_ENTITIES]),
+                     (CONF_COST_HEAT_PRICE_ENTITY, values[CONF_COST_HEAT_PRICE_ENTITY])):
         if val:
             merged[key] = val
         else:

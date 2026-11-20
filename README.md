@@ -253,7 +253,7 @@ Schritt **Benachrichtigungen** (ab 1.17.0) – je Push-Art an/aus und eigene Emp
 
 Schritt **Wohnungskürzel** (ab 1.17.0): eigenes Kürzel je Wohnung (bis 4 Zeichen, Buchstaben/Ziffern, eindeutig über alle Konten); leer = automatisch. Gilt für Dashboard und Pushes.
 
-**Nur in der Einstellungs-Karte** (`custom:smoobu-settings-card`, ab 1.18.0): **Kosten & Preise** (variable Kosten je Aufenthalt und Nacht, ab 1.19.0 **Stromkosten konstant oder aus Zähler** und **Nebenkostenabrechnung per KI**, Aufschläge je Kanal, Genius, Last-Minute), **Benutzer & Rechte** (Rollen, nur Admins), **Saisons** (2–6 Saisons mit Namen und Startmonat, automatische Erkennung aus den bisherigen Jahren) und die Kategorien des Aufgaben-Boards. Neue Optionen nach einem Update erscheinen in der Übersicht unter **„Wartet auf dich“ → Einrichtung** mit Link zur Stelle.
+**Nur in der Einstellungs-Karte** (`custom:smoobu-settings-card`, ab 1.18.0): **Kosten & Preise** (variable Kosten je Aufenthalt und Nacht, ab 1.19.0 **Strom, Wasser und Heizung konstant oder aus Zähler**, **Reinigung = Zeit × Stundenlohn je Reinigungskraft** und **Nebenkostenabrechnung per KI**, Aufschläge je Kanal, Genius, Last-Minute), **Benutzer & Rechte** (Rollen, nur Admins), **Saisons** (2–6 Saisons mit Namen und Startmonat, automatische Erkennung aus den bisherigen Jahren) und die Kategorien des Aufgaben-Boards. Neue Optionen nach einem Update erscheinen in der Übersicht unter **„Wartet auf dich“ → Einrichtung** mit Link zur Stelle.
 
 Nach dem Speichern wird die Integration automatisch neu geladen.
 

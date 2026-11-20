@@ -90,7 +90,8 @@
         "title": "Costs & prices",
         "description": "Variable costs for the contribution margin (net − variable costs) and the markups from the Smoobu pricing tool for recommendations. Fixed costs (property tax, insurance, internet …) don't belong here – a booking doesn't change them. Heating and hot water are spread over the months by heating degree days (January ≈ 12× July) and scaled to the guest nights of the billing year.",
         "data": {
-          "cost_cleaning": "Cleaning per stay",
+          "cost_cleaning": "Cleaning: standard hourly wage",
+          "cost_cleaning_minutes": "Cleaning: standard time per stay",
           "cost_laundry": "Laundry per stay",
           "cost_heating_year": "Heating costs in billing year",
           "cost_hot_water_year": "Hot water costs in billing year",

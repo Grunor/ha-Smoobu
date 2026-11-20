@@ -1289,17 +1289,16 @@ def ws_energy_vacancy(hass: HomeAssistant, connection: websocket_api.ActiveConne
         return
     if not _guard(connection, msg, [c for c, _ in pairs], "finanzen"):
         return
-    kwh = cost = 0.0
-    found = False
+    out: dict[str, dict[str, Any]] = {}
     modes = set()
     for c, apt in pairs:
-        res = (c.data.energy if c.data else {}).get(apt)
-        if not res:
-            continue
-        found = True
-        modes.add(res.get("leerstand_modus") or "separat")
-        v = vacancy_costs(res, start, end)
-        kwh += v["kwh"]
-        cost += v["kosten"]
-    connection.send_result(msg["id"], {"gemessen": found, "kwh": round(kwh, 1), "kosten": round(cost, 2),
+        for kind, res in ((c.data.energy if c.data else {}).get(apt) or {}).items():
+            modes.add(res.get("leerstand_modus") or "separat")
+            v = vacancy_costs(res, start, end)
+            o = out.setdefault(kind, {"menge": 0.0, "kosten": 0.0, "einheit": res.get("einheit") or ""})
+            o["menge"] = round(o["menge"] + v["kwh"], 2)
+            o["kosten"] = round(o["kosten"] + v["kosten"], 2)
+    total = round(sum(o["kosten"] for o in out.values()), 2)
+    connection.send_result(msg["id"], {"gemessen": bool(out), "arten": out, "kosten": total,
+                                       "kwh": (out.get("strom") or {}).get("menge", 0.0),
                                        "modus": "anteilig" if modes == {"anteilig"} else "separat"})

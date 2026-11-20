@@ -45,7 +45,7 @@ class SmoobuData:
     records: dict[int, list] = field(default_factory=dict)
     # Wohnungs-ID → Kostentabelle (deckungsbeitrag.CostTable) für variable Kosten je Nacht
     cost_tables: dict[int, Any] = field(default_factory=dict)
-    # v1.19.0: Stromkosten aus Messwerten je Wohnung (energie.allocate), leer im Modus „konstant“
+    # v1.19.0: Kosten aus Zählern je Wohnung und Art {Wohnung: {"strom"|"wasser"|"heizung": energie.allocate}}
     energy: dict[int, Any] = field(default_factory=dict)
 
 

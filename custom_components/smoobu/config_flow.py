@@ -54,6 +54,8 @@ from .const import (
     CONF_COMMISSIONS,
     CONF_COMMISSION_CUSTOM,
     CONF_COST_CLEANING,
+    CONF_COST_CLEANING_MINUTES,
+    DEFAULT_COST_CLEANING_MINUTES,
     CONF_COST_GRID_PRICE,
     CONF_COST_GRID_SHARE,
     CONF_COST_HEATING_YEAR,
@@ -421,7 +423,7 @@ class SmoobuOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None:
             data: dict[str, Any] = {}
-            for key in (CONF_COST_CLEANING, CONF_COST_LAUNDRY, CONF_COST_HEATING_YEAR, CONF_COST_HOT_WATER_YEAR,
+            for key in (CONF_COST_CLEANING, CONF_COST_CLEANING_MINUTES, CONF_COST_LAUNDRY, CONF_COST_HEATING_YEAR, CONF_COST_HOT_WATER_YEAR,
                         CONF_COST_WATER_NIGHT, CONF_COST_POWER_KWH, CONF_COST_GRID_PRICE, CONF_COST_PV_VALUE,
                         CONF_GENIUS_DISCOUNT, CONF_GENIUS_SHARE, CONF_LASTMINUTE_MAX_DISCOUNT):
                 data[key] = float(user_input[key])
@@ -445,7 +447,8 @@ class SmoobuOptionsFlow(OptionsFlow):
                                                         mode=NumberSelectorMode.BOX)))
 
         fields = [
-            num(CONF_COST_CLEANING, DEFAULT_COST_CLEANING, 0, 1000, 0.5, "€"),
+            num(CONF_COST_CLEANING, DEFAULT_COST_CLEANING, 0, 1000, 0.5, "€/h"),
+            num(CONF_COST_CLEANING_MINUTES, DEFAULT_COST_CLEANING_MINUTES, 0, 600, 5, "min"),
             num(CONF_COST_LAUNDRY, DEFAULT_COST_LAUNDRY, 0, 1000, 0.5, "€"),
             num(CONF_COST_HEATING_YEAR, DEFAULT_COST_HEATING_YEAR, 0, 100000, 0.01, "€"),
             num(CONF_COST_HOT_WATER_YEAR, DEFAULT_COST_HOT_WATER_YEAR, 0, 100000, 0.01, "€"),

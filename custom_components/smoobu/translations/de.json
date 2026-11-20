@@ -90,7 +90,8 @@
         "title": "Kosten & Preise",
         "description": "Variable Kosten für den Deckungsbeitrag (Netto − variable Kosten) und die Preisaufschläge aus dem Smoobu-Preistool für Empfehlungen. Fixkosten (Grundsteuer, Versicherung, Internet …) gehören nicht hierher – sie ändern sich durch eine Buchung nicht. Heizung und Warmwasser werden nach Gradtagszahlen auf die Monate verteilt (Januar ≈ 12× Juli) und auf die Gästenächte des Abrechnungsjahres skaliert.",
         "data": {
-          "cost_cleaning": "Reinigung je Aufenthalt",
+          "cost_cleaning": "Reinigung: Standard-Stundenlohn",
+          "cost_cleaning_minutes": "Reinigung: Standardzeit je Aufenthalt",
           "cost_laundry": "Wäsche je Aufenthalt",
           "cost_heating_year": "Heizkosten im Abrechnungsjahr",
           "cost_hot_water_year": "Warmwasserkosten im Abrechnungsjahr",

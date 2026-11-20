@@ -255,7 +255,8 @@ class UtilityBills:
         """Gemessener FeWo-Strom je Kalenderjahr (nur vollständige Jahre aus energie.allocate)."""
         out: dict[int, float] = {}
         data = self.c.data
-        for res in ((data.energy if data else {}) or {}).values():
+        for kinds in ((data.energy if data else {}) or {}).values():
+            res = kinds.get("strom") or {}
             by_year: dict[int, list] = {}
             for k, m in res.get("monate", {}).items():
                 by_year.setdefault(int(k[:4]), []).append(m)
