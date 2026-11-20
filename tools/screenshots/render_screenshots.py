@@ -103,7 +103,35 @@ def _shots(base: str, token: str, set_options) -> list[str]:
                 page.locator("#stage").screenshot(path=str(path))
             done.append(path.name)
 
+        # v1.18.0: „Was ist neu“ zuerst – solange noch nichts als gelesen gilt
         start()
+        page.set_viewport_size({"width": 1440, "height": 900})
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", ["smoobu-header-card", {}, 1400])
+        page.wait_for_timeout(1500)
+        page.locator("smoobu-header-card").locator("[data-news-toggle]").click()
+        page.wait_for_timeout(600)
+        page.locator("#stage").screenshot(path=str(OUT / "was_ist_neu.png"))
+        done.append("was_ist_neu.png")
+        # Wartet auf dich → Einrichtung (neue Einstellungen der Integration)
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", ["smoobu-overview-card", {}, 1400])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-overview-card')?.shadowRoot;"
+                               " return r && r.querySelector('[data-ttab=einrichtung]'); }", timeout=20000)
+        page.locator("smoobu-overview-card").locator('.tchips [data-ttab="einrichtung"]').click()
+        page.wait_for_timeout(600)
+        page.locator("smoobu-overview-card").locator("section.three > .panel").nth(2).screenshot(path=str(OUT / "wartet_einrichtung.png"))
+        done.append("wartet_einrichtung.png")
+
+        # Ab hier: alle Neuerungen als gelesen, damit keine NEU-Markierungen in den übrigen Bildern stehen
+        def start() -> None:  # noqa: F811
+            page.goto(HARNESS.as_uri())
+            page.evaluate("([b, t]) => setup(b, t)", [base, token])
+            page.evaluate("async () => { const i = await window.hass.callWS({type: 'smoobu/info'});"
+                          " localStorage.setItem('smoobu_neu_gesehen', JSON.stringify((i.neuigkeiten || []).map((n) => n.id))); }")
+            page.goto(HARNESS.as_uri())
+            page.evaluate("([b, t]) => setup(b, t)", [base, token])
+
+        start()
+        page.set_viewport_size({"width": 1212, "height": 900})
         # v1.17.1: ohne Geräte-Chips (Empfehlung der Dashboard-Vorlage)
         card("uebersicht", "smoobu-overview-card")
         card("belegungsplan", "smoobu-timeline-card", {"months": 3})
@@ -131,6 +159,63 @@ def _shots(base: str, token: str, set_options) -> list[str]:
         # v1.17.0: Buchung mit offener Zahlung + offener Anzahlung → Buttons „Zahlung/Anzahlung erhalten“
         card("buchungsdetails_zahlung", "smoobu-bookings-card",
              prepare=lambda el: el.locator("tr[data-id]", has_text="Lea Kraus").first.click(), dialog=True)
+
+        # v1.18.0: Umbuchen (Beta) an einer Direktbuchung – Zeitraum um einen Tag verschieben und prüfen
+        page.set_viewport_size({"width": 1212, "height": 1300})
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", ["smoobu-bookings-card", {}, 1180])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-bookings-card')?.shadowRoot;"
+                               " return r && r.querySelector('tr[data-id]'); }", timeout=20000)
+        page.locator("smoobu-bookings-card").locator("tr[data-id]", has_text="Paul Hoffmann").first.click()
+        page.wait_for_function("() => { const d = document.querySelector('smoobu-booking-dialog');"
+                               " return d && d.shadowRoot && d.shadowRoot.querySelector('[data-act=move]'); }", timeout=15000)
+        page.evaluate("""() => { const r = document.querySelector('smoobu-booking-dialog').shadowRoot;
+            r.querySelector('[data-act=move]').click(); }""")
+        page.wait_for_timeout(500)
+        page.evaluate("""() => { const r = document.querySelector('smoobu-booking-dialog').shadowRoot;
+            const shift = (el) => { const d = new Date(el.value + 'T00:00:00'); d.setDate(d.getDate() + 1);
+              const p = (n) => String(n).padStart(2, '0');  // lokales Datum (toISOString wäre UTC → Vortag)
+              el.value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; el.dispatchEvent(new Event('change')); };
+            shift(r.querySelector('[data-mv=an]')); shift(r.querySelector('[data-mv=ab]'));
+            r.querySelector('[data-act=mvcheck]').click(); }""")
+        page.wait_for_timeout(2000)
+        page.locator("smoobu-booking-dialog").locator(".mvbox").screenshot(path=str(OUT / "umbuchen.png"))
+        done.append("umbuchen.png")
+        page.evaluate("() => document.querySelector('smoobu-booking-dialog')?.remove()")
+        # Kalender: ein Tipp = 1 Nacht (Anreise → Abreise), Leiste mit Sperren / Preis setzen
+        page.set_viewport_size({"width": 1212, "height": 900})
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", ["smoobu-timeline-card", {"months": 2}, 1180])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-timeline-card')?.shadowRoot;"
+                               " return r && r.querySelector('.c[data-day]:not(.past)'); }", timeout=20000)
+        # Klick per Skript: Zellen liegen teils unter Buchungsbalken (Playwright sähe sie als verdeckt)
+        page.evaluate("""() => { const r = () => document.querySelector('smoobu-timeline-card').shadowRoot;
+            const cells = () => [...r().querySelectorAll('.c[data-day]:not(.past)')];
+            cells()[3].click(); setTimeout(() => cells()[5].click(), 300); }""")
+        page.wait_for_timeout(500)
+        page.wait_for_timeout(600)
+        page.locator("#stage").screenshot(path=str(OUT / "kalender_auswahl.png"))
+        done.append("kalender_auswahl.png")
+        # Statistik-Module (Werkbank): Deckungsbeitrag und Saison-Matrix als Ausschnitt
+        page.set_viewport_size({"width": 1440, "height": 900})
+        page.evaluate("() => localStorage.setItem('smoobu-statistik-modus', 'werkbank')")
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", ["smoobu-stats-card", {}, 1400])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-stats-card')?.shadowRoot;"
+                               " return r && r.querySelector('[data-neu-mod=deckung] .wf') && r.querySelector('[data-neu-mod=saison] .mx'); }", timeout=30000)
+        # mitlaufende Filterleiste für Ausschnitte abschalten (würde den Modulkopf überdecken)
+        page.evaluate("""() => { const r = document.querySelector('smoobu-stats-card').shadowRoot;
+            const st = document.createElement('style'); st.textContent = '.fbar { position: static !important; }'; r.appendChild(st); }""")
+        page.wait_for_timeout(800)
+        for mod, name in (("deckung", "statistik_deckungsbeitrag"), ("saison", "statistik_saisonmatrix")):
+            page.locator("smoobu-stats-card").locator(f'[data-neu-mod="{mod}"]').screenshot(path=str(OUT / f"{name}.png"))
+            done.append(f"{name}.png")
+        # Einstellungen → Allgemein → Saisons mit automatischer Erkennung
+        page.set_viewport_size({"width": 1212, "height": 1400})
+        card_settings = "smoobu-settings-card"
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", [card_settings, {"tab": "allgemein"}, 1180])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-settings-card')?.shadowRoot;"
+                               " return r && r.querySelector('[data-neu=saisons]'); }", timeout=20000)
+        page.wait_for_timeout(500)
+        page.locator(card_settings).locator('[data-neu="saisons"]').screenshot(path=str(OUT / "einstellungen_saisons.png"))
+        done.append("einstellungen_saisons.png")
 
         # KI sperren (Option aus) → Seite neu laden, gesperrte Bedienung zeigen
         set_options({"ai_enabled": False})

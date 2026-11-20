@@ -51,18 +51,29 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 
 ### Funktionen
 
+**Daten in Home Assistant**
 - 📅 **Belegungskalender je Wohnung** mit vollem Gastnamen, Kanal, Personen, Preis und Kontaktdaten
-- 👤 **Sensoren für aktuelle und nächste Buchung:** Gastname, Vorname, Personenzahl, Anreise, Abreise
-- 🏠 **Binärsensoren:** belegt, Anreise heute, Abreise heute, Gästewechsel heute, Hund beim aktuellen/nächsten Gast
-- 📊 **Statistik:** Buchungen, Auslastung und Umsatz 30 Tage, Umsatz Monat/Jahr/Vorjahr (anteilig nach Nächten), Preis je Buchung, offene Zahlungen
-- ⚡ **Echtzeit-Webhook:** Nabu Casa Cloudhook oder externe HTTPS-URL, wird automatisch bei Smoobu registriert
-- 🔔 **Event `smoobu_event`** bei neuer, geänderter oder stornierter Buchung und bei neuer Gastnachricht
-- 🛠️ **Aktionen:** Buchungen abfragen, einzelne Buchung abrufen, Nachrichten lesen und senden, Zeiträume sperren, Sperren löschen, Preise und Mindestaufenthalt setzen, Ankunfts-/Abreisezeit und Notiz ändern
-- 🧭 **Kanal-Auswertung:** ein Sensor je Kanal (Portale und Direktkanäle) mit Umsatz, Netto, Kosten, Nächten, Ø Aufenthalt, Ø Personen, Ø Vorlaufzeit, Stornoquote – Monat, Jahr, bis heute, Vorjahr
-- 🎚️ **Filter für Dashboards ohne Templates:** Auswahl-Entitäten Kanal, Zeitraum, Vergleich + Auswertungs-Sensoren
-- 🔮 **Prognose Jahresende:** gebucht + Nachbuchungen wie im Vorjahr
-- 🖥️ **Eigene Dashboard-Karten:** Übersicht, Belegungsplan mit Preisen, Buchungsliste, Finanzen, Posteingang (offene Gastnachrichten, „Keine Antwort nötig“), Assistent – werden automatisch geladen; fertige [Dashboard-Vorlage](docs/dashboard-vorlage.yaml)
-- 🤖 **KI-Assistent (optional):** Antwortvorschläge mit Wissensdatenbank; per Option **komplett abschaltbar** (KI gesperrt, keine Daten an KI-Anbieter)
+- 👤 **Sensoren für aktuelle und nächste Buchung** (Gastname, Vorname, Personen, Anreise, Abreise) und **Binärsensoren** (belegt, Anreise/Abreise/Gästewechsel heute, Hund beim aktuellen/nächsten Gast)
+- 📊 **Kennzahlen-Sensoren:** Buchungen, Auslastung und Umsatz (Monat/Jahr/Vorjahr, anteilig nach Nächten), offene Zahlungen, Prognose Jahresende, ein Sensor je Kanal
+- ⚡ **Echtzeit-Webhook** (Nabu Casa oder eigene HTTPS-URL, automatisch bei Smoobu registriert) und Event **`smoobu_event`** bei neuer, geänderter oder stornierter Buchung und neuer Gastnachricht
+- 🛠️ **Aktionen:** Buchungen abfragen, Nachrichten lesen und senden, Zeiträume sperren, Preise und Mindestaufenthalt setzen, Ankunfts-/Abreisezeit, Notiz und Zahlungsstatus ändern
+
+**Smoobu-Dashboard** (eigene Karten, automatisch geladen, fertige [Dashboard-Vorlage](docs/dashboard-vorlage.yaml) mit 8 Seiten)
+- 🏠 **Übersicht:** Status heute in einem Satz, aktueller und nächster Gast, Belegung der nächsten Wochen, Kennzahlen mit Verlauf, freie Zeiträume gegen den Mindestaufenthalt geprüft, Aufgaben-Board **„Wartet auf dich“** (Nachrichten, Rechnungen, Preise, Last-Minute, Lücken, **Einrichtung**) mit Erledigt/Später
+- 🗓️ **Kalender & Preise:** Kanalfarben, Tagespreis, Mindestaufenthalt, nicht buchbare Lücken; Anreise und Abreise antippen → **sperren** oder **Preis setzen**
+- 📋 **Buchungen:** Suche, Filter, Summen je Gruppe (anstehend/aktuell/vergangen), **Stammgäste** („↻ 2× · Mai 25“), CSV-Export; Details mit Zahlungsstatus, Zeiten, Notiz, Nachrichten und **Umbuchen** (Zeitraum/Unterkunft, Beta)
+- 💶 **Finanzen:** Zeitraum, Vergleich (Stichtag Vorjahr, ganzes Vorjahr, Vorperiode, mehrere Jahre), Kanäle, Raster; Diagramm je Kanal, Kanaltabelle, Erkenntnisse
+- 📈 **Statistik-Werkbank:** Bewertung & Empfehlung (Preise per Button übernehmen und rückgängig machen), **Deckungsbeitrag** mit Brücke, Buchungstempo mit Prognose, Saison-Matrix mit Abweichung zum Ø, Wochentage, Kanäle, Buchungsfenster und -zeitpunkt, verlorene Nächte, Stornos, Gäste, Ehrentafel, Service; **eigene Module** mit Vorlagen, Vorschau und Bearbeiten; Anordnung im HA-Benutzerprofil
+- 🌦️ **Saisons** frei einstellbar (Name + Startmonat) mit **automatischer Erkennung** aus den bisherigen Jahren
+- 💬 **Posteingang:** offene Gastnachrichten, „Keine Antwort nötig“, KI-Vorschlag
+- ⚙️ **Einstellungen im Dashboard** mit **Benutzerrollen**; neue Optionen erscheinen unter „Wartet auf dich“ → Einrichtung, Neuerungen unter **„✨ Neu“** in der Kopfzeile
+- 🎨 Hell/Dunkel/System, mehrere Wohnungen mit Gesamtansicht, Handy-Ansicht
+
+**Benachrichtigungen und KI**
+- 🔔 **Pushes** je Art an/aus mit eigenen Empfängern und Ruhezeit: neue Buchung, Storno/Änderung, **Umbuchung** (Zeitraum/Unterkunft), Gastnachricht, KI-Vorschlag, Zahlungserinnerung, Tagesbriefing, Lücken
+- 🤖 **KI-Assistent (optional):** Antwortvorschläge mit Wissensdatenbank und Datenschutz-Stufen; **komplett abschaltbar** (keine Daten an KI-Anbieter)
+
+**Technik**
 - 🔐 **HMAC-SHA256-Signatur** nach aktueller Smoobu-Spezifikation
 - 🌍 Deutsch und Englisch, Einrichtung komplett über die Oberfläche, Diagnose-Download mit geschwärzten Gästedaten
 
@@ -70,37 +81,52 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 
 ### Screenshots
 
-Alle Bilder zeigen eine **erfundene Demo-Ferienwohnung**. Die Bilder stammen aus der echten Integration, aber mit Demodaten (`tools/screenshots/`). Echte Gäste- oder Umsatzdaten kommen darin nicht vor.
+Alle Bilder zeigen eine **erfundene Demo-Ferienwohnung**. Die Bilder stammen aus der echten Integration (Stand 1.18.0), aber mit Demodaten (`tools/screenshots/`). Echte Gäste- oder Umsatzdaten kommen darin nicht vor.
 
-**Übersicht (ab 1.15.0), hell und dunkel:** Status heute in einem Satz, aktueller und nächster Gast, Belegung der nächsten 6 Wochen mit Preisen, Kennzahlen mit 12-Monats-Verlauf, nächste Anreisen, freie Zeiträume, „Wartet auf dich“ (offene Nachrichten und Zahlungen)
+**Übersicht, hell und dunkel:** Status heute in einem Satz, aktueller und nächster Gast, Belegung der nächsten 6 Wochen mit Preisen, Kennzahlen mit 12-Monats-Verlauf, nächste Anreisen, freie Zeiträume und das Aufgaben-Board „Wartet auf dich“ mit Reitern und Zählern (Antworten, Zahlungen als erhalten markieren, Preise übernehmen, Lücken anpassen, Einrichtung)
 ![Übersicht hell](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_hell.png)
 ![Übersicht dunkel](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_dunkel.png)
 
-**Mehrere Wohnungen (ab 1.15.0):** Auswahl „Alle“ oder eine Wohnung oben rechts; Gesamtansicht mit Status je Wohnung, einer Belegungszeile je Wohnung und Wohnungskürzeln
+**Was ist neu und Einrichtung:** „✨ Neu“ in der Kopfzeile listet Neuerungen mit Link zur Stelle; neue Optionen stehen unter „Wartet auf dich“ → Einrichtung mit „Einstellen →“
+![Was ist neu](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/was_ist_neu.png)
+![Einrichtung](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/wartet_einrichtung.png)
+
+**Statistik-Werkbank:** Aussage-Satz, Kennzahlen mit Vergleich und Endstand, Bewertung & Empfehlung, Buchungstempo, Saison-Matrix und weitere Module (Werkbank am PC, Einfach am Handy)
+![Statistik](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_statistik_hell.png)
+
+**Deckungsbeitrag:** Netto minus variable Kosten mit Vergleich; die Brücke zeigt, was Preis je Nacht, Anzahl der Nächte (Umsatz minus eingesparte Kosten) und Kosten je Nacht am Ergebnis geändert haben
+![Deckungsbeitrag](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_deckungsbeitrag.png)
+
+**Saison-Matrix:** Monate × Jahre mit Abweichung zum Ø des Monats (▲/▼, Auslastung in Prozentpunkten); Kennzahlen Auslastung, Umsatz, ADR, RevPAR, Netto, DB
+![Saison-Matrix](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_saisonmatrix.png)
+
+**Saisons mit automatischer Erkennung:** eigene Saisons mit Namen und Startmonat; Vorschläge für 2, 3 und 4 Saisons aus den bisherigen Jahren
+![Saisons](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_saisons.png)
+
+**Kalender & Preise:** Anreise und Abreise antippen → sperren oder Preis setzen; Kanalfarben, Tagespreis, Mindestaufenthalt, nicht buchbare Lücken
+![Kalender](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/kalender_auswahl.png)
+
+**Buchungen:** Summen je Gruppe, Stammgäste mit Anzahl früherer Aufenthalte und letztem Besuch, Filter und CSV-Export
+![Buchungen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_buchungen_hell.png)
+
+**Umbuchen (Beta):** Zeitraum oder Unterkunft einer Direktbuchung ändern – mit Belegungsprüfung und Preisvorschlag
+![Umbuchen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/umbuchen.png)
+
+**Mehrere Wohnungen:** Auswahl „Alle“ oder eine Wohnung oben rechts; Gesamtansicht mit Status je Wohnung und einer Kalenderzeile je Wohnung
 ![Alle Wohnungen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_alle_hell.png)
 ![Kalender alle Wohnungen dunkel](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_kalender_alle_dunkel.png)
 
-Einzelne Karten:
+<details><summary>Weitere Bilder: Finanzen, Posteingang, Buchungsdetails, Einstellungen, Assistent, KI gesperrt, Handy</summary>
 
-**Übersicht:** Status, Anreise/Abreise/Gästewechsel heute, Kennzahlen mit Vorjahresvergleich, Lücken gegen den Mindestaufenthalt geprüft, offene Zahlungen
-![Übersicht](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/uebersicht.png)
-
-**Belegungsplan:** Kanalfarben, Tagespreis, Mindestaufenthalt, nicht buchbare Lücken (schraffiert); Tage markieren → sperren oder Preis setzen
-![Belegungsplan](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/belegungsplan.png)
-
-**Posteingang:** Gäste mit offener Nachricht oben und rot markiert, Button **„Keine Antwort nötig“**, KI-Vorschlag
+![Finanzen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_finanzen_hell.png)
 ![Posteingang](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/posteingang.png)
-
-**Finanzen:** Zeitraum und Kanäle frei wählbar, Vergleich Vorjahr, Diagramm je Kanal, Erkenntnisse, Kanaltabelle
-![Finanzen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/finanzen.png)
-
-<details><summary>Weitere Bilder: Buchungsliste, Buchungsdetails, Assistent, KI gesperrt</summary>
-
-![Buchungen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungen.png)
 ![Buchungsdetails](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungsdetails.png)
+![Buchungsdetails mit offener Zahlung](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungsdetails_zahlung.png)
+![Einstellungen Kosten & Preise](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_einstellungen_kosten_hell.png)
+![Einstellungen Datenschutz](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_datenschutz.png)
 ![Assistent](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/assistent.png)
 ![Posteingang mit gesperrter KI](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/ki_gesperrt_posteingang.png)
-![Assistent mit gesperrter KI](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/ki_gesperrt_assistent.png)
+![Statistik am Handy](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_statistik_handy_dunkel.png)
 
 </details>
 
@@ -194,7 +220,8 @@ Schritt **Benachrichtigungen** (ab 1.17.0) – je Push-Art an/aus und eigene Emp
 | Push-Art | Standard | Wann |
 |---|---|---|
 | Neue Buchung | aus | sofort (Ruhezeit beachtet) |
-| Storno / Änderung | aus | sofort, mit Vorher → Nachher (Zeitraum, Personen, Ankunftszeit, Preis) |
+| Storno / Änderung | aus | sofort, mit Vorher → Nachher (Personen, Ankunftszeit, Preis) |
+| Umbuchung (ab 1.18.0) | wie „Storno / Änderung“ | sofort, wenn sich Zeitraum oder Unterkunft ändert: Vorher → Nachher mit Nächten bzw. Wohnungsnamen; ausgeschaltet kommt die Änderung unter „Storno / Änderung“ |
 | Neue Gästenachricht | aus | sofort, wenn kein KI-Vorschlag kommt; verschwindet nach Antwort/Abhaken |
 | KI-Antwortvorschlag | an | sofort, nicht dringende in der Ruhezeit gesammelt |
 | Zahlungserinnerung | aus, 7 Tage, 09:00 | täglich zur Uhrzeit: offener Betrag X Tage vor und am Anreisetag |
@@ -203,6 +230,8 @@ Schritt **Benachrichtigungen** (ab 1.17.0) – je Push-Art an/aus und eigene Emp
 | **Ruhezeit** | aus, 21:00–07:00 | Je Push-Art einstellbar („Hält Ruhezeit ein“): solche Pushes werden gesammelt und zum Ende zugestellt (je Thema der neueste Stand). Standard: Buchung, Storno/Änderung und KI-Vorschlag warten; Gästenachricht, Zahlung, Briefing und Lücken kommen sofort. Dringende Vorschläge und Bestätigungen kommen immer sofort |
 
 Schritt **Wohnungskürzel** (ab 1.17.0): eigenes Kürzel je Wohnung (bis 4 Zeichen, Buchstaben/Ziffern, eindeutig über alle Konten); leer = automatisch. Gilt für Dashboard und Pushes.
+
+**Nur in der Einstellungs-Karte** (`custom:smoobu-settings-card`, ab 1.18.0): **Kosten & Preise** (variable Kosten je Aufenthalt und Nacht, Aufschläge je Kanal, Genius, Last-Minute), **Benutzer & Rechte** (Rollen, nur Admins), **Saisons** (2–6 Saisons mit Namen und Startmonat, automatische Erkennung aus den bisherigen Jahren) und die Kategorien des Aufgaben-Boards. Neue Optionen nach einem Update erscheinen in der Übersicht unter **„Wartet auf dich“ → Einrichtung** mit Link zur Stelle.
 
 Nach dem Speichern wird die Integration automatisch neu geladen.
 
@@ -404,26 +433,26 @@ Setzt `price` (pro Nacht) und/oder `min_stay` (Nächte) für `start_date` bis `e
 
 ### Dashboard-Karten (ab 1.8.0)
 
-Die Integration bringt eigene Karten mit. Sie werden automatisch geladen (keine Ressource eintragen) und erscheinen im Kartendialog unter „Smoobu …“. Ein Klick auf eine Buchung öffnet überall dieselbe Detailansicht: Gast und Kontakt, Preis mit Positionen, Provision, Gebühr und Netto, Notiz bearbeiten, Ankunfts-/Abreisezeit ändern, Nachrichtenverlauf und Antwort, Sperre löschen bzw. Direktbuchung stornieren.
+Die Integration bringt eigene Karten mit. Sie werden automatisch geladen (keine Ressource eintragen) und erscheinen im Kartendialog unter „Smoobu …“. Ein Klick auf eine Buchung öffnet überall dieselbe Detailansicht: Gast und Kontakt mit **Stammgast-Hinweis** (frühere Aufenthalte, letzter Besuch), Preis mit Positionen, Provision, Gebühr und Netto, Zahlung/Anzahlung als erhalten markieren, Notiz bearbeiten, Ankunfts-/Abreisezeit ändern, **Umbuchen** (Zeitraum/Unterkunft einer Direktbuchung, Beta), Nachrichtenverlauf und Antwort, Sperre löschen bzw. Direktbuchung stornieren.
 
 | Karte | Inhalt | Optionen |
 |---|---|---|
-| `custom:smoobu-header-card` (ab 1.15.0) | Kopfleiste: Seiten-Navigation (mit Zähler offener Nachrichten), **Wohnungsauswahl** „Alle / Wohnung …“ (ab 2 Wohnungen), **Hell / Dunkel / System**. Färbt auch den Seitenhintergrund passend | `pages` (Liste `name`, `path`, optional `badge: nachrichten`, `optional: true` = nur zeigen, wenn die Ansicht existiert; Pfade relativ zum Dashboard), `show_apartments`, `page_background` |
-| `custom:smoobu-overview-card` | Status heute als kurzer Satz, aktueller und nächster Gast, Belegung der nächsten Wochen mit Preisen, Kennzahlen mit 12-Monats-Verlauf und Vorjahr, Prognose, nächste Anreisen, **freie Zeiträume mit Prüfung gegen den Mindestaufenthalt**, „Wartet auf dich“ (offene Nachrichten, Zahlungen) | `title`, `entities` (eigene HA-Entitäten als Chips), `upcoming`, `gap_days`, `band_days` (42), `apartment_id` |
-| `custom:smoobu-timeline-card` | Belegungsplan je Monat mit Kanalfarben, Sperrzeiten, Tagespreis, Mindestaufenthalt, nicht buchbaren Lücken. Tage markieren → **sperren** oder **Preis/Mindestaufenthalt setzen** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
-| `custom:smoobu-bookings-card` | Buchungsliste: Suche, Zeitraum, Kanal- und Statusfilter (inkl. Stornos, Sperrzeiten), Sortierung, Summen, CSV-Export | `title`, `period`, `status`, `apartment_id` |
+| `custom:smoobu-header-card` (ab 1.15.0) | Kopfleiste: Seiten-Navigation (mit Zähler offener Nachrichten), **„✨ Neu“** (ungelesene Neuerungen mit Link zur Stelle, gelesen je HA-Benutzer), **Wohnungsauswahl** „Alle / Wohnung …“ (ab 2 Wohnungen), **Hell / Dunkel / System**. Färbt auch den Seitenhintergrund passend | `pages` (Liste `name`, `path`, optional `badge: nachrichten`, `optional: true` = nur zeigen, wenn die Ansicht existiert; Pfade relativ zum Dashboard), `show_apartments`, `page_background` |
+| `custom:smoobu-overview-card` | Status heute als kurzer Satz, aktueller und nächster Gast, Belegung der nächsten Wochen mit Preisen, Kennzahlen mit 12-Monats-Verlauf und Vorjahr, Prognose, nächste Anreisen, **freie Zeiträume mit Prüfung gegen den Mindestaufenthalt**, Aufgaben-Board „Wartet auf dich“ (Reiter Nachrichten, Rechnungen, Preise, Last-Minute, Lücken, Einrichtung; Erledigt/Später für alle Benutzer) | `title`, `entities` (eigene HA-Entitäten als Chips), `upcoming`, `gap_days`, `band_days` (42), `apartment_id` |
+| `custom:smoobu-timeline-card` | Kalender & Preise je Monat mit Kanalfarben, Sperrzeiten, Tagespreis, Mindestaufenthalt, nicht buchbaren Lücken. **Anreise und Abreise antippen** (ein Tipp = 1 Nacht) → **sperren** oder **Preis/Mindestaufenthalt setzen** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
+| `custom:smoobu-bookings-card` | Buchungsliste: Suche, Zeitraum, Kanal- und Statusfilter (inkl. Stornos, Sperrzeiten), Sortierung, Trennzeilen Anstehend/Aktuell/Vergangen mit Summen, **Stammgast-Abzeichen**, CSV-Export | `title`, `period`, `status`, `apartment_id` |
 | `custom:smoobu-analytics-card` | Finanzen: dieselbe Filterleiste wie die Statistik (Monat/Quartal/Saison/Jahr/Frei mit ‹ › blättern, Vergleich Stichtag Vorjahr/Ganzes Vorjahr/Vorperiode/Kein, Raster Auto/Tag/Woche/Monat, Wohnung, Kanäle mehrfach), dazu Schnellwahl (Vormonat, Folgemonat, Vorjahr, Jahr bis heute, letzte/nächste 12 Monate, gesamter Zeitraum) und Mehrfachvergleich über mehrere Jahre bzw. Perioden (Tabelle und zusätzliche Linien). Bei „Stichtag Vorjahr“ zusätzlich der **Endstand** des Vergleichszeitraums in den Kacheln. Kennzahlen mit Veränderung, gestapeltes Diagramm je Kanal mit Vergleichslinie, Anteile, Erkenntnisse, Kanaltabelle | `title`, `period` (`monat`/`quartal`/`saison`/`jahr`/`custom` oder ein Schnellwahl-Schlüssel), `compare` (`stichtag` Standard, `vorjahr`, `vorperiode`, `kein`), `compare_count` (Standard 1), `raster` (`auto`), `apartment_id` |
-| `custom:smoobu-stats-card` | Statistik-Werkbank: Aussage-Satz, Filterleiste (Monat/Quartal/Saison/Jahr/frei, Vergleich Stichtag Vorjahr/Vorjahr/Vorperiode, Kanäle, Wohnung, Raster), Ansicht Werkbank/Einfach je Gerät; 13 Module (Kennzahlen mit Fokus-Verlauf, **Bewertung & Empfehlung** (Buchungsstand je Monat gegen die Vorjahre am gleichen Tag, Preis senken/halten/erhöhen in Schritten, Preisuntergrenze je Kanal aus den variablen Kosten, Hinweise zu Wochenende, Einzelnächten, Feiertagen und kurzen Lücken – auch in „Einfach“; Empfehlungen und Hinweise per Button übernehmen, änderbar, mit Vorschau und Rückgängig), Buchungstempo mit Prognose-Spanne, Saison-Matrix, Belegung nach Wochentag, Kanal-Wirtschaftlichkeit, Buchungsfenster, verlorene Nächte, Stornos, Gäste (Anteil Buchungen und Nächte), **Ehrentafel** (Fun-Statistik: „Die Goldene Fußmatte“ und „Die Rostige Klobürste“ – je Top 3 der abgeschlossenen Aufenthalte nach Preis je Nacht, Kommunikation, Extra-Stunden durch frühen Check-in/späten Check-out, Vorlauf, Aufenthaltsdauer und Portal-Abzug; Perzentil-Rang je Kriterium, fehlende Werte neutral; Vorname + Initial; nur Anzeige, nichts wird gespeichert), Service/Antwortzeit, Datentabelle mit CSV) plus Baukasten für eigene Module; Module anordnen/ausblenden je Gerät. Werte mit n < 5 als „wenig Daten“ markiert | `title`, `period`, `compare`, `matrix_exclude_years` (Standard `[2020]`), `matrix_since`, `apartment_id` |
+| `custom:smoobu-stats-card` | Statistik-Werkbank: Aussage-Satz, Filterleiste (Monat/Quartal/Saison/Jahr/frei, Vergleich Stichtag Vorjahr/Vorjahr/Vorperiode, Kanäle, Wohnung, Raster), Ansicht Werkbank/Einfach je Gerät; 14 Module (Kennzahlen mit Fokus-Verlauf, **Deckungsbeitrag** (Netto − variable Kosten mit Brücke Preis/Nächte/Kosten je Nacht), **Bewertung & Empfehlung** (Buchungsstand je Monat gegen die Vorjahre am gleichen Tag, Preis senken/halten/erhöhen in Schritten, Preisuntergrenze je Kanal aus den variablen Kosten, Hinweise zu Wochenende, Einzelnächten, Feiertagen und kurzen Lücken – auch in „Einfach“; Empfehlungen und Hinweise per Button übernehmen, änderbar, mit Vorschau und Rückgängig), Buchungstempo mit Prognose-Spanne, Saison-Matrix (mit Abweichung zum Ø, auch DB), Belegung nach Wochentag, Kanal-Wirtschaftlichkeit, Buchungsfenster, verlorene Nächte, Stornos, Gäste (Anteil Buchungen und Nächte), **Ehrentafel** (Fun-Statistik: „Die Goldene Fußmatte“ und „Die Rostige Klobürste“ – je Top 3 der abgeschlossenen Aufenthalte nach Preis je Nacht, Kommunikation, Extra-Stunden durch frühen Check-in/späten Check-out, Vorlauf, Aufenthaltsdauer und Portal-Abzug; Perzentil-Rang je Kriterium, fehlende Werte neutral; Vorname + Initial; nur Anzeige, nichts wird gespeichert), Service/Antwortzeit, Datentabelle mit CSV) plus Baukasten für eigene Module (Vorlagen, Live-Vorschau, nachträglich bearbeiten, Darstellung im Modulkopf umschalten); Anordnung und eigene Module im HA-Benutzerprofil (alle Geräte, übersteht Updates). Zeitraum „Saison“ nach den eingestellten Saisons. Werte mit n < 5 als „wenig Daten“ markiert | `title`, `period`, `compare`, `matrix_exclude_years` (Standard `[2020]`), `matrix_since`, `apartment_id` |
 | `custom:smoobu-inbox-card` | Posteingang: laufende, kommende und kürzliche Buchungen, Nachrichtenverlauf, antworten, ✨ KI-Vorschlag. **Antwort offen** = neueste Nachricht kommt vom Gast (Nachrichten an den Gast, auch automatische, schließen); Button **„Keine Antwort nötig“** hakt sie ohne Antwort ab, bis der Gast erneut schreibt (rückgängig machbar) | `title`, `days_back`, `days_ahead`, `message_entity` |
 | `custom:smoobu-assistant-card` | KI-Assistent: Wissensdatenbank (freigeben, bearbeiten, vertraulich), Vorschläge, Gelerntes, Lücken, Import | `title` |
-| `custom:smoobu-settings-card` | Einstellungen im Dashboard: Benachrichtigungen (Push-Arten, Empfänger, Uhrzeiten, Ruhezeit), KI-Assistent, Provisionen & Kanäle, Kosten & Preise, Benutzer & Rechte (Rollen Verwalter/Betrieb/Mitarbeiter/Nur lesen/Kein Zugriff, nur Admins vergeben sie; Prüfung im Backend für Karten und `smoobu.*`-Aktionen), Allgemein & Abruf inkl. Wohnungskürzel – dieselben Werte wie der Options-Dialog. Ändern dürfen HA-Admins und die in der Option „Einstellungen im Dashboard erlauben für“ gewählten Benutzer (Prüfung im Backend); nach dem Speichern lädt die Integration neu | `title`, `tab`, `entry_id` |
+| `custom:smoobu-settings-card` | Einstellungen im Dashboard: Benachrichtigungen (Push-Arten, Empfänger, Uhrzeiten, Ruhezeit), KI-Assistent, Provisionen & Kanäle, Kosten & Preise, Benutzer & Rechte (Rollen Verwalter/Betrieb/Mitarbeiter/Nur lesen/Kein Zugriff, nur Admins vergeben sie; Prüfung im Backend für Karten und `smoobu.*`-Aktionen), Allgemein & Abruf inkl. Wohnungskürzel und **Saisons** (mit automatischer Erkennung) – dieselben Werte wie der Options-Dialog, dazu Optionen, die es nur hier gibt. Ändern dürfen HA-Admins und die in der Option „Einstellungen im Dashboard erlauben für“ gewählten Benutzer (Prüfung im Backend); nach dem Speichern lädt die Integration neu | `title`, `tab`, `entry_id` |
 
 **Design (ab 1.15.0):** Eigene, aufeinander abgestimmte Farben für hell und dunkel (Kanäle, Zustände, Flächen) und die Schrift *Schibsted Grotesk* (SIL OFL, wird mit der Integration ausgeliefert, kein externer Server). Der Modus wird **je Gerät** gespeichert; „System“ folgt dem Dunkelmodus von Home Assistant.
 
-**Mehrere Wohnungen (ab 1.15.0):** Ohne `apartment_id` folgen alle Karten der Wohnungsauswahl der Kopfleiste (je Gerät gespeichert). „Alle“ zeigt Daten aller Wohnungen zusammen: Umsätze summiert, Auslastung über alle verfügbaren Nächte, Listen mit Wohnungskürzel (automatisch aus dem Namen, z. B. „Haus Seeblick“ → „HS“), Belegungsplan mit einer Zeile je Wohnung, Finanzen mit Wohnungsvergleich. Sperren und Preise gelten immer für die markierte Wohnung. Eine Karte mit `apartment_id` bleibt fest bei dieser Wohnung. Bei nur einer Wohnung gibt es keine Auswahl.
+**Mehrere Wohnungen (ab 1.15.0):** Ohne `apartment_id` folgen alle Karten der Wohnungsauswahl der Kopfleiste (je Gerät gespeichert). „Alle“ zeigt Daten aller Wohnungen zusammen: Umsätze summiert, Auslastung über alle verfügbaren Nächte, Listen mit Wohnungskürzel (automatisch aus dem Namen, z. B. „Haus Seeblick“ → „HS“), Kalender mit einer Zeile je Wohnung, Finanzen mit Wohnungsvergleich. Sperren und Preise gelten immer für die markierte Wohnung. Eine Karte mit `apartment_id` bleibt fest bei dieser Wohnung. Bei nur einer Wohnung gibt es keine Auswahl.
 
 ```yaml
-# Beispiel: eigene Seite „Smoobu“ mit Kopfleiste, Übersicht und Belegungsplan
+# Beispiel: eigene Seite „Smoobu“ mit Kopfleiste, Übersicht und Kalender
 type: custom:smoobu-header-card
 ---
 type: custom:smoobu-overview-card
@@ -434,13 +463,13 @@ type: custom:smoobu-timeline-card
 months: 4
 ```
 
-Datenquelle der Karten sind WebSocket-Befehle (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/message_status`, `smoobu/message_done`, `smoobu/subscribe`). Sie aktualisieren sich bei jedem neuen Datenstand von selbst. Alle Texte aus Smoobu werden vor der Anzeige maskiert.
+Datenquelle der Karten sind WebSocket-Befehle (u. a. `smoobu/info`, `smoobu/analytics`, `smoobu/stats`, `smoobu/bookings`, `smoobu/booking`, `smoobu/booking/move`, `smoobu/rates`, `smoobu/rates/apply`, `smoobu/tasks/get`, `smoobu/settings/get`, `smoobu/message_status`, `smoobu/subscribe`). Sie aktualisieren sich bei jedem neuen Datenstand von selbst. Alle Texte aus Smoobu werden vor der Anzeige maskiert.
 
 ---
 
 ### Dashboard-Vorlage
 
-[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) ist ein komplettes Dashboard mit 6 Seiten (Übersicht, Kalender, Buchungen, Finanzen, Nachrichten, Assistent) und Kopfleiste – so wie auf den [Screenshots](#screenshots).
+[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) ist ein komplettes Dashboard mit 8 Seiten (Übersicht, Kalender, Buchungen, Finanzen, Statistik, Nachrichten, Assistent, Einstellungen) und Kopfleiste – so wie auf den [Screenshots](#screenshots).
 
 1. **Einstellungen → Dashboards → Dashboard hinzufügen → Neues Dashboard von Grund auf**, URL z. B. `dashboard-ferienwohnung`
 2. Dashboard öffnen → ✎ → ⋮ → **Raw-Konfigurationseditor** → Inhalt der Vorlage einfügen → Speichern
@@ -746,15 +775,29 @@ This integration handles the signing and exposes all data natively in Home Assis
 
 ### Features
 
-- 📅 **Occupancy calendar per apartment** with full guest name, channel, guests, price and contact details
-- 👤 **Sensors for the current and next booking:** guest name, first name, number of guests, arrival, departure
-- 🏠 **Binary sensors:** occupied, arrival today, departure today, changeover today, dog with current/next guest
-- 📊 **Statistics:** 30-day bookings, occupancy and revenue, revenue month/year/previous year (split by nights), price per booking, unpaid bookings
-- ⚡ **Real-time webhook:** Nabu Casa cloudhook or external HTTPS URL, registered with Smoobu automatically
-- 🔔 **Event `smoobu_event`** for new, changed or cancelled bookings and new guest messages
-- 🛠️ **Actions:** query bookings, get a single booking, read messages, send messages, block periods, set prices/minimum stay
-- 🖥️ **Dashboard cards:** overview, occupancy plan, booking list, finance, inbox (open guest messages, "No reply needed"), assistant – loaded automatically; ready-made [dashboard template](docs/dashboard-vorlage.yaml)
-- 🤖 **AI assistant (optional):** reply suggestions with a knowledge base; can be **switched off completely** (AI locked, no data sent to an AI provider)
+**Data in Home Assistant**
+- 📅 **Occupancy calendar per property** with full guest name, channel, guests, price and contact details
+- 👤 **Sensors for the current and next booking** (guest name, first name, guests, arrival, departure) and **binary sensors** (occupied, arrival/departure/changeover today, dog with current/next guest)
+- 📊 **KPI sensors:** bookings, occupancy and revenue (month/year/previous year, split by nights), unpaid bookings, year-end forecast, one sensor per channel
+- ⚡ **Real-time webhook** (Nabu Casa or your own HTTPS URL, registered with Smoobu automatically) and event **`smoobu_event`** for new, changed or cancelled bookings and new guest messages
+- 🛠️ **Actions:** query bookings, read and send messages, block periods, set prices and minimum stay, change arrival/departure time, note and payment status
+
+**Smoobu dashboard** (own cards, loaded automatically, ready-made [dashboard template](docs/dashboard-vorlage.yaml) with 8 pages)
+- 🏠 **Overview:** today's status in one sentence, current and next guest, occupancy of the next weeks, KPIs with trend, free periods checked against the minimum stay, task board **"Waiting for you"** (messages, invoices, prices, last-minute, gaps, **setup**) with done/later
+- 🗓️ **Calendar & prices:** channel colours, daily price, minimum stay, unbookable gaps; tap arrival and departure → **block** or **set price**
+- 📋 **Bookings:** search, filters, totals per group (upcoming/current/past), **returning guests** ("↻ 2× · May 25"), CSV export; details with payment status, times, note, messages and **rebooking** (dates/property, beta)
+- 💶 **Finances:** period, comparison (same day last year, full previous year, previous period, several years), channels, grid; chart per channel, channel table, insights
+- 📈 **Statistics workbench:** rating & recommendation (apply prices with one click and undo), **contribution margin** with bridge, booking pace with forecast, season matrix with deviation from the average, weekdays, channels, booking window and timing, lost nights, cancellations, guests, hall of fame, service; **custom modules** with templates, preview and editing; arrangement stored in the HA user profile
+- 🌦️ **Seasons** freely adjustable (name + start month) with **automatic detection** from past years
+- 💬 **Inbox:** open guest messages, "No reply needed", AI suggestion
+- ⚙️ **Settings in the dashboard** with **user roles**; new options appear under "Waiting for you" → Setup, changes under **"✨ New"** in the header
+- 🎨 Light/dark/system, several properties with a combined view, mobile view
+
+**Notifications and AI**
+- 🔔 **Pushes** per type on/off with own recipients and quiet hours: new booking, cancellation/change, **rebooking** (dates/property), guest message, AI suggestion, payment reminder, daily briefing, gaps
+- 🤖 **AI assistant (optional):** reply suggestions with a knowledge base and privacy levels; **can be switched off completely** (no data sent to an AI provider)
+
+**Technical**
 - 🔐 **HMAC-SHA256 signing** according to the current Smoobu specification
 - 🌍 German and English, set up entirely in the UI, diagnostics download with redacted guest data
 
@@ -762,41 +805,54 @@ This integration handles the signing and exposes all data natively in Home Assis
 
 ### Screenshots
 
-All images show a **fictional demo apartment**. They come from the real integration, but with demo data (`tools/screenshots/`). No real guest or revenue data appears in them.
+All images show a **fictional demo apartment**. They come from the real integration (version 1.18.0), but with demo data (`tools/screenshots/`). No real guest or revenue data appears in them. The screenshots show the German interface; the cards follow the Home Assistant language.
 
-**Overview (since 1.15.0), light and dark:** today's status in one sentence, current and next guest, occupancy of the next 6 weeks with prices, key figures with 12-month trend, upcoming arrivals, free periods, "Waiting for you" (open messages and payments)
+**Overview, light and dark:** today's status in one sentence, current and next guest, occupancy of the next 6 weeks with prices, KPIs with 12-month trend, upcoming arrivals, free periods and the task board "Waiting for you" with tabs and counters (reply, mark payments as received, apply prices, adjust gaps, setup)
 ![Overview light](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_hell.png)
 ![Overview dark](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_dunkel.png)
 
-**Several properties (since 1.15.0):** select "All" or one property at the top right; combined view with status per property, one occupancy row per property and property codes
+**What's new and setup:** "✨ New" in the header lists changes with a link to the location; new options appear under "Waiting for you" → Setup with "Configure →"
+![What's new](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/was_ist_neu.png)
+![Setup](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/wartet_einrichtung.png)
+
+**Statistics workbench:** summary sentence, KPIs with comparison and final value, rating & recommendation, booking pace, season matrix and more modules (workbench on the PC, simple view on the phone)
+![Statistics](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_statistik_hell.png)
+
+**Contribution margin:** net minus variable costs with comparison; the bridge shows what price per night, number of nights (revenue minus saved costs) and costs per night changed
+![Contribution margin](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_deckungsbeitrag.png)
+
+**Season matrix:** months × years with deviation from the month's average (▲/▼, occupancy in percentage points); measures occupancy, revenue, ADR, RevPAR, net, CM
+![Season matrix](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_saisonmatrix.png)
+
+**Seasons with automatic detection:** own seasons with name and start month; suggestions for 2, 3 and 4 seasons from past years
+![Seasons](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_saisons.png)
+
+**Calendar & prices:** tap arrival and departure → block or set price; channel colours, daily price, minimum stay, unbookable gaps
+![Calendar](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/kalender_auswahl.png)
+
+**Bookings:** totals per group, returning guests with number of earlier stays and last visit, filters and CSV export
+![Bookings](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_buchungen_hell.png)
+
+**Rebooking (beta):** change the dates or property of a direct booking – with availability check and price suggestion
+![Rebooking](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/umbuchen.png)
+
+**Several properties:** select "All" or one property at the top right; combined view with status per property and one calendar row per property
 ![All properties](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_alle_hell.png)
 ![Calendar all properties dark](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_kalender_alle_dunkel.png)
 
-Single cards:
+<details><summary>More: finances, inbox, booking details, settings, assistant, AI locked, mobile</summary>
 
-**Overview:** status, arrivals/departures/changeover today, key figures vs. last year, gaps checked against the minimum stay, unpaid bookings
-![Overview](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/uebersicht.png)
-
-**Occupancy plan:** channel colours, daily price, minimum stay, unbookable gaps (hatched); mark days → block or set price
-![Occupancy plan](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/belegungsplan.png)
-
-**Inbox:** guests with an open message on top and highlighted, **"No reply needed"** button, AI suggestion
+![Finances](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_finanzen_hell.png)
 ![Inbox](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/posteingang.png)
-
-**Finance:** free period and channel selection, comparison with last year, chart per channel, insights, channel table
-![Finance](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/finanzen.png)
-
-<details><summary>More: booking list, booking details, assistant, AI locked</summary>
-
-![Bookings](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungen.png)
 ![Booking details](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungsdetails.png)
+![Booking details with open payment](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungsdetails_zahlung.png)
+![Settings costs & prices](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_einstellungen_kosten_hell.png)
+![Settings privacy](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_datenschutz.png)
 ![Assistant](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/assistent.png)
 ![Inbox with AI locked](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/ki_gesperrt_posteingang.png)
-![Assistant with AI locked](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/ki_gesperrt_assistent.png)
+![Statistics on the phone](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_statistik_handy_dunkel.png)
 
 </details>
-
-The screenshots show the German interface; the cards follow the Home Assistant language.
 
 ---
 
@@ -888,7 +944,8 @@ Step **Notifications** (since 1.17.0) – per push type on/off and own recipient
 | Push type | Default | When |
 |---|---|---|
 | New booking | off | immediately (quiet hours respected) |
-| Cancellation / change | off | immediately, before → after (dates, guests, arrival time, price) |
+| Cancellation / change | off | immediately, before → after (guests, arrival time, price) |
+| Rebooking (since 1.18.0) | like "Cancellation / change" | immediately when dates or property change: before → after with nights or property names; when switched off the change arrives under "Cancellation / change" |
 | New guest message | off | immediately when no AI suggestion is sent; removed after reply/mark done |
 | AI reply suggestion | on | immediately, non-urgent ones collected during quiet hours |
 | Payment reminder | off, 7 days, 09:00 | daily at the time: open amount X days before and on the arrival day |
@@ -1098,31 +1155,31 @@ Changes `arrival_time`, `departure_time` and/or `notice` of a booking (`reservat
 
 ### Dashboard cards (since 1.8.0)
 
-The integration ships its own cards. They are loaded automatically (no resource needed) and appear in the card picker as "Smoobu …". Clicking a booking opens the same detail view everywhere: guest and contact, price with line items, commission, fee and net, edit note, change arrival/departure time, message thread and reply, delete a block or cancel a direct booking.
+The integration ships its own cards. They are loaded automatically (no resource needed) and appear in the card picker as "Smoobu …". Clicking a booking opens the same detail view everywhere: guest and contact with a **returning-guest note** (earlier stays, last visit), price with line items, commission, fee and net, mark payment/prepayment as received, edit note, change arrival/departure time, **rebooking** (dates/property of a direct booking, beta), message thread and reply, delete a block or cancel a direct booking.
 
 | Card | Content | Options |
 |---|---|---|
-| `custom:smoobu-header-card` (since 1.15.0) | Header: page navigation (with open-message counter), **property selector** "All / property …" (from 2 properties), **Light / Dark / System**. Also colours the page background | `pages` (list of `name`, `path`, optional `badge: nachrichten`, `optional: true` = only shown if the view exists; paths relative to the dashboard), `show_apartments`, `page_background` |
-| `custom:smoobu-overview-card` | Today's status as a short sentence, current and next guest, occupancy of the next weeks with prices, key figures with 12-month trend and previous year, forecast, upcoming arrivals, **free periods checked against the minimum stay**, "Waiting for you" (open messages, payments) | `title`, `entities`, `upcoming`, `gap_days`, `band_days` (42), `apartment_id` |
-| `custom:smoobu-timeline-card` | Occupancy plan per month with channel colours, blocks, daily price, minimum stay, unbookable gaps. Mark days → **block** or **set price/minimum stay** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
-| `custom:smoobu-bookings-card` | Booking list: search, period, channel and status filters (incl. cancellations, blocks), sorting, totals, CSV export | `title`, `period`, `status`, `apartment_id` |
+| `custom:smoobu-header-card` (since 1.15.0) | Header: page navigation (with open-message counter), **"✨ New"** (unread changes with a link to the location, read state per HA user), **property selector** "All / property …" (from 2 properties), **Light / Dark / System**. Also colours the page background | `pages` (list of `name`, `path`, optional `badge: nachrichten`, `optional: true` = only shown if the view exists; paths relative to the dashboard), `show_apartments`, `page_background` |
+| `custom:smoobu-overview-card` | Today's status as a short sentence, current and next guest, occupancy of the next weeks with prices, key figures with 12-month trend and previous year, forecast, upcoming arrivals, **free periods checked against the minimum stay**, task board "Waiting for you" (tabs messages, invoices, prices, last-minute, gaps, setup; done/later for all users) | `title`, `entities`, `upcoming`, `gap_days`, `band_days` (42), `apartment_id` |
+| `custom:smoobu-timeline-card` | Calendar & prices per month with channel colours, blocks, daily price, minimum stay, unbookable gaps. **Tap arrival and departure** (one tap = 1 night) → **block** or **set price/minimum stay** | `title`, `months` (3), `show_prices`, `actions`, `apartment_id` |
+| `custom:smoobu-bookings-card` | Booking list: search, period, channel and status filters (incl. cancellations, blocks), sorting, group rows upcoming/current/past with totals, **returning-guest badge**, CSV export | `title`, `period`, `status`, `apartment_id` |
 | `custom:smoobu-analytics-card` | Finance: the same filter bar as the statistics (month/quarter/season/year/custom with ‹ › paging, comparison same day last year/full previous year/previous period/none, grid auto/day/week/month, property, multiple channels), plus quick select (previous month, next month, previous year, year to date, last/next 12 months, whole period) and multi-period comparison across several years or periods (table and extra lines). With "Same day last year" the tiles also show the **final value** of the comparison period. Key figures with change, stacked chart per channel with comparison line, shares, insights, channel table | `title`, `period` (`monat`/`quartal`/`saison`/`jahr`/`custom` or a quick-select key), `compare` (`stichtag` default, `vorjahr`, `vorperiode`, `kein`), `compare_count` (default 1), `raster` (`auto`), `apartment_id` |
-| `custom:smoobu-stats-card` | Statistics workbench: summary sentence, filter bar (month/quarter/season/year/custom, comparison same day last year/previous year/previous period, channels, property, grid), Workbench/Simple view per device; 13 modules (KPIs with focus trend, **assessment & recommendation** (bookings on hand per month vs. previous years on the same day, lower/keep/raise price in steps, price floor per channel from variable costs, notes on weekends, single nights, holidays and short gaps – also in Simple; apply recommendations and notes via button, editable, with preview and undo), booking pace with forecast range, season matrix, occupancy by weekday, channel economics, booking window, lost nights, cancellations, guests (share of bookings and nights), **hall of fame** (fun statistics: "The Golden Doormat" and "The Rusty Toilet Brush" – top 3 completed stays each by price per night, communication, extra hours from early check-in/late check-out, lead time, length of stay and portal deduction; percentile rank per criterion, missing values neutral; first name + initial; display only, nothing is stored), service/response time, data table with CSV) plus a builder for custom modules; arrange/hide modules per device. Values with n < 5 flagged as "low data" | `title`, `period`, `compare`, `matrix_exclude_years` (default `[2020]`), `matrix_since`, `apartment_id` |
+| `custom:smoobu-stats-card` | Statistics workbench: summary sentence, filter bar (month/quarter/season/year/custom, comparison same day last year/previous year/previous period, channels, property, grid), Workbench/Simple view per device; 14 modules (KPIs with focus trend, **contribution margin** (net − variable costs with bridge price/nights/costs per night), **assessment & recommendation** (bookings on hand per month vs. previous years on the same day, lower/keep/raise price in steps, price floor per channel from variable costs, notes on weekends, single nights, holidays and short gaps – also in Simple; apply recommendations and notes via button, editable, with preview and undo), booking pace with forecast range, season matrix (with deviation from the average, also CM), occupancy by weekday, channel economics, booking window, lost nights, cancellations, guests (share of bookings and nights), **hall of fame** (fun statistics: "The Golden Doormat" and "The Rusty Toilet Brush" – top 3 completed stays each by price per night, communication, extra hours from early check-in/late check-out, lead time, length of stay and portal deduction; percentile rank per criterion, missing values neutral; first name + initial; display only, nothing is stored), service/response time, data table with CSV) plus a builder for custom modules (templates, live preview, edit afterwards, switch the view in the module header); arrangement and custom modules stored in the HA user profile (all devices, survives updates). Period "Season" follows the configured seasons. Values with n < 5 flagged as "low data" | `title`, `period`, `compare`, `matrix_exclude_years` (default `[2020]`), `matrix_since`, `apartment_id` |
 | `custom:smoobu-inbox-card` | Inbox: current, upcoming and recent bookings, message thread, reply, ✨ AI suggestion. **Reply pending** = latest message is from the guest (messages to the guest, including automatic ones, close it); **"No reply needed"** marks it done without replying until the guest writes again (can be undone) | `title`, `days_back`, `days_ahead`, `message_entity` |
 | `custom:smoobu-assistant-card` | AI assistant: knowledge base (approve, edit, confidential), suggestions, learned examples, gaps, import | `title` |
 | `custom:smoobu-settings-card` | Settings in the dashboard: notifications (push types, recipients, times, quiet hours), AI assistant, commissions & channels, costs & prices, users & permissions (roles manager/operations/staff/read only/no access, assigned by admins only; checked in the backend for cards and `smoobu.*` actions), general & polling incl. apartment codes – the same values as the options dialog. Editable by HA admins and the users selected in the option "Allow dashboard settings for" (checked in the backend); the integration reloads after saving | `title`, `tab`, `entry_id` |
 
 **Design (since 1.15.0):** dedicated, matched colours for light and dark (channels, states, surfaces) and the *Schibsted Grotesk* typeface (SIL OFL, shipped with the integration, no external server). The mode is stored **per device**; "System" follows Home Assistant's dark mode.
 
-**Several properties (since 1.15.0):** cards without `apartment_id` follow the property selector of the header (stored per device). "All" combines all properties: revenue summed, occupancy over all available nights, lists with a property code (derived from the name automatically), occupancy plan with one row per property, finance with a property comparison. Blocks and prices always apply to the marked property. A card with `apartment_id` stays on that property. With a single property there is no selector.
+**Several properties (since 1.15.0):** cards without `apartment_id` follow the property selector of the header (stored per device). "All" combines all properties: revenue summed, occupancy over all available nights, lists with a property code (derived from the name automatically), calendar with one row per property, finance with a property comparison. Blocks and prices always apply to the marked property. A card with `apartment_id` stays on that property. With a single property there is no selector.
 
-The cards read data through WebSocket commands (`smoobu/info`, `smoobu/analytics`, `smoobu/bookings`, `smoobu/booking`, `smoobu/rates`, `smoobu/message_status`, `smoobu/message_done`, `smoobu/subscribe`) and refresh themselves on every data update. All texts from Smoobu are escaped before display.
+The cards read data through WebSocket commands (including `smoobu/info`, `smoobu/analytics`, `smoobu/stats`, `smoobu/bookings`, `smoobu/booking`, `smoobu/booking/move`, `smoobu/rates`, `smoobu/rates/apply`, `smoobu/tasks/get`, `smoobu/settings/get`, `smoobu/message_status`, `smoobu/subscribe`) and refresh themselves on every data update. All texts from Smoobu are escaped before display.
 
 ---
 
 ### Dashboard template
 
-[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) is a complete dashboard with 6 pages (overview, calendar, bookings, finance, messages, assistant) and a header card – as shown in the [screenshots](#screenshots-1).
+[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) is a complete dashboard with 8 pages (overview, calendar, bookings, finances, statistics, messages, assistant, settings) and a header card – as shown in the [screenshots](#screenshots-1).
 
 1. **Settings → Dashboards → Add dashboard → New dashboard from scratch**, URL e.g. `dashboard-ferienwohnung`
 2. Open it → ✎ → ⋮ → **Raw configuration editor** → paste the template → Save

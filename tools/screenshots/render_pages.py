@@ -77,6 +77,12 @@ def _shots(base: str, token: str) -> list[str]:
             status=200, body=font.read_bytes(), headers={"Access-Control-Allow-Origin": "*", "Content-Type": "font/woff2"}))
         page.goto(HARNESS.as_uri())
         page.evaluate("([b, t]) => setup(b, t)", [base, token])
+        # v1.18.0: Neuerungen als gelesen (keine NEU-Markierungen in Doku-Bildern); SMOOBU_NEU=1 zeigt sie
+        if not os.environ.get("SMOOBU_NEU"):
+            page.evaluate("async () => { const i = await window.hass.callWS({type: 'smoobu/info'});"
+                          " localStorage.setItem('smoobu_neu_gesehen', JSON.stringify((i.neuigkeiten || []).map((n) => n.id))); }")
+            page.goto(HARNESS.as_uri())
+            page.evaluate("([b, t]) => setup(b, t)", [base, token])
         variants = [("", None)] + ([("_alle", "alle")] if APTS > 1 else [])
         devices = os.environ.get("SMOOBU_GERAETE", "pc").split(",")
         combos = [(d, v, n, th) for d in devices for v in variants for n in pages for th in themes]
