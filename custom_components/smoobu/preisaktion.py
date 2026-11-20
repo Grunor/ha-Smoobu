@@ -19,6 +19,7 @@ from collections import Counter
 from datetime import date, timedelta
 from typing import Any
 
+from .api import date_spec
 from .empfehlung import holiday_nights
 
 MAX_DAYS = 400
@@ -108,10 +109,11 @@ def operations(changes: list[dict[str, Any]], *, restore: bool = False) -> list[
         ranges, start, prev = [], days[0], days[0]
         for d in days[1:]:
             if d != prev + timedelta(days=1):
-                ranges.append(f"{start.isoformat()}:{prev.isoformat()}")
+                ranges.append(date_spec(start.isoformat(), prev.isoformat()))
                 start = d
             prev = d
-        ranges.append(f"{start.isoformat()}:{prev.isoformat()}")
+        # v1.18.0: einzelner Tag als "JJJJ-MM-TT" (Smoobu lehnt "T:T" mit 422 ab – Last-Minute für eine Nacht)
+        ranges.append(date_spec(start.isoformat(), prev.isoformat()))
         op: dict[str, Any] = {"dates": ranges}
         if p is not None:
             op["daily_price"] = p

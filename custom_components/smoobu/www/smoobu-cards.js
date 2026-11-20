@@ -179,6 +179,8 @@ const EN = {
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
   // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
   "Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum": "Share of bookings (arrival in period) and of nights in period",
+  // v1.18.0: Kalender-Auswahl Anreise/Abreise
+  "Zeitraum markieren: Anreise, dann Abreise antippen (ein Tipp = 1 Nacht)": "Select a period: tap arrival, then departure (one tap = 1 night)",
   // v1.18.0: Saisons
   "Saisons": "Seasons", "Frühling": "Spring", "Sommer": "Summer", "Herbst": "Autumn", "Winter": "Winter", "Entfernen": "Remove", "Name": "Name",
   "Hauptsaison": "Peak season", "Nebensaison": "Off-season", "Zwischensaison": "Shoulder season",
@@ -396,6 +398,14 @@ const CSS_VARS = (p) => `--sm-bg:${p.bg};--sm-surf:${p.surf};--sm-surf2:${p.surf
   --sm-block:${p.block};`;
 
 // v1.17.1: Übergabe Übersicht → Belegungsplan (nur für diesen Tab, wird beim Lesen gelöscht)
+// v1.18.0 (Entscheidung Betreiber 20.11.2026): Kalender-Auswahl wie eine Buchung – erster Tipp = Anreise,
+// zweiter Tipp = Abreise (19. + 20. = 1 Nacht). Nur ein Tipp (oder zweimal derselbe Tag) = 1 Nacht ab diesem Tag.
+// Ergebnis [Anreise, Abreise) – Abreise exklusiv wie bei Smoobu-Buchungen. Vorher zählte jeder Tag als Nacht.
+function calSel(a, b) {
+  if (!a) return [null, null];
+  if (!b || b === a) return [a, iso(addDays(D(a), 1))];
+  return a < b ? [a, b] : [b, a];
+}
 const Preselect = {
   set(v) { try { sessionStorage.setItem("smoobu-preselect", JSON.stringify(v)); } catch (e) { /* privat/gesperrt */ } },
   take() {
@@ -1553,6 +1563,7 @@ class SmoobuTimelineCard extends SmoobuCard {
     .c.today .d { color: var(--sm-accent); }
     .c.past { opacity: .5; }
     .c.sel { background: color-mix(in srgb, var(--sm-accent) 22%, transparent); }
+    .c.dep { box-shadow: inset 3px 0 0 var(--sm-accent); background: color-mix(in srgb, var(--sm-accent) 7%, transparent); } /* Abreisetag */
     .c.badgap { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--sm-bad) 14%, transparent) 0 4px, transparent 4px 8px); }
     .c.none { cursor: default; background: none; border-left-color: transparent; }
     .c .d { font-weight: 650; color: var(--sm-ink); }
@@ -1601,8 +1612,7 @@ class SmoobuTimelineCard extends SmoobuCard {
       if (pre.von < iso(start) || pre.von >= iso(end)) Preselect.set(pre); // außerhalb der angezeigten Monate: nicht verbrauchen
     }
     const { selStart, selEnd, selApt } = this._state;
-    const lo = selStart && selEnd ? (selStart < selEnd ? selStart : selEnd) : selStart;
-    const hi = selStart && selEnd ? (selStart < selEnd ? selEnd : selStart) : selStart;
+    const [lo, dep] = calSel(selStart, selEnd); // Anreise, Abreise (exklusiv)
     const own = (w) => bookings.filter((b) => !this.multi || b.wohnung_id === w.apartment_id);
     // Nächte in Lücken, die wegen Mindestaufenthalt nicht buchbar sind (je Wohnung)
     const bad = {};
@@ -1624,9 +1634,10 @@ class SmoobuTimelineCard extends SmoobuCard {
           const day = new Date(m.getFullYear(), m.getMonth(), i);
           const ds = iso(day);
           const r = rates[ds];
-          const isSel = lo && selApt === w.apartment_id && ds >= lo && ds <= (hi || lo);
+          const isSel = lo && selApt === w.apartment_id && ds >= lo && ds < dep;
+          const isDep = lo && selApt === w.apartment_id && ds === dep; // Abreisetag: markiert, aber keine Nacht
           const cls = ["c", day.getDay() % 6 === 0 ? "we" : "", ds === today ? "today" : "", ds < today ? "past" : "",
-            isSel ? "sel" : "", bad[w.apartment_id].has(ds) ? "badgap" : ""].join(" ");
+            isSel ? "sel" : "", isDep ? "dep" : "", bad[w.apartment_id].has(ds) ? "badgap" : ""].join(" ");
           const wd = day.toLocaleDateString(locale(), { weekday: "narrow" });
           cells += `<div class="${cls}" data-day="${ds}" data-apt="${w.apartment_id}"><span class="d">${i}</span> ${wd}
             ${r && r.min_length_of_stay > 1 ? `<div class="ms">☾${r.min_length_of_stay}</div>` : ""}
@@ -1649,11 +1660,11 @@ class SmoobuTimelineCard extends SmoobuCard {
       }).join("");
       rows.push(`<div class="month" style="grid-template-columns:1fr">${aptRows}</div>`);
     }
-    const nights = lo ? nightsBetween(lo, hi || lo) + 1 : 0;
+    const nights = lo ? nightsBetween(lo, dep) : 0;
     const p = this._state.panel;
     const selName = this.multi ? apts.find((w) => w.apartment_id === selApt)?.name : "";
     const panel = !this._config.actions ? "" : lo ? `<div class="panel">
-        <b>${selName ? `${esc(selName)}: ` : ""}${fdow(lo)} – ${fdow(hi || lo)} (${plural(nights, t("Nacht"), t("Nächte"))})</b>
+        <b>${selName ? `${esc(selName)}: ` : ""}${t("Anreise")} ${fdow(lo)} → ${t("Abreise")} ${fdow(dep)} (${plural(nights, t("Nacht"), t("Nächte"))})</b>
         ${p === "block" ? `<input data-k="notice" placeholder="${t("Grund (optional)")}" style="width:180px">
             <button class="btn" data-act="do-block">${t("Sperren")}</button>`
           : p === "rate" ? `<label>${t("Preis/Nacht")} <input data-k="price" type="number" min="1" step="1"></label>
@@ -1661,7 +1672,7 @@ class SmoobuTimelineCard extends SmoobuCard {
             <button class="btn" data-act="do-rate">${t("Speichern")}</button>`
           : `${can("belegung", this.target.apartment_id) ? `<button class="btn" data-act="block">🔒 ${t("Sperren")}</button>` : ""}${can("preise", this.target.apartment_id) ? `<button class="btn" data-act="rate">€ ${t("Preis setzen")}</button>` : ""}`}
         <button class="btn flat" data-act="clear">${t("Abbrechen")}</button></div>`
-      : `<div class="legend">${t("Tage markieren: erst ersten, dann letzten Tag antippen")}</div>`;
+      : `<div class="legend">${t("Zeitraum markieren: Anreise, dann Abreise antippen (ein Tipp = 1 Nacht)")}</div>`;
     const chans = apts.flatMap((w) => w.kanaele).filter((c, i, a) => a.findIndex((x) => x.name === c.name) === i);
     return `
       <div class="head"><h2>${esc(this._config.title || t("Belegungsplan"))}</h2>
@@ -1685,11 +1696,8 @@ class SmoobuTimelineCard extends SmoobuCard {
     }));
     root.querySelectorAll("[data-act]").forEach((el) => el.addEventListener("click", () => this.act(el.dataset.act)));
   }
-  range() {
-    const { selStart: a, selEnd: b } = this._state;
-    const end = b || a;
-    return a <= end ? [a, end] : [end, a];
-  }
+  // [Anreise, Abreise) der Auswahl (v1.18.0)
+  range() { return calSel(this._state.selStart, this._state.selEnd); }
   async act(a) {
     const off = this._state.offset;
     if (a === "prev") return this.setState({ offset: off - 1 }, true);
@@ -1697,19 +1705,20 @@ class SmoobuTimelineCard extends SmoobuCard {
     if (a === "now") return this.setState({ offset: 0 }, true);
     if (a === "clear") return this.setState({ selStart: null, selEnd: null, panel: null, preMin: null });
     if (a === "block" || a === "rate") return this.setState({ panel: a });
-    const [lo, hi] = this.range();
+    const [lo, dep] = this.range();
+    const last = iso(addDays(D(dep), -1)); // letzte Nacht (Preise gelten je Nacht, inklusive)
     // Aktionen gehören immer zu genau einer Wohnung: der markierten Zeile
     const aptId = this._state.selApt || (await this.apartment()).apartment_id;
     try {
       if (a === "do-block") {
         const notice = this.$('[data-k="notice"]')?.value || undefined;
-        if (!(await confirmDialog(`${t("Sperren")}: ${fdate(lo)} – ${fdate(hi)}?`))) return;
-        await this.store.service("block_period", { apartment_id: aptId, start_date: lo, end_date: iso(addDays(D(hi), 1)), ...(notice ? { notice } : {}) });
+        if (!(await confirmDialog(`${t("Sperren")}: ${t("Anreise")} ${fdate(lo)} → ${t("Abreise")} ${fdate(dep)} (${plural(nightsBetween(lo, dep), t("Nacht"), t("Nächte"))})?`))) return;
+        await this.store.service("block_period", { apartment_id: aptId, start_date: lo, end_date: dep, ...(notice ? { notice } : {}) });
       } else if (a === "do-rate") {
         const price = this.$('[data-k="price"]')?.value, min = this.$('[data-k="min"]')?.value;
         if (!price && !min) return;
-        if (!(await confirmDialog(`${t("Preis setzen")}: ${fdate(lo)} – ${fdate(hi)}${price ? `, ${price} €` : ""}${min ? `, ☾${min}` : ""}?`))) return;
-        await this.store.service("set_rates", { apartment_id: aptId, start_date: lo, end_date: hi,
+        if (!(await confirmDialog(`${t("Preis setzen")}: ${t("Nächte")} ${fdate(lo)} – ${fdate(last)}${price ? `, ${price} €` : ""}${min ? `, ☾${min}` : ""}?`))) return;
+        await this.store.service("set_rates", { apartment_id: aptId, start_date: lo, end_date: last,
           ...(price ? { price: Number(price) } : {}), ...(min ? { min_stay: Number(min) } : {}) });
       }
       toast(t("Gespeichert"));

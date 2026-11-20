@@ -507,7 +507,8 @@ def _register_services(hass: HomeAssistant) -> None:
         if call.data.get(ATTR_NOTICE):
             body["notice"] = call.data[ATTR_NOTICE]
         try:
-            result = await coordinator.client.create_reservation(body)
+            # v1.18.0: create_block ergänzt Pflichtfelder (Gastdaten) nur, wenn das Smoobu-Konto sie verlangt
+            result = await coordinator.client.create_block(body)
         except SmoobuError as err:
             raise HomeAssistantError(str(err)) from err
         await _after_write(coordinator)

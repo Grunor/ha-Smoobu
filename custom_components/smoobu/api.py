@@ -45,7 +45,52 @@ PAGE_SIZE = 100  # Maximum laut API
 
 
 class SmoobuError(Exception):
-    """Allgemeiner API-Fehler."""
+    """Allgemeiner API-Fehler. v1.18.0: HTTP-Status und Antwort (JSON) für gezielte Reaktionen (z. B. Pflichtfelder)."""
+
+    def __init__(self, message: str = "", status: int | None = None, payload: Any = None) -> None:
+        super().__init__(message)
+        self.status = status
+        self.payload = payload
+
+
+def date_spec(start: str, end: str) -> str:
+    """v1.18.0: Smoobu-Datumsangabe für /api/rates – einzelner Tag ohne Doppelpunkt, sonst „von:bis“ (inklusive)."""
+    return start if start == end else f"{start}:{end}"
+
+
+# v1.18.0: Platzhalter für Sperrzeiten, falls das Smoobu-Konto Gastdaten als Pflicht verlangt.
+# E-Mail mit reservierter Domain example.com (RFC 2606) – nie zustellbar, es geht also nichts raus.
+BLOCK_PLACEHOLDERS: dict[str, Any] = {
+    "firstName": "Sperre", "lastName": "Home Assistant", "email": "sperre@example.com", "phone": "0000000000",
+    "notice": "Gesperrt über Home Assistant", "arrivalTime": "16:00", "departureTime": "11:00", "country": "DE",
+    "adults": 1, "language": "de",
+}
+BLOCK_ADDRESS = {"street": "-", "postalCode": "00000", "location": "-"}
+
+
+def block_missing_fields(err: "SmoobuError") -> list[str]:
+    """Feldnamen aus einer 400-Antwort mit validation_messages (leer = kein Pflichtfeld-Fehler)."""
+    p = getattr(err, "payload", None)
+    if getattr(err, "status", None) != 400 or not isinstance(p, dict) or not isinstance(p.get("validation_messages"), dict):
+        return []
+    return list(p["validation_messages"])
+
+
+def block_placeholders(missing: list[str], body: dict[str, Any]) -> dict[str, Any]:
+    """Nur die verlangten Felder füllen; Adressfelder als Objekt `address` (Smoobu-Format)."""
+    out: dict[str, Any] = {}
+    addr = {}
+    for key in missing:
+        base = key.split(".")[-1]
+        if base in BLOCK_PLACEHOLDERS:
+            out[base] = BLOCK_PLACEHOLDERS[base]
+        elif base in BLOCK_ADDRESS or base == "address":
+            addr.update(BLOCK_ADDRESS if base == "address" else {base: BLOCK_ADDRESS[base]})
+    if addr:
+        out["address"] = {**BLOCK_ADDRESS, **addr}
+    if not out:  # unbekannte Pflichtfelder → alle Platzhalter (lieber einmal zu viel als gar keine Sperre)
+        out = {**BLOCK_PLACEHOLDERS, "address": dict(BLOCK_ADDRESS)}
+    return {k: v for k, v in out.items() if k not in body}
 
 
 class SmoobuAuthError(SmoobuError):
@@ -187,7 +232,11 @@ class SmoobuClient:
                         f"{resp.headers.get('X-RateLimit-Retry-After')})"
                     )
                 if resp.status >= 400:
-                    raise SmoobuError(f"{method} {path} → {resp.status}: {text[:300]}")
+                    try:
+                        payload = json.loads(text)
+                    except ValueError:
+                        payload = None
+                    raise SmoobuError(f"{method} {path} → {resp.status}: {text[:300]}", resp.status, payload)
                 if resp.status == 204 or not text:
                     return None
                 try:
@@ -317,6 +366,18 @@ class SmoobuClient:
         """
         return await self.request("POST", "/api/reservations", body=body) or {}
 
+    async def create_block(self, body: dict[str, Any]) -> dict[str, Any]:
+        """v1.18.0: Sperrzeit anlegen – zuerst ohne Gastdaten; verlangt das Konto Pflichtfelder (Smoobu-Einstellung
+        „Formularinhalt“ des Buchungstools, Fehler 400 „isEmpty“), genau diese mit neutralen Platzhaltern ergänzen und
+        einmal erneut senden (Rückmeldung Betreiber 20.11.2026: Sperren scheiterte an firstName/lastName/email/phone)."""
+        try:
+            return await self.create_reservation(body)
+        except SmoobuError as err:
+            missing = block_missing_fields(err)
+            if not missing:
+                raise
+            return await self.create_reservation({**block_placeholders(missing, body), **body})
+
     async def update_reservation(self, reservation_id: int, body: dict[str, Any]) -> dict[str, Any]:
         """Buchung ändern (PUT /api/reservations/{id}), z. B. arrivalTime, departureTime, notice."""
         return await self.request("PUT", f"/api/reservations/{reservation_id}", body=body) or {}
@@ -346,9 +407,10 @@ class SmoobuClient:
         """Preis und/oder Mindestaufenthalt für einen Zeitraum setzen (POST /api/rates).
 
         Smoobu überträgt die Werte an alle verbundenen Portale.
-        Format laut Smoobu: dates = ["YYYY-MM-DD:YYYY-MM-DD"] (beide inklusive).
+        Format laut Smoobu: dates = ["YYYY-MM-DD:YYYY-MM-DD"] (beide inklusive), ein einzelner Tag als
+        "YYYY-MM-DD" – „T:T“ lehnt Smoobu mit 422 „Date range … is invalid“ ab (v1.18.0).
         """
-        operation: dict[str, Any] = {"dates": [f"{start_date}:{end_date}"]}
+        operation: dict[str, Any] = {"dates": [date_spec(start_date, end_date)]}
         if price is not None:
             operation["daily_price"] = price
         if min_stay is not None:

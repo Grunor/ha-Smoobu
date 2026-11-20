@@ -48,9 +48,9 @@ def test_plan_fester_preis_wochentage_und_mindestaufenthalt():
 def test_operationen_und_pruefung():
     res = plan({"von": "2026-12-20", "bis": "2026-12-26", "preis": 70, "ohne_feiertage": True}, RATES, TODAY)
     ops = operations(res["tage"])
-    assert ops == [{"dates": ["2026-12-20:2026-12-22", "2026-12-26:2026-12-26"], "daily_price": 70.0}]
+    assert ops == [{"dates": ["2026-12-20:2026-12-22", "2026-12-26"], "daily_price": 70.0}]  # v1.18.0: einzelner Tag ohne Doppelpunkt
     back = operations(res["tage"], restore=True)
-    assert back == [{"dates": ["2026-12-20:2026-12-22", "2026-12-26:2026-12-26"], "daily_price": 62.0}]
+    assert back == [{"dates": ["2026-12-20:2026-12-22", "2026-12-26"], "daily_price": 62.0}]
     assert verify(res["tage"], RATES)[0] == {"datum": "2026-12-20", "soll": 70.0, "ist": 62}
     assert verify(res["tage"], RATES, restore=True) == []
 
@@ -75,7 +75,7 @@ async def test_websocket_uebernehmen_und_rueckgaengig(hass, setup, hass_ws_clien
     posts = [c for c in aioclient_mock.mock_calls if c[0] == "POST" and str(c[1]).endswith("/api/rates")]
     # alte Preise sind je Tag verschieden (Mock: 80 + Tag) → je Tag eine Operation mit dem alten Wert
     ops = _body(posts[-1])["operations"]
-    assert sorted(d for o in ops for d in o["dates"]) == ["2026-11-20:2026-11-20", "2026-11-21:2026-11-21", "2026-11-22:2026-11-22"]
+    assert sorted(d for o in ops for d in o["dates"]) == ["2026-11-20", "2026-11-21", "2026-11-22"]  # v1.18.0: einzelne Tage ohne Doppelpunkt
     assert {o["daily_price"] for o in ops} == {85.0, 86.0, 87.0}
     again = await _call(ws, 5, type="smoobu/rates/undo", aenderung_id=res["aenderung_id"])
     assert again["success"] is False
