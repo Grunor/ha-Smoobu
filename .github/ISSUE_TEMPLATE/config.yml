@@ -1,0 +1,13 @@
+# Auswahlseite „Neues Issue“ / "New issue" chooser
+# Leere Issues aus, Fragen in die Discussions, Sicherheitslücken privat.
+blank_issues_enabled: false
+contact_links:
+  - name: "❓ Frage / Question"
+    url: https://github.com/Grunor/ha-Smoobu/discussions
+    about: "Fragen zu Einrichtung und Nutzung bitte in den Discussions / Please ask setup and usage questions in Discussions"
+  - name: "🔒 Sicherheitslücke melden / Report a vulnerability"
+    url: https://github.com/Grunor/ha-Smoobu/security/advisories/new
+    about: "Privat melden, nicht als öffentliches Issue / Report privately, not as a public issue"
+  - name: "📖 Dokumentation / Documentation"
+    url: https://github.com/Grunor/ha-Smoobu#readme
+    about: "Einrichtung, Optionen, Karten und Aktionen / Setup, options, cards and actions"
