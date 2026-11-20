@@ -11,10 +11,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 **Deutsch**
 - Karte `custom:smoobu-timeline-card`: Standardtitel jetzt „Kalender & Preise“ (vorher „Belegungsplan“), passend zur Seite **Kalender**
 - README und Screenshots auf den Stand von 1.18.0 gebracht (Funktionsliste, neue Bilder zu Was ist neu, Einrichtung, Deckungsbeitrag, Saison-Matrix, Saisons, Kalender-Auswahl, Buchungen, Umbuchen; Optionen Saisons und Push „Umbuchung“)
+- GitHub: Formulare für Fehlerberichte und Funktionswünsche (Fragen → Discussions), PR-Vorlage, `CONTRIBUTING.md`, `SECURITY.md` (private Meldung über GitHub), Verhaltenskodex; neue Prüfung `validate.yml` (hassfest, HACS, pytest) und `requirements_test.txt`
 
 **English**
 - Card `custom:smoobu-timeline-card`: default title is now "Calendar & prices" (previously "Occupancy plan"), matching the **Calendar** page
 - README and screenshots updated to 1.18.0 (feature list, new images for what's new, setup, contribution margin, season matrix, seasons, calendar selection, bookings, rebooking; options seasons and push "Rebooking")
+- GitHub: forms for bug reports and feature requests (questions → Discussions), PR template, `CONTRIBUTING.md`, `SECURITY.md` (private reporting via GitHub), code of conduct; new check `validate.yml` (hassfest, HACS, pytest) and `requirements_test.txt`
 
 ## 1.18.0 – 2026-11-20
 
