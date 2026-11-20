@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.18.0b9 – 2026-11-20
+
+> Beta / Pre-release
+
 **Deutsch**
 - **Einstellungen: Kanäle per Dropdown statt Freitext.** Provisionen, Aufschläge je Kanal, Direktkanäle und „Zahlung über das Portal“ wählen Kanäle aus einer Liste in drei Gruppen: **Kanäle mit Buchungen** (alle geladenen Buchungen ab „Daten abrufen seit“, inkl. Stornos und künftiger, mit Anzahl), **in den Einstellungen genutzt** und **weitere Smoobu-Kanäle** (Kanaltabelle der Smoobu-API-Doku, z. B. HomeToGo, Hundeurlaub.de, HRS). Bereits eingetragene Kanäle und Sperr-Kanäle fehlen in der Liste. Ein neuer Provisions-Kanal startet mit dem Satz von „Alle übrigen Portale“, ein neuer Aufschlag mit 0 %. Kanalnamen in den Tabellen lassen sich nicht mehr per Freitext umbenennen. „Weitere Kanäle mit Buchungen“ unter der Provisionstabelle übernimmt einen Kanal per Klick
 - Hintergrund: Smoobu hat **keinen API-Endpunkt für angebundene Kanäle**. Ein angebundenes Portal ohne bisherige Buchung erscheint deshalb in der Katalog-Gruppe. Sobald eine Buchung kommt, steht es unter „Kanäle mit Buchungen“
