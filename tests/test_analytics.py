@@ -7,6 +7,7 @@ from custom_components.smoobu.analytics import (
     build_records,
     compare_range,
     forecast_year,
+    guest_history,
     period_range,
 )
 from custom_components.smoobu.channels import booking_costs
@@ -149,6 +150,24 @@ def test_returning_guests():
     r = analyze(recs, date(2026, 1, 1), date(2027, 1, 1), series=False, today=TODAY)
     # Buchung 2 per E-Mail, Buchung 3 per vollem Namen wiedererkannt
     assert r["stammgaeste"] == 2 and r["stammgaeste_prozent"] == 100.0
+
+
+def test_guest_history():
+    """v1.18.0: frühere Aufenthalte je Buchung (E-Mail/Name), Stornos zählen nicht, „zuletzt“ = spätester davor."""
+    def g(i, arr, dep, mail, name="Max Muster", **kw):
+        return bk(i, arr, dep, "Direct booking", 100, email=mail, **{"guest-name": name, "created-at": "2024-01-01 09:00"}, **kw)
+    recs = build_records([
+        g(1, "2024-05-01", "2024-05-03", "max@example.org"),
+        g(2, "2025-05-01", "2025-05-04", "MAX@example.org"),                       # per E-Mail (Groß/klein egal)
+        g(3, "2025-08-01", "2025-08-03", None, type="cancellation"),               # Storno: zählt nicht
+        g(4, "2026-06-01", "2026-06-03", None),                                    # per vollem Namen
+        g(5, "2026-07-01", "2026-07-03", "anna@example.org", name="Anna Andere"),  # anderer Gast
+    ], costs, [], TODAY)
+    h = guest_history(recs)
+    assert h[1] == {"besuche_vorher": 0}
+    assert h[2]["besuche_vorher"] == 1 and h[2]["zuletzt_id"] == 1
+    assert h[4]["besuche_vorher"] == 2 and h[4]["zuletzt_anreise"] == "2025-05-01" and h[4]["zuletzt_abreise"] == "2025-05-04"
+    assert 3 not in h and h[5] == {"besuche_vorher": 0}
 
 
 def test_compare_count():

@@ -59,6 +59,7 @@ from .analytics import (
     block_channel_id,
     channels_of,
     forecast_year,
+    guest_history,
     period_range,
 )
 from .api import SmoobuError
@@ -452,6 +453,10 @@ def ws_bookings(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
     status = set(msg.get("status") or [])
     needle = (msg.get("search") or "").casefold().strip()
     out = []
+    # v1.18.0: frühere Aufenthalte je Gast – über alle Wohnungen des Kontos („bei uns“), nicht nur die gewählte
+    hist: dict[Any, dict[str, Any]] = {}
+    for c in dict.fromkeys(c for c, _ in pairs):
+        hist.update(guest_history(c.records_all()))
     recs = [r for c, a in pairs for r in c.records(a)]
     if len(pairs) > 1:  # gemischt → nach Anreise sortieren wie bei einer Wohnung
         recs.sort(key=lambda r: (r["anreise"], r["id"]))
@@ -472,7 +477,7 @@ def ws_bookings(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
             ).casefold()
             if needle not in hay:
                 continue
-        out.append(rechte.strip(r, allowed))
+        out.append(rechte.strip({**r, **hist.get(r["id"], {})}, allowed))
     connection.send_result(msg["id"], {"buchungen": out, "anzahl": len(out)})
 
 
@@ -512,6 +517,8 @@ async def ws_booking(hass: HomeAssistant, connection: websocket_api.ActiveConnec
         }
         for m in sorted(messages, key=lambda m: int(m.get("id") or 0))
     ]
+    if record:  # v1.18.0: frühere Aufenthalte des Gastes (alle Wohnungen des Kontos)
+        record = {**record, **guest_history(c.records_all()).get(record["id"], {})}
     connection.send_result(msg["id"], {"buchung": rechte.strip(record, allowed) if record else None,
                                        "smoobu": rechte.strip(raw or {}, allowed), "nachrichten": msgs, "fehler": error})
 

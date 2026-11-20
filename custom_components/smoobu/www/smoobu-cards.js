@@ -179,6 +179,8 @@ const EN = {
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
   // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
   "Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum": "Share of bookings (arrival in period) and of nights in period",
+  // v1.18.0: frühere Aufenthalte des Gastes
+  "Stammgast": "Returning guest", "Schon": "Already", "bei uns": "with us", "zuletzt": "last", "Nein – erster Aufenthalt": "No – first stay",
   // v1.18.0: Abweichungs-Indikatoren in der Saison-Matrix
   "ggü.": "vs.", "Ø aller Monate": "Ø of all months", "Ø Jahr": "Ø year", "unter": "below", "grau = noch offen": "grey = still open",
   "ggü. Ø des Monats, Spalte Ø ggü. Ø aller Monate, Jahr ggü. Ø Jahr": "vs. Ø of the month, column Ø vs. Ø of all months, year vs. Ø year",
@@ -1902,6 +1904,16 @@ const BOOKING_STATUS_ORDER = { laufend: 0, kommend: 1, vergangen: 2, blockiert: 
 const BOOKING_GROUPS = [["anstehend", "Anstehend", "mdi:calendar-arrow-right"], ["aktuell", "Aktuell", "mdi:home-account"],
   ["vergangen", "Vergangen", "mdi:check"]];
 const bookingGroup = (b, today) => (b.abreise <= today ? "vergangen" : b.anreise <= today ? "aktuell" : "anstehend");
+// v1.18.0 (Wunsch Betreiber 20.11.2026): frühere Aufenthalte des Gastes (Backend guest_history: Gast-ID, E-Mail oder
+// voller Name, alle Wohnungen des Kontos, ohne Stornos/Sperren). Fehlt das Feld (kein Recht „Gäste“), wird nichts gezeigt.
+const visitRange = (b) => `${fdate(b.zuletzt_anreise)} – ${fdate(b.zuletzt_abreise)}`;
+const visitText = (b) => `${t("Schon")} ${b.besuche_vorher}× ${t("bei uns")}, ${t("zuletzt")} ${visitRange(b)}`;
+// Liste: kompaktes Abzeichen „↻ 2× · Mai 25“ hinter dem Namen, Details im Tooltip
+function visitBadge(b) {
+  if (!(b.besuche_vorher > 0)) return "";
+  const last = D(b.zuletzt_anreise).toLocaleDateString(locale(), { month: "short", year: "2-digit" });
+  return ` <span class="rep" title="${esc(visitText(b))}">↻ ${b.besuche_vorher}× · ${esc(last)}</span>`;
+}
 class SmoobuBookingsCard extends SmoobuCard {
   static defaults = { title: "", period: "jahr", status: [] };
   // Standard: nach Anreise, absteigend (dir −1)
@@ -1915,6 +1927,8 @@ class SmoobuBookingsCard extends SmoobuCard {
     tr.grp td ha-icon { --mdc-icon-size: 16px; color: var(--sm-accent); margin-right: 6px; vertical-align: -2px; }
     tr.grp td .cnt { color: var(--sm-muted); font-weight: 400; margin-left: 6px; }
     tr.grp td.lbl { white-space: nowrap; }
+    .rep { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: .74rem; font-weight: 600; white-space: nowrap;
+      color: var(--sm-accent); background: color-mix(in srgb, var(--sm-accent) 12%, transparent); vertical-align: 1px; }
     tr.grp td.n { font-variant-numeric: tabular-nums; }`;
   async load() {
     const apt = await this.apartment();
@@ -1983,7 +1997,7 @@ class SmoobuBookingsCard extends SmoobuCard {
     const row = (b) => `<tr class="click ${b.storniert ? "cx" : ""} ${b.blockiert ? "bl" : ""}" data-id="${b.id}">
       <td class="st"><ha-icon icon="${STATUS_ICON[b.status]}" title="${t(b.status)}"></ha-icon></td>
       ${this.multi ? `<td>${codeTag(b.wohnung)}</td>` : ""}<td>${fdow(b.anreise)}</td><td>${fdow(b.abreise)}</td><td class="n">${b.naechte}</td>
-      <td>${b.blockiert ? `🔒 ${esc(b.notiz || t("Gesperrt"))}` : esc(b.gast)}${b.hund ? " 🐕" : ""}</td>
+      <td>${b.blockiert ? `🔒 ${esc(b.notiz || t("Gesperrt"))}` : esc(b.gast)}${b.hund ? " 🐕" : ""}${b.storniert ? "" : visitBadge(b)}</td>
       <td class="n">${b.blockiert ? "" : b.personen}</td>
       <td><span class="dot" style="background:${colorOf(apt, b.kanal, b.blockiert)}"></span>${esc(chn(b.kanal))}</td>
       <td class="n">${b.blockiert ? "" : money(b.brutto, cur, 2)}</td><td class="n">${b.blockiert ? "" : money(b.kosten, cur, 2)}</td>
@@ -2033,7 +2047,7 @@ class SmoobuBookingsCard extends SmoobuCard {
     root.querySelector('[data-act="csv"]')?.addEventListener("click", () => {
       const csvCols = ["id", "wohnung", "status", "anreise", "abreise", "naechte", "gast", "email", "telefon", "personen", "erwachsene", "kinder",
         "kanal", "gruppe", "brutto", "provision", "zahlungsgebuehr", "netto", "netto_pro_nacht", "offen", "bezahlt", "vorlauf_tage",
-        "erstellt", "hund", "notiz"];
+        "erstellt", "hund", "notiz", "besuche_vorher", "zuletzt_anreise", "zuletzt_abreise"];
       downloadCsv(`smoobu-buchungen-${iso(new Date())}.csv`, [csvCols, ...(this._rows || []).map((b) => csvCols.map((c) => b[c]))]);
     });
   }
@@ -2674,6 +2688,10 @@ class SmoobuBookingDialog extends HTMLElement {
           <button class="btn flat" data-act="times">${t("Speichern")}</button></div>` : ""}</div>
         ${!b.blockiert ? `<div><h3>${t("Gast")}</h3>${kv([
           ["Gast", esc(b.gast)],
+          // v1.18.0: frühere Aufenthalte; Klick öffnet die letzte Buchung (ggf. andere Wohnung des Kontos)
+          b.besuche_vorher > 0 && !b.storniert && ["Stammgast", `${b.besuche_vorher}× ${t("bei uns")} · ${t("zuletzt")}
+            <button class="lnk" data-prev="${esc(b.zuletzt_id)}" data-prev-apt="${esc(b.zuletzt_wohnung_id ?? "")}" title="${esc(t("Buchung öffnen"))}">${visitRange(b)}</button>`],
+          b.besuche_vorher === 0 && !b.storniert && ["Stammgast", `<span class="muted">${t("Nein – erster Aufenthalt")}</span>`],
           b.email && ["E-Mail", `<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`],
           b.telefon && ["Telefon", `<a href="tel:${esc(b.telefon)}">${esc(b.telefon)}</a>`],
           b.sprache && ["Sprache", esc(b.sprache)],
@@ -2723,6 +2741,11 @@ class SmoobuBookingDialog extends HTMLElement {
     // Entwurf mitschreiben, damit er beim Neuzeichnen (z. B. nach „Keine Antwort nötig“) nicht verloren geht
     r.querySelector('[data-k="msg"]')?.addEventListener("input", (e) => { this.draft = e.target.value; });
     r.querySelector("[data-noreply]")?.addEventListener("click", () => this.noReply(true));
+    r.querySelector("[data-prev]")?.addEventListener("click", (e) => {
+      const el = e.currentTarget;
+      const apt = Number(el.dataset.prevApt);
+      SmoobuBookingDialog.open(this.hass, Number(el.dataset.prev), apt ? { ...this.target, apartment_id: apt } : this.target);
+    });
     r.querySelector("[data-undo]")?.addEventListener("click", () => this.noReply(false));
   }
   // v1.16.0: „Keine Antwort nötig“ / Rückgängig – gleicher Backend-Aufruf wie im Posteingang

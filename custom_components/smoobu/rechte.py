@@ -104,7 +104,9 @@ FINANCE_KEYS = {
 }
 # Felder, die nur mit „gaeste“ ausgeliefert werden (Personenbezug)
 GUEST_KEYS = {"gast", "vorname", "email", "telefon", "gast_id", "guest-name", "firstname", "lastname", "phone", "guestId",
-              "notiz", "assistent_notiz", "notice", "assistant-notice", "guest-app-url"}
+              "notiz", "assistent_notiz", "notice", "assistant-notice", "guest-app-url",
+              # v1.18.0: Aufenthalts-Historie des Gastes (Personenbezug)
+              "besuche_vorher", "zuletzt_id", "zuletzt_anreise", "zuletzt_abreise", "zuletzt_wohnung_id"}
 
 
 def strip(item: dict[str, Any], rights: frozenset[str]) -> dict[str, Any]:

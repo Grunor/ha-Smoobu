@@ -484,6 +484,35 @@ def _guest_keys(r: dict[str, Any]) -> set[str]:
     return keys
 
 
+def guest_history(records: list[dict[str, Any]]) -> dict[Any, dict[str, Any]]:
+    """v1.18.0: frühere Aufenthalte desselben Gastes je Buchungs-ID (Wunsch Betreiber 20.11.2026).
+
+    Wiedererkennung wie bei der Stammgast-Statistik (_guest_keys: Gast-ID, E-Mail, voller Name), über alle
+    übergebenen Datensätze (typisch: alle Wohnungen des Kontos). Gezählt werden nur echte Aufenthalte
+    (ohne Stornos/Sperren) mit Anreise vor der Anreise dieser Buchung; „zuletzt“ = der späteste davon.
+    Stornos/Sperren selbst bekommen keinen Eintrag. Index je Schlüssel statt Paarvergleich (n²).
+    """
+    valid = [r for r in records if not r.get("blockiert") and not r.get("storniert")]
+    by_key: dict[str, list[dict[str, Any]]] = {}
+    for r in valid:
+        for k in _guest_keys(r):
+            by_key.setdefault(k, []).append(r)
+    out: dict[Any, dict[str, Any]] = {}
+    for r in valid:
+        seen: dict[Any, dict[str, Any]] = {}
+        for k in _guest_keys(r):
+            for o in by_key.get(k, ()):
+                if o["id"] != r["id"] and o["anreise"] < r["anreise"]:
+                    seen[o["id"]] = o
+        if not seen:
+            out[r["id"]] = {"besuche_vorher": 0}
+            continue
+        last = max(seen.values(), key=lambda o: (o["anreise"], o["id"]))
+        out[r["id"]] = {"besuche_vorher": len(seen), "zuletzt_id": last["id"], "zuletzt_anreise": last["anreise"],
+                        "zuletzt_abreise": last["abreise"], "zuletzt_wohnung_id": last.get("wohnung_id")}
+    return out
+
+
 # Schlüssel aus _extras – nur für die Finanzen-Karte, nicht als Sensor-Attribute (Recorder schlank halten)
 EXTRA_KEYS = (
     "verfuegbare_naechte", "erloes_verfuegbare_nacht", "frei_naechte", "frei_vergangen", "frei_kommend",
