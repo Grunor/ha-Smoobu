@@ -179,6 +179,23 @@ const EN = {
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
   // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
   "Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum": "Share of bookings (arrival in period) and of nights in period",
+  // v1.18.0: Baukasten – Bearbeiten, Vorschau, Vorlagen
+  "Bearbeiten": "Edit", "Modul bearbeiten": "Edit module", "Änderungen speichern": "Save changes", "Als neues Modul": "As new module",
+  "mit dem aktuellen Zeitraum und Filter": "with the current period and filter", "Vorlagen": "Templates",
+  "zum Einfügen – danach frei anpassbar": "to insert – adjust freely afterwards", "Modul geändert": "Module changed", "Modul gespeichert": "Module saved",
+  "Umsatz je Monat nach Kanal": "Revenue per month by channel", "Welcher Kanal trägt in welchem Monat den Umsatz?": "Which channel carries revenue in which month?",
+  "Auslastung nach Wochentag": "Occupancy by weekday", "Welche Nächte bleiben am häufigsten leer?": "Which nights stay empty most often?",
+  "Preis je Nacht nach Saison und Kanal": "Price per night by season and channel", "Wo ist der Preis je Nacht je Saison am höchsten?": "Where is the price per night highest per season?",
+  "Netto je Nacht nach Aufenthaltsdauer": "Net per night by length of stay", "Bringen kurze Aufenthalte mehr je Nacht?": "Do short stays earn more per night?",
+  "Vorlauf nach Kanal": "Lead time by channel", "Wie früh buchen Gäste je Kanal (Median)?": "How early do guests book per channel (median)?",
+  "Stammgäste und Neukunden": "Returning and new guests", "Netto je Nacht von Stammgästen im Vergleich": "Net per night of returning guests compared",
+  "Stornoquote je Kanal": "Cancellation rate by channel", "Welcher Kanal storniert am häufigsten?": "Which channel cancels most often?",
+  "Gäste mit Hund je Saison": "Guests with dogs by season", "Wann kommen die meisten Hunde?": "When do most dogs come?",
+  "Aufenthaltsdauer im Jahresverlauf": "Length of stay over the year", "Median der Nächte je Anreisemonat": "Median nights per arrival month",
+  "Gästesprachen": "Guest languages", "Buchungen nach Sprache des Gastes": "Bookings by guest language",
+  "Personen je Buchung nach Saison": "Guests per booking by season", "Familien im Sommer, Paare im Winter?": "Families in summer, couples in winter?",
+  "Deckungsbeitrag je Monat": "Contribution margin per month", "Netto minus variable Kosten je Monat": "Net minus variable costs per month",
+  "Buchungswert": "Booking value", "Ø Buchungswert brutto als große Zahl": "Ø gross booking value as a big number",
   // v1.18.0: frühere Aufenthalte des Gastes
   "Stammgast": "Returning guest", "Schon": "Already", "bei uns": "with us", "zuletzt": "last", "Nein – erster Aufenthalt": "No – first stay",
   // v1.18.0: Abweichungs-Indikatoren in der Saison-Matrix
@@ -3977,10 +3994,44 @@ function effortHtml(a) {
       <span><b>n</b> = ${t("ausgewertete Buchungen mit Anreise im Zeitraum")}</span>
       <span>${t("Nur Nachrichten, die über Smoobu laufen; eigene und automatische Nachrichten zählen nicht; Buchungen ganz ohne Verlauf (bei Smoobu oft vor 2024) fehlen")}</span></div>`;
 }
+// v1.18.0 (Wunsch Betreiber 20.11.2026): Vorlagen für den Baukasten – füllen nur den Entwurf, gespeichert wird erst
+// mit „Speichern“. Gruppierungen bewusst ohne „Jahr“: der Baukasten rechnet im gewählten Zeitraum (meist ein Jahr),
+// eine Jahres-Gruppierung hätte dort nur einen Balken. Kennzahlen, die die Installation nicht kennt (z. B.
+// Deckungsbeitrag ohne Kostenangaben), werden ausgeblendet (Abgleich mit meta.kennzahlen).
+const MODULE_PRESETS = [
+  { title: "Umsatz je Monat nach Kanal", measure: "umsatz", dimension: "monat", split: "kanal", view: "balken",
+    tip: "Welcher Kanal trägt in welchem Monat den Umsatz?" },
+  { title: "Auslastung nach Wochentag", measure: "auslastung", dimension: "wochentag", split: "", view: "balken",
+    tip: "Welche Nächte bleiben am häufigsten leer?" },
+  { title: "Preis je Nacht nach Saison und Kanal", measure: "adr", dimension: "saison", split: "kanal", view: "heatmap",
+    tip: "Wo ist der Preis je Nacht je Saison am höchsten?" },
+  { title: "Netto je Nacht nach Aufenthaltsdauer", measure: "netto_pro_nacht", dimension: "aufenthalt", split: "", view: "balken",
+    tip: "Bringen kurze Aufenthalte mehr je Nacht?" },
+  { title: "Vorlauf nach Kanal", measure: "vorlauf", dimension: "kanal", split: "", view: "balken",
+    tip: "Wie früh buchen Gäste je Kanal (Median)?" },
+  { title: "Stammgäste und Neukunden", measure: "netto_pro_nacht", dimension: "stammgast", split: "", view: "tabelle",
+    tip: "Netto je Nacht von Stammgästen im Vergleich" },
+  { title: "Stornoquote je Kanal", measure: "stornoquote", dimension: "kanal", split: "", view: "tabelle",
+    tip: "Welcher Kanal storniert am häufigsten?" },
+  { title: "Gäste mit Hund je Saison", measure: "hund_anteil", dimension: "saison", split: "", view: "balken",
+    tip: "Wann kommen die meisten Hunde?" },
+  { title: "Aufenthaltsdauer im Jahresverlauf", measure: "aufenthalt", dimension: "monat_im_jahr", split: "", view: "linie",
+    tip: "Median der Nächte je Anreisemonat" },
+  { title: "Gästesprachen", measure: "buchungen", dimension: "sprache", split: "", view: "balken",
+    tip: "Buchungen nach Sprache des Gastes" },
+  { title: "Personen je Buchung nach Saison", measure: "personen", dimension: "saison", split: "", view: "balken",
+    tip: "Familien im Sommer, Paare im Winter?" },
+  { title: "Deckungsbeitrag je Monat", measure: "db", dimension: "monat", split: "", view: "balken",
+    tip: "Netto minus variable Kosten je Monat" },
+  { title: "Buchungswert", measure: "buchungswert", dimension: "monat", split: "", view: "kennzahl",
+    tip: "Ø Buchungswert brutto als große Zahl" },
+];
+const draftKey = (dr) => JSON.stringify([dr.measure, dr.dimension, dr.split || "", dr.view]);
 // Baukasten-Modul: Kennzahl × Gruppierung (× Aufteilung) in der gewählten Darstellung
 const CUSTOM_MODULE = {
   load: (c, def) => c.q(def.measure, def.view === "kennzahl" ? "gesamt" : def.dimension, c.range, def.split && def.view !== "kennzahl" ? { split: def.split } : {}),
-  render: (card, d, res, def) => {
+  // extra (v1.18.0): Kopf-Aktionen (Darstellungs-Umschalter, Bearbeiten); in der Baukasten-Vorschau leer
+  render: (card, d, res, def, extra = "") => {
     const cur = d.apt.currency;
     const unit = res.einheit;
     const f = (v, long) => fmtUnit(unit, v, cur, long);
@@ -3988,16 +4039,16 @@ const CUSTOM_MODULE = {
     const title = esc(def.title || res.bezeichnung);
     if (def.view === "kennzahl") {
       const c = statCell(res);
-      return panel(title, sub, `<div class="mtile big${c.n < 5 ? " low" : ""}"><div class="kv">${f(c.wert)}</div><div class="ks">n = ${c.n}${c.n < 5 ? ` · ${t("wenig Daten")}` : ""}</div></div>`);
+      return panel(title, sub, `<div class="mtile big${c.n < 5 ? " low" : ""}"><div class="kv">${f(c.wert)}</div><div class="ks">n = ${c.n}${c.n < 5 ? ` · ${t("wenig Daten")}` : ""}</div></div>`, extra);
     }
     const rows = res.zeilen || [];
     const labels = rows.map((z) => (["monat", "woche", "buchungsmonat"].includes(def.dimension) ? binLabel(z.fach) : t(z.fach)));
     const series = (res.serien || []).map((name, i) => ({ name: name === "Gesamt" ? res.bezeichnung : t(name), color: seriesColor(name, def.split, i),
       values: rows.map((z) => z.werte[name]?.wert ?? null), n: rows.map((z) => z.werte[name]?.n ?? 0) }));
-    if (!rows.length) return panel(title, sub, `<div class="empty">${t("Keine Daten")}</div>`);
+    if (!rows.length) return panel(title, sub, `<div class="empty">${t("Keine Daten")}</div>`, extra);
     if (def.view === "tabelle") {
       return panel(title, sub, `<div class="scroll"><table><thead><tr><th>${t(DIM_LABEL[def.dimension])}</th>${series.map((s) => `<th class="n">${esc(s.name)}</th>`).join("")}</tr></thead>
-        <tbody>${rows.map((z, i) => `<tr><td>${esc(labels[i])}</td>${series.map((s) => `<td class="n${s.n[i] < 5 ? " muted" : ""}" title="n = ${s.n[i]}">${f(s.values[i])}<span class="sub2">n = ${s.n[i]}</span></td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+        <tbody>${rows.map((z, i) => `<tr><td>${esc(labels[i])}</td>${series.map((s) => `<td class="n${s.n[i] < 5 ? " muted" : ""}" title="n = ${s.n[i]}">${f(s.values[i])}<span class="sub2">n = ${s.n[i]}</span></td>`).join("")}</tr>`).join("")}</tbody></table></div>`, extra);
     }
     if (def.view === "heatmap") {
       const vals = series.flatMap((s) => s.values).filter((v) => v !== null);
@@ -4013,10 +4064,10 @@ const CUSTOM_MODULE = {
             data-tip="${esc(`${labels[i]} · ${s.name}: ${f(v, true)} · n = ${s.n[i]}`)}">${f(v)}</div>`;
         }
       });
-      return panel(title, sub, `<div class="scroll"><div class="mx" style="${cols};min-width:0">${html}</div></div>`);
+      return panel(title, sub, `<div class="scroll"><div class="mx" style="${cols};min-width:0">${html}</div></div>`, extra);
     }
     return panel(title, sub, `${seriesChart({ labels, series, kind: def.view, fmt: (v) => f(v), W: card.chartW(1, 360) })}
-      ${legendOf(series, (s) => (ADDITIVE.has(def.measure) ? f(s.values.reduce((a, v) => a + (v || 0), 0)) : ""))}`);
+      ${legendOf(series, (s) => (ADDITIVE.has(def.measure) ? f(s.values.reduce((a, v) => a + (v || 0), 0)) : ""))}`, extra);
   },
 };
 
@@ -4028,7 +4079,8 @@ class SmoobuStatsCard extends SmoobuCard {
   static initialState = (c) => ({ ptype: c.period, anchor: null, from: null, to: null, compare: c.compare, channels: [],
     raster: "auto", focus: "umsatz", matrix: "auslastung", paceYear: null, edit: false, builder: false, tableAll: false,
     bzMeasure: "naechte", bzBasis: "alle", bzView: "kalender", // Standard „Gebucht im → für“ (Wunsch Betreiber 16.11.2026)
-    draft: { title: "", measure: "umsatz", dimension: "monat", split: "", view: "balken" } });
+    draft: { title: "", measure: "umsatz", dimension: "monat", split: "", view: "balken" },
+    editId: null /* v1.18.0: id des eigenen Moduls, das im Baukasten bearbeitet wird (null = neues Modul) */ });
   static css = `
     ha-card { background: none; border: 0; padding: 0; overflow: visible; position: relative; }
     .panel { background: var(--sm-surf); border: 1px solid var(--sm-line); border-radius: var(--sm-r); padding: 18px 20px; min-width: 0; }
@@ -4155,6 +4207,13 @@ class SmoobuStatsCard extends SmoobuCard {
     .grow { flex: 1 1 auto; }
     .builder .bform { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; }
     .builder label { display: flex; flex-direction: column; gap: 4px; font-size: .76rem; color: var(--sm-muted); font-weight: 600; }
+    /* v1.18.0: Vorlagen + Vorschau im Baukasten */
+    .builder { scroll-margin-top: 150px; } /* Sprung über „Bearbeiten“: Kopf nicht unter der mitlaufenden Filterleiste */
+    .builder .kl .sub { font-weight: 400; margin-left: 6px; }
+    .builder .presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 14px; }
+    .builder .chip.on { border-color: var(--sm-accent); background: color-mix(in srgb, var(--sm-accent) 12%, transparent); }
+    .builder .pview { margin-top: 6px; border: 1px dashed var(--sm-line); border-radius: var(--sm-r); padding: 4px; }
+    .builder .pview > .panel { border: 0; }
     .split2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; }
     .split2.even { grid-template-columns: 1fr 1fr; }
     .quad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
@@ -4285,7 +4344,8 @@ class SmoobuStatsCard extends SmoobuCard {
       matrix = { since, months, years };
     }
     // Module 4–11 und eigene Baukasten-Module: parallel laden, Fehler je Modul statt für die ganze Karte
-    const ctx = { card: this, s, info, apt, today, range, q, target: this.target, channels: s.channels,
+    // v1.18.0: ctx für die Baukasten-Vorschau merken (gleicher Zeitraum/Filter wie die Werkbank)
+    const ctx = this._ctx = { card: this, s, info, apt, today, range, q, target: this.target, channels: s.channels,
       ws: (mode) => this.store.ws("smoobu/stats", { ...this.target, mode, start: iso(range[0]), end: iso(range[1]),
         ...(s.channels.length ? { channels: s.channels } : {}) }) };
     const mods = {};
@@ -4710,7 +4770,7 @@ class SmoobuStatsCard extends SmoobuCard {
         <button class="step" data-mv="${id}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="${t("nach oben")}">↑</button>
         <button class="step" data-mv="${id}" data-dir="1" ${i === arr.length - 1 ? "disabled" : ""} aria-label="${t("nach unten")}">↓</button>
         <button class="btn flat sm" data-hide="${id}">${hidden ? t("Einblenden") : t("Ausblenden")}</button>
-        ${def ? `<button class="btn flat sm" data-del="${id}">${t("Löschen")}</button>` : ""}</div>` : "";
+        ${def ? `<button class="btn flat sm" data-cedit="${id}">✎ ${t("Bearbeiten")}</button><button class="btn flat sm" data-del="${id}">${t("Löschen")}</button>` : ""}</div>` : "";
       if (hidden) return `<section class="mod">${bar}</section>`;
       return `<section class="mod">${bar}${this.module(id, d, def)}</section>`;
     }).join("");
@@ -4724,8 +4784,24 @@ class SmoobuStatsCard extends SmoobuCard {
     const data = d.mods[id];
     if (!data) return "";
     if (data.__error) return panel(esc(def?.title || t(STATS_TITLES[id] || "Modul")), "", `<div class="err">${t("Fehler")}: ${esc(data.__error)}</div>`);
-    try { return def ? CUSTOM_MODULE.render(this, d, data, def) : STATS_MODULES[id].render(this, d, data); }
+    // v1.18.0: eigene Module nachträglich einstellbar – Darstellung direkt im Kopf (wie die Umschalter der
+    // eingebauten Module), alles Weitere über „Bearbeiten“ im Baukasten
+    const ctl = def ? `<div class="seg" role="group" aria-label="${t("Darstellung")}">${VIEWS.map(([k, l]) =>
+      `<button data-cview="${id}:${k}" aria-pressed="${def.view === k}">${t(l)}</button>`).join("")}</div>
+      <button class="btn flat sm" data-cedit="${id}">✎ ${t("Bearbeiten")}</button>` : "";
+    try { return def ? CUSTOM_MODULE.render(this, d, data, def, ctl) : STATS_MODULES[id].render(this, d, data); }
     catch (e) { return panel(esc(t(STATS_TITLES[id] || "Modul")), "", `<div class="err">${t("Fehler")}: ${esc(e.message)}</div>`); }
+  }
+  // v1.18.0: Daten der Baukasten-Vorschau laden (gleiche Abfrage wie das gespeicherte Modul)
+  async loadPreview() {
+    const dr = this._state.draft;
+    const key = draftKey(dr);
+    if (!this._ctx || (this._pv && this._pv.key === key)) return;
+    this._pv = { key, loading: true };
+    try { this._pv = { key, data: await CUSTOM_MODULE.load(this._ctx, { ...dr, split: dr.split || null }) }; }
+    catch (e) { this._pv = { key, error: e?.message || String(e) }; }
+    // nur neu zeichnen, wenn der Entwurf inzwischen nicht schon wieder geändert wurde
+    if (draftKey(this._state.draft) === key && this._state.builder) this.render();
   }
   // Baukasten: neues Modul zusammenstellen (Kennzahl × Gruppierung × Aufteilung × Darstellung)
   builder(d) {
@@ -4735,15 +4811,38 @@ class SmoobuStatsCard extends SmoobuCard {
     const dims = (d.meta?.dimensionen || Object.keys(DIM_LABEL)).filter((x) => x !== "gesamt");
     const opt = (list, val) => list.map(([k, l]) => `<option value="${k}" ${k === val ? "selected" : ""}>${esc(l)}</option>`).join("");
     const hidden = d.layout.hidden;
-    return `<div class="panel builder"><div class="ph"><h2>＋ ${t("Eigenes Modul")}</h2><span class="sub">${t("Wird auf diesem Gerät gespeichert und erscheint unten in der Werkbank")}</span></div>
+    const editing = s.editId && d.layout.custom.find((c) => c.id === s.editId);
+    // Vorlagen nur mit Kennzahlen, die diese Installation liefert
+    const have = new Set(ms.map((m) => m.id));
+    const presets = MODULE_PRESETS.filter((p) => !have.size || have.has(p.measure));
+    const pre = presets.map((p, i) => `<button class="chip${draftKey(p) === draftKey(dr) ? " on" : ""}" data-preset="${i}" title="${esc(t(p.tip))}">✦ ${esc(t(p.title))}</button>`).join("");
+    // Vorschau: Daten je Entwurf (Kennzahl/Gruppierung/Aufteilung/Darstellung) einmal laden, dann aus dem Speicher
+    const key = draftKey(dr);
+    const pv = this._pv && this._pv.key === key ? this._pv : null;
+    if (!pv) queueMicrotask(() => this.loadPreview());
+    let preview;
+    if (!pv || pv.loading) preview = `<div class="empty">${t("Laden …")}</div>`;
+    else if (pv.error) preview = `<div class="err">${t("Fehler")}: ${esc(pv.error)}</div>`;
+    else {
+      try { preview = CUSTOM_MODULE.render(this, d, pv.data, { ...dr, split: dr.split || null }); }
+      catch (e) { preview = `<div class="err">${t("Fehler")}: ${esc(e.message)}</div>`; }
+    }
+    return `<div class="panel builder"><div class="ph"><h2>${editing ? `✎ ${t("Modul bearbeiten")}: ${esc(editing.title || t("Eigenes Modul"))}` : `＋ ${t("Eigenes Modul")}`}</h2>
+        <span class="sub">${t("Wird auf diesem Gerät gespeichert und erscheint unten in der Werkbank")}</span></div>
+      <div class="kl">${t("Vorlagen")} <span class="sub">${t("zum Einfügen – danach frei anpassbar")}</span></div>
+      <div class="chips presets">${pre}</div>
       <div class="bform">
         <label>${t("Kennzahl")}<select data-b="measure">${opt(ms.map((m) => [m.id, m.name]), dr.measure)}</select></label>
         <label>${t("Gruppierung")}<select data-b="dimension">${opt(dims.map((k) => [k, t(DIM_LABEL[k] || k)]), dr.dimension)}</select></label>
         <label>${t("Aufteilung")}<select data-b="split"><option value="">${t("keine")}</option>${opt(dims.filter((k) => k !== dr.dimension).map((k) => [k, t(DIM_LABEL[k] || k)]), dr.split)}</select></label>
         <label>${t("Darstellung")}<div class="seg">${VIEWS.map(([k, l]) => `<button data-bview="${k}" aria-pressed="${dr.view === k}">${t(l)}</button>`).join("")}</div></label>
         <label>${t("Titel")}<input data-b="title" value="${esc(dr.title)}" placeholder="${t("optional")}"></label>
-        <div class="row"><button class="btn" data-k="bsave">${t("Speichern")}</button><button class="btn flat" data-k="builder">${t("Abbrechen")}</button></div>
+        <div class="row"><button class="btn" data-k="bsave">${editing ? t("Änderungen speichern") : t("Speichern")}</button>
+          ${editing ? `<button class="btn flat" data-k="bsavenew">${t("Als neues Modul")}</button>` : ""}
+          <button class="btn flat" data-k="builder">${t("Abbrechen")}</button></div>
       </div>
+      <div class="kl" style="margin-top:16px">${t("Vorschau")} <span class="sub">${t("mit dem aktuellen Zeitraum und Filter")}</span></div>
+      <div class="pview">${preview}</div>
       ${hidden.length ? `<div class="sub" style="margin-top:10px">${t("Ausgeblendet")}: ${hidden.map((id) => {
         const def = d.layout.custom.find((c) => c.id === id);
         return `<button class="chip" data-hide="${id}">↺ ${esc(def ? def.title || t("Eigenes Modul") : t(STATS_TITLES[id]))}</button>`;
@@ -4790,7 +4889,39 @@ class SmoobuStatsCard extends SmoobuCard {
     root.querySelector('[data-k="tableall"]')?.addEventListener("click", () => this.setState({ tableAll: !s.tableAll }));
     root.querySelector('[data-k="csv"]')?.addEventListener("click", () => this.exportCsv());
     root.querySelectorAll('[data-k="edit"]').forEach((el) => el.addEventListener("click", () => this.setState({ edit: !s.edit }, true)));
-    root.querySelectorAll('[data-k="builder"]').forEach((el) => el.addEventListener("click", () => this.setState({ builder: !s.builder }, true)));
+    // „＋ Modul“/„Abbrechen“: schließt bzw. öffnet den Baukasten für ein NEUES Modul (Bearbeiten-Modus zurücksetzen)
+    root.querySelectorAll('[data-k="builder"]').forEach((el) => el.addEventListener("click", () => {
+      const open = !s.builder;
+      this.setState({ builder: open, editId: null, ...(s.editId ? { draft: { title: "", measure: "umsatz", dimension: "monat", split: "", view: "balken" } } : {}) }, true);
+    }));
+    // v1.18.0: Vorlage in den Entwurf übernehmen (noch nicht gespeichert)
+    root.querySelectorAll("[data-preset]").forEach((el) => el.addEventListener("click", () => {
+      const p = MODULE_PRESETS[Number(el.dataset.preset)];
+      if (!p) return;
+      this._state.draft = { title: t(p.title), measure: p.measure, dimension: p.dimension, split: p.split || "", view: p.view };
+      this.render();
+    }));
+    // v1.18.0: eigenes Modul bearbeiten → Baukasten mit dessen Einstellungen öffnen und nach oben scrollen
+    root.querySelectorAll("[data-cedit]").forEach((el) => el.addEventListener("click", () => {
+      const def = statsLayout().custom.find((c) => c.id === el.dataset.cedit);
+      if (!def) return;
+      this._state.draft = { title: def.title || "", measure: def.measure, dimension: def.dimension, split: def.split || "", view: def.view };
+      this.setState({ builder: true, editId: def.id }, !this._data?.meta);
+      requestAnimationFrame(() => this.shadowRoot.querySelector(".builder")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }));
+    // v1.18.0: Darstellung eines eigenen Moduls direkt im Modulkopf umschalten (sofort gespeichert, keine neue Abfrage)
+    root.querySelectorAll("[data-cview]").forEach((el) => el.addEventListener("click", () => {
+      const [id, view] = el.dataset.cview.split(":");
+      const l = statsLayout();
+      const def = l.custom.find((c) => c.id === id);
+      if (!def || def.view === view) return;
+      // Wechsel von/zu „Kennzahl“ ändert die Abfrage (gesamt statt Gruppierung) → neu laden, sonst nur neu zeichnen
+      const reload = (def.view === "kennzahl") !== (view === "kennzahl");
+      def.view = view;
+      saveLayout(l);
+      if (reload) this._reload();
+      else { const c = this._data?.layout?.custom.find((x) => x.id === id); if (c) c.view = view; this.render(); }
+    }));
     const layoutChange = (fn) => { const l = statsLayout(); fn(l); saveLayout(l); this._reload(); };
     root.querySelectorAll("[data-mv]").forEach((el) => el.addEventListener("click", () => layoutChange((l) => {
       const i = l.order.indexOf(el.dataset.mv), j = i + Number(el.dataset.dir);
@@ -4809,19 +4940,25 @@ class SmoobuStatsCard extends SmoobuCard {
       const draft = { ...s.draft, [el.dataset.b]: el.value };
       if (draft.split === draft.dimension) draft.split = "";
       this._state.draft = draft;
-      if (el.dataset.b !== "title") this.render();
+      this.render(); // v1.18.0: auch beim Titel neu zeichnen (Vorschau zeigt ihn); „change“ kommt erst beim Verlassen des Feldes
     }));
     root.querySelectorAll("[data-bview]").forEach((el) => el.addEventListener("click", () => { this._state.draft = { ...s.draft, view: el.dataset.bview }; this.render(); }));
-    root.querySelector('[data-k="bsave"]')?.addEventListener("click", () => {
+    // Speichern: neues Modul anhängen bzw. beim Bearbeiten das bestehende ersetzen (id und Position bleiben)
+    const saveDraft = (asNew) => {
       const title = root.querySelector('[data-b="title"]')?.value || "";
-      const def = { ...s.draft, title, id: `c_${Date.now().toString(36)}`, split: s.draft.split || null };
       const l = statsLayout();
-      l.custom.push(def);
-      l.order.push(def.id);
+      const old = !asNew && s.editId ? l.custom.find((c) => c.id === s.editId) : null;
+      const def = { ...s.draft, title, id: old ? old.id : `c_${Date.now().toString(36)}`, split: s.draft.split || null };
+      if (old) l.custom = l.custom.map((c) => (c.id === old.id ? def : c));
+      else { l.custom.push(def); l.order.push(def.id); }
       saveLayout(l);
       this._state.builder = false;
+      this._state.editId = null;
       this._reload();
-    });
+      toast(old ? t("Modul geändert") : t("Modul gespeichert"));
+    };
+    root.querySelector('[data-k="bsave"]')?.addEventListener("click", () => saveDraft(false));
+    root.querySelector('[data-k="bsavenew"]')?.addEventListener("click", () => saveDraft(true));
     // Breite merken und bei deutlicher Größenänderung neu zeichnen (Diagramme passen sich an)
     if (!this._ro && window.ResizeObserver) {
       this._ro = new ResizeObserver(() => {

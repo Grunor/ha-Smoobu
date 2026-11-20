@@ -100,8 +100,9 @@ def _shots(base: str, token: str) -> list[str]:
             if klick := os.environ.get("SMOOBU_KLICK"):
                 page.evaluate("""(sel) => { for (const c of document.querySelectorAll('#stage > *')) {
                     const el = c.shadowRoot && c.shadowRoot.querySelector(sel); if (el) { el.scrollIntoView(); el.click(); return; } } }""", klick)
-                page.wait_for_timeout(900)
-                page.screenshot(path=str(path))
+                page.wait_for_timeout(int(os.environ.get("SMOOBU_KLICK_WARTEN", "900")))
+                # SMOOBU_KLICK_VOLL=1: ganze Seite statt nur Fenster (z. B. Baukasten mit Vorschau)
+                page.screenshot(path=str(path), full_page=bool(os.environ.get("SMOOBU_KLICK_VOLL")))
                 done.append(path.name)
                 continue
             page.locator("#stage").screenshot(path=str(path))
