@@ -1,17 +1,25 @@
-"""Benutzerrollen und Rechte (ab v1.18.0, Wunsch Betreiber 17.11.2026).
+"""Benutzerrollen und Rechte (ab v1.18.0, Wunsch Betreiber 17.11.2026; Rollenkonfigurator ab v1.19.0).
 
-Ein HA-Admin legt je HA-Benutzer eine Rolle fest (Option `user_roles`). Jede Rolle ist ein
-festes Bündel von Rechten – bewusst keine frei klickbare Matrix: fünf klar benannte Rollen
-sind im Alltag verständlicher und lassen keine widersprüchlichen Kombinationen zu (z. B.
-„Preise ändern“ ohne „Finanzen sehen“).
+Ein HA-Admin legt je HA-Benutzer eine Rolle fest (Option `user_roles`). Jede Rolle ist ein Bündel
+von Rechten. Ab v1.19.0 (Wunsch Betreiber 20.11.2026) sind die Bündel einstellbar:
+
+- Standardrollen (ROLES) bringen ihre Standardrechte mit. Ein Admin kann sie je Rolle ändern
+  (Option `role_rights`, gespeichert werden nur Abweichungen vom Standard – so bekommen nicht
+  angepasste Rollen neue Rechte späterer Versionen automatisch). „Kein Zugriff“ bleibt fest leer.
+- Eigene Rollen (Option `custom_roles`: {id: {name, rechte}}) legt ein Admin an, benennt sie und
+  löscht sie wieder. IDs beginnen mit „eigen_“, damit sie nie mit Standardrollen kollidieren.
+- Abhängigkeiten (DEPENDS, z. B. „Preise ändern“ ohne „Finanzen sehen“) sind bewusst nur
+  Hinweise in der Karte (Entscheidung Betreiber 20.11.2026: Warnhinweis statt Automatik).
+- „Gästedaten sehen“ schließt „Belegung sehen“ immer ein (wer Namen und Kontakt sieht, sieht
+  auch die Belegung) – sonst entstünden Rollen, die Buchungen, aber keinen Kalender sehen.
 
 Regeln:
-- HA-Admins haben immer alle Rechte und als einzige das Recht, Rollen zu vergeben.
+- HA-Admins haben immer alle Rechte und als einzige das Recht, Rollen zu vergeben/einzustellen.
 - Aufrufe ohne Benutzer (Automationen, Skripte, interne Aufrufe) sind erlaubt – sonst würden
   bestehende Automationen mit smoobu.* plötzlich scheitern.
-- Benutzer ohne Eintrag bekommen die Standardrolle (Option `default_role`, Standard
-  „betrieb“ = Verhalten bis v1.18.0b2: alles außer Einstellungen). Wer in der älteren
-  Option „Einstellungen im Dashboard erlauben für“ steht, gilt als „verwalter“.
+- Benutzer ohne Eintrag (oder mit gelöschter Rolle) bekommen die Standardrolle (Option
+  `default_role`, Standard „betrieb“). Wer in der älteren Option „Einstellungen im Dashboard
+  erlauben für“ steht, gilt als „verwalter“.
 - Geprüft wird im Backend (Websocket-Befehle der Karten und smoobu.*-Aktionen). Die Karten
   blenden zusätzlich aus, was nicht erlaubt ist.
 
@@ -23,53 +31,105 @@ from __future__ import annotations
 
 from typing import Any
 
-from .const import CONF_DEFAULT_ROLE, CONF_SETTINGS_USERS, CONF_USER_ROLES, DEFAULT_ROLE
+from .const import (
+    CONF_CUSTOM_ROLES,
+    CONF_DEFAULT_ROLE,
+    CONF_ROLE_RIGHTS,
+    CONF_SETTINGS_USERS,
+    CONF_USER_ROLES,
+    DEFAULT_ROLE,
+)
 
-# Rechte (Schlüssel → Bezeichnung)
+# Rechte (Schlüssel → Bezeichnung). Reihenfolge = Reihenfolge in der Rollen-Matrix.
 RIGHTS: dict[str, str] = {
-    "finanzen": "Finanzen, Statistik und Preise sehen",
+    # v1.19.0 (Wunsch Betreiber 20.11.2026, Rolle „Reinigung“): Übersicht und Kalender mit Zeitraum,
+    # Check-in/-out, Personen und Hund – vom Gast nur der Vorname, ohne Kontakt, Notizen und Preise
+    "belegung_sehen": "Belegung sehen (nur Vorname des Gastes)",
     "gaeste": "Gästedaten und Buchungen sehen",
+    "finanzen": "Finanzen, Statistik und Preise sehen",
     "nachrichten": "Nachrichten lesen",
     "antworten": "Antworten und KI-Vorschläge",
     "belegung": "Belegung ändern (sperren, Zeiten, Storno)",
+    # v1.19.0: Reinigungsboard – offene Reinigungen sehen, sich eintragen, eigene abhaken
+    "reinigung": "Reinigung übernehmen und abhaken",
+    # v1.19.0: Reinigungen anderen Benutzern zuweisen (Reinigungsboard)
+    "reinigung_zuweisen": "Reinigung zuweisen",
     "preise": "Preise ändern und Empfehlungen übernehmen",
     "einstellungen": "Einstellungen ändern",
 }
 
-# Rolle → (Bezeichnung, Rechte)
+_ALL = frozenset(RIGHTS)
+# Standardrolle → (Bezeichnung, Standardrechte)
 ROLES: dict[str, tuple[str, frozenset[str]]] = {
-    "verwalter": ("Verwalter", frozenset(RIGHTS)),
-    "betrieb": ("Betrieb", frozenset(RIGHTS) - {"einstellungen"}),
-    "mitarbeiter": ("Mitarbeiter", frozenset({"gaeste", "nachrichten", "antworten", "belegung"})),
-    "lesen": ("Nur lesen", frozenset({"gaeste", "nachrichten"})),
+    "verwalter": ("Verwalter", _ALL),
+    "betrieb": ("Betrieb", _ALL - {"einstellungen"}),
+    "mitarbeiter": ("Mitarbeiter", frozenset({"belegung_sehen", "gaeste", "nachrichten", "antworten", "belegung", "reinigung"})),
+    # v1.19.0: sehr einfache Rolle für Reinigungskräfte (Belegung, Check-in/-out, Reinigung abhaken)
+    "reinigung": ("Reinigung", frozenset({"belegung_sehen", "reinigung"})),
+    "lesen": ("Nur lesen", frozenset({"belegung_sehen", "gaeste", "nachrichten"})),
     "kein": ("Kein Zugriff", frozenset()),
+}
+# Rollen, deren Rechte sich nicht einstellen lassen („Kein Zugriff“ mit Rechten wäre widersinnig)
+LOCKED_ROLES = frozenset({"kein"})
+CUSTOM_PREFIX = "eigen_"
+MAX_CUSTOM_ROLES = 10
+MAX_ROLE_NAME = 30
+
+# Recht → Rechte, ohne die es im Dashboard kaum nutzbar ist (nur Hinweise, keine Pflicht)
+DEPENDS: dict[str, tuple[str, ...]] = {
+    "preise": ("finanzen", "belegung_sehen"),  # Preise setzen geht über den Kalender und braucht die Preise
+    "belegung": ("belegung_sehen",),           # sperren/Zeiten ändern im Kalender
+    "reinigung": ("belegung_sehen",),          # ohne: Reinigungen ohne Vornamen der Gäste
+    "reinigung_zuweisen": ("belegung_sehen",),
+    "antworten": ("nachrichten",),             # antworten ohne die Nachricht zu lesen
 }
 ADMIN = "admin"
 SYSTEM = "system"
 
 
+def _clean(rights: Any) -> frozenset[str]:
+    """Nur bekannte Rechte; „gaeste“ schließt „belegung_sehen“ ein (siehe Modul-Doku)."""
+    out = frozenset(r for r in (rights or []) if r in RIGHTS)
+    return out | {"belegung_sehen"} if "gaeste" in out else out
+
+
+def roles(options: Any) -> dict[str, dict[str, Any]]:
+    """Alle Rollen eines Eintrags mit wirksamen Rechten: Standardrollen (ggf. angepasst) + eigene."""
+    o = options or {}
+    overrides = o.get(CONF_ROLE_RIGHTS) or {}
+    out: dict[str, dict[str, Any]] = {}
+    for rid, (name, default) in ROLES.items():
+        custom = overrides.get(rid) if rid not in LOCKED_ROLES else None
+        rights = _clean(custom) if isinstance(custom, (list, tuple, set, frozenset)) else default
+        out[rid] = {"name": name, "rechte": rights, "art": "standard", "standard": default}
+    for rid, cfg in (o.get(CONF_CUSTOM_ROLES) or {}).items():
+        if str(rid).startswith(CUSTOM_PREFIX) and isinstance(cfg, dict):
+            out[str(rid)] = {"name": str(cfg.get("name") or rid), "rechte": _clean(cfg.get("rechte")), "art": "eigen"}
+    return out
+
+
 def role_of(user: Any, options: Any) -> str:
-    """Rolle eines HA-Benutzers für einen Smoobu-Eintrag (admin/system/eine der ROLES)."""
+    """Rolle eines HA-Benutzers für einen Smoobu-Eintrag (admin/system/eine Rolle aus roles())."""
     if user is None:
         return SYSTEM
     if getattr(user, "is_admin", False):
         return ADMIN
     o = options or {}
-    roles = o.get(CONF_USER_ROLES) or {}
-    role = roles.get(user.id)
-    if role in ROLES:
+    known = roles(o)
+    role = (o.get(CONF_USER_ROLES) or {}).get(user.id)
+    if role in known:
         return role
     if user.id in (o.get(CONF_SETTINGS_USERS) or []):
         return "verwalter"
     default = o.get(CONF_DEFAULT_ROLE, DEFAULT_ROLE)
-    return default if default in ROLES else DEFAULT_ROLE
+    return default if default in known else DEFAULT_ROLE
 
 
 def rights_of(user: Any, options: Any) -> frozenset[str]:
     role = role_of(user, options)
     if role in (ADMIN, SYSTEM):
-        return frozenset(RIGHTS)
-    return ROLES[role][1]
+        return _ALL
+    return roles(options)[role]["rechte"]
 
 
 def allowed(user: Any, options: Any, right: str) -> bool:
@@ -81,17 +141,31 @@ def describe(user: Any, options: Any) -> dict[str, Any]:
     role = role_of(user, options)
     return {
         "rolle": role,
-        "rolle_name": "Admin" if role == ADMIN else "System" if role == SYSTEM else ROLES[role][0],
+        "rolle_name": "Admin" if role == ADMIN else "System" if role == SYSTEM else roles(options)[role]["name"],
         "rechte": sorted(rights_of(user, options)),
         "admin": role == ADMIN,
     }
 
 
-def matrix() -> dict[str, Any]:
-    """Rollen × Rechte für die Anzeige in der Einstellungskarte."""
+def hints(rights: Any) -> list[dict[str, Any]]:
+    """Fehlende Abhängigkeiten einer Rechte-Auswahl (für Warnhinweise; gleiche Regel wie die Karte)."""
+    have = _clean(rights)
+    return [{"recht": r, "fehlt": [d for d in deps if d not in have]}
+            for r, deps in DEPENDS.items() if r in have and any(d not in have for d in deps)]
+
+
+def matrix(options: Any = None) -> dict[str, Any]:
+    """Rollen × Rechte für die Einstellungskarte (wirksame Rechte, Standard, Art, Abhängigkeiten)."""
     return {
         "rechte": [{"id": k, "name": v} for k, v in RIGHTS.items()],
-        "rollen": [{"id": k, "name": n, "rechte": sorted(r)} for k, (n, r) in ROLES.items()],
+        "rollen": [{"id": rid, "name": r["name"], "rechte": sorted(r["rechte"]), "art": r["art"],
+                    "standard": sorted(r["standard"]) if "standard" in r else None,
+                    "fest": rid in LOCKED_ROLES}
+                   for rid, r in roles(options).items()],
+        "abhaengig": {k: list(v) for k, v in DEPENDS.items()},
+        "eigen_praefix": CUSTOM_PREFIX,
+        "max_eigene": MAX_CUSTOM_ROLES,
+        "max_name": MAX_ROLE_NAME,
     }
 
 
@@ -109,6 +183,11 @@ GUEST_KEYS = {"gast", "vorname", "email", "telefon", "gast_id", "guest-name", "f
               "besuche_vorher", "zuletzt_id", "zuletzt_anreise", "zuletzt_abreise", "zuletzt_wohnung_id"}
 
 
+# v1.19.0: mit „belegung_sehen“ ohne „gaeste“ bleibt vom Gast nur der Vorname (Entscheidung Betreiber
+# 20.11.2026: Reinigung darf den Vornamen sehen, z. B. für einen Begrüßungszettel)
+FIRST_NAME_KEYS = {"vorname", "firstname"}
+
+
 def strip(item: dict[str, Any], rights: frozenset[str]) -> dict[str, Any]:
     """Buchung ohne die Felder, die der Benutzer nicht sehen darf."""
     drop = set()
@@ -116,4 +195,12 @@ def strip(item: dict[str, Any], rights: frozenset[str]) -> dict[str, Any]:
         drop |= FINANCE_KEYS
     if "gaeste" not in rights:
         drop |= GUEST_KEYS
-    return {k: v for k, v in item.items() if k not in drop} if drop else item
+        if "belegung_sehen" in rights:
+            drop -= FIRST_NAME_KEYS
+    if not drop:
+        return item
+    out = {k: v for k, v in item.items() if k not in drop}
+    # Anzeigename „gast“ wird von allen Karten genutzt → bei Vorname-Sicht durch den Vornamen ersetzen
+    if "gaeste" not in rights and "belegung_sehen" in rights and "gast" in item:
+        out["gast"] = item.get("vorname") or ("Sperre" if item.get("blockiert") else "Gast")
+    return out

@@ -490,14 +490,17 @@ const HeaderApts = {
 };
 // Virtuelle „Wohnung“ für die Gesamtansicht: Kanäle aller Wohnungen, Währung der ersten
 // v1.18.0: Benutzerrollen – Rechte des angemeldeten Benutzers je Wohnung (Backend prüft zusätzlich)
-const ALL_RIGHTS = ["finanzen", "gaeste", "nachrichten", "antworten", "belegung", "preise", "einstellungen"];
+// v1.19.0: + belegung_sehen (nur Vorname), reinigung, reinigung_zuweisen (Reinigungsboard)
+const ALL_RIGHTS = ["belegung_sehen", "gaeste", "finanzen", "nachrichten", "antworten", "belegung", "reinigung", "reinigung_zuweisen", "preise", "einstellungen"];
 const rightsOf = (apt) => new Set(apt?.zugriff?.rechte ?? ALL_RIGHTS);
 // v1.18.0: Kategorien des Aufgaben-Boards (gleiche Schlüssel wie const.TASK_CATEGORIES)
-const TASK_CATS = [["nachrichten", "Nachrichten"], ["rechnungen", "Rechnungen"], ["preise", "Preise"], ["lastminute", "Last-Minute"], ["luecken", "Lücken"],
+const TASK_CATS = [["nachrichten", "Nachrichten"], ["reinigung", "Reinigung"], ["rechnungen", "Rechnungen"], ["preise", "Preise"], ["lastminute", "Last-Minute"], ["luecken", "Lücken"],
   ["einrichtung", "Einrichtung"]]; // v1.18.0: neue Optionen der Integration (neuigkeiten.py)
-// Seite (Pfad) → nötiges Recht; Seiten ohne Eintrag sind für jede Rolle außer „Kein Zugriff“ sichtbar
+// Seite (Pfad) → nötiges Recht (Liste = eines davon genügt); Seiten ohne Eintrag brauchen „belegung_sehen“
+// v1.19.0: Übersicht und Kalender mit „belegung_sehen“ (Rolle Reinigung), Seite Reinigung mit reinigung/-zuweisen
 const PAGE_RIGHT = { finanzen: "finanzen", statistik: "finanzen", nachrichten: "nachrichten", assistent: "nachrichten",
-  einstellungen: "einstellungen", buchungen: "gaeste", belegung: "gaeste", kalender: "gaeste" };
+  einstellungen: "einstellungen", buchungen: "gaeste", belegung: "belegung_sehen", kalender: "belegung_sehen",
+  reinigung: ["reinigung", "reinigung_zuweisen"] };
 // Darf der Benutzer `right` für Wohnung aptId (undefined = erste, „alle“ = alle)? Aus dem gecachten smoobu/info
 function can(right, aptId) {
   const info = window.__smoobuStore?.info;
@@ -505,7 +508,8 @@ function can(right, aptId) {
   const apt = aptId === ALL ? allApartment(info) : info.wohnungen.find((w) => w.apartment_id === aptId) || info.wohnungen[0];
   return rightsOf(apt).has(right);
 }
-const pageRight = (path) => Object.entries(PAGE_RIGHT).find(([k]) => String(path).includes(k))?.[1] || "gaeste";
+const pageRight = (path) => Object.entries(PAGE_RIGHT).find(([k]) => String(path).includes(k))?.[1] || "belegung_sehen";
+const pageAllowed = (path, rights) => [pageRight(path)].flat().some((r) => rights.has(r));
 function allApartment(info) {
   const ws = info.wohnungen;
   const seen = new Map();
@@ -1232,7 +1236,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     // v1.18.0: Finanzen nur mit Recht „finanzen“ (sonst bleibt die Übersicht ohne Umsatz-Kacheln nutzbar)
     const fin = can("finanzen", tg.apartment_id);
     const none = Promise.resolve(null);
-    const [month, ytd, last12, prevYear, list, portalList, taskState, emp, ...rates] = await Promise.all([
+    const [month, ytd, last12, prevYear, list, portalList, taskState, emp, cleaning, ...rates] = await Promise.all([
       fin ? this.store.ws("smoobu/analytics", { ...tg, period: "monat", compare: "vorjahr_stand" }) : none,
       fin ? this.store.ws("smoobu/analytics", { ...tg, period: "jahr_bis_heute", compare: "vorjahr" }) : none,
       fin ? this.store.ws("smoobu/analytics", { ...tg, start: iso(addMonths(m0, -11)), end: iso(addMonths(m0, 1)), compare: "vorjahr" }) : none,
@@ -1243,6 +1247,8 @@ class SmoobuOverviewCard extends SmoobuCard {
       // v1.18.0: Aufgaben-Board – erledigt/später (Backend) und Preis-/Last-Minute-/Lücken-Aufgaben aus der Empfehlung
       this.store.ws("smoobu/tasks/get", tg, { cache: false }).catch(() => ({ zustand: {}, kategorien: [] })),
       fin ? this.store.ws("smoobu/stats", { ...tg, mode: "empfehlung" }).catch(() => null) : none,
+      // v1.19.0: nicht zugewiesene Reinigungen (nur wer zuweisen darf)
+      can("reinigung_zuweisen", tg.apartment_id) ? this.store.ws("smoobu/cleaning/get", tg, { cache: false }).catch(() => null) : none,
       ...apts.map((w) => this.store.ws("smoobu/rates", { ...tg, apartment_id: w.apartment_id, start: today, end: rateEnd })
         .then((r) => r.preise).catch(() => ({}))),
     ]);
@@ -1257,7 +1263,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     const ratesBy = Object.fromEntries(apts.map((w, i) => [w.apartment_id, rates[i] || {}]));
     // Anreise ≤ heute, nicht storniert/gesperrt, ohne offenen Betrag (sonst normaler Weg) und noch nicht markiert
     const portalOpen = portalList.filter((b) => !b.storniert && !b.blockiert && portalPay(b) && !b.bezahlt && b.anreise <= today);
-    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy, portalOpen, taskState, emp, fin };
+    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy, portalOpen, taskState, emp, fin, cleaning };
   }
 
   // ---- Kopf ----------------------------------------------------------------
@@ -1560,6 +1566,14 @@ class SmoobuOverviewCard extends SmoobuCard {
         }
       }
     }
+    // v1.19.0: Reinigungen der nächsten 7 Tage ohne Zuweisung → „Reinigung“ (Button führt zum Reinigungsboard).
+    // Schlüssel mit Abreisetag: verschiebt sich die Abreise, erscheint die Aufgabe neu.
+    const week = iso(addDays(D(today), 7));
+    for (const x of (d.cleaning?.reinigungen || []).filter((c) => !c.zugewiesen && c.status !== "erledigt" && c.datum >= today && c.datum <= week)) {
+      add("reinigung", `reinigung:${x.key}`, `<div class="tt">🧹 ${t("Reinigung nicht zugewiesen")}${this.multi && x.kuerzel ? codeTag(x.kuerzel) : ""}</div>
+        <p>${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}${x.wechsel ? ` · 🔄 ${t("Gästewechsel")}, ${t("Anreise")} ${uhr(x.naechste?.check_in)}` : ""}${x.hund ? " · 🐕" : ""}</p>
+        <div class="ta"><span class="sub">${daysWord(nightsBetween(today, x.datum))}</span><button class="btn" data-goclean>${t("Zuweisen")} →</button>`, `0${x.datum}`);
+    }
     // v1.18.0: neue Einstellungen der Integration → „Einrichtung“ (nur wer Einstellungen ändern darf)
     if (rightsOf(allApartment(d.info)).has("einstellungen")) News.list.filter((x) => x.art === "einstellung").forEach((n, i) => {
       add("einrichtung", `einrichtung:${n.id}`, `<div class="tt">⚙ ${esc(News.title(n))}</div><p>${esc(News.text(n))}</p>
@@ -1636,6 +1650,13 @@ class SmoobuOverviewCard extends SmoobuCard {
       const path = this.kalenderPath;
       const parts = location.pathname.split("/").filter(Boolean);
       history.pushState(null, "", path.startsWith("/") ? path : `/${parts[0] || "lovelace"}/${path}`);
+      window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+    }));
+    // v1.19.0: Aufgabe „Reinigung nicht zugewiesen“ → Seite Reinigung
+    root.querySelectorAll("[data-goclean]").forEach((el) => el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const parts = location.pathname.split("/").filter(Boolean);
+      history.pushState(null, "", `/${parts[0] || "lovelace"}/smoobu-reinigung`);
       window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
     }));
     root.querySelectorAll("[data-entity]").forEach((el) => el.addEventListener("click", () => {
@@ -3541,11 +3562,11 @@ function binLabel(fach, long = false) {
 // Anordnung (Reihenfolge, ausgeblendete Module, eigene Baukasten-Module) je Gerät in localStorage –
 // Entscheidung Betreiber: „speichern je Gerät“ (kein Server-Speicher, kein Abgleich zwischen Geräten).
 const STATS_LAYOUT_KEY = "smoobu-statistik-layout";
-const STATS_BUILTIN = ["kennzahlen", "empfehlung", "deckung", "tempo", "saison", "belegung", "kanaele", "fenster", "buchungszeit", "luecken", "stornos", "gaeste", "ehrentafel", "service", "tabelle"];
+const STATS_BUILTIN = ["kennzahlen", "empfehlung", "deckung", "tempo", "saison", "belegung", "kanaele", "fenster", "buchungszeit", "luecken", "stornos", "gaeste", "ehrentafel", "service", "reinigung", "tabelle"];
 const STATS_TITLES = {
   kennzahlen: "Kennzahlen", empfehlung: "Bewertung & Empfehlung", deckung: "Deckungsbeitrag", tempo: "Buchungstempo & Prognose", saison: "Saison-Matrix", belegung: "Belegung nach Wochentag",
   kanaele: "Kanal-Wirtschaftlichkeit", fenster: "Buchungsfenster & Aufenthalt", buchungszeit: "Buchungszeitpunkt", luecken: "Verlorene Nächte", stornos: "Stornos",
-  gaeste: "Gäste", ehrentafel: "Ehrentafel", service: "Service", tabelle: "Datentabelle",
+  gaeste: "Gäste", ehrentafel: "Ehrentafel", service: "Service", reinigung: "Reinigung", tabelle: "Datentabelle",
 };
 // Dimensionen des Baukastens (stats.DIMENSIONS) mit Anzeigenamen
 const DIM_LABEL = {
@@ -3577,6 +3598,8 @@ function statsLayout() {
   }
   // v1.18.0b7: „Ehrentafel“ direkt nach „Gäste“ einfügen, auch in gespeicherten Layouts
   if (order.length && !order.includes("ehrentafel") && order.includes("gaeste")) order.splice(order.indexOf("gaeste") + 1, 0, "ehrentafel");
+  // v1.19.0: „Reinigung“ direkt nach „Service“ einfügen, auch in gespeicherten Layouts
+  if (order.length && !order.includes("reinigung") && order.includes("service")) order.splice(order.indexOf("service") + 1, 0, "reinigung");
   for (const id of known) if (!order.includes(id)) order.push(id); // neue Module hinten anhängen
   const hidden = (Array.isArray(l.hidden) ? l.hidden : []).filter((id) => known.includes(id));
   // v1.17.1: Datentabelle doppelt die Seite „Buchungen“ (inkl. CSV) → einmalig ausblenden; über ↺ wieder einblendbar
@@ -4319,6 +4342,49 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
     },
   },
   // 10: Service (Antwortzeit)
+  // v1.19.0 (Wunsch Betreiber 20.11.2026): Reinigung – wer hat wann welche Wohnung gereinigt (Reinigungsboard,
+  // Backend reinigung.stats). Zeitraum wie die übrigen Module (Tag der Abreise); ohne Kanalfilter (Reinigung hängt
+  // nicht am Kanal). Aufwand je Person über Gästewechsel, Hunde, Personen und Nächte der abgereisten Gäste.
+  reinigung: {
+    load: (c) => c.card.store.ws("smoobu/cleaning/stats", { ...c.target, start: iso(c.range[0]), end: iso(c.range[1]) }),
+    render: (card, d, m) => {
+      const dur = (v) => (v === null || v === undefined ? "–" : Math.abs(v) < 60 ? `${num(v)} min` : `${num(v / 60, 1)} h`);
+      const tiles = tilesRow([
+        [t("Reinigungen"), num(m.anzahl), m.seit ? `${t("erfasst seit")} ${fdate(m.seit)}` : t("noch keine erfasst"),
+          t("Abgehakte Reinigungen im Reinigungsboard mit Abreise im Zeitraum")],
+        [t("Gästewechsel"), num(m.wechsel), m.anzahl ? pct((m.wechsel / m.anzahl) * 100, 0) : "", t("Abreise und Anreise am selben Tag – enges Zeitfenster")],
+        [t("Mit Hund"), num(m.hund), m.anzahl ? pct((m.hund / m.anzahl) * 100, 0) : "", t("Abreisende Gäste mit Hund – meist mehr Aufwand")],
+        [t("Nicht abgehakt"), num(m.nicht_abgehakt), m.nicht_abgehakt_ohne_zuweisung ? `${num(m.nicht_abgehakt_ohne_zuweisung)} ${t("ohne Zuweisung")}` : "",
+          t("Vergangene Abreisen im Zeitraum ohne „Erledigt“, gezählt ab dem ersten Eintrag im Reinigungsboard")],
+      ]);
+      if (!m.anzahl) return panel(`🧹 ${t("Reinigung")}`, t("Wer hat wann welche Wohnung gereinigt"),
+        `${tiles}<div class="empty">${t("Noch keine abgehakten Reinigungen im Zeitraum – die Auswertung beginnt mit dem Reinigungsboard (Seite Reinigung).")}</div>`);
+      const people = m.personen.map((p) => p.person);
+      const per = `<div class="scroll"><table><thead><tr><th>${t("Person")}</th><th class="n">${t("Reinigungen")}</th><th class="n">${t("Anteil")}</th>
+          <th class="n">${t("Gästewechsel")}</th><th class="n">🐕</th><th class="n" title="${t("Personen je Reinigung (abgereiste Gäste)")}">${t("Gäste Ø")}</th>
+          <th class="n" title="${t("Summe der Nächte der abgereisten Gäste")}">${t("Nächte")}</th>
+          <th class="n" title="${t("Median: Zeit vom Check-out bis zum Abhaken")}">${t("Abgehakt nach")}</th><th>${t("Zuletzt")}</th></tr></thead><tbody>
+        ${m.personen.map((p) => `<tr><td><b>${esc(p.person)}</b></td><td class="n">${num(p.anzahl)}</td><td class="n">${pct(p.anteil_prozent, 0)}</td>
+          <td class="n">${num(p.wechsel)}</td><td class="n">${num(p.hund)}</td><td class="n">${p.personen_je_reinigung === null ? "–" : num(p.personen_je_reinigung, 1)}</td>
+          <td class="n">${num(p.naechte)}</td><td class="n">${dur(p.verzug_median_min)}</td><td>${fdate(p.letzte)}</td></tr>`).join("")}</tbody></table></div>`;
+      const cross = (rows, key, label) => `<div class="scroll"><table><thead><tr><th>${t(label)}</th>${people.map((p) => `<th class="n">${esc(p)}</th>`).join("")}<th class="n">Σ</th></tr></thead><tbody>
+        ${rows.map((r) => `<tr><td>${key === "monat" ? esc(D(`${r.monat}-01`).toLocaleDateString(locale(), { month: "short", year: "numeric" })) : esc(r.wohnung)}</td>
+          ${people.map((p) => `<td class="n">${r.je_person[p] ? num(r.je_person[p]) : "–"}</td>`).join("")}<td class="n"><b>${num(r.summe)}</b></td></tr>`).join("")}</tbody></table></div>`;
+      const shown = card._state.cleanAll ? m.liste : m.liste.slice(0, 15);
+      const list = `<div class="scroll"><table><thead><tr><th>${t("Abreise")}</th>${d.info.wohnungen.length > 1 ? `<th>${t("Wohnung")}</th>` : ""}<th>${t("Person")}</th>
+          <th>${t("Abgehakt")}</th><th class="n">${t("Personen")}</th><th class="n">${t("Nächte")}</th><th></th></tr></thead><tbody>
+        ${shown.map((x) => `<tr><td>${fdowLong(x.datum)} ${uhr(x.check_out)}</td>${d.info.wohnungen.length > 1 ? `<td>${codeTag(x.kuerzel)}</td>` : ""}
+          <td>${esc(x.person)}${x.abgehakt_von && x.abgehakt_von !== x.person ? ` <span class="sub">(${t("abgehakt von")} ${esc(x.abgehakt_von)})</span>` : ""}</td>
+          <td>${x.erledigt_um ? `${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : "–"}</td><td class="n">${x.personen ?? "–"}</td><td class="n">${x.naechte ?? "–"}</td>
+          <td>${x.wechsel ? `<span class="badge warn">🔄 ${t("Wechsel")}</span>` : ""}${x.hund ? " 🐕" : ""}</td></tr>`).join("")}</tbody></table></div>
+        ${m.liste.length > 15 ? `<button class="lnk" data-k="cleanall">${card._state.cleanAll ? t("Weniger anzeigen") : `${t("Alle")} ${m.liste.length} ${t("anzeigen")}`}</button>` : ""}`;
+      return panel(`🧹 ${t("Reinigung")}${neuBadge("neu-reinigung-statistik")}`, t("Wer hat wann welche Wohnung gereinigt"),
+        `${tiles}<div class="kl" style="margin-top:12px">${t("Je Person")}</div>${per}
+        <div class="split2 even" style="margin-top:12px"><div><div class="kl">${t("Je Monat")}</div>${cross(m.monate, "monat", "Monat")}</div>
+          ${m.wohnungen.length > 1 ? `<div><div class="kl">${t("Je Wohnung")}</div>${cross(m.wohnungen, "wohnung", "Wohnung")}</div>` : "<div></div>"}</div>
+        <div class="kl" style="margin-top:12px">${t("Letzte Reinigungen")}</div>${list}`);
+    },
+  },
   service: {
     load: (c) => c.ws("service"),
     render: (card, d, m) => {
@@ -5296,6 +5362,7 @@ class SmoobuStatsCard extends SmoobuCard {
       this.setState(key === "m" ? { bzMeasure: val } : key === "v" ? { bzView: val } : { bzBasis: val }, true);
     }));
     root.querySelector('[data-k="tableall"]')?.addEventListener("click", () => this.setState({ tableAll: !s.tableAll }));
+    root.querySelector('[data-k="cleanall"]')?.addEventListener("click", () => this.setState({ cleanAll: !s.cleanAll })); // v1.19.0
     root.querySelector('[data-k="csv"]')?.addEventListener("click", () => this.exportCsv());
     root.querySelectorAll('[data-k="edit"]').forEach((el) => el.addEventListener("click", () => this.setState({ edit: !s.edit }, true)));
     // „＋ Modul“/„Abbrechen“: schließt bzw. öffnet den Baukasten für ein NEUES Modul (Bearbeiten-Modus zurücksetzen)
@@ -5422,6 +5489,8 @@ const DEFAULT_PAGES = [
   // legacy: hat das Dashboard noch die alte Ansicht „smoobu-belegung“ (und keine neue), zeigt der Reiter
   // dorthin – so bleiben bestehende Dashboards anderer Nutzer ohne Anpassung funktionsfähig
   { name: "Übersicht", path: "smoobu" }, { name: "Kalender", path: "smoobu-kalender", legacy: "smoobu-belegung" },
+  // v1.19.0: Reinigungsboard – nur sichtbar, wenn das Dashboard eine Ansicht „smoobu-reinigung“ hat
+  { name: "Reinigung", path: "smoobu-reinigung", optional: true },
   { name: "Buchungen", path: "smoobu-buchungen" }, { name: "Finanzen", path: "smoobu-finanzen" },
   // Statistik-Werkbank (Teilschritt 2): optional = Reiter erscheint nur, wenn das Dashboard eine Ansicht
   // mit diesem Pfad hat (die Seite selbst kommt in Teilschritt 5) – so entsteht vorher kein toter Link
@@ -5528,7 +5597,7 @@ class SmoobuHeaderCard extends SmoobuCard {
     // Alte Pfade auflösen (z. B. smoobu-belegung → smoobu-kalender, v1.18.0b8), nur wenn das Dashboard
     // die neue Ansicht nicht kennt, die alte aber schon
     const pages = (this._config.pages || []).map((p) => (p.legacy && known && !known.has(p.path) && known.has(p.legacy) ? { ...p, path: p.legacy } : p)).filter((p) => (!p.optional || !known || known.has(p.path))
-      && (p.path === "smoobu" ? rights.has("gaeste") : rights.has(pageRight(p.path))));
+      && (p.path === "smoobu" ? rights.has("belegung_sehen") : pageAllowed(p.path, rights)));
     const home = this._config.home?.path ? `<a class="home" data-href="${esc(this.href(this._config.home.path))}" title="${esc(t("Zurück zu"))} ${esc(this._config.home.name || "")}">← ${esc(t(this._config.home.name || "Zurück"))}</a><span class="hsep"></span>` : "";
     const tabs = home + pages.map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${p.icon && ICON_SVG[p.icon] ? `${ICON_SVG[p.icon]}<span class="lbl">${esc(t(p.name))}</span>` : esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
     const ws = info.wohnungen;
@@ -5624,7 +5693,8 @@ const SET_FIELD_TAB = (key) => {
   if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key) || key.startsWith("ai_")) return "assistent";
   if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels"].includes(key)) return "provisionen";
   if (key.startsWith("cost_") || key.startsWith("lastminute_") || ["channel_markups", "genius_discount", "genius_share"].includes(key)) return "kosten";
-  if (["user_roles", "default_role", "settings_users"].includes(key)) return "rechte";
+  if (["user_roles", "default_role", "settings_users", "role_rights", "custom_roles"].includes(key)) return "rechte";
+  if (key.startsWith("cleaning_")) return "benachrichtigungen";
   return "allgemein";
 };
 const SET_ERR = {
@@ -5632,7 +5702,10 @@ const SET_ERR = {
   invalid_entity: "Ungültige Entität", invalid_list: "Ungültige Liste", invalid_code: "Nur Buchstaben und Ziffern",
   duplicate_code: "Kürzel schon vergeben", ai_entity_required: "Bitte eine KI wählen oder „KI erlauben“ ausschalten",
   admin_only: "Nur Admins können das ändern", unknown_field: "Unbekanntes Feld",
-  invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_role: "Unbekannte Rolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
+  invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_role: "Unbekannte Rolle",
+  // v1.19.0: Rollenkonfigurator
+  invalid_right: "Unbekanntes Recht", invalid_role_name: "Name 1–30 Zeichen", duplicate_role_name: "Rollenname schon vergeben",
+  invalid_role_count: "Höchstens 10 eigene Rollen", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
   // v1.18.0: Saisons
   invalid_season_count: "2 bis 6 Saisons", invalid_season: "Ungültige Saison", invalid_season_name: "Jede Saison braucht einen Namen",
   invalid_season_start: "Startmonat 1–12", invalid_season_duplicate_name: "Saisonnamen doppelt", invalid_season_duplicate_start: "Zwei Saisons mit gleichem Startmonat",
@@ -5806,7 +5879,19 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Warten in der Ruhezeit", waits.length ? waits.map((k) => `<span class="chip" aria-pressed="true">${esc(t((PUSH_INFO[k] || [k])[0]))}</span>`).join(" ") : `<span class="muted">${t("keine – alle kommen sofort")}</span>`,
           "Einstellbar je Push-Art („Hält Ruhezeit ein“). Dringende Vorschläge und Bestätigungen kommen immer sofort.")}</div></div>`;
     const none = meta.handys.length ? "" : `<div class="note">${t("Kein Handy mit HA-App gefunden (notify.mobile_app_…).")}</div>`;
-    return none + groups + quiet;
+    return none + groups + this.cleaningPush(meta) + quiet;
+  }
+  // v1.19.0: Reinigungsboard – Push an die zugewiesene Person (bei Zuweisung + Vorabend), Handy je HA-Benutzer
+  cleaningPush(meta) {
+    const d = this._draft;
+    const people = meta.reinigungskraefte || [];
+    const phones = d.cleaning_phones || {};
+    const rows = people.length ? people.map((u) => this.fld(u.name, `<select data-cphone="${esc(u.id)}"><option value="">${t("– kein Push –")}</option>
+        ${meta.handys.map((h) => `<option value="${esc(h)}" ${phones[u.id] === h ? "selected" : ""}>${esc(phoneName(h))}</option>`).join("")}</select>`, "", "cleaning_phones")).join("")
+      : `<div class="muted">${t("Noch niemand mit Recht „Reinigung übernehmen und abhaken“ (Reiter Benutzer & Rechte).")}</div>`;
+    return `<div class="grp ${d.cleaning_notify ? "" : "off"}" data-neu="push-reinigung"><div class="gh"><div class="grow"><b>${t("Reinigung")}${neuBadge("opt-reinigung")}</b>
+        <span class="sub">${t("An die zugewiesene Person: bei Zuweisung/Abgabe und am Vorabend. Hält die Ruhezeit ein.")}</span></div>${this.sw("cleaning_notify", "Reinigung")}</div>
+      <div class="gb">${this.fld("Erinnerung am Vorabend", this.timeIn("cleaning_remind_time"), "", "cleaning_remind_time")}${rows}</div></div>`;
   }
   tabAssist(meta) {
     const d = this._draft;
@@ -5929,24 +6014,60 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Höchster Rabatt", this.numIn("lastminute_max_discount", 0, 30, 1, "%"), "", "lastminute_max_discount")}</div></div>`;
   }
   // v1.18.0: Benutzerrollen – nur Admins vergeben Rollen; alle sehen die Übersicht Rolle × Recht
-  tabRights(meta) {
+  // v1.19.0 (Wunsch Betreiber 20.11.2026): Rollenkonfigurator – Admins setzen die Rechte je Rolle per Häkchen,
+  // legen eigene Rollen an (Name, löschen) und setzen Standardrollen zurück. „Kein Zugriff“ bleibt fest.
+  // Abhängigkeiten nur als Warnhinweis (Entscheidung Betreiber: keine Automatik). Entwurf wie alles andere bis „Speichern“.
+  roleList(meta) {
     const d = this._draft;
     const m = meta.rollen || { rollen: [], rechte: [] };
-    const roleName = (id) => m.rollen.find((r) => r.id === id)?.name || id;
-    const head = `<tr><th>${t("Recht")}</th>${m.rollen.map((r) => `<th class="n">${esc(t(r.name))}</th>`).join("")}</tr>`;
-    const rows = m.rechte.map((x) => `<tr><td>${esc(t(x.name))}</td>${m.rollen.map((r) => `<td class="n">${r.rechte.includes(x.id) ? "✓" : "–"}</td>`).join("")}</tr>`).join("");
-    const opts = (val, withDefault) => `${withDefault ? `<option value="" ${!val ? "selected" : ""}>${t("Standard")} (${esc(t(roleName(d.default_role)))})</option>` : ""}
-      ${m.rollen.map((r) => `<option value="${r.id}" ${val === r.id ? "selected" : ""}>${esc(t(r.name))}</option>`).join("")}`;
+    const fixed = m.rollen.filter((r) => r.art === "standard").map((r) => ({ ...r,
+      rechte: r.fest ? r.rechte : (d.role_rights?.[r.id] || r.rechte) }));
+    const own = Object.entries(d.custom_roles || {}).map(([id, r]) => ({ id, name: r.name, rechte: r.rechte || [], art: "eigen" }));
+    return [...fixed, ...own];
+  }
+  tabRights(meta) {
+    const d = this._draft;
+    const m = meta.rollen || { rollen: [], rechte: [], abhaengig: {} };
+    const roles = this.roleList(meta);
+    const rname = (id) => roles.find((r) => r.id === id)?.name || id;
+    const has = (r, x) => r.rechte.includes(x) || (x === "belegung_sehen" && r.rechte.includes("gaeste"));
+    const edit = meta.admin;
+    const head = `<tr><th>${t("Recht")}</th>${roles.map((r) => {
+      const changed = r.art === "standard" && !r.fest && r.standard && !same([...r.rechte].sort(), [...r.standard].sort());
+      const ctl = !edit ? "" : r.art === "eigen"
+        ? `<div><input class="name" data-crname="${esc(r.id)}" value="${esc(r.name)}" maxlength="${m.max_name || 30}" style="width:110px"></div>
+           <button class="lnk" data-crdel="${esc(r.id)}" title="${t("Rolle löschen")}">🗑 ${t("Löschen")}</button>`
+        : changed ? `<div><button class="lnk" data-rreset="${esc(r.id)}" title="${t("Standardrechte wiederherstellen")}">↺ ${t("Standard")}</button></div>` : "";
+      return `<th class="n">${r.art === "eigen" && edit ? "" : esc(t(r.name))}${ctl}${this.err(`custom_roles.${r.id}`)}</th>`;
+    }).join("")}</tr>`;
+    const rows = m.rechte.map((x) => `<tr><td>${esc(t(x.name))}</td>${roles.map((r) => {
+      const implied = x.id === "belegung_sehen" && r.rechte.includes("gaeste");
+      if (!edit || r.fest) return `<td class="n">${has(r, x.id) ? "✓" : "–"}</td>`;
+      // „Gästedaten sehen“ schließt „Belegung sehen“ ein → Häkchen gesetzt, aber nicht abwählbar
+      if (implied) return `<td class="n"><input type="checkbox" checked disabled title="${t("Enthalten in „Gästedaten und Buchungen sehen“")}"></td>`;
+      return `<td class="n"><input type="checkbox" data-rr="${esc(r.id)}" data-rv="${esc(x.id)}" ${has(r, x.id) ? "checked" : ""} aria-label="${esc(t(x.name))} – ${esc(t(r.name))}"></td>`;
+    }).join("")}</tr>`).join("");
+    // Warnhinweise: Recht ohne die Rechte, die es im Dashboard braucht (rechte.DEPENDS)
+    const rightName = (id) => t(m.rechte.find((x) => x.id === id)?.name || id);
+    const warns = roles.flatMap((r) => Object.entries(m.abhaengig || {}).filter(([k, deps]) => has(r, k) && deps.some((dd) => !has(r, dd)))
+      .map(([k, deps]) => `<li><b>${esc(t(r.name))}</b>: „${esc(rightName(k))}“ ${t("ohne")} ${deps.filter((dd) => !has(r, dd)).map((dd) => `„${esc(rightName(dd))}“`).join(` ${t("und")} `)}</li>`));
+    const warnHtml = warns.length ? `<div class="note" style="border-left-color:var(--sm-warn)">⚠ ${t("Diese Kombinationen sind erlaubt, im Dashboard aber kaum nutzbar:")}<ul style="margin:6px 0 0 18px;padding:0">${warns.join("")}</ul></div>` : "";
+    const opts = (val, withDefault) => `${withDefault ? `<option value="" ${!val ? "selected" : ""}>${t("Standard")} (${esc(t(rname(d.default_role)))})</option>` : ""}
+      ${roles.map((r) => `<option value="${r.id}" ${val === r.id ? "selected" : ""}>${esc(t(r.name))}</option>`).join("")}`;
     const own = meta.zugriff ? `<div class="note">${t("Deine Rolle")}: <b>${esc(t(meta.zugriff.rolle_name))}</b>${meta.zugriff.admin ? ` – ${t("Admins dürfen immer alles und vergeben die Rollen.")}` : ""}</div>` : "";
-    const users = meta.admin ? meta.benutzer.map((u) => u.admin
+    const users = edit ? meta.benutzer.map((u) => u.admin
       ? this.fld(u.name, `<span class="badge good">${t("Admin")}</span>`, t("HA-Admin: immer alle Rechte"))
       : this.fld(u.name, `<select data-role="${esc(u.id)}">${opts(d.user_roles?.[u.id] || "", true)}</select>`, "", `user_roles`)).join("") : "";
+    const nOwn = Object.keys(d.custom_roles || {}).length;
+    const add = edit ? `<div class="row" style="margin-top:8px"><button class="btn flat" data-cradd ${nOwn >= (m.max_eigene || 10) ? "disabled" : ""}>＋ ${t("Eigene Rolle")}</button>
+      <span class="sub">${t("Standardrollen lassen sich anpassen, aber nicht löschen. „Kein Zugriff“ ist fest.")}</span></div>` : "";
     return `${own}
-      ${meta.admin ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Rollen der Benutzer")}</b>
+      ${edit ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Rollen der Benutzer")}</b>
         <span class="sub">${t("Gilt für die Smoobu-Seiten und -Aktionen. Normale HA-Entitäten kann HA nicht je Benutzer sperren.")}</span></div></div>
         <div class="gb">${users}${this.fld("Standardrolle", `<select data-sel="default_role">${opts(d.default_role, false)}</select>`, "Für Benutzer ohne eigene Rolle (bisheriges Verhalten: Betrieb).", "default_role")}</div></div>` : ""}
-      <div class="grp"><div class="gh"><div class="grow"><b>${t("Was darf welche Rolle?")}</b></div></div>
-        <div class="gb"><div class="scroll"><table class="prov">${head}${rows}</table></div></div></div>`;
+      <div class="grp" data-neu="rollen"><div class="gh"><div class="grow"><b>${t("Was darf welche Rolle?")}${neuBadge("opt-rollen")}</b>
+        ${edit ? `<span class="sub">${t("Häkchen setzen und speichern. Gilt sofort für alle Benutzer mit dieser Rolle.")}</span>` : ""}</div></div>
+        <div class="gb"><div class="scroll"><table class="prov rr">${head}${rows}</table></div>${this.err("role_rights")}${this.err("custom_roles")}${warnHtml}${add}</div></div>`;
   }
   // v1.18.0 (Wunsch Betreiber 20.11.2026): Saisons frei definieren (Name + Startmonat, 2–6) und automatische
   // Erkennung aus der Vergangenheit (Backend seasons.detect: RevPAR-Profil je Monat, beste Aufteilung in 2/3/4 Saisons).
@@ -6097,6 +6218,49 @@ class SmoobuSettingsCard extends SmoobuCard {
     root.querySelectorAll("[data-chadd]").forEach((sel) => sel.addEventListener("change", () => addChannel(sel.dataset.chadd, sel.value)));
     root.querySelectorAll("[data-cuse]").forEach((b) => b.addEventListener("click", () => addChannel("commissions", b.dataset.cuse)));
     root.querySelector("[data-genius]")?.addEventListener("click", (e) => { d.genius_share = Number(e.target.dataset.genius); redraw(); });
+    // v1.19.0: Rollenkonfigurator – Häkchen, Zurücksetzen, eigene Rollen (anlegen, benennen, löschen)
+    const roleMeta = this._data?.meta?.rollen || { rollen: [] };
+    root.querySelectorAll("[data-rr]").forEach((cb) => cb.addEventListener("change", () => {
+      const rid = cb.dataset.rr, right = cb.dataset.rv;
+      const toggle = (list) => (cb.checked ? [...new Set([...list, right])] : list.filter((x) => x !== right)).sort();
+      if (rid.startsWith(roleMeta.eigen_praefix || "eigen_")) {
+        const r = d.custom_roles[rid];
+        d.custom_roles = { ...d.custom_roles, [rid]: { ...r, rechte: toggle(r.rechte || []) } };
+      } else {
+        d.role_rights = { ...d.role_rights, [rid]: toggle(d.role_rights?.[rid] || []) };
+      }
+      redraw();
+    }));
+    root.querySelectorAll("[data-rreset]").forEach((b) => b.addEventListener("click", () => {
+      const r = roleMeta.rollen.find((x) => x.id === b.dataset.rreset);
+      if (r?.standard) { d.role_rights = { ...d.role_rights, [r.id]: [...r.standard].sort() }; redraw(); }
+    }));
+    root.querySelector("[data-cradd]")?.addEventListener("click", () => {
+      const id = `${roleMeta.eigen_praefix || "eigen_"}${Math.random().toString(36).slice(2, 10)}`;
+      const taken = new Set(this.roleList(this._data.meta).map((r) => r.name));
+      let n = 1; while (taken.has(`${t("Neue Rolle")} ${n}`)) n++;
+      d.custom_roles = { ...(d.custom_roles || {}), [id]: { name: `${t("Neue Rolle")} ${n}`, rechte: ["belegung_sehen"] } };
+      redraw();
+    });
+    root.querySelectorAll("[data-crname]").forEach((inp) => inp.addEventListener("input", () => {
+      const rid = inp.dataset.crname;
+      d.custom_roles = { ...d.custom_roles, [rid]: { ...d.custom_roles[rid], name: inp.value } }; this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-crdel]").forEach((b) => b.addEventListener("click", async () => {
+      const rid = b.dataset.crdel;
+      if (d.default_role === rid) { toast(t("Das ist die Standardrolle – bitte zuerst eine andere Standardrolle wählen.")); return; }
+      const users = Object.entries(d.user_roles || {}).filter(([, r]) => r === rid).length;
+      if (users && !(await confirmDialog(`${users} ${t(users === 1 ? "Benutzer hat diese Rolle und bekommt danach die Standardrolle." : "Benutzer haben diese Rolle und bekommen danach die Standardrolle.")} ${t("Löschen?")}`))) return;
+      const c = { ...d.custom_roles }; delete c[rid]; d.custom_roles = c;
+      d.user_roles = Object.fromEntries(Object.entries(d.user_roles || {}).filter(([, r]) => r !== rid));
+      redraw();
+    }));
+    // v1.19.0: Handy je Reinigungskraft
+    root.querySelectorAll("[data-cphone]").forEach((sel) => sel.addEventListener("change", () => {
+      const ph = { ...(d.cleaning_phones || {}) };
+      if (sel.value) ph[sel.dataset.cphone] = sel.value; else delete ph[sel.dataset.cphone];
+      d.cleaning_phones = ph; this.refreshFoot();
+    }));
     // Benutzerrollen (nur Admins sehen die Auswahl); leer = Standardrolle
     root.querySelectorAll("[data-role]").forEach((sel) => sel.addEventListener("change", () => {
       const roles = { ...(d.user_roles || {}) };
@@ -6198,6 +6362,125 @@ class SmoobuSettingsCard extends SmoobuCard {
   getCardSize() { return 10; }
 }
 
+
+// ===========================================================================
+// v1.19.0 (Wunsch Betreiber 20.11.2026): Reinigungsboard – eigene Seite „smoobu-reinigung“.
+// Je Abreise eine Reinigung mit Check-out, nächster Anreise (Check-in, Personen, Hund) und Gästewechsel.
+// Zuweisen (Recht „reinigung_zuweisen“) per Auswahl, selbst übernehmen/abgeben und abhaken (Recht „reinigung“).
+// Logik und Rechteprüfung im Backend (reinigung.py); die Karte zeigt nur, was erlaubt ist.
+// ===========================================================================
+const CLEAN_FILTERS = [["fuer_mich", "Für mich"], ["offen", "Nicht zugewiesen"], ["alle", "Alle offenen"], ["erledigt", "Erledigt"]];
+class SmoobuCleaningCard extends SmoobuCard {
+  static defaults = { title: "Reinigung", days: 30 };
+  static initialState = () => ({ filter: null });
+  static css = `
+    .day { margin: 14px 0 6px; font-size: .8rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--sm-muted);
+      display: flex; gap: 8px; align-items: center; }
+    .day.today { color: var(--sm-accent); }
+    .cl { display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px 10px 0;
+      border: 1px solid var(--sm-line); border-radius: var(--sm-rs); margin-bottom: 6px; background: var(--sm-surf); }
+    .cl .bar { align-self: stretch; border-radius: var(--sm-rs) 0 0 var(--sm-rs); background: var(--sm-line); }
+    .cl.mine .bar { background: var(--sm-accent); } .cl.free .bar { background: var(--sm-warn); }
+    .cl.done { opacity: .62; } .cl.done .bar { background: var(--sm-good); }
+    .cl.late:not(.done) { border-color: var(--sm-bad); } .cl.late:not(.done) .bar { background: var(--sm-bad); }
+    .cl .t { font-weight: 650; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+    .cl .s { font-size: .86rem; color: var(--sm-muted); margin-top: 2px; }
+    .cl .s.wx { color: var(--sm-warn); font-weight: 600; }
+    .cl .a { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+    .cl select { font: inherit; font-size: .85rem; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--sm-line);
+      background: var(--sm-surf); color: var(--sm-ink); max-width: 170px; }
+    @media (max-width: 620px) { .cl { grid-template-columns: 4px minmax(0, 1fr); } .cl .a { grid-column: 2; justify-content: flex-start; } }
+  `;
+  async load() {
+    const r = await this.store.ws("smoobu/cleaning/get", this.target, { cache: false });
+    return r;
+  }
+  body(r) {
+    const s = this._state;
+    const me = r.ich;
+    const filter = s.filter || (r.darf_zuweisen ? "alle" : "fuer_mich");
+    const limit = iso(addDays(D(r.heute), this._config.days));
+    // Vergangene nur, solange nicht erledigt (vergessen?) – außer im Filter „Erledigt“
+    const base = r.reinigungen.filter((x) => x.datum <= limit && (filter === "erledigt" ? x.status === "erledigt" : x.status !== "erledigt"));
+    const pick = {
+      fuer_mich: (x) => x.zugewiesen === me || (!x.zugewiesen && r.darf_uebernehmen),
+      offen: (x) => !x.zugewiesen,
+      alle: () => true,
+      erledigt: () => true,
+    }[filter];
+    const list = base.filter(pick);
+    if (filter === "erledigt") list.reverse();
+    const open = r.reinigungen.filter((x) => x.status !== "erledigt" && x.datum <= limit);
+    const free = open.filter((x) => !x.zugewiesen).length;
+    const mine = open.filter((x) => x.zugewiesen === me).length;
+    const users = r.benutzer || [];
+    const userOpts = (x) => `<option value="">${t("– niemand –")}</option>${users.map((u) =>
+      `<option value="${esc(u.id)}" ${x.zugewiesen === u.id ? "selected" : ""}>${esc(u.name)}${u.handy ? "" : " ⚠"}</option>`).join("")}`;
+    const pers = (n) => (n ? plural(n, t("Person"), t("Personen")) : "");
+    const guest = (name, n, dog, nights) => [name ? esc(name) : "", pers(n), nights ? plural(nights, t("Nacht"), t("Nächte")) : ""].filter(Boolean).join(", ") + (dog ? " 🐕" : "");
+    const row = (x) => {
+      const n = x.naechste;
+      const late = x.datum < r.heute;
+      const cls = ["cl", x.status === "erledigt" ? "done" : "", x.zugewiesen === me ? "mine" : "", !x.zugewiesen ? "free" : "", late ? "late" : ""].join(" ");
+      const next = x.wechsel ? `<div class="s wx">🔄 ${t("Gästewechsel")}: ${t("Anreise")} ${uhr(n.check_in)} · ${guest(n.vorname, n.personen, n.hund)}</div>`
+        : n ? `<div class="s">${n.sperre ? `${t("Danach gesperrt ab")} ${fdowLong(n.datum)}` : `${t("Nächste Anreise")} ${fdowLong(n.datum)} ${uhr(n.check_in)} · ${guest(n.vorname, n.personen, n.hund)}`}</div>`
+          : `<div class="s">${t("Danach keine Anreise geplant")}</div>`;
+      const who = x.zugewiesen ? `<span class="badge ${x.zugewiesen === me ? "good" : ""}">👤 ${esc(x.zugewiesen === me ? t("Du") : x.zugewiesen_name || "?")}</span>`
+        : `<span class="badge warn">${t("nicht zugewiesen")}</span>`;
+      const done = x.status === "erledigt";
+      const acts = [];
+      if (!done && r.darf_zuweisen) acts.push(`<select data-assign="${esc(x.key)}" data-entry="${esc(x.entry_id)}" title="${t("Zuweisen")}">${userOpts(x)}</select>`);
+      else acts.push(who);
+      if (!done && r.darf_uebernehmen && !x.zugewiesen) acts.push(`<button class="btn flat" data-cl="uebernehmen" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">${t("Übernehmen")}</button>`);
+      if (!done && x.zugewiesen === me) acts.push(`<button class="lnk" data-cl="abgeben" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">${t("Abgeben")}</button>`);
+      const mayDone = r.darf_zuweisen || !x.zugewiesen || x.zugewiesen === me;
+      if (mayDone) acts.push(done
+        ? `<button class="lnk" data-cl="offen" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">↺ ${t("Wieder offen")}</button>`
+        : `<button class="btn" data-cl="erledigt" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">✓ ${t("Erledigt")}</button>`);
+      return `<div class="${cls}"><span class="bar"></span><div>
+          <div class="t">${t("ab")} ${uhr(x.check_out)}${x.kuerzel && this.multi ? codeTag(x.kuerzel) : ""}
+            <span class="sub">${t("Abreise")}: ${guest(x.vorname, x.personen, x.hund, x.naechte)}</span></div>
+          ${next}
+          ${done ? `<div class="s">✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""}</div>` : ""}
+          ${late && !done ? `<div class="s" style="color:var(--sm-bad)">${t("Noch nicht abgehakt")}</div>` : ""}
+        </div><div class="a">${acts.join("")}</div></div>`;
+    };
+    let html = "", day = null;
+    for (const x of list) {
+      if (x.datum !== day) {
+        day = x.datum;
+        const rel = nightsBetween(r.heute, day);
+        html += `<div class="day ${rel === 0 ? "today" : ""}">${fdowLong(day)}${rel >= 0 && rel <= 1 ? ` · ${daysWord(rel)}` : ""}</div>`;
+      }
+      html += row(x);
+    }
+    const noPhone = r.darf_zuweisen && users.some((u) => !u.handy)
+      ? `<div class="sub" style="margin-top:10px">⚠ = ${t("kein Handy für Pushes hinterlegt (Einstellungen → Benachrichtigungen → Reinigung)")}</div>` : "";
+    return `<div class="head"><h2>🧹 ${esc(t(this._config.title || "Reinigung"))}${neuBadge("neu-reinigung")}</h2>
+        ${mine ? `<span class="badge good">${t("Für dich")}: ${num(mine)}</span>` : ""}
+        ${free ? `<span class="badge warn">${t("Nicht zugewiesen")}: ${num(free)}</span>` : ""}</div>
+      <div class="seg" role="group">${CLEAN_FILTERS.filter(([k]) => k !== "fuer_mich" || r.darf_uebernehmen)
+        .map(([k, l]) => `<button data-cf="${k}" aria-pressed="${filter === k}">${t(l)}</button>`).join("")}</div>
+      ${html || `<div class="done" style="margin-top:14px">✓ ${t(filter === "erledigt" ? "Noch keine erledigten Reinigungen." : "Keine Reinigungen.")}</div>`}
+      ${noPhone}
+      <div class="sub" style="margin-top:10px">${t("Nächste")} ${this._config.days} ${t("Tage")} · ${t("Vom Gast nur der Vorname")}</div>`;
+  }
+  bind(root) {
+    root.querySelectorAll("[data-cf]").forEach((b) => b.addEventListener("click", () => this.setState({ filter: b.dataset.cf })));
+    const send = async (el, aktion, extra = {}) => {
+      el.disabled = true;
+      try {
+        await this.store.ws("smoobu/cleaning/set", { entry_id: el.dataset.entry, key: el.dataset.key || el.dataset.assign, aktion, ...extra }, { cache: false });
+        toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : aktion === "zuweisen" ? t("Zugewiesen") : t("Gespeichert"));
+        this._reload();
+      } catch (e) { el.disabled = false; toast(`${t("Fehler")}: ${t(e?.message || String(e))}`); }
+    };
+    root.querySelectorAll("[data-cl]").forEach((b) => b.addEventListener("click", () => send(b, b.dataset.cl)));
+    root.querySelectorAll("[data-assign]").forEach((sel) => sel.addEventListener("change", () => send(sel, "zuweisen", { benutzer_id: sel.value || null })));
+  }
+  getCardSize() { return 8; }
+}
+
 // ===========================================================================
 // Registrierung
 // ===========================================================================
@@ -6210,6 +6493,7 @@ const CARDS = [
   ["smoobu-stats-card", SmoobuStatsCard, "Smoobu Statistik", "Analyse-Werkbank: Kennzahlen mit Vergleich, Buchungstempo mit Prognose, Saison-Matrix"],
   ["smoobu-inbox-card", SmoobuInboxCard, "Smoobu Posteingang", "Nachrichten der Gäste lesen und beantworten"],
   ["smoobu-assistant-card", SmoobuAssistantCard, "Smoobu Assistent", "KI-Assistent: Wissensdatenbank, Lernbeispiele, Vorschläge"],
+  ["smoobu-cleaning-card", SmoobuCleaningCard, "Smoobu Reinigung", "Reinigungsboard: Reinigungen je Abreise zuweisen, übernehmen und abhaken"],
   ["smoobu-settings-card", SmoobuSettingsCard, "Smoobu Einstellungen", "Benachrichtigungen, KI-Assistent, Provisionen und Abruf direkt im Dashboard ändern"],
 ];
 for (const [tag, cls] of CARDS) if (!customElements.get(tag)) customElements.define(tag, cls);

@@ -30,6 +30,12 @@ from . import seasons as season_cfg
 from .codes import all_codes, clean_code
 from .deckungsbeitrag import parse_grid_share, parse_markups
 from . import rechte
+from .reinigung import (
+    CONF_CLEANING_NOTIFY,
+    CONF_CLEANING_PHONES,
+    CONF_CLEANING_REMIND_TIME,
+    DEFAULT_CLEANING_REMIND_TIME,
+)
 from .const import (
     CONF_TASK_CATEGORIES,
     DEFAULT_TASK_CATEGORIES,
@@ -38,7 +44,9 @@ from .const import (
     CONF_LASTMINUTE_MAX_DISCOUNT,
     DEFAULT_LASTMINUTE_DAYS,
     DEFAULT_LASTMINUTE_MAX_DISCOUNT,
+    CONF_CUSTOM_ROLES,
     CONF_DEFAULT_ROLE,
+    CONF_ROLE_RIGHTS,
     CONF_USER_ROLES,
     DEFAULT_ROLE,
     CONF_CHANNEL_MARKUPS,
@@ -199,6 +207,16 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_USER_ROLES: {**{u: "verwalter" for u in (o.get(CONF_SETTINGS_USERS) or [])},
                           **{str(k): str(v) for k, v in (o.get(CONF_USER_ROLES) or {}).items()}},
         CONF_DEFAULT_ROLE: str(o.get(CONF_DEFAULT_ROLE, DEFAULT_ROLE)),
+        # Rollenkonfigurator (v1.19.0): wirksame Rechte je einstellbarer Standardrolle und eigene Rollen.
+        # Gespeichert werden nur Abweichungen vom Standard (siehe validate), angezeigt wird der volle Stand.
+        CONF_ROLE_RIGHTS: {rid: sorted(r["rechte"]) for rid, r in rechte.roles(o).items()
+                           if r["art"] == "standard" and rid not in rechte.LOCKED_ROLES},
+        CONF_CUSTOM_ROLES: {rid: {"name": r["name"], "rechte": sorted(r["rechte"])}
+                            for rid, r in rechte.roles(o).items() if r["art"] == "eigen"},
+        # Reinigungsboard (v1.19.0): Pushes, Vorabend-Erinnerung, Handy je HA-Benutzer
+        CONF_CLEANING_NOTIFY: bool(o.get(CONF_CLEANING_NOTIFY, True)),
+        CONF_CLEANING_REMIND_TIME: str(o.get(CONF_CLEANING_REMIND_TIME, DEFAULT_CLEANING_REMIND_TIME))[:5],
+        CONF_CLEANING_PHONES: {str(k): str(v) for k, v in (o.get(CONF_CLEANING_PHONES) or {}).items() if v},
         # Kosten & Preise (v1.18.0)
         CONF_COST_CLEANING: float(o.get(CONF_COST_CLEANING, DEFAULT_COST_CLEANING)),
         CONF_COST_LAUNDRY: float(o.get(CONF_COST_LAUNDRY, DEFAULT_COST_LAUNDRY)),
@@ -326,7 +344,9 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
         "provision_herkunft": commission_sources(
             [r for apt_id in (data.apartments if data else {}) for r in coordinator.records(apt_id)], date.today()),
         # v1.18.0: Rollen × Rechte und eigene Rolle (Anzeige im Reiter „Benutzer & Rechte“)
-        "rollen": rechte.matrix(),
+        "rollen": rechte.matrix(entry.options),
+        # v1.19.0: Benutzer mit Recht „reinigung“ (Handy je Person im Reiter Benachrichtigungen)
+        "reinigungskraefte": await coordinator.cleaning.cleaners() if coordinator and getattr(coordinator, "cleaning", None) else [],
         "zugriff": rechte.describe(user, entry.options),
         # v1.18.0b6: Voreinstellungen der Datenschutz-Stufen (Karte setzt die Einzelschalter beim Wechsel)
         "datenschutz_stufen": privacy.PRESETS,
@@ -429,6 +449,14 @@ def _markups(value: Any) -> dict[str, float]:
         raise vol.Invalid("invalid_number") from err
 
 
+def _role_id(value: Any) -> str:
+    """Standardrolle oder eigene Rolle („eigen_…“); ob die eigene Rolle existiert, prüft validate()."""
+    value = str(value or "")
+    if value in rechte.ROLES or re.fullmatch(rf"{rechte.CUSTOM_PREFIX}[a-z0-9]{{1,16}}", value):
+        return value
+    raise vol.Invalid("invalid_role")
+
+
 def _roles(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         raise vol.Invalid("invalid_list")
@@ -436,16 +464,67 @@ def _roles(value: Any) -> dict[str, str]:
     for uid, role in value.items():
         if role in (None, ""):
             continue  # leer = Standardrolle
-        if role not in rechte.ROLES:
-            raise vol.Invalid("invalid_role")
-        out[str(uid)] = str(role)
+        out[str(uid)] = _role_id(role)
     return out
 
 
 def _role(value: Any) -> str:
-    if value not in rechte.ROLES:
-        raise vol.Invalid("invalid_role")
-    return str(value)
+    return _role_id(value)
+
+
+def _rights_list(value: Any) -> list[str]:
+    if not isinstance(value, (list, tuple)) or any(r not in rechte.RIGHTS for r in value):
+        raise vol.Invalid("invalid_right")
+    return sorted(set(value))
+
+
+def _role_rights(value: Any) -> dict[str, list[str]]:
+    """{Standardrolle: [Rechte]}; „Kein Zugriff“ ist fest und wird ignoriert."""
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    out = {}
+    for rid, rights in value.items():
+        if rid not in rechte.ROLES:
+            raise vol.Invalid("invalid_role")
+        if rid in rechte.LOCKED_ROLES:
+            continue
+        out[str(rid)] = sorted(rechte._clean(_rights_list(rights)))
+    return out
+
+
+def _custom_roles(value: Any) -> dict[str, dict[str, Any]]:
+    """{"eigen_…": {name, rechte}}: Name 1–30 Zeichen, eindeutig (auch ggü. Standardrollen), max. 10."""
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    if len(value) > rechte.MAX_CUSTOM_ROLES:
+        raise vol.Invalid("invalid_role_count")
+    out: dict[str, dict[str, Any]] = {}
+    seen = {n.casefold() for n, _r in rechte.ROLES.values()}
+    for rid, cfg in value.items():
+        rid = _role_id(rid)
+        if rid in rechte.ROLES or not isinstance(cfg, dict):
+            raise vol.Invalid("invalid_role")
+        name = str(cfg.get("name") or "").strip()
+        if not name or len(name) > rechte.MAX_ROLE_NAME:
+            raise vol.Invalid("invalid_role_name")
+        if name.casefold() in seen:
+            raise vol.Invalid("duplicate_role_name")
+        seen.add(name.casefold())
+        out[rid] = {"name": name, "rechte": sorted(rechte._clean(_rights_list(cfg.get("rechte") or [])))}
+    return out
+
+
+def _phones(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    out = {}
+    for uid, svc in value.items():
+        if svc in (None, ""):
+            continue
+        if not _NOTIFY_RE.fullmatch(str(svc)):
+            raise vol.Invalid("invalid_entity")
+        out[str(uid)] = str(svc)
+    return out
 
 
 def _codes(value: Any) -> dict[str, str]:
@@ -490,6 +569,11 @@ FIELDS: dict[str, Any] = {
     CONF_SETTINGS_USERS: _names,
     CONF_USER_ROLES: _roles,
     CONF_DEFAULT_ROLE: _role,
+    CONF_ROLE_RIGHTS: _role_rights,
+    CONF_CUSTOM_ROLES: _custom_roles,
+    CONF_CLEANING_NOTIFY: bool,
+    CONF_CLEANING_REMIND_TIME: _hhmm,
+    CONF_CLEANING_PHONES: _phones,
     CONF_COST_CLEANING: _num(0, 1000),
     CONF_COST_LAUNDRY: _num(0, 1000),
     CONF_COST_HEATING_YEAR: _num(0, 100000),
@@ -527,14 +611,25 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
         except vol.Invalid as err:
             # Eigene Fehlercodes durchreichen, sonst allgemein „ungültig“
             msg = str(err.msg) if getattr(err, "msg", None) else ""
-            errors[key] = msg if msg.startswith("invalid_") else "invalid"
+            errors[key] = msg if msg.startswith(("invalid_", "duplicate_")) else "invalid"
 
     # Wer im Dashboard ändern darf und welche Rolle jemand hat, legen nur Admins fest
     if not (user and user.is_admin):
         before = current(entry)
-        for key in (CONF_SETTINGS_USERS, CONF_USER_ROLES, CONF_DEFAULT_ROLE):
+        for key in (CONF_SETTINGS_USERS, CONF_USER_ROLES, CONF_DEFAULT_ROLE, CONF_ROLE_RIGHTS, CONF_CUSTOM_ROLES):
             if key in changes and key not in errors and values[key] != before[key]:
                 errors[key] = "admin_only"
+
+    # v1.19.0: Rollen müssen existieren. Gelöschte eigene Rolle: Benutzer damit bekommen die Standardrolle;
+    # ist sie selbst die Standardrolle, wird das abgelehnt (sonst fiele jeder still auf „Betrieb“ zurück).
+    known = set(rechte.ROLES) | set(values[CONF_CUSTOM_ROLES])
+    if CONF_DEFAULT_ROLE not in errors and values[CONF_DEFAULT_ROLE] not in known:
+        errors[CONF_DEFAULT_ROLE] = "role_is_default" if CONF_CUSTOM_ROLES in changes else "invalid_role"
+    if CONF_USER_ROLES not in errors:
+        unknown = {u for u, r in values[CONF_USER_ROLES].items() if r not in known}
+        if unknown and CONF_USER_ROLES in changes and CONF_CUSTOM_ROLES not in changes:
+            errors[CONF_USER_ROLES] = "invalid_role"
+        values[CONF_USER_ROLES] = {u: r for u, r in values[CONF_USER_ROLES].items() if r in known}
 
     # KI erlauben ohne KI-Entität ergibt keinen Sinn (gleiche Regel wie im Options-Dialog)
     if values[CONF_AI_ENABLED] and not values[CONF_AI_ENTITY]:
@@ -560,12 +655,22 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
         return {}, errors
 
     merged = {**entry.options, **values}
+    # v1.19.0: nur Abweichungen vom Standard speichern (nicht angepasste Rollen erhalten so neue Rechte
+    # späterer Versionen); leere Optionen ganz entfernen
+    overrides = {rid: r for rid, r in values[CONF_ROLE_RIGHTS].items()
+                 if rid in rechte.ROLES and frozenset(r) != rechte._clean(rechte.ROLES[rid][1])}
+    for key, val in ((CONF_ROLE_RIGHTS, overrides), (CONF_CUSTOM_ROLES, values[CONF_CUSTOM_ROLES]),
+                     (CONF_CLEANING_PHONES, values[CONF_CLEANING_PHONES])):
+        if val:
+            merged[key] = val
+        else:
+            merged.pop(key, None)
     # Rollen gespeichert → Altwert settings_users ist darin aufgegangen (sonst zählte er weiter als „verwalter“)
     if CONF_USER_ROLES in changes:
         merged[CONF_SETTINGS_USERS] = []
     # v1.18.0: Aufgaben-Kategorien bewusst gespeichert → neue Kategorie „einrichtung“ nicht mehr automatisch ergänzen
     if CONF_TASK_CATEGORIES in changes:
-        merged["task_categories_rev"] = 2
+        merged["task_categories_rev"] = 3  # v1.19.0: 3 = kennt „reinigung“
     # Alte Schalter mitführen (wie der Options-Dialog), damit ein Downgrade dasselbe tut
     merged[CONF_ASSIST_BRIEFING] = merged["notify_briefing"]
     merged[CONF_ASSIST_GAPS] = merged["notify_luecken"]

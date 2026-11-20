@@ -4,7 +4,7 @@ from custom_components.smoobu.neuigkeiten import NEWS, for_user
 from custom_components.smoobu.rechte import RIGHTS
 
 PAGES = {"smoobu", "smoobu-kalender", "smoobu-buchungen", "smoobu-finanzen", "smoobu-statistik", "smoobu-nachrichten",
-         "smoobu-assistent", "smoobu-einstellungen"}
+         "smoobu-assistent", "smoobu-einstellungen", "smoobu-reinigung"}
 TABS = {"benachrichtigungen", "assistent", "provisionen", "kosten", "rechte", "allgemein"}
 
 

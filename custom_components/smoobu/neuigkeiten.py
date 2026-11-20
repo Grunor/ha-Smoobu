@@ -21,6 +21,16 @@ from typing import Any
 
 NEWS: list[dict[str, Any]] = [
     # --- neue Einstellungen (Einrichtung) ------------------------------------------------------------
+    {"id": "opt-rollen", "version": "1.19.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "rechte", "sel": '[data-neu="rollen"]',
+     "titel": "Rollen und Rechte prüfen", "titel_en": "Check roles and permissions",
+     "text": "Rechte je Rolle sind jetzt einstellbar, eigene Rollen möglich. Neu: Rolle „Reinigung“ und die Rechte „Belegung sehen“, „Reinigung übernehmen und abhaken“, „Reinigung zuweisen“.",
+     "text_en": "Permissions per role are now configurable, custom roles possible. New: role \"Cleaning\" and the permissions \"View occupancy\", \"Take over and tick off cleaning\", \"Assign cleaning\"."},
+    {"id": "opt-reinigung", "version": "1.19.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "benachrichtigungen", "sel": '[data-neu="push-reinigung"]',
+     "titel": "Push für Reinigungen einrichten", "titel_en": "Set up cleaning notifications",
+     "text": "Handy je Reinigungskraft wählen: Push bei Zuweisung und am Vorabend.",
+     "text_en": "Choose a phone per cleaner: push on assignment and the evening before."},
     {"id": "opt-saisons", "version": "1.18.0", "art": "einstellung", "recht": "einstellungen",
      "seite": "smoobu-einstellungen", "tab": "allgemein", "sel": '[data-neu="saisons"]',
      "titel": "Saisons festlegen", "titel_en": "Define seasons",
@@ -47,6 +57,16 @@ NEWS: list[dict[str, Any]] = [
      "text": "Wer welche Smoobu-Seiten sehen und was ändern darf (Verwalter, Betrieb, Mitarbeiter …).",
      "text_en": "Who may see which Smoobu pages and change what (manager, operations, staff …)."},
     # --- neue Funktionen („Was ist neu“) -------------------------------------------------------------
+    {"id": "neu-reinigung", "version": "1.19.0", "art": "funktion", "recht": "reinigung",
+     "seite": "smoobu-reinigung", "sel": ".head",
+     "titel": "Reinigungsboard", "titel_en": "Cleaning board",
+     "text": "Reinigungen je Abreise mit Check-out, nächster Anreise und Gästewechsel – zuweisen, selbst übernehmen und abhaken.",
+     "text_en": "Cleanings per departure with check-out, next arrival and same-day changeover – assign, take over and tick off."},
+    {"id": "neu-reinigung-statistik", "version": "1.19.0", "art": "funktion", "recht": "finanzen",
+     "seite": "smoobu-statistik", "sel": '[data-neu-mod="reinigung"]',
+     "titel": "Statistik: Reinigung", "titel_en": "Statistics: cleaning",
+     "text": "Wer hat wann welche Wohnung gereinigt – je Person, Monat und Wohnung, mit Gästewechseln, Hunden und Zeit bis zum Abhaken.",
+     "text_en": "Who cleaned which property when – per person, month and property, with changeovers, dogs and time to tick off."},
     {"id": "neu-deckung", "version": "1.18.0", "art": "funktion", "recht": "finanzen",
      "seite": "smoobu-statistik", "sel": '[data-neu-mod="deckung"]',
      "titel": "Statistik: Deckungsbeitrag", "titel_en": "Statistics: contribution margin",

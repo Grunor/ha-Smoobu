@@ -65,6 +65,7 @@ from .analytics import (
 from .api import SmoobuError
 from .seasons import from_options as seasons_from_options
 from . import neuigkeiten, umbuchung
+from .reinigung import ACTIONS as CLEANING_ACTIONS, CleaningError
 from .stats import DIMENSIONS, MEASURES, gaps as stats_gaps, pace as stats_pace, query as stats_query
 from .stats import ranking as stats_ranking, service as stats_service, storno as stats_storno
 from .empfehlung import recommend as stats_recommend
@@ -188,6 +189,9 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_tasks_get)
     websocket_api.async_register_command(hass, ws_tasks_set)
     websocket_api.async_register_command(hass, ws_booking_move)
+    websocket_api.async_register_command(hass, ws_cleaning_get)
+    websocket_api.async_register_command(hass, ws_cleaning_set)
+    websocket_api.async_register_command(hass, ws_cleaning_stats)
 
 
 _TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): _apt_id}
@@ -454,7 +458,8 @@ def ws_bookings(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
-    if not _guard(connection, msg, [c for c, _ in pairs], "gaeste"):
+    # v1.19.0: Übersicht/Kalender auch mit „belegung_sehen“ (Felder dünnt rechte.strip aus)
+    if not _guard(connection, msg, [c for c, _ in pairs], "belegung_sehen"):
         return
     allowed = _rights(connection, [c for c, _ in pairs])
     start, end = _date(msg.get("start")), _date(msg.get("end"))
@@ -481,9 +486,9 @@ def ws_bookings(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
         if status and r["status"] not in status:
             continue
         if needle:
-            hay = " ".join(
-                str(r.get(k) or "") for k in ("gast", "email", "telefon", "referenz", "notiz", "kanal", "id")
-            ).casefold()
+            # v1.19.0: ohne „gaeste“ nur in sichtbaren Feldern suchen (sonst verriete ein Treffer z. B. die E-Mail)
+            fields = ("gast", "email", "telefon", "referenz", "notiz", "kanal", "id") if "gaeste" in allowed else ("vorname", "kanal", "id")
+            hay = " ".join(str(r.get(k) or "") for k in fields).casefold()
             if needle not in hay:
                 continue
         out.append(rechte.strip({**r, **hist.get(r["id"], {})}, allowed))
@@ -500,7 +505,7 @@ async def ws_booking(hass: HomeAssistant, connection: websocket_api.ActiveConnec
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
-    if not _guard(connection, msg, [c], "gaeste"):
+    if not _guard(connection, msg, [c], "belegung_sehen"):
         return
     allowed = _rights(connection, [c])
     rid = msg["reservation_id"]
@@ -529,7 +534,9 @@ async def ws_booking(hass: HomeAssistant, connection: websocket_api.ActiveConnec
     if record:  # v1.18.0: frühere Aufenthalte des Gastes (alle Wohnungen des Kontos)
         record = {**record, **guest_history(c.records_all()).get(record["id"], {})}
     connection.send_result(msg["id"], {"buchung": rechte.strip(record, allowed) if record else None,
-                                       "smoobu": rechte.strip(raw or {}, allowed), "nachrichten": msgs, "fehler": error})
+                                       # v1.19.0: Smoobu-Rohdaten (Adresse u. a.) nur mit „gaeste“
+                                       "smoobu": rechte.strip(raw or {}, allowed) if "gaeste" in allowed else {},
+                                       "nachrichten": msgs, "fehler": error})
 
 
 @websocket_api.websocket_command(
@@ -601,7 +608,7 @@ async def ws_rates(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
-    if not _guard(connection, msg, [c], "gaeste"):
+    if not _guard(connection, msg, [c], "belegung_sehen"):  # v1.19.0: Kalender auch für die Rolle Reinigung
         return
     today = dt_util.now().date()
     start = _date(msg.get("start"), today)
@@ -938,7 +945,7 @@ async def ws_tasks_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
     except vol.Invalid as err:
         connection.send_error(msg["id"], "not_found", str(err))
         return
-    if not _guard(connection, msg, [c for c, _ in pairs], "gaeste"):
+    if not _guard(connection, msg, [c for c, _ in pairs], "belegung_sehen"):  # v1.19.0: Übersicht
         return
     state: dict[str, Any] = {}
     cats: list[str] = []
@@ -950,6 +957,9 @@ async def ws_tasks_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
         # Auswahl danach bewusst gespeichert wurde (Marker task_categories_rev ≥ 2)
         if "einrichtung" not in own and int(opts.get("task_categories_rev", 0)) < 2:
             own.append("einrichtung")
+        # v1.19.0: neue Kategorie „reinigung“ ebenso bis zur nächsten bewusst gespeicherten Auswahl (rev ≥ 3)
+        if "reinigung" not in own and int(opts.get("task_categories_rev", 0)) < 3:
+            own.insert(1 if own and own[0] == "nachrichten" else 0, "reinigung")
         for cat in own:
             if cat not in cats:
                 cats.append(cat)
@@ -1064,3 +1074,107 @@ async def ws_booking_move(hass: HomeAssistant, connection: websocket_api.ActiveC
     c.force_revenue_refresh = True
     await c.async_request_refresh()
     connection.send_result(msg["id"], {**result, "gespeichert": True, "preis_gespeichert": price_saved})
+
+
+# ---------------------------------------------------------------------------
+# Reinigungsboard (v1.19.0, Wunsch Betreiber 20.11.2026) – Logik und Rechte in reinigung.py
+# ---------------------------------------------------------------------------
+def _cleaning_guard(connection, msg, coords, *rights: str) -> bool:
+    """Mindestens eines der Rechte in jedem beteiligten Konto (sonst „unauthorized“)."""
+    for c in dict.fromkeys(coords):
+        have = rechte.rights_of(connection.user, c.config_entry.options)
+        if not any(r in have for r in rights):
+            connection.send_error(msg["id"], "unauthorized", f"Keine Berechtigung: {rechte.RIGHTS[rights[0]]}")
+            return False
+        if c.cleaning is None:
+            connection.send_error(msg["id"], "not_loaded", "Reinigungsboard nicht geladen")
+            return False
+    return True
+
+
+def _apartments_by_coord(pairs) -> dict[Any, list[int]]:
+    out: dict[Any, list[int]] = {}
+    for c, a in pairs:
+        out.setdefault(c, []).append(a)
+    return out
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/cleaning/get", **_TARGET})
+@websocket_api.async_response
+async def ws_cleaning_get(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Reinigungen (−7 bis +60 Tage) mit Zuweisung/Status; Benutzerliste nur für „reinigung_zuweisen“."""
+    try:
+        pairs = _targets(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _cleaning_guard(connection, msg, [c for c, _ in pairs], "reinigung", "reinigung_zuweisen"):
+        return
+    codes = all_codes(hass)
+    items: list[dict[str, Any]] = []
+    users: dict[str, dict[str, Any]] = {}
+    can_assign = can_take = True
+    for c, apts in _apartments_by_coord(pairs).items():
+        eid = c.config_entry.entry_id
+        for x in await c.cleaning.items(apts, connection.user):
+            items.append({**x, "entry_id": eid, "kuerzel": codes.get((eid, x["wohnung_id"]), "")})
+        have = rechte.rights_of(connection.user, c.config_entry.options)
+        can_assign &= "reinigung_zuweisen" in have
+        can_take &= "reinigung" in have
+        if "reinigung_zuweisen" in have:
+            for u in await c.cleaning.cleaners():
+                users.setdefault(u["id"], u)
+    items.sort(key=lambda x: (x["datum"], x["check_out"] or "", x["key"]))
+    connection.send_result(msg["id"], {
+        "reinigungen": items, "benutzer": list(users.values()), "ich": connection.user.id if connection.user else None,
+        "darf_zuweisen": can_assign, "darf_uebernehmen": can_take, "heute": dt_util.now().date().isoformat()})
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/cleaning/set", vol.Required("entry_id"): str,
+     vol.Required("key"): vol.All(str, vol.Length(max=60)), vol.Required("aktion"): vol.In(CLEANING_ACTIONS),
+     vol.Optional("benutzer_id"): vol.Any(None, vol.All(str, vol.Length(max=64)))}
+)
+@websocket_api.async_response
+async def ws_cleaning_set(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        c = next(cc for cc, _ in _targets(hass, {"entry_id": msg["entry_id"], "apartment_id": ALL}))
+    except (vol.Invalid, StopIteration):
+        connection.send_error(msg["id"], "not_found", "Konto nicht gefunden")
+        return
+    if not _cleaning_guard(connection, msg, [c], "reinigung", "reinigung_zuweisen"):
+        return
+    try:
+        state = await c.cleaning.async_set(msg["key"], msg["aktion"], connection.user, msg.get("benutzer_id"))
+    except CleaningError as err:
+        connection.send_error(msg["id"], "unauthorized" if err.code in ("unauthorized", "not_yours", "already_assigned") else err.code,
+                              err.code)
+        return
+    connection.send_result(msg["id"], {"zustand": state})
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/cleaning/stats", **_TARGET, vol.Required("start"): str, vol.Required("end"): str}
+)
+@websocket_api.async_response
+async def ws_cleaning_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Statistik-Modul „Reinigung“: wer hat wann welche Wohnung gereinigt (Statistik-Seite bzw. Zuweisende)."""
+    try:
+        pairs = _targets(hass, msg)
+        start, end = _date(msg["start"]).isoformat(), _date(msg["end"]).isoformat()
+    except (vol.Invalid, ValueError) as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _cleaning_guard(connection, msg, [c for c, _ in pairs], "finanzen", "reinigung_zuweisen"):
+        return
+    codes = all_codes(hass)
+    parts = []
+    for c, apts in _apartments_by_coord(pairs).items():
+        eid = c.config_entry.entry_id
+        parts.append(await c.cleaning.async_stats(apts, start, end, {a: codes.get((eid, a), "") for a in apts}))
+    if len(parts) == 1:
+        connection.send_result(msg["id"], parts[0])
+        return
+    # Mehrere Konten: zusammenführen (selten; Personen gleichen Namens werden addiert)
+    from .reinigung import merge_stats
+    connection.send_result(msg["id"], merge_stats(parts))

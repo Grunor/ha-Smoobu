@@ -92,6 +92,7 @@ from .const import (
 from .analytics import block_channel_id
 from .assistant import SmoobuAssistant
 from .notifications import SmoobuNotifier
+from .reinigung import CleaningBoard
 from .coordinator import SmoobuCoordinator
 from .frontend import async_register_frontend
 from .websocket_api import async_register as async_register_websocket
@@ -132,6 +133,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> bo
     # weil dessen Pushes darüber laufen
     coordinator.notifier = SmoobuNotifier(hass, coordinator)
     await coordinator.notifier.async_setup()
+    # v1.19.0: Reinigungsboard (Zuweisungen, Vorabend-Erinnerung)
+    coordinator.cleaning = CleaningBoard(hass, coordinator)
+    await coordinator.cleaning.async_setup()
     coordinator.assistant = SmoobuAssistant(hass, coordinator)
     await coordinator.assistant.async_setup()
 
@@ -163,6 +167,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> b
         await entry.runtime_data.assistant.async_unload()
     if getattr(entry, "runtime_data", None) and entry.runtime_data.notifier:
         await entry.runtime_data.notifier.async_unload()
+    if getattr(entry, "runtime_data", None) and getattr(entry.runtime_data, "cleaning", None):
+        await entry.runtime_data.cleaning.async_unload()
     if webhook_id := entry.data.get(CONF_WEBHOOK_ID):
         webhook.async_unregister(hass, webhook_id)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

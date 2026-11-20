@@ -193,7 +193,7 @@ class SmoobuNotifier:
 
     async def send(
         self, kind: str, title: str | None, message: str, data: dict[str, Any] | None = None,
-        *, urgent: bool = False, check_enabled: bool = True,
+        *, urgent: bool = False, check_enabled: bool = True, to: list[str] | None = None,
     ) -> bool:
         """Push einer Art an deren Empfänger; in der Ruhezeit (nicht dringend) gesammelt.
 
@@ -206,7 +206,7 @@ class SmoobuNotifier:
         if message == "clear_notification":
             # Gesammelten Push gleicher Kennung verwerfen, dann (falls schon zugestellt) entfernen
             self._drop(data.get("tag"))
-            await self._deliver(kind, None, message, data)
+            await self._deliver(kind, None, message, data, **({"to": to} if to else {}))
             return True
         # v1.18.0: je Push-Art einstellbar, ob sie die Ruhezeit einhält. Dringende Vorschläge und
         # Bestätigungen/Fehler (urgent) kommen immer sofort.
@@ -214,11 +214,11 @@ class SmoobuNotifier:
         if hold:
             self._drop(data.get("tag"))  # je Thema nur der neueste Stand
             self.data["warteschlange"].append({"art": kind, "titel": title, "text": message, "daten": data,
-                                               "zeit": dt_util.now().isoformat()})
+                                               "zeit": dt_util.now().isoformat(), **({"an": to} if to else {})})
             self.data["warteschlange"] = self.data["warteschlange"][-50:]
             self._save()
             return True
-        await self._deliver(kind, title, message, data)
+        await self._deliver(kind, title, message, data, **({"to": to} if to else {}))
         return True
 
     def _drop(self, tag: str | None) -> None:
@@ -229,8 +229,9 @@ class SmoobuNotifier:
         if len(self.data["warteschlange"]) != before:
             self._save()
 
-    async def _deliver(self, kind: str, title: str | None, message: str, data: dict[str, Any]) -> None:
-        for svc in opt_recipients(self.opts, kind):
+    async def _deliver(self, kind: str, title: str | None, message: str, data: dict[str, Any],
+                       to: list[str] | None = None) -> None:
+        for svc in to or opt_recipients(self.opts, kind):
             name = svc.removeprefix("notify.")
             payload: dict[str, Any] = {"message": message, "data": data}
             if title:
@@ -246,7 +247,7 @@ class SmoobuNotifier:
         if queue:
             self._save()
         for q in queue:
-            await self._deliver(q["art"], q.get("titel"), q["text"], q.get("daten") or {})
+            await self._deliver(q["art"], q.get("titel"), q["text"], q.get("daten") or {}, **({"to": q["an"]} if q.get("an") else {}))
 
     # --- Buchung / Storno / Änderung aus dem Datenabgleich ----------------
     @callback

@@ -217,6 +217,27 @@ def _shots(base: str, token: str, set_options) -> list[str]:
         page.locator(card_settings).locator('[data-neu="saisons"]').screenshot(path=str(OUT / "einstellungen_saisons.png"))
         done.append("einstellungen_saisons.png")
 
+        # v1.19.0: Rollen-Matrix (Rollenkonfigurator), Reinigungsboard und Statistik-Modul „Reinigung“
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", [card_settings, {"tab": "rechte"}, 1180])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-settings-card')?.shadowRoot;"
+                               " return r && r.querySelector('[data-neu=rollen] table'); }", timeout=20000)
+        page.wait_for_timeout(500)
+        page.locator(card_settings).locator('[data-neu="rollen"]').screenshot(path=str(OUT / "einstellungen_rollen.png"))
+        done.append("einstellungen_rollen.png")
+        page.set_viewport_size({"width": 1212, "height": 900})
+        card("reinigung", "smoobu-cleaning-card", {"days": 14})
+        page.set_viewport_size({"width": 430, "height": 900})
+        card("reinigung_handy", "smoobu-cleaning-card", {"days": 7}, width=400)
+        page.set_viewport_size({"width": 1440, "height": 900})
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", ["smoobu-stats-card", {}, 1400])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-stats-card')?.shadowRoot;"
+                               " return r && r.querySelector('[data-neu-mod=reinigung] table'); }", timeout=30000)
+        page.evaluate("""() => { const r = document.querySelector('smoobu-stats-card').shadowRoot;
+            const st = document.createElement('style'); st.textContent = '.fbar { position: static !important; }'; r.appendChild(st); }""")
+        page.wait_for_timeout(800)
+        page.locator("smoobu-stats-card").locator('[data-neu-mod="reinigung"]').screenshot(path=str(OUT / "statistik_reinigung.png"))
+        done.append("statistik_reinigung.png")
+
         # KI sperren (Option aus) → Seite neu laden, gesperrte Bedienung zeigen
         set_options({"ai_enabled": False})
         page.set_viewport_size({"width": 1212, "height": 900})
@@ -238,6 +259,29 @@ def _optimize(paths: list[Path]) -> None:
     for p in paths:
         img = Image.open(p).convert("RGB")
         img.quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(p, optimize=True)
+
+
+async def _demo_cleaning(hass: HomeAssistant, board, today: date, people: list) -> None:
+    """v1.19.0: Reinigungsboard mit erfundenen Zuweisungen und einem halben Jahr erledigter Reinigungen
+    (Statistik). Erledigte Einträge werden direkt mit Schnappschuss angelegt – Demodaten, keine echten."""
+    from types import SimpleNamespace
+
+    admin = SimpleNamespace(id="demo-admin", is_admin=True, name="Betreiber")
+    items = await board.items(None, admin)
+    upcoming = [x for x in items if x["datum"] >= today.isoformat()]
+    for i, x in enumerate(upcoming[:3]):
+        if i < 2:
+            await board.async_set(x["key"], "zuweisen", admin, people[i % 2].id)
+    state = await board._load()
+    for i in range(26):
+        day = today - timedelta(days=4 + i * 7)
+        who = people[0] if i % 3 else people[1]
+        state[f"9{i:03d}:{day.isoformat()}"] = {
+            "status": "erledigt", "zugewiesen": who.id, "gereinigt_von": who.id, "gereinigt_name": who.name,
+            "erledigt_von": who.name, "erledigt_um": f"{day.isoformat()}T{12 + i % 3}:{(i * 7) % 60:02d}",
+            "snapshot": {"datum": day.isoformat(), "wohnung_id": next(iter(board.c.data.apartments)), "check_out": "11:00",
+                         "wechsel": i % 4 == 0, "hund": i % 5 == 0, "personen": 2 + i % 3, "naechte": 2 + i % 6}}
+    await board.store.async_save(state)
 
 
 def _demo_states(hass: HomeAssistant, today: date) -> None:
@@ -294,15 +338,22 @@ async def test_render_screenshots(socket_enabled, hass: HomeAssistant, aiohttp_c
     hass.config.language = "de"
     await async_setup_component(hass, "http", {})
     demo = DemoClient(today)
+    # v1.19.0: erfundene Reinigungskräfte (Rolle „Reinigung“) und eine eigene Rolle für die Rollen-Matrix
+    petra = await hass.auth.async_create_user("Petra")
+    jonas = await hass.auth.async_create_user("Jonas")
+    roles = {"user_roles": {petra.id: "reinigung", jonas.id: "eigen_haus"},
+             "custom_roles": {"eigen_haus": {"name": "Hausmeister", "rechte": ["belegung_sehen", "belegung", "reinigung"]}},
+             "cleaning_phones": {petra.id: "notify.mobile_app_demo"}}
     with patch("custom_components.smoobu.SmoobuClient", lambda *a, **k: demo):
         entry = MockConfigEntry(domain=DOMAIN, unique_id="1000", title="Demo",
                                 data={"api_key": "demo", "api_secret": "demo", "user_id": 1000},
-                                options={**OPTIONS, "use_webhook": False})
+                                options={**OPTIONS, **roles, "use_webhook": False})
         entry.add_to_hass(hass)
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
         _demo_states(hass, today)
         _demo_assistant(entry.runtime_data.assistant, demo, today)
+        await _demo_cleaning(hass, entry.runtime_data.cleaning, today, [petra, jonas])
         await hass.async_block_till_done()
         client = await aiohttp_client(hass.http.app)
         base = f"http://127.0.0.1:{client.server.port}"

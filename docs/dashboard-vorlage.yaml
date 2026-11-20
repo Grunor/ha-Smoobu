@@ -129,6 +129,21 @@ views:
           - type: custom:smoobu-header-card
           - type: custom:smoobu-assistant-card
 
+  # v1.19.0: Reinigungsboard – Reinigungen zuweisen, übernehmen, abhaken. Sichtbar mit Recht
+  # „Reinigung übernehmen und abhaken“ oder „Reinigung zuweisen“ (Rolle Reinigung: Übersicht, Kalender, Reinigung).
+  # Der Reiter in der Kopfzeile erscheint automatisch, sobald diese Ansicht existiert.
+  - title: Reinigung
+    path: smoobu-reinigung
+    icon: mdi:broom
+    type: panel
+    subview: true
+    back_path: /dashboard-ferienwohnung/smoobu
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:smoobu-header-card
+          - type: custom:smoobu-cleaning-card
+
   # --- Seite 8: Einstellungen (v1.18.0) -------------------------------------
   # Gleiche Werte wie der Options-Dialog. Ändern dürfen HA-Admins und die in der Option
   # „Einstellungen im Dashboard erlauben für“ gewählten Benutzer (Prüfung im Backend).

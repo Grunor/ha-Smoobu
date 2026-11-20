@@ -126,6 +126,10 @@ CONF_SETTINGS_USERS = "settings_users"
 # settings_users bleibt als Altwert lesbar: Benutzer darin gelten als „verwalter“.
 CONF_USER_ROLES = "user_roles"
 CONF_DEFAULT_ROLE = "default_role"
+# Rollenkonfigurator (v1.19.0): angepasste Rechte der Standardrollen {Rolle: [Rechte]} (nur Abweichungen)
+# und eigene Rollen {"eigen_…": {"name": …, "rechte": [...]}}
+CONF_ROLE_RIGHTS = "role_rights"
+CONF_CUSTOM_ROLES = "custom_roles"
 DEFAULT_ROLE = "betrieb"
 
 # Kosten & Preise (v1.18.0, Entscheidung Betreiber 17.11.2026): variable Kosten für den
@@ -166,11 +170,12 @@ DEFAULT_LASTMINUTE_MAX_DISCOUNT = 10.0
 # Aufgaben-Board „Wartet auf dich“ (Betreiber 17.11.2026): sichtbare Kategorien (einstellbar)
 CONF_TASK_CATEGORIES = "task_categories"
 # v1.18.0: „einrichtung“ = neue Optionen der Integration, die einzustellen sind (neuigkeiten.py)
-TASK_CATEGORIES = ["nachrichten", "rechnungen", "preise", "lastminute", "luecken", "einrichtung"]
+# v1.19.0: „reinigung“ = nicht zugewiesene Reinigungen der nächsten 7 Tage (für Zuweisende, Reinigungsboard)
+TASK_CATEGORIES = ["nachrichten", "reinigung", "rechnungen", "preise", "lastminute", "luecken", "einrichtung"]
 DEFAULT_TASK_CATEGORIES = list(TASK_CATEGORIES)
 # Kategorie → Recht zum Erledigen/Verschieben (Anzeigen: siehe Karte)
 TASK_RIGHTS = {"nachrichten": "antworten", "rechnungen": "belegung", "preise": "preise", "lastminute": "preise", "luecken": "preise",
-               "einrichtung": "einstellungen"}
+               "einrichtung": "einstellungen", "reinigung": "reinigung_zuweisen"}
 
 SERVICE_ASSIST_SUGGEST = "assistant_suggest"
 SERVICE_ASSIST_IMPORT = "assistant_import"

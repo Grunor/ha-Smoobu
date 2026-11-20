@@ -63,15 +63,16 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 - ⚡ **Echtzeit-Webhook** (Nabu Casa oder eigene HTTPS-URL, automatisch bei Smoobu registriert) und Event **`smoobu_event`** bei neuer, geänderter oder stornierter Buchung und neuer Gastnachricht
 - 🛠️ **Aktionen:** Buchungen abfragen, Nachrichten lesen und senden, Zeiträume sperren, Preise und Mindestaufenthalt setzen, Ankunfts-/Abreisezeit, Notiz und Zahlungsstatus ändern
 
-**Smoobu-Dashboard** (eigene Karten, automatisch geladen, fertige [Dashboard-Vorlage](docs/dashboard-vorlage.yaml) mit 8 Seiten)
+**Smoobu-Dashboard** (eigene Karten, automatisch geladen, fertige [Dashboard-Vorlage](docs/dashboard-vorlage.yaml) mit 9 Seiten)
 - 🏠 **Übersicht:** Status heute in einem Satz, aktueller und nächster Gast, Belegung der nächsten Wochen, Kennzahlen mit Verlauf, freie Zeiträume gegen den Mindestaufenthalt geprüft, Aufgaben-Board **„Wartet auf dich“** (Nachrichten, Rechnungen, Preise, Last-Minute, Lücken, **Einrichtung**) mit Erledigt/Später
 - 🗓️ **Kalender & Preise:** Kanalfarben, Tagespreis, Mindestaufenthalt, nicht buchbare Lücken; Anreise und Abreise antippen → **sperren** oder **Preis setzen**
 - 📋 **Buchungen:** Suche, Filter, Summen je Gruppe (anstehend/aktuell/vergangen), **Stammgäste** („↻ 2× · Mai 25“), CSV-Export; Details mit Zahlungsstatus, Zeiten, Notiz, Nachrichten und **Umbuchen** (Zeitraum/Unterkunft, Beta)
 - 💶 **Finanzen:** Zeitraum, Vergleich (Stichtag Vorjahr, ganzes Vorjahr, Vorperiode, mehrere Jahre), Kanäle, Raster; Diagramm je Kanal, Kanaltabelle, Erkenntnisse
-- 📈 **Statistik-Werkbank:** Bewertung & Empfehlung (Preise per Button übernehmen und rückgängig machen), **Deckungsbeitrag** mit Brücke, Buchungstempo mit Prognose, Saison-Matrix mit Abweichung zum Ø, Wochentage, Kanäle, Buchungsfenster und -zeitpunkt, verlorene Nächte, Stornos, Gäste, Ehrentafel, Service; **eigene Module** mit Vorlagen, Vorschau und Bearbeiten; Anordnung im HA-Benutzerprofil
+- 📈 **Statistik-Werkbank:** Bewertung & Empfehlung (Preise per Button übernehmen und rückgängig machen), **Deckungsbeitrag** mit Brücke, Buchungstempo mit Prognose, Saison-Matrix mit Abweichung zum Ø, Wochentage, Kanäle, Buchungsfenster und -zeitpunkt, verlorene Nächte, Stornos, Gäste, Ehrentafel, Service, **Reinigung** (wer hat wann welche Wohnung gereinigt); **eigene Module** mit Vorlagen, Vorschau und Bearbeiten; Anordnung im HA-Benutzerprofil
 - 🌦️ **Saisons** frei einstellbar (Name + Startmonat) mit **automatischer Erkennung** aus den bisherigen Jahren
 - 💬 **Posteingang:** offene Gastnachrichten, „Keine Antwort nötig“, KI-Vorschlag
-- ⚙️ **Einstellungen im Dashboard** mit **Benutzerrollen**; neue Optionen erscheinen unter „Wartet auf dich“ → Einrichtung, Neuerungen unter **„✨ Neu“** in der Kopfzeile
+- 🧹 **Reinigungsboard:** Reinigung je Abreise mit Check-out, nächster Anreise und Gästewechsel; **zuweisen**, selbst übernehmen und abhaken, Push an die zugewiesene Person (bei Zuweisung und am Vorabend)
+- ⚙️ **Einstellungen im Dashboard** mit **Rollenkonfigurator** (Rechte je Rolle per Häkchen, eigene Rollen, Rolle **Reinigung** – sieht vom Gast nur den Vornamen); neue Optionen erscheinen unter „Wartet auf dich“ → Einrichtung, Neuerungen unter **„✨ Neu“** in der Kopfzeile
 - 🎨 Hell/Dunkel/System, mehrere Wohnungen mit Gesamtansicht, Handy-Ansicht
 
 **Benachrichtigungen und KI**
@@ -98,6 +99,16 @@ Alle Bilder zeigen eine **erfundene Demo-Ferienwohnung**. Die Bilder stammen aus
 
 **Statistik-Werkbank:** Aussage-Satz, Kennzahlen mit Vergleich und Endstand, Bewertung & Empfehlung, Buchungstempo, Saison-Matrix und weitere Module (Werkbank am PC, Einfach am Handy)
 ![Statistik](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_statistik_hell.png)
+
+**Reinigungsboard (ab 1.19.0):** Reinigung je Abreise mit Check-out, nächster Anreise (Uhrzeit, Personen, Hund) und Gästewechsel; zuweisen per Auswahl, selbst übernehmen, abhaken; am Handy gut bedienbar
+![Reinigung](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/reinigung.png)
+![Reinigung am Handy](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/reinigung_handy.png)
+
+**Statistik „Reinigung“:** wer hat wann welche Wohnung gereinigt – je Person (Anteil, Gästewechsel, Hunde, Gäste Ø, Nächte, Zeit bis zum Abhaken), je Monat, je Wohnung und als Liste
+![Statistik Reinigung](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_reinigung.png)
+
+**Rollenkonfigurator (ab 1.19.0):** Rechte je Rolle per Häkchen, eigene Rollen anlegen; Hinweis bei Kombinationen, die im Dashboard kaum nutzbar sind
+![Rollen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_rollen.png)
 
 **Deckungsbeitrag:** Netto minus variable Kosten mit Vergleich; die Brücke zeigt, was Preis je Nacht, Anzahl der Nächte (Umsatz minus eingesparte Kosten) und Kosten je Nacht am Ergebnis geändert haben
 ![Deckungsbeitrag](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_deckungsbeitrag.png)
@@ -449,8 +460,9 @@ Die Integration bringt eigene Karten mit. Sie werden automatisch geladen (keine 
 | `custom:smoobu-analytics-card` | Finanzen: dieselbe Filterleiste wie die Statistik (Monat/Quartal/Saison/Jahr/Frei mit ‹ › blättern, Vergleich Stichtag Vorjahr/Ganzes Vorjahr/Vorperiode/Kein, Raster Auto/Tag/Woche/Monat, Wohnung, Kanäle mehrfach), dazu Schnellwahl (Vormonat, Folgemonat, Vorjahr, Jahr bis heute, letzte/nächste 12 Monate, gesamter Zeitraum) und Mehrfachvergleich über mehrere Jahre bzw. Perioden (Tabelle und zusätzliche Linien). Bei „Stichtag Vorjahr“ zusätzlich der **Endstand** des Vergleichszeitraums in den Kacheln. Kennzahlen mit Veränderung, gestapeltes Diagramm je Kanal mit Vergleichslinie, Anteile, Erkenntnisse, Kanaltabelle | `title`, `period` (`monat`/`quartal`/`saison`/`jahr`/`custom` oder ein Schnellwahl-Schlüssel), `compare` (`stichtag` Standard, `vorjahr`, `vorperiode`, `kein`), `compare_count` (Standard 1), `raster` (`auto`), `apartment_id` |
 | `custom:smoobu-stats-card` | Statistik-Werkbank: Aussage-Satz, Filterleiste (Monat/Quartal/Saison/Jahr/frei, Vergleich Stichtag Vorjahr/Vorjahr/Vorperiode, Kanäle, Wohnung, Raster), Ansicht Werkbank/Einfach je Gerät; 14 Module (Kennzahlen mit Fokus-Verlauf, **Deckungsbeitrag** (Netto − variable Kosten mit Brücke Preis/Nächte/Kosten je Nacht), **Bewertung & Empfehlung** (Buchungsstand je Monat gegen die Vorjahre am gleichen Tag, Preis senken/halten/erhöhen in Schritten, Preisuntergrenze je Kanal aus den variablen Kosten, Hinweise zu Wochenende, Einzelnächten, Feiertagen und kurzen Lücken – auch in „Einfach“; Empfehlungen und Hinweise per Button übernehmen, änderbar, mit Vorschau und Rückgängig), Buchungstempo mit Prognose-Spanne, Saison-Matrix (mit Abweichung zum Ø, auch DB), Belegung nach Wochentag, Kanal-Wirtschaftlichkeit, Buchungsfenster, verlorene Nächte, Stornos, Gäste (Anteil Buchungen und Nächte), **Ehrentafel** (Fun-Statistik: „Die Goldene Fußmatte“ und „Die Rostige Klobürste“ – je Top 3 der abgeschlossenen Aufenthalte nach Preis je Nacht, Kommunikation, Extra-Stunden durch frühen Check-in/späten Check-out, Vorlauf, Aufenthaltsdauer und Portal-Abzug; Perzentil-Rang je Kriterium, fehlende Werte neutral; Vorname + Initial; nur Anzeige, nichts wird gespeichert), Service/Antwortzeit, Datentabelle mit CSV) plus Baukasten für eigene Module (Vorlagen, Live-Vorschau, nachträglich bearbeiten, Darstellung im Modulkopf umschalten); Anordnung und eigene Module im HA-Benutzerprofil (alle Geräte, übersteht Updates). Zeitraum „Saison“ nach den eingestellten Saisons. Werte mit n < 5 als „wenig Daten“ markiert | `title`, `period`, `compare`, `matrix_exclude_years` (Standard `[2020]`), `matrix_since`, `apartment_id` |
 | `custom:smoobu-inbox-card` | Posteingang: laufende, kommende und kürzliche Buchungen, Nachrichtenverlauf, antworten, ✨ KI-Vorschlag. **Antwort offen** = neueste Nachricht kommt vom Gast (Nachrichten an den Gast, auch automatische, schließen); Button **„Keine Antwort nötig“** hakt sie ohne Antwort ab, bis der Gast erneut schreibt (rückgängig machbar) | `title`, `days_back`, `days_ahead`, `message_entity` |
+| `custom:smoobu-cleaning-card` (ab 1.19.0) | Reinigungsboard: Reinigungen je Abreise (Check-out, nächste Anreise mit Uhrzeit/Personen/Hund, Gästewechsel), Filter Für mich / Nicht zugewiesen / Alle offenen / Erledigt; **zuweisen** (Recht „Reinigung zuweisen“), **übernehmen/abgeben** und **abhaken** (Recht „Reinigung übernehmen und abhaken“); vom Gast nur der Vorname. Push an die zugewiesene Person über das in den Einstellungen gewählte Handy | `title`, `days` (30), `apartment_id` |
 | `custom:smoobu-assistant-card` | KI-Assistent: Wissensdatenbank (freigeben, bearbeiten, vertraulich), Vorschläge, Gelerntes, Lücken, Import | `title` |
-| `custom:smoobu-settings-card` | Einstellungen im Dashboard: Benachrichtigungen (Push-Arten, Empfänger, Uhrzeiten, Ruhezeit), KI-Assistent, Provisionen & Kanäle, Kosten & Preise, Benutzer & Rechte (Rollen Verwalter/Betrieb/Mitarbeiter/Nur lesen/Kein Zugriff, nur Admins vergeben sie; Prüfung im Backend für Karten und `smoobu.*`-Aktionen), Allgemein & Abruf inkl. Wohnungskürzel und **Saisons** (mit automatischer Erkennung) – dieselben Werte wie der Options-Dialog, dazu Optionen, die es nur hier gibt. Ändern dürfen HA-Admins und die in der Option „Einstellungen im Dashboard erlauben für“ gewählten Benutzer (Prüfung im Backend); nach dem Speichern lädt die Integration neu | `title`, `tab`, `entry_id` |
+| `custom:smoobu-settings-card` | Einstellungen im Dashboard: Benachrichtigungen (Push-Arten, Empfänger, Uhrzeiten, Ruhezeit), KI-Assistent, Provisionen & Kanäle, Kosten & Preise, Benutzer & Rechte (Rollen Verwalter/Betrieb/Mitarbeiter/Reinigung/Nur lesen/Kein Zugriff und eigene Rollen; ab 1.19.0 **Rechte je Rolle einstellbar**; nur Admins vergeben und stellen Rollen ein; Prüfung im Backend für Karten und `smoobu.*`-Aktionen), Allgemein & Abruf inkl. Wohnungskürzel und **Saisons** (mit automatischer Erkennung) – dieselben Werte wie der Options-Dialog, dazu Optionen, die es nur hier gibt. Ändern dürfen HA-Admins und die in der Option „Einstellungen im Dashboard erlauben für“ gewählten Benutzer (Prüfung im Backend); nach dem Speichern lädt die Integration neu | `title`, `tab`, `entry_id` |
 
 **Design (ab 1.15.0):** Eigene, aufeinander abgestimmte Farben für hell und dunkel (Kanäle, Zustände, Flächen) und die Schrift *Schibsted Grotesk* (SIL OFL, wird mit der Integration ausgeliefert, kein externer Server). Der Modus wird **je Gerät** gespeichert; „System“ folgt dem Dunkelmodus von Home Assistant.
 
@@ -468,13 +480,13 @@ type: custom:smoobu-timeline-card
 months: 4
 ```
 
-Datenquelle der Karten sind WebSocket-Befehle (u. a. `smoobu/info`, `smoobu/analytics`, `smoobu/stats`, `smoobu/bookings`, `smoobu/booking`, `smoobu/booking/move`, `smoobu/rates`, `smoobu/rates/apply`, `smoobu/tasks/get`, `smoobu/settings/get`, `smoobu/message_status`, `smoobu/subscribe`). Sie aktualisieren sich bei jedem neuen Datenstand von selbst. Alle Texte aus Smoobu werden vor der Anzeige maskiert.
+Datenquelle der Karten sind WebSocket-Befehle (u. a. `smoobu/info`, `smoobu/analytics`, `smoobu/stats`, `smoobu/bookings`, `smoobu/booking`, `smoobu/booking/move`, `smoobu/rates`, `smoobu/rates/apply`, `smoobu/tasks/get`, `smoobu/cleaning/get`, `smoobu/cleaning/set`, `smoobu/cleaning/stats`, `smoobu/settings/get`, `smoobu/message_status`, `smoobu/subscribe`). Sie aktualisieren sich bei jedem neuen Datenstand von selbst. Alle Texte aus Smoobu werden vor der Anzeige maskiert.
 
 ---
 
 ### Dashboard-Vorlage
 
-[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) ist ein komplettes Dashboard mit 8 Seiten (Übersicht, Kalender, Buchungen, Finanzen, Statistik, Nachrichten, Assistent, Einstellungen) und Kopfleiste – so wie auf den [Screenshots](#screenshots).
+[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) ist ein komplettes Dashboard mit 8 Seiten (Übersicht, Kalender, Reinigung, Buchungen, Finanzen, Statistik, Nachrichten, Assistent, Einstellungen) und Kopfleiste – so wie auf den [Screenshots](#screenshots).
 
 1. **Einstellungen → Dashboards → Dashboard hinzufügen → Neues Dashboard von Grund auf**, URL z. B. `dashboard-ferienwohnung`
 2. Dashboard öffnen → ✎ → ⋮ → **Raw-Konfigurationseditor** → Inhalt der Vorlage einfügen → Speichern
@@ -787,15 +799,16 @@ This integration handles the signing and exposes all data natively in Home Assis
 - ⚡ **Real-time webhook** (Nabu Casa or your own HTTPS URL, registered with Smoobu automatically) and event **`smoobu_event`** for new, changed or cancelled bookings and new guest messages
 - 🛠️ **Actions:** query bookings, read and send messages, block periods, set prices and minimum stay, change arrival/departure time, note and payment status
 
-**Smoobu dashboard** (own cards, loaded automatically, ready-made [dashboard template](docs/dashboard-vorlage.yaml) with 8 pages)
+**Smoobu dashboard** (own cards, loaded automatically, ready-made [dashboard template](docs/dashboard-vorlage.yaml) with 9 pages)
 - 🏠 **Overview:** today's status in one sentence, current and next guest, occupancy of the next weeks, KPIs with trend, free periods checked against the minimum stay, task board **"Waiting for you"** (messages, invoices, prices, last-minute, gaps, **setup**) with done/later
 - 🗓️ **Calendar & prices:** channel colours, daily price, minimum stay, unbookable gaps; tap arrival and departure → **block** or **set price**
 - 📋 **Bookings:** search, filters, totals per group (upcoming/current/past), **returning guests** ("↻ 2× · May 25"), CSV export; details with payment status, times, note, messages and **rebooking** (dates/property, beta)
 - 💶 **Finances:** period, comparison (same day last year, full previous year, previous period, several years), channels, grid; chart per channel, channel table, insights
-- 📈 **Statistics workbench:** rating & recommendation (apply prices with one click and undo), **contribution margin** with bridge, booking pace with forecast, season matrix with deviation from the average, weekdays, channels, booking window and timing, lost nights, cancellations, guests, hall of fame, service; **custom modules** with templates, preview and editing; arrangement stored in the HA user profile
+- 📈 **Statistics workbench:** rating & recommendation (apply prices with one click and undo), **contribution margin** with bridge, booking pace with forecast, season matrix with deviation from the average, weekdays, channels, booking window and timing, lost nights, cancellations, guests, hall of fame, service, **cleaning** (who cleaned which property when); **custom modules** with templates, preview and editing; arrangement stored in the HA user profile
 - 🌦️ **Seasons** freely adjustable (name + start month) with **automatic detection** from past years
 - 💬 **Inbox:** open guest messages, "No reply needed", AI suggestion
-- ⚙️ **Settings in the dashboard** with **user roles**; new options appear under "Waiting for you" → Setup, changes under **"✨ New"** in the header
+- 🧹 **Cleaning board:** one cleaning per departure with check-out, next arrival and same-day changeover; **assign**, take over and tick off, push to the assigned person (on assignment and the evening before)
+- ⚙️ **Settings in the dashboard** with a **role configurator** (permissions per role via checkboxes, custom roles, role **Cleaning** – sees only the guest's first name); new options appear under "Waiting for you" → Setup, changes under **"✨ New"** in the header
 - 🎨 Light/dark/system, several properties with a combined view, mobile view
 
 **Notifications and AI**
@@ -822,6 +835,16 @@ All images show a **fictional demo apartment**. They come from the real integrat
 
 **Statistics workbench:** summary sentence, KPIs with comparison and final value, rating & recommendation, booking pace, season matrix and more modules (workbench on the PC, simple view on the phone)
 ![Statistics](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_statistik_hell.png)
+
+**Cleaning board (from 1.19.0):** one cleaning per departure with check-out, next arrival (time, guests, dog) and same-day changeover; assign via dropdown, take over, tick off; works well on the phone
+![Cleaning](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/reinigung.png)
+![Cleaning on the phone](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/reinigung_handy.png)
+
+**Statistics "Cleaning":** who cleaned which property when – per person (share, changeovers, dogs, average guests, nights, time to tick off), per month, per property and as a list
+![Statistics cleaning](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_reinigung.png)
+
+**Role configurator (from 1.19.0):** permissions per role via checkboxes, custom roles; hint for combinations that are hardly usable in the dashboard
+![Roles](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_rollen.png)
 
 **Contribution margin:** net minus variable costs with comparison; the bridge shows what price per night, number of nights (revenue minus saved costs) and costs per night changed
 ![Contribution margin](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_deckungsbeitrag.png)
@@ -1171,20 +1194,21 @@ The integration ships its own cards. They are loaded automatically (no resource 
 | `custom:smoobu-analytics-card` | Finance: the same filter bar as the statistics (month/quarter/season/year/custom with ‹ › paging, comparison same day last year/full previous year/previous period/none, grid auto/day/week/month, property, multiple channels), plus quick select (previous month, next month, previous year, year to date, last/next 12 months, whole period) and multi-period comparison across several years or periods (table and extra lines). With "Same day last year" the tiles also show the **final value** of the comparison period. Key figures with change, stacked chart per channel with comparison line, shares, insights, channel table | `title`, `period` (`monat`/`quartal`/`saison`/`jahr`/`custom` or a quick-select key), `compare` (`stichtag` default, `vorjahr`, `vorperiode`, `kein`), `compare_count` (default 1), `raster` (`auto`), `apartment_id` |
 | `custom:smoobu-stats-card` | Statistics workbench: summary sentence, filter bar (month/quarter/season/year/custom, comparison same day last year/previous year/previous period, channels, property, grid), Workbench/Simple view per device; 14 modules (KPIs with focus trend, **contribution margin** (net − variable costs with bridge price/nights/costs per night), **assessment & recommendation** (bookings on hand per month vs. previous years on the same day, lower/keep/raise price in steps, price floor per channel from variable costs, notes on weekends, single nights, holidays and short gaps – also in Simple; apply recommendations and notes via button, editable, with preview and undo), booking pace with forecast range, season matrix (with deviation from the average, also CM), occupancy by weekday, channel economics, booking window, lost nights, cancellations, guests (share of bookings and nights), **hall of fame** (fun statistics: "The Golden Doormat" and "The Rusty Toilet Brush" – top 3 completed stays each by price per night, communication, extra hours from early check-in/late check-out, lead time, length of stay and portal deduction; percentile rank per criterion, missing values neutral; first name + initial; display only, nothing is stored), service/response time, data table with CSV) plus a builder for custom modules (templates, live preview, edit afterwards, switch the view in the module header); arrangement and custom modules stored in the HA user profile (all devices, survives updates). Period "Season" follows the configured seasons. Values with n < 5 flagged as "low data" | `title`, `period`, `compare`, `matrix_exclude_years` (default `[2020]`), `matrix_since`, `apartment_id` |
 | `custom:smoobu-inbox-card` | Inbox: current, upcoming and recent bookings, message thread, reply, ✨ AI suggestion. **Reply pending** = latest message is from the guest (messages to the guest, including automatic ones, close it); **"No reply needed"** marks it done without replying until the guest writes again (can be undone) | `title`, `days_back`, `days_ahead`, `message_entity` |
+| `custom:smoobu-cleaning-card` (from 1.19.0) | Cleaning board: cleanings per departure (check-out, next arrival with time/guests/dog, same-day changeover), filters For me / Unassigned / All open / Done; **assign** (permission "Assign cleaning"), **take over/hand back** and **tick off** (permission "Take over and tick off cleaning"); only the guest's first name. Push to the assigned person via the phone chosen in the settings | `title`, `days` (30), `apartment_id` |
 | `custom:smoobu-assistant-card` | AI assistant: knowledge base (approve, edit, confidential), suggestions, learned examples, gaps, import | `title` |
-| `custom:smoobu-settings-card` | Settings in the dashboard: notifications (push types, recipients, times, quiet hours), AI assistant, commissions & channels, costs & prices, users & permissions (roles manager/operations/staff/read only/no access, assigned by admins only; checked in the backend for cards and `smoobu.*` actions), general & polling incl. apartment codes – the same values as the options dialog. Editable by HA admins and the users selected in the option "Allow dashboard settings for" (checked in the backend); the integration reloads after saving | `title`, `tab`, `entry_id` |
+| `custom:smoobu-settings-card` | Settings in the dashboard: notifications (push types, recipients, times, quiet hours), AI assistant, commissions & channels, costs & prices, users & permissions (roles manager/operations/staff/cleaning/read only/no access and custom roles; from 1.19.0 **permissions per role are configurable**; only admins assign and configure roles; checked in the backend for cards and `smoobu.*` actions), general & polling incl. apartment codes – the same values as the options dialog. Editable by HA admins and the users selected in the option "Allow dashboard settings for" (checked in the backend); the integration reloads after saving | `title`, `tab`, `entry_id` |
 
 **Design (since 1.15.0):** dedicated, matched colours for light and dark (channels, states, surfaces) and the *Schibsted Grotesk* typeface (SIL OFL, shipped with the integration, no external server). The mode is stored **per device**; "System" follows Home Assistant's dark mode.
 
 **Several properties (since 1.15.0):** cards without `apartment_id` follow the property selector of the header (stored per device). "All" combines all properties: revenue summed, occupancy over all available nights, lists with a property code (derived from the name automatically), calendar with one row per property, finance with a property comparison. Blocks and prices always apply to the marked property. A card with `apartment_id` stays on that property. With a single property there is no selector.
 
-The cards read data through WebSocket commands (including `smoobu/info`, `smoobu/analytics`, `smoobu/stats`, `smoobu/bookings`, `smoobu/booking`, `smoobu/booking/move`, `smoobu/rates`, `smoobu/rates/apply`, `smoobu/tasks/get`, `smoobu/settings/get`, `smoobu/message_status`, `smoobu/subscribe`) and refresh themselves on every data update. All texts from Smoobu are escaped before display.
+The cards read data through WebSocket commands (including `smoobu/info`, `smoobu/analytics`, `smoobu/stats`, `smoobu/bookings`, `smoobu/booking`, `smoobu/booking/move`, `smoobu/rates`, `smoobu/rates/apply`, `smoobu/tasks/get`, `smoobu/cleaning/get`, `smoobu/cleaning/set`, `smoobu/cleaning/stats`, `smoobu/settings/get`, `smoobu/message_status`, `smoobu/subscribe`) and refresh themselves on every data update. All texts from Smoobu are escaped before display.
 
 ---
 
 ### Dashboard template
 
-[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) is a complete dashboard with 8 pages (overview, calendar, bookings, finances, statistics, messages, assistant, settings) and a header card – as shown in the [screenshots](#screenshots-1).
+[`docs/dashboard-vorlage.yaml`](docs/dashboard-vorlage.yaml) is a complete dashboard with 8 pages (overview, calendar, cleaning, bookings, finances, statistics, messages, assistant, settings) and a header card – as shown in the [screenshots](#screenshots-1).
 
 1. **Settings → Dashboards → Add dashboard → New dashboard from scratch**, URL e.g. `dashboard-ferienwohnung`
 2. Open it → ✎ → ⋮ → **Raw configuration editor** → paste the template → Save

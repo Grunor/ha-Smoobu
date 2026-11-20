@@ -140,6 +140,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         self._no_reply: dict[str, int] | None = None  # None = noch nicht geladen
         # KI-Assistent (assistant.py), gesetzt in __init__.async_setup_entry
         self.assistant: Any = None
+        self.cleaning: Any = None  # v1.19.0: Reinigungsboard (reinigung.CleaningBoard)
         self.notifier: Any = None  # v1.17.0: Benachrichtigungen (notifications.SmoobuNotifier)
         # Statistik-Werkbank (Teilschritte 3/4):
         # 1. Preis-Historie {apt_id: {datum: [preis, mindestaufenthalt]}} – Smoobu liefert Tagespreise
