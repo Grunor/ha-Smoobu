@@ -272,7 +272,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         zugewiesen ist. Ohne Board-Eintrag oder ohne eigenen Lohn: Standard-Stundenlohn (kein Eintrag nötig)."""
         board = getattr(self, "cleaning", None)
         wages = {str(k): float(v) for k, v in (self.config_entry.options.get(CONF_CLEANING_WAGES) or {}).items() if v}
-        if board is None or not wages:
+        if board is None:
             return {}
         state = await board._load()  # noqa: SLF001
         out: dict[Any, float] = {}
@@ -280,8 +280,9 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             for r in items:
                 s = state.get(f"{r['id']}:{r['abreise']}") or {}
                 who = s.get("gereinigt_von") or s.get("zugewiesen")
-                if who in wages:
-                    out[r["id"]] = wages[who] * cfg.cleaning_minutes / 60
+                # v1.19.0: gebuchte Dauer je Reinigung (sonst Standardzeit) × Lohn der Person (sonst Standardlohn)
+                if who in wages or s.get("minuten"):
+                    out[r["id"]] = wages.get(who, cfg.cleaning_wage) * float(s.get("minuten") or cfg.cleaning_minutes) / 60
         return out
 
     async def _async_update_data(self) -> SmoobuData:

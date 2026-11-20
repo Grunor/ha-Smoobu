@@ -2822,6 +2822,9 @@ class SmoobuBookingDialog extends HTMLElement {
         // Antwortstatus + Assistent sind optional: schlägt einer fehl, bleibt der Dialog ohne diese Teile nutzbar
         this.store.ws("smoobu/message_status", { ...this.target, reservation_ids: [this.rid] }, { cache: false }).catch(() => null),
         this.store.ws("smoobu/assistant/state", this.target, { cache: false }).catch(() => null)]);
+      // v1.19.0: Reinigung dieser Buchung (Dauer buchbar) – nur mit Recht „Reinigung“, sonst einfach ohne
+      this.clean = await this.store.ws("smoobu/cleaning/get", this.target, { cache: false })
+        .then((r) => ({ ...r, item: r.reinigungen.find((x) => x.buchung_id === this.rid) || null })).catch(() => null);
       this.apt = info.wohnungen.find((w) => w.apartment_id === (d.buchung?.wohnung_id ?? this.target.apartment_id)) || info.wohnungen[0];
       this.data = d;
       // Status aus dem frischen Verlauf ableiten (erledigt_id kommt aus message_status)
@@ -2847,6 +2850,17 @@ class SmoobuBookingDialog extends HTMLElement {
       <div class="top"><h2>${d?.buchung ? (d.buchung.blockiert ? `🔒 ${t("Sperrzeit")}` : esc(d.buchung.gast)) + (d.buchung.hund ? " 🐕" : "") + code : t("Details")}</h2>
       <button class="x" data-act="close" aria-label="close">×</button></div>${inner}</div></div>`;
     this.bind();
+  }
+  // v1.19.0: Reinigung nach diesem Aufenthalt – Person, Status und gebuchte Dauer (Standard laut Einstellungen)
+  cleanHtml() {
+    const c = this.clean, x = c?.item;
+    if (!x) return "";
+    const mine = !x.zugewiesen || x.zugewiesen === c.ich;
+    const edit = c.darf_zuweisen || (c.darf_uebernehmen && mine);
+    return `<div class="row" style="margin-top:8px;align-items:center;flex-wrap:wrap">
+      <span>🧹 ${t("Reinigung")} ${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)} · ${x.zugewiesen ? esc(x.zugewiesen_name || "?") : t("nicht zugewiesen")}${x.status === "erledigt" ? ` · ✓ ${t("erledigt")}` : ""}</span>
+      ${edit ? `<label>${t("Dauer")} <input type="number" data-k="cmin" min="1" max="600" step="5" value="${x.minuten ?? ""}" placeholder="${c.standard_minuten || 60}" style="width:72px"> min</label>
+        <button class="btn flat" data-act="cmin">${t("Speichern")}</button>` : `<span class="sub">${num(x.minuten || c.standard_minuten || 60)} min</span>`}</div>`;
   }
   content(d) {
     const b = d.buchung || {};
@@ -2880,7 +2894,7 @@ class SmoobuBookingDialog extends HTMLElement {
         ${!b.blockiert ? `<div class="row" style="margin-top:8px">
           <label>${t("Ankunftszeit")} <input type="time" data-k="ci" value="${esc((b.check_in || "").slice(0, 5))}"></label>
           <label>${t("Abreisezeit")} <input type="time" data-k="co" value="${esc((b.check_out || "").slice(0, 5))}"></label>
-          <button class="btn flat" data-act="times">${t("Speichern")}</button></div>` : ""}${this.moveHtml(b)}</div>
+          <button class="btn flat" data-act="times">${t("Speichern")}</button></div>` : ""}${this.cleanHtml()}${this.moveHtml(b)}</div>
         ${!b.blockiert ? `<div><h3>${t("Gast")}</h3>${kv([
           ["Gast", esc(b.gast)],
           // v1.18.0: frühere Aufenthalte; Klick öffnet die letzte Buchung (ggf. andere Wohnung des Kontos)
@@ -3069,6 +3083,14 @@ class SmoobuBookingDialog extends HTMLElement {
     if (a === "close") return this.remove();
     if (a === "ai") return this.aiSuggest();
     if (["move", "mvcancel", "mvcheck", "mvdo"].includes(a)) return this.moveAct(a); // v1.18.0: Umbuchen
+    if (a === "cmin") { // v1.19.0: Reinigungszeit dieser Buchung (nur in HA, nicht in Smoobu)
+      const x = this.clean?.item, val = this.shadowRoot.querySelector('[data-k="cmin"]')?.value;
+      try {
+        await this.store.ws("smoobu/cleaning/set", { entry_id: x.entry_id, key: x.key, aktion: "dauer", minuten: val === "" ? null : Number(val) }, { cache: false });
+        toast(t("Reinigungszeit gespeichert")); this.load();
+      } catch (e) { toast(`${t("Fehler")}: ${e?.message || e}`); }
+      return;
+    }
     const v = (k) => this.shadowRoot.querySelector(`[data-k="${k}"]`)?.value;
     const id = this.rid;
     // v1.17.0: Zahlungsstatus – markPayment fragt nach, schreibt und meldet selbst
@@ -4357,7 +4379,8 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
       const tiles = tilesRow([
         [t("Reinigungen"), num(m.anzahl), m.seit ? `${t("erfasst seit")} ${fdate(m.seit)}` : t("noch keine erfasst"),
           t("Abgehakte Reinigungen im Reinigungsboard mit Abreise im Zeitraum")],
-        [t("Kosten"), money(m.kosten || 0, d.apt.currency), `${num(m.minuten || 60)} min ${t("je Reinigung")}`, t("Reinigungszeit × Stundenlohn der Person (Einstellungen → Kosten & Preise)")],
+        [t("Kosten"), money(m.kosten || 0, d.apt.currency), `${num((m.minuten_summe || 0) / 60, 1)} h · ${num(m.minuten_gebucht || 0)} ${t("Zeiten gebucht, Rest")} ${num(m.minuten || 60)} min`,
+          t("Gebuchte Reinigungszeit (sonst Standard) × Stundenlohn der Person (Einstellungen → Kosten & Preise)")],
         [t("Gästewechsel"), num(m.wechsel), m.anzahl ? pct((m.wechsel / m.anzahl) * 100, 0) : "", t("Abreise und Anreise am selben Tag – enges Zeitfenster")],
         [t("Mit Hund"), num(m.hund), m.anzahl ? pct((m.hund / m.anzahl) * 100, 0) : "", t("Abreisende Gäste mit Hund – meist mehr Aufwand")],
         [t("Nicht abgehakt"), num(m.nicht_abgehakt), m.nicht_abgehakt_ohne_zuweisung ? `${num(m.nicht_abgehakt_ohne_zuweisung)} ${t("ohne Zuweisung")}` : "",
@@ -4366,12 +4389,13 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
       if (!m.anzahl) return panel(`🧹 ${t("Reinigung")}`, t("Wer hat wann welche Wohnung gereinigt"),
         `${tiles}<div class="empty">${t("Noch keine abgehakten Reinigungen im Zeitraum – die Auswertung beginnt mit dem Reinigungsboard (Seite Reinigung).")}</div>`);
       const people = m.personen.map((p) => p.person);
-      const per = `<div class="scroll"><table><thead><tr><th>${t("Person")}</th><th class="n">${t("Reinigungen")}</th><th class="n">${t("Anteil")}</th><th class="n">${t("Kosten")}</th>
+      const per = `<div class="scroll"><table><thead><tr><th>${t("Person")}</th><th class="n">${t("Reinigungen")}</th><th class="n">${t("Anteil")}</th><th class="n">${t("Kosten")}</th><th class="n" title="${t("Ø Reinigungszeit")}">${t("Zeit Ø")}</th>
           <th class="n">${t("Gästewechsel")}</th><th class="n">🐕</th><th class="n" title="${t("Personen je Reinigung (abgereiste Gäste)")}">${t("Gäste Ø")}</th>
           <th class="n" title="${t("Summe der Nächte der abgereisten Gäste")}">${t("Nächte")}</th>
           <th class="n" title="${t("Median: Zeit vom Check-out bis zum Abhaken")}">${t("Abgehakt nach")}</th><th>${t("Zuletzt")}</th></tr></thead><tbody>
         ${m.personen.map((p) => `<tr><td><b>${esc(p.person)}</b></td><td class="n">${num(p.anzahl)}</td><td class="n">${pct(p.anteil_prozent, 0)}</td>
           <td class="n" title="${p.stundenlohn ? `${num(p.stundenlohn, 2)} €/h` : ""}">${money(p.kosten || 0, d.apt.currency)}</td>
+          <td class="n">${p.minuten_je_reinigung ? `${num(p.minuten_je_reinigung)} min` : "–"}</td>
           <td class="n">${num(p.wechsel)}</td><td class="n">${num(p.hund)}</td><td class="n">${p.personen_je_reinigung === null ? "–" : num(p.personen_je_reinigung, 1)}</td>
           <td class="n">${num(p.naechte)}</td><td class="n">${dur(p.verzug_median_min)}</td><td>${fdate(p.letzte)}</td></tr>`).join("")}</tbody></table></div>`;
       const cross = (rows, key, label) => `<div class="scroll"><table><thead><tr><th>${t(label)}</th>${people.map((p) => `<th class="n">${esc(p)}</th>`).join("")}<th class="n">Σ</th></tr></thead><tbody>
@@ -4379,11 +4403,13 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
           ${people.map((p) => `<td class="n">${r.je_person[p] ? num(r.je_person[p]) : "–"}</td>`).join("")}<td class="n"><b>${num(r.summe)}</b></td></tr>`).join("")}</tbody></table></div>`;
       const shown = card._state.cleanAll ? m.liste : m.liste.slice(0, 15);
       const list = `<div class="scroll"><table><thead><tr><th>${t("Abreise")}</th>${d.info.wohnungen.length > 1 ? `<th>${t("Wohnung")}</th>` : ""}<th>${t("Person")}</th>
-          <th>${t("Abgehakt")}</th><th class="n">${t("Personen")}</th><th class="n">${t("Nächte")}</th><th></th></tr></thead><tbody>
+          <th>${t("Abgehakt")}</th><th class="n">${t("Zeit")}</th><th class="n">${t("Personen")}</th><th class="n">${t("Nächte")}</th><th></th></tr></thead><tbody>
         ${shown.map((x) => `<tr><td>${fdowLong(x.datum)} ${uhr(x.check_out)}</td>${d.info.wohnungen.length > 1 ? `<td>${codeTag(x.kuerzel)}</td>` : ""}
           <td>${esc(x.person)}${x.abgehakt_von && x.abgehakt_von !== x.person ? ` <span class="sub">(${t("abgehakt von")} ${esc(x.abgehakt_von)})</span>` : ""}</td>
-          <td>${x.erledigt_um ? `${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : "–"}</td><td class="n">${x.personen ?? "–"}</td><td class="n">${x.naechte ?? "–"}</td>
+          <td>${x.erledigt_um ? `${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : "–"}</td>
+          <td class="n">${num(x.minuten || 0)} min${x.minuten_gebucht ? "" : " *"}</td><td class="n">${x.personen ?? "–"}</td><td class="n">${x.naechte ?? "–"}</td>
           <td>${x.wechsel ? `<span class="badge warn">🔄 ${t("Wechsel")}</span>` : ""}${x.hund ? " 🐕" : ""}</td></tr>`).join("")}</tbody></table></div>
+        <div class="sub">* ${t("Standardzeit (keine Zeit gebucht)")}</div>
         ${m.liste.length > 15 ? `<button class="lnk" data-k="cleanall">${card._state.cleanAll ? t("Weniger anzeigen") : `${t("Alle")} ${m.liste.length} ${t("anzeigen")}`}</button>` : ""}`;
       return panel(`🧹 ${t("Reinigung")}${neuBadge("neu-reinigung-statistik")}`, t("Wer hat wann welche Wohnung gereinigt"),
         `${tiles}<div class="kl" style="margin-top:12px">${t("Je Person")}</div>${per}
@@ -6619,6 +6645,8 @@ class SmoobuCleaningCard extends SmoobuCard {
     .cl .s { font-size: .86rem; color: var(--sm-muted); margin-top: 2px; }
     .cl .s.wx { color: var(--sm-warn); font-weight: 600; }
     .cl .a { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+    .cl .dur { display: inline-flex; align-items: center; gap: 4px; } .cl .dur input { width: 68px; font: inherit; font-size: .85rem; padding: 4px 6px;
+      border-radius: 8px; border: 1px solid var(--sm-line); background: var(--sm-surf); color: var(--sm-ink); }
     .cl select { font: inherit; font-size: .85rem; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--sm-line);
       background: var(--sm-surf); color: var(--sm-ink); max-width: 170px; }
     @media (max-width: 620px) { .cl { grid-template-columns: 4px minmax(0, 1fr); } .cl .a { grid-column: 2; justify-content: flex-start; } }
@@ -6666,6 +6694,9 @@ class SmoobuCleaningCard extends SmoobuCard {
       if (!done && r.darf_uebernehmen && !x.zugewiesen) acts.push(`<button class="btn flat" data-cl="uebernehmen" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">${t("Übernehmen")}</button>`);
       if (!done && x.zugewiesen === me) acts.push(`<button class="lnk" data-cl="abgeben" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">${t("Abgeben")}</button>`);
       const mayDone = r.darf_zuweisen || !x.zugewiesen || x.zugewiesen === me;
+      // v1.19.0: tatsächliche Reinigungszeit je Reinigung buchen (leer = Standard)
+      if (mayDone) acts.push(`<label class="dur" title="${t("Reinigungszeit (leer = Standard)")}"><input type="number" data-cmin="${esc(x.key)}" data-entry="${esc(x.entry_id)}"
+        min="1" max="600" step="5" value="${x.minuten ?? ""}" placeholder="${r.standard_minuten || 60}"><span class="unit">min</span></label>`);
       if (mayDone) acts.push(done
         ? `<button class="lnk" data-cl="offen" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">↺ ${t("Wieder offen")}</button>`
         : `<button class="btn" data-cl="erledigt" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">✓ ${t("Erledigt")}</button>`);
@@ -6673,7 +6704,7 @@ class SmoobuCleaningCard extends SmoobuCard {
           <div class="t">${t("ab")} ${uhr(x.check_out)}${x.kuerzel && this.multi ? codeTag(x.kuerzel) : ""}
             <span class="sub">${t("Abreise")}: ${guest(x.vorname, x.personen, x.hund, x.naechte)}</span></div>
           ${next}
-          ${done ? `<div class="s">✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""}</div>` : ""}
+          ${done ? `<div class="s">✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""} · ${num(x.minuten || r.standard_minuten || 60)} min${x.minuten ? "" : ` (${t("Standard")})`}</div>` : ""}
           ${late && !done ? `<div class="s" style="color:var(--sm-bad)">${t("Noch nicht abgehakt")}</div>` : ""}
         </div><div class="a">${acts.join("")}</div></div>`;
     };
@@ -6703,12 +6734,16 @@ class SmoobuCleaningCard extends SmoobuCard {
       el.disabled = true;
       try {
         await this.store.ws("smoobu/cleaning/set", { entry_id: el.dataset.entry, key: el.dataset.key || el.dataset.assign, aktion, ...extra }, { cache: false });
-        toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : aktion === "zuweisen" ? t("Zugewiesen") : t("Gespeichert"));
+        toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : aktion === "zuweisen" ? t("Zugewiesen") : aktion === "dauer" ? t("Reinigungszeit gespeichert") : t("Gespeichert"));
         this._reload();
       } catch (e) { el.disabled = false; toast(`${t("Fehler")}: ${t(e?.message || String(e))}`); }
     };
     root.querySelectorAll("[data-cl]").forEach((b) => b.addEventListener("click", () => send(b, b.dataset.cl)));
     root.querySelectorAll("[data-assign]").forEach((sel) => sel.addEventListener("change", () => send(sel, "zuweisen", { benutzer_id: sel.value || null })));
+    root.querySelectorAll("[data-cmin]").forEach((inp) => inp.addEventListener("change", () => {
+      inp.dataset.key = inp.dataset.cmin;
+      send(inp, "dauer", { minuten: inp.value === "" ? null : Number(inp.value) });
+    }));
   }
   getCardSize() { return 8; }
 }

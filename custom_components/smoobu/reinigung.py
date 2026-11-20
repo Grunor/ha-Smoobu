@@ -14,6 +14,10 @@ Zuweisung (Entscheidungen Betreiber 20.11.2026):
   Standard 18:00). Handy je HA-Benutzer in den Einstellungen (Option `cleaning_phones`).
   Die Pushes halten die Ruhezeit ein (werden gesammelt) – wie die übrigen Smoobu-Pushes.
 
+Dauer (v1.19.0, Wunsch Betreiber 20.11.2026): je Reinigung buchbar (Aktion „dauer“, Minuten), ohne
+Eintrag gilt die Standard-Reinigungszeit (Option `cost_cleaning_minutes`, Standard 60). Kosten der
+Reinigung = Dauer × Stundenlohn der Person (Deckungsbeitrag der Buchung und Statistik).
+
 Schlüssel einer Reinigung: `<buchungs_id>:<abreise>` – verschiebt sich die Abreise, entsteht eine
 neue Reinigung (alte Zuweisung passt dann nicht mehr sicher zum Tag). Gespeichert im Store
 `smoobu_reinigung_<entry_id>`. Offene Einträge fallen nach 60 Tagen weg, erledigte bleiben 3 Jahre
@@ -44,7 +48,8 @@ DAYS_BACK = 7      # erledigte/vergessene der letzten Woche bleiben sichtbar
 DAYS_AHEAD = 60
 KEEP_DAYS = 60          # offene/zugewiesene Einträge
 KEEP_DONE_DAYS = 3 * 366  # erledigte (Statistik)
-ACTIONS = ("uebernehmen", "abgeben", "zuweisen", "erledigt", "offen")
+ACTIONS = ("uebernehmen", "abgeben", "zuweisen", "erledigt", "offen", "dauer")
+MAX_MINUTES = 600
 
 
 class CleaningError(Exception):
@@ -153,6 +158,7 @@ class CleaningBoard:
         for item in build(records, opts, dt_util.now().date()):
             s = state.get(item["key"], {})
             item = {**item, "zugewiesen": s.get("zugewiesen"), "zugewiesen_name": names.get(s.get("zugewiesen")),
+                    "minuten": s.get("minuten"),
                     "status": s.get("status", "offen"), "erledigt_von": s.get("erledigt_von"), "erledigt_um": s.get("erledigt_um")}
             if "belegung_sehen" not in rights:  # Recht „Reinigung“ ohne Belegung: auch keine Vornamen
                 item["vorname"] = None
@@ -187,7 +193,8 @@ class CleaningBoard:
                 if u.is_active and not u.system_generated and rechte.allowed(u, opts, "reinigung")]
 
     # --- Ändern ----------------------------------------------------------
-    async def async_set(self, key: str, action: str, user: Any, target: str | None = None) -> dict[str, Any]:
+    async def async_set(self, key: str, action: str, user: Any, target: str | None = None,
+                        minutes: int | None = None) -> dict[str, Any]:
         """Aktion ausführen (Rechte siehe Modul-Doku). Rückgabe: neuer Zustand der Reinigung."""
         if action not in ACTIONS:
             raise CleaningError("invalid_action")
@@ -221,6 +228,15 @@ class CleaningBoard:
                 if tu is None or not tu.is_active or not rechte.allowed(tu, opts, "reinigung"):
                     raise CleaningError("invalid_user")
             cur["zugewiesen"] = target or None
+        elif action == "dauer":  # tatsächliche Reinigungszeit buchen (leer = Standard)
+            if not can_assign and before not in (None, me):
+                raise CleaningError("not_yours")
+            if minutes is None:
+                cur.pop("minuten", None)
+            elif not 1 <= int(minutes) <= MAX_MINUTES:
+                raise CleaningError("invalid_minutes")
+            else:
+                cur["minuten"] = int(minutes)
         else:  # erledigt / offen
             if not can_assign and before not in (None, me):
                 raise CleaningError("not_yours")
@@ -334,7 +350,8 @@ def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start
                      "person": names.get(who) or v.get("gereinigt_name") or v.get("erledigt_von") or "?",
                      "erledigt_um": v.get("erledigt_um"), "abgehakt_von": v.get("erledigt_von"),
                      "verzug_min": _delay_minutes(snap, v.get("erledigt_um")),
-                     "kosten": round((wage(who) if wage else 0.0) * minutes / 60, 2),
+                     "minuten": v.get("minuten") or minutes, "minuten_gebucht": v.get("minuten") is not None,
+                     "kosten": round((wage(who) if wage else 0.0) * (v.get("minuten") or minutes) / 60, 2),
                      "kuerzel": codes.get(snap["wohnung_id"], "")})
     done.sort(key=lambda x: (x["datum"], x["key"]), reverse=True)
     people: dict[str, dict[str, Any]] = {}
@@ -343,8 +360,9 @@ def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start
     for x in done:
         p = people.setdefault(x["person"], {"person": x["person"], "anzahl": 0, "wechsel": 0, "hund": 0, "personen": 0,
                                             "naechte": 0, "_delay": [], "letzte": None, "erste": None, "kosten": 0.0,
-                                            "stundenlohn": wage(x["person_id"]) if wage else None})
+                                            "stundenlohn": wage(x["person_id"]) if wage else None, "minuten": 0})
         p["anzahl"] += 1
+        p["minuten"] += x["minuten"]
         p["kosten"] = round(p["kosten"] + x["kosten"], 2)
         p["wechsel"] += int(bool(x["wechsel"]))
         p["hund"] += int(bool(x["hund"]))
@@ -366,6 +384,7 @@ def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start
         p["anteil_prozent"] = round(p["anzahl"] / total * 100) if total else 0
         p["verzug_median_min"] = delays[len(delays) // 2] if delays else None
         p["personen_je_reinigung"] = round(p["personen"] / p["anzahl"], 1) if p["anzahl"] else None
+        p["minuten_je_reinigung"] = round(p["minuten"] / p["anzahl"]) if p["anzahl"] else None
         persons.append(p)
     # Vergangene Reinigungen im Zeitraum, die (noch) nicht abgehakt sind – erst ab dem ersten Eintrag im
     # Reinigungsboard (vorher gab es nichts abzuhaken; sonst stünden alle Abreisen vor dem Update hier)
@@ -375,7 +394,9 @@ def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start
     return {
         "anzahl": total,
         "kosten": round(sum(x["kosten"] for x in done), 2),
-        "minuten": minutes,
+        "minuten": minutes,  # Standard-Reinigungszeit
+        "minuten_summe": sum(x["minuten"] for x in done),
+        "minuten_gebucht": sum(1 for x in done if x["minuten_gebucht"]),
         "wechsel": sum(1 for x in done if x["wechsel"]),
         "hund": sum(1 for x in done if x["hund"]),
         "nicht_abgehakt": len(missed),
@@ -398,9 +419,11 @@ def merge_stats(parts: list[dict[str, Any]]) -> dict[str, Any]:
         for k in ("anzahl", "wechsel", "hund", "nicht_abgehakt", "nicht_abgehakt_ohne_zuweisung"):
             out[k] += p[k]
         out["kosten"] = round(out["kosten"] + p.get("kosten", 0.0), 2)
+        out["minuten_summe"] = out.get("minuten_summe", 0) + p.get("minuten_summe", 0)
+        out["minuten_gebucht"] = out.get("minuten_gebucht", 0) + p.get("minuten_gebucht", 0)
         for x in p["personen"]:
-            q = people.setdefault(x["person"], {**x, "anzahl": 0, "wechsel": 0, "hund": 0, "personen": 0, "naechte": 0, "kosten": 0.0})
-            for k in ("anzahl", "wechsel", "hund", "personen", "naechte", "kosten"):
+            q = people.setdefault(x["person"], {**x, "anzahl": 0, "wechsel": 0, "hund": 0, "personen": 0, "naechte": 0, "kosten": 0.0, "minuten": 0})
+            for k in ("anzahl", "wechsel", "hund", "personen", "naechte", "kosten", "minuten"):
                 q[k] += x[k]
             q["letzte"] = max(q.get("letzte") or "", x.get("letzte") or "") or None
         for m in p["monate"]:
@@ -415,6 +438,7 @@ def merge_stats(parts: list[dict[str, Any]]) -> dict[str, Any]:
     for q in people.values():
         q["anteil_prozent"] = round(q["anzahl"] / total * 100) if total else 0
         q["personen_je_reinigung"] = round(q["personen"] / q["anzahl"], 1) if q["anzahl"] else None
+        q["minuten_je_reinigung"] = round(q["minuten"] / q["anzahl"]) if q["anzahl"] else None
     out["personen"] = sorted(people.values(), key=lambda q: -q["anzahl"])
     out["monate"] = [{"monat": m, "je_person": v, "summe": sum(v.values())} for m, v in sorted(months.items())]
     out["liste"] = sorted(out["liste"], key=lambda x: (x["datum"], x["key"]), reverse=True)[:100]

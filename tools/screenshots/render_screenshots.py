@@ -317,6 +317,7 @@ async def _demo_cleaning(hass: HomeAssistant, board, today: date, people: list) 
         who = people[0] if i % 3 else people[1]
         state[f"9{i:03d}:{day.isoformat()}"] = {
             "status": "erledigt", "zugewiesen": who.id, "gereinigt_von": who.id, "gereinigt_name": who.name,
+            **({"minuten": 45 + (i * 13) % 50} if i % 2 else {}),
             "erledigt_von": who.name, "erledigt_um": f"{day.isoformat()}T{12 + i % 3}:{(i * 7) % 60:02d}",
             "snapshot": {"datum": day.isoformat(), "wohnung_id": next(iter(board.c.data.apartments)), "check_out": "11:00",
                          "wechsel": i % 4 == 0, "hund": i % 5 == 0, "personen": 2 + i % 3, "naechte": 2 + i % 6}}

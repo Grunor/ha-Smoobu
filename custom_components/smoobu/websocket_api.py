@@ -1131,13 +1131,17 @@ async def ws_cleaning_get(hass: HomeAssistant, connection: websocket_api.ActiveC
     items.sort(key=lambda x: (x["datum"], x["check_out"] or "", x["key"]))
     connection.send_result(msg["id"], {
         "reinigungen": items, "benutzer": list(users.values()), "ich": connection.user.id if connection.user else None,
-        "darf_zuweisen": can_assign, "darf_uebernehmen": can_take, "heute": dt_util.now().date().isoformat()})
+        "darf_zuweisen": can_assign, "darf_uebernehmen": can_take, "heute": dt_util.now().date().isoformat(),
+        # v1.19.0: Standard-Reinigungszeit (Platzhalter für die gebuchte Dauer)
+        "standard_minuten": int(float(next(iter(_apartments_by_coord(pairs))).config_entry.options.get("cost_cleaning_minutes", 60)))})
 
 
 @websocket_api.websocket_command(
     {vol.Required("type"): "smoobu/cleaning/set", vol.Required("entry_id"): str,
      vol.Required("key"): vol.All(str, vol.Length(max=60)), vol.Required("aktion"): vol.In(CLEANING_ACTIONS),
-     vol.Optional("benutzer_id"): vol.Any(None, vol.All(str, vol.Length(max=64)))}
+     vol.Optional("benutzer_id"): vol.Any(None, vol.All(str, vol.Length(max=64))),
+     # v1.19.0: Aktion „dauer“ – gebuchte Reinigungszeit in Minuten (None = Standard)
+     vol.Optional("minuten"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=1, max=600)))}
 )
 @websocket_api.async_response
 async def ws_cleaning_set(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -1149,7 +1153,7 @@ async def ws_cleaning_set(hass: HomeAssistant, connection: websocket_api.ActiveC
     if not _cleaning_guard(connection, msg, [c], "reinigung", "reinigung_zuweisen"):
         return
     try:
-        state = await c.cleaning.async_set(msg["key"], msg["aktion"], connection.user, msg.get("benutzer_id"))
+        state = await c.cleaning.async_set(msg["key"], msg["aktion"], connection.user, msg.get("benutzer_id"), msg.get("minuten"))
     except CleaningError as err:
         connection.send_error(msg["id"], "unauthorized" if err.code in ("unauthorized", "not_yours", "already_assigned") else err.code,
                               err.code)

@@ -159,3 +159,17 @@ async def test_rolle_reinigung_und_board(hass, setup, hass_ws_client, hass_read_
     assert {r["id"]: r for r in c.records_all()}[2]["reinigung_kosten"] == 25.5  # 90 min × 17 €/h (Standard)
     st = (await _call(admin2, 3, type="smoobu/cleaning/stats", start="2026-11-01", end="2026-12-01"))["result"]
     assert st["kosten"] == 30.0 and st["personen"][0]["stundenlohn"] == 20.0
+
+    # v1.19.0: tatsächliche Dauer je Reinigung buchen (statt Standard 90 min) → 75 min × 20 €/h = 25 €
+    cleaner2 = await hass_ws_client(hass, hass_read_only_access_token)
+    res = await _call(cleaner2, 1, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="dauer", minuten=75)
+    assert res["success"] and res["result"]["zustand"]["minuten"] == 75
+    assert (await _call(cleaner2, 2, type="smoobu/cleaning/get"))["result"]["standard_minuten"] == 90
+    await c.async_refresh()
+    assert {r["id"]: r for r in c.records_all()}[1]["reinigung_kosten"] == 25.0
+    st = (await _call(admin2, 4, type="smoobu/cleaning/stats", start="2026-11-01", end="2026-12-01"))["result"]
+    assert st["kosten"] == 25.0 and st["minuten_gebucht"] == 1 and st["personen"][0]["minuten"] == 75
+    # ungültig und Zurücksetzen auf Standard
+    assert (await _call(cleaner2, 3, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="dauer", minuten=0))["success"] is False
+    res = await _call(cleaner2, 4, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="dauer", minuten=None)
+    assert "minuten" not in res["result"]["zustand"]
