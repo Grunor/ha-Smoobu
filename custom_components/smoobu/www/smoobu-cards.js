@@ -3312,12 +3312,36 @@ function statsLayout() {
   // v1.17.1: Datentabelle doppelt die Seite „Buchungen“ (inkl. CSV) → einmalig ausblenden; über ↺ wieder einblendbar
   if ((l.defaults || 0) < 2) {
     if (!hidden.includes("tabelle")) hidden.push("tabelle");
-    try { lsSet(STATS_LAYOUT_KEY, JSON.stringify({ ...l, order, hidden, custom, defaults: 2 })); } catch (e) { /* egal */ }
+    saveLayout({ ...l, order, hidden, custom, defaults: 2 });
   }
   // defaults mitgeben, sonst blendet ein späteres saveLayout() die bewusst eingeblendete Tabelle wieder aus
   return { order, hidden, custom, defaults: 2 };
 }
-const saveLayout = (l) => lsSet(STATS_LAYOUT_KEY, JSON.stringify(l));
+// v1.18.0 (Rückmeldung Betreiber 20.11.2026: Ehrentafel nach Update wieder verschoben): Anordnung + eigene Module
+// liegen jetzt serverseitig im HA-Benutzerprofil (frontend/user_data, je HA-Benutzer). Grund: localStorage gehört nur
+// einem Browser/einer App und wird z. B. von der iOS-App gelegentlich geleert → Standard-Anordnung kam zurück.
+// localStorage bleibt Zwischenspeicher (statsLayout() bleibt synchron). Ablauf: beim ersten Laden der Karte einmal
+// vom Server holen; ist dort noch nichts, die lokale Anordnung einmalig hochladen. Jede Änderung → beide Speicher.
+// Alternative verworfen: eigener Store in der Integration (mehr Code, gleiche Wirkung; user_data ist HA-Standard).
+const LAYOUT_UD_KEY = "smoobu_statistik_layout";
+let layoutHass = null;
+let layoutSync = null;
+const pushLayout = (l) => layoutHass?.callWS({ type: "frontend/set_user_data", key: LAYOUT_UD_KEY, value: l }).catch(() => {});
+function syncStatsLayout(hass) {
+  if (layoutSync || !hass?.callWS) return layoutSync || Promise.resolve();
+  layoutHass = hass;
+  layoutSync = hass.callWS({ type: "frontend/get_user_data", key: LAYOUT_UD_KEY }).then((r) => {
+    const v = r?.value;
+    if (v && typeof v === "object" && Array.isArray(v.order)) lsSet(STATS_LAYOUT_KEY, JSON.stringify(v));
+    else {
+      let local = null;
+      try { local = JSON.parse(lsGet(STATS_LAYOUT_KEY, "null")); } catch (e) { local = null; }
+      if (local && Array.isArray(local.order)) pushLayout(local);
+    }
+  }).catch(() => { /* ohne frontend/user_data: weiter nur lokal */ });
+  return layoutSync;
+}
+const saveLayout = (l) => { lsSet(STATS_LAYOUT_KEY, JSON.stringify(l)); pushLayout(l); };
 
 // Wert je Einheit eines stats-Ergebnisses formatieren (Baukasten)
 function fmtUnit(unit, v, cur, long = false) {
@@ -4397,6 +4421,7 @@ class SmoobuStatsCard extends SmoobuCard {
     this._unsub = () => { base?.(); HeaderApts.listeners.delete(onHdr); };
   }
   async load() {
+    await syncStatsLayout(this._hass); // v1.18.0: Anordnung aus dem HA-Benutzerprofil (einmal je Seitenaufruf)
     const info = await this.store.getInfo();
     const apt = await this.apartment();
     const s = this._state;
