@@ -179,6 +179,10 @@ const EN = {
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
   // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
   "Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum": "Share of bookings (arrival in period) and of nights in period",
+  // v1.18.0: Abweichungs-Indikatoren in der Saison-Matrix
+  "ggü.": "vs.", "Ø aller Monate": "Ø of all months", "Ø Jahr": "Ø year", "unter": "below", "grau = noch offen": "grey = still open",
+  "ggü. Ø des Monats, Spalte Ø ggü. Ø aller Monate, Jahr ggü. Ø Jahr": "vs. Ø of the month, column Ø vs. Ø of all months, year vs. Ø year",
+  "abgeschlossenen Jahren": "completed years", "aus": "from",
   // v1.18.0b7: Ehrentafel
   "Ehrentafel": "Hall of fame",
   "Nur zum Spaß – keine Gästebewertung": "Just for fun – not a guest rating",
@@ -4094,6 +4098,13 @@ class SmoobuStatsCard extends SmoobuCard {
     .mx .avg { background: var(--sm-surf2); font-weight: 650; }
     .mx .tot { font-weight: 650; }
     .mx .gap { grid-column: 1 / -1; height: 4px; }
+    /* v1.18.0 (Wunsch Betreiber 20.11.2026): kleiner Abweichungs-Indikator unter dem Wert. Eigener heller Grund,
+       damit Grün/Rot auch auf dunkel eingefärbten Zellen lesbar bleibt */
+    .dv { display: block; width: fit-content; margin: 2px auto 0; padding: 0 4px; border-radius: 4px; font-size: .64rem; font-weight: 650;
+      font-style: normal; line-height: 1.35; background: color-mix(in srgb, var(--sm-surf) 86%, transparent); color: var(--sm-muted); }
+    .dv.dv-up { color: var(--sm-good); } .dv.dv-dn { color: var(--sm-bad); }
+    .dv.dv-mu { color: var(--sm-muted); opacity: .85; } /* offener Monat/laufendes Jahr: nur Buchungsstand, keine Bewertungsfarbe */
+    .legend .dv { display: inline-block; margin: 0; }
     .scale { display: inline-flex; align-items: center; gap: 6px; }
     .scale i { width: 84px; height: 10px; border-radius: 3px; display: inline-block; }
     /* Tooltip */
@@ -4557,14 +4568,48 @@ class SmoobuStatsCard extends SmoobuCard {
       const a = 0.08 + 0.8 * ((v - lo) / (hi - lo || 1));
       return `background:color-mix(in srgb, var(--sm-accent) ${Math.round(a * 100)}%, var(--sm-surf));${a > 0.55 ? "color:var(--sm-acc-ink);" : ""}`;
     };
+    // v1.18.0 (Wunsch Betreiber 20.11.2026): Abweichungs-Indikatoren
+    //   Monatszelle → Ø desselben Monats (linke Spalte), Ø-Spalte → Gesamt-Ø (Mittel der 12 Monats-Ø, jeder Monat gleich
+    //   gewichtet), Jahreszeile → Ø Jahr. Auslastung in Prozentpunkten (relative % wären bei 20 → 30 % irreführend „+50 %“),
+    //   alles andere relativ. Kleine Abweichungen gelten als „≈“, damit nicht jede Zelle grün/rot flackert.
+    //   Offene Monate/laufendes Jahr: Indikator grau (Buchungsstand heute gegen Endstände – keine Bewertung);
+    //   offene Monate ohne Buchung (Wert 0) ganz ohne Indikator – sonst steht in jedem künftigen Monat ein graues ▼.
+    const pp = id === "auslastung";
+    const NEUTRAL = pp ? 3 : 5;
+    const dev = (v, ref) => (v === null || v === undefined || ref === null || ref === undefined ? null
+      : pp ? v - ref : ref ? ((v - ref) / Math.abs(ref)) * 100 : null);
+    const ind = (v, ref, muted = false) => {
+      const x = dev(v, ref);
+      if (x === null) return "";
+      const k = Math.abs(x) < NEUTRAL ? "eq" : x > 0 ? "up" : "dn";
+      const a = Math.round(Math.abs(x));
+      const txt = k === "eq" ? "≈" : `${k === "up" ? "▲" : "▼"} ${a > 999 ? ">999" : num(a, 0)}${pp ? " PP" : " %"}`;
+      return `<span class="dv dv-${k}${muted ? " dv-mu" : ""}">${txt}</span>`;
+    };
+    const tipDev = (v, ref, label) => (dev(v, ref) === null ? "" : `\n${chgText(v, ref, pp)} ${t("ggü.")} ${label} (${this.fmt(id, ref, cur, true)})`);
+    // Ø je Monat vorab (vorher erst nach der Zeile berechnet – der Indikator braucht ihn schon in der Zelle)
+    const monthAvg = [];
+    const monthN = [];
+    for (let mo = 0; mo < 12; mo++) {
+      const v = [];
+      for (const y of years) {
+        const c = cells.get(`${y}-${String(mo + 1).padStart(2, "0")}`);
+        if (!exclude.has(y) && done(y, mo + 1) && c && c.wert !== null) v.push(c.wert);
+      }
+      monthAvg.push(v.length ? v.reduce((a, b) => a + b, 0) / v.length : null);
+      monthN.push(v.length);
+    }
+    const avgList = monthAvg.filter((v) => v !== null);
+    const totalAvg = avgList.length ? avgList.reduce((a, b) => a + b, 0) / avgList.length : null;
     const cell = (c, y, mo) => {
       const key = `${y}-${String(mo + 1).padStart(2, "0")}`;
       const open = !done(y, mo + 1);
       const inSel = new Date(y, mo, 1) >= selA && new Date(y, mo, 1) < selB;
       if (!c || (c.wert === null && !c.n)) return `<div class="c none${inSel ? " sel" : ""}" data-tip="${esc(`${binLabel(key, true)}: ${t("keine Daten")}`)}">–</div>`;
       const low = (c.n || 0) < 5;
-      const tip = `${binLabel(key, true)}: ${this.fmt(id, c.wert, cur, true)} · n = ${c.n || 0}${low ? ` (${t("wenig Daten")})` : ""}${open ? `\n${t("noch nicht abgeschlossen – Buchungsstand heute")}` : ""}`;
-      return `<div class="c${low ? " low" : ""}${open ? " open" : ""}${inSel ? " sel" : ""}" style="${shade(c.wert)}" data-tip="${esc(tip)}">${this.fmt(id, c.wert, cur)}</div>`;
+      const ref = monthAvg[mo];
+      const tip = `${binLabel(key, true)}: ${this.fmt(id, c.wert, cur, true)} · n = ${c.n || 0}${low ? ` (${t("wenig Daten")})` : ""}${tipDev(c.wert, ref, `Ø ${t(MONTHS_SHORT[mo])}`)}${open ? `\n${t("noch nicht abgeschlossen – Buchungsstand heute")}` : ""}`;
+      return `<div class="c${low ? " low" : ""}${open ? " open" : ""}${inSel ? " sel" : ""}" style="${shade(c.wert)}" data-tip="${esc(tip)}">${this.fmt(id, c.wert, cur)}${open && !c.wert ? "" : ind(c.wert, ref, open)}</div>`;
     };
     // v1.17.1: Ø ganz links, danach die Jahre absteigend (aktuelles/kommendes Jahr vorne) – Wunsch Betreiber 16.11.2026;
     // am Handy ist so das Wichtigste ohne Wischen sichtbar
@@ -4573,27 +4618,27 @@ class SmoobuStatsCard extends SmoobuCard {
     let html = `<div></div><div class="h">Ø${exclude.size ? "*" : ""}</div>${yearsDesc.map((y) => `<div class="h">${y}${exclude.has(y) ? "*" : ""}</div>`).join("")}`;
     for (let mo = 0; mo < 12; mo++) {
       html += `<div class="rl">${t(MONTHS_SHORT[mo])}</div>`;
-      const avgVals = [];
       let row = "";
-      for (const y of yearsDesc) {
-        const c = cells.get(`${y}-${String(mo + 1).padStart(2, "0")}`);
-        row += cell(c, y, mo);
-        if (!exclude.has(y) && done(y, mo + 1) && c && c.wert !== null) avgVals.push(c.wert);
-      }
-      const avg = avgVals.length ? avgVals.reduce((a, b) => a + b, 0) / avgVals.length : null;
-      html += `<div class="c avg" data-tip="${esc(`Ø ${t(MONTHS_SHORT[mo])}: ${this.fmt(id, avg, cur, true)}\n${t("aus")} ${avgVals.length} ${t("abgeschlossenen Jahren")}${exclude.size ? ` (${t("ohne")} ${[...exclude].join(", ")})` : ""}`)}">${this.fmt(id, avg, cur)}</div>${row}`;
+      for (const y of yearsDesc) row += cell(cells.get(`${y}-${String(mo + 1).padStart(2, "0")}`), y, mo);
+      const avg = monthAvg[mo];
+      html += `<div class="c avg" data-tip="${esc(`Ø ${t(MONTHS_SHORT[mo])}: ${this.fmt(id, avg, cur, true)}\n${t("aus")} ${monthN[mo]} ${t("abgeschlossenen Jahren")}${exclude.size ? ` (${t("ohne")} ${[...exclude].join(", ")})` : ""}${tipDev(avg, totalAvg, t("Ø aller Monate"))}`)}">${this.fmt(id, avg, cur)}${ind(avg, totalAvg)}</div>${row}`;
     }
     // Jahreszeile (eigene Abfrage je Jahr: Auslastung/ADR sind keine Summe der Monate)
     html += `<div class="gap"></div><div class="rl">${t("Jahr")}</div>`;
+    // Ø Jahr zuerst (Bezug für die Indikatoren der Jahreszeile)
     const yAvg = [];
+    for (const y of yearsDesc) {
+      const c = yearCells.get(String(y));
+      if (!exclude.has(y) && y < ty && c?.wert !== null && c?.wert !== undefined) yAvg.push(c.wert);
+    }
+    const yRef = yAvg.length ? yAvg.reduce((a, b) => a + b, 0) / yAvg.length : null;
     let yRow = "";
     for (const y of yearsDesc) {
       const c = yearCells.get(String(y));
       const open = y >= ty;
-      if (!exclude.has(y) && !open && c?.wert !== null && c?.wert !== undefined) yAvg.push(c.wert);
-      yRow += `<div class="c tot${open ? " open" : ""}${(c?.n || 0) < 5 ? " low" : ""}" data-tip="${esc(`${y}: ${this.fmt(id, c?.wert, cur, true)} · n = ${c?.n || 0}${open ? `\n${t("noch nicht abgeschlossen – Buchungsstand heute")}` : ""}`)}">${this.fmt(id, c?.wert, cur)}</div>`;
+      yRow += `<div class="c tot${open ? " open" : ""}${(c?.n || 0) < 5 ? " low" : ""}" data-tip="${esc(`${y}: ${this.fmt(id, c?.wert, cur, true)} · n = ${c?.n || 0}${tipDev(c?.wert, yRef, t("Ø Jahr"))}${open ? `\n${t("noch nicht abgeschlossen – Buchungsstand heute")}` : ""}`)}">${this.fmt(id, c?.wert, cur)}${ind(c?.wert, yRef, open)}</div>`;
     }
-    html += `<div class="c avg tot">${this.fmt(id, yAvg.length ? yAvg.reduce((a, b) => a + b, 0) / yAvg.length : null, cur)}</div>${yRow}`;
+    html += `<div class="c avg tot">${this.fmt(id, yRef, cur)}</div>${yRow}`;
     const seg = `<div class="seg" role="group" aria-label="${t("Kennzahl")}">${MATRIX_MEASURES.map(([k, l]) =>
       `<button data-matrix="${k}" aria-pressed="${id === k}">${t(l)}</button>`).join("")}</div>`;
     return `<div class="panel"><div class="ph"><h2>${t("Saison-Matrix")}</h2><span class="sub">${t("Monate × Jahre seit")} ${m.since}</span>${seg}</div>
@@ -4603,7 +4648,9 @@ class SmoobuStatsCard extends SmoobuCard {
         <span><i style="border:1px dashed currentColor;background:none"></i>${t("noch nicht abgeschlossen")}</span>
         <span><i style="box-shadow:inset 0 0 0 2px var(--sm-ink);background:none"></i>${t("gewählter Zeitraum")}</span>
         <span><i style="background:var(--sm-warn);width:6px;height:6px;border-radius:50%"></i><em>${t("kursiv")}</em> = ${t("weniger als 5 Buchungen")}</span>
-        <span>${exShown.length ? `* Ø ${t("ohne")} ${exShown.join(", ")}, ` : "Ø "}${t("nur abgeschlossene Monate")}</span></div>
+        <span>${exShown.length ? `* Ø ${t("ohne")} ${exShown.join(", ")}, ` : "Ø "}${t("nur abgeschlossene Monate")}</span>
+        <span><span class="dv dv-up">▲</span><span class="dv dv-dn">▼</span> ${t("ggü. Ø des Monats, Spalte Ø ggü. Ø aller Monate, Jahr ggü. Ø Jahr")};
+          ≈ ${t("unter")} ±${NEUTRAL}${pp ? " PP" : " %"}; ${t("grau = noch offen")}</span></div>
       ${gloss(["ADR", "RevPAR", "Ø"])}</div>`; /* immer alle: die Umschalter oben nennen ADR/RevPAR auch, wenn sie nicht gewählt sind */
   }
 
