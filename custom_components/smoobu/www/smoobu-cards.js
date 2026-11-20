@@ -179,6 +179,16 @@ const EN = {
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
   // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
   "Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum": "Share of bookings (arrival in period) and of nights in period",
+  // v1.18.0: Modul Deckungsbeitrag
+  "Deckungsbeitrag": "Contribution margin", "DB je belegter Nacht": "CM per occupied night", "Variable Kosten": "Variable costs", "variable Kosten": "variable costs",
+  "Belegte Nächte": "Occupied nights", "Preis je Nacht (netto)": "Price per night (net)", "Weniger Nächte": "Fewer nights",
+  "Mehr Nächte": "More nights", "Kosten je Nacht": "Costs per night", "jetzt": "now", "je Nacht": "per night", "Saisonmix, Preise": "season mix, prices",
+  "Höhere Preise je Nacht": "Higher prices per night", "Niedrigere Preise je Nacht": "Lower prices per night", "Ausl.": "Occ.", "die geringere Auslastung kostete": "the lower occupancy cost",
+  "die höhere Auslastung brachte": "the higher occupancy brought", "sparte aber": "but saved", "verursachte aber": "but caused",
+  "Netto − variable Kosten": "Net − variable costs", "Was hat den DB verändert?": "What changed the CM?", "DB je Monat": "CM per month",
+  "Linie = Vergleich": "line = comparison", "Keine variablen Kosten hinterlegt – Einstellungen → Kosten": "No variable costs set – Settings → Costs",
+  "Netto − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom); Fixkosten nicht enthalten": "Net − variable costs (cleaning, laundry, heating, hot water, water, power); fixed costs not included",
+  "Fixkosten (Grundsteuer, Versicherung, Internet …) sind nicht enthalten. Variable Kosten aus Einstellungen → Kosten; Heizung/Warmwasser nach Gradtagszahlen je Monat verteilt.": "Fixed costs (property tax, insurance, internet …) are not included. Variable costs from Settings → Costs; heating/hot water distributed by monthly degree days.",
   // v1.18.0: Baukasten – Bearbeiten, Vorschau, Vorlagen
   "Bearbeiten": "Edit", "Modul bearbeiten": "Edit module", "Änderungen speichern": "Save changes", "Als neues Modul": "As new module",
   "mit dem aktuellen Zeitraum und Filter": "with the current period and filter", "Vorlagen": "Templates",
@@ -3201,7 +3211,7 @@ const STATS_KPIS = [
   { id: "stornoquote", label: "Stornoquote", pp: true, invert: true, hint: "Stornos ÷ alle Buchungen mit Anreise im Zeitraum" },
 ];
 const STATS_EINFACH = ["umsatz", "auslastung", "adr", "stornoquote"];
-const MATRIX_MEASURES = [["auslastung", "Auslastung"], ["umsatz", "Umsatz"], ["adr", "ADR"], ["revpar", "RevPAR"], ["netto", "Netto"]];
+const MATRIX_MEASURES = [["auslastung", "Auslastung"], ["umsatz", "Umsatz"], ["adr", "ADR"], ["revpar", "RevPAR"], ["netto", "Netto"], ["db", "DB"]];
 const PERIOD_TYPES = [["monat", "Monat"], ["quartal", "Quartal"], ["saison", "Saison"], ["jahr", "Jahr"], ["frei", "Frei"]];
 const PERIOD_MONTHS = { monat: 1, quartal: 3, saison: 3, jahr: 12 };
 const STATS_COMPARE = [["stichtag", "Stichtag Vorjahr"], ["vorjahr", "Ganzes Vorjahr"], ["vorperiode", "Vorperiode"]];
@@ -3261,9 +3271,9 @@ function binLabel(fach, long = false) {
 // Anordnung (Reihenfolge, ausgeblendete Module, eigene Baukasten-Module) je Gerät in localStorage –
 // Entscheidung Betreiber: „speichern je Gerät“ (kein Server-Speicher, kein Abgleich zwischen Geräten).
 const STATS_LAYOUT_KEY = "smoobu-statistik-layout";
-const STATS_BUILTIN = ["kennzahlen", "empfehlung", "tempo", "saison", "belegung", "kanaele", "fenster", "buchungszeit", "luecken", "stornos", "gaeste", "ehrentafel", "service", "tabelle"];
+const STATS_BUILTIN = ["kennzahlen", "empfehlung", "deckung", "tempo", "saison", "belegung", "kanaele", "fenster", "buchungszeit", "luecken", "stornos", "gaeste", "ehrentafel", "service", "tabelle"];
 const STATS_TITLES = {
-  kennzahlen: "Kennzahlen", empfehlung: "Bewertung & Empfehlung", tempo: "Buchungstempo & Prognose", saison: "Saison-Matrix", belegung: "Belegung nach Wochentag",
+  kennzahlen: "Kennzahlen", empfehlung: "Bewertung & Empfehlung", deckung: "Deckungsbeitrag", tempo: "Buchungstempo & Prognose", saison: "Saison-Matrix", belegung: "Belegung nach Wochentag",
   kanaele: "Kanal-Wirtschaftlichkeit", fenster: "Buchungsfenster & Aufenthalt", buchungszeit: "Buchungszeitpunkt", luecken: "Verlorene Nächte", stornos: "Stornos",
   gaeste: "Gäste", ehrentafel: "Ehrentafel", service: "Service", tabelle: "Datentabelle",
 };
@@ -3290,6 +3300,11 @@ function statsLayout() {
   const order = (Array.isArray(l.order) ? l.order : []).filter((id) => known.includes(id));
   // v1.18.0: „Bewertung & Empfehlung“ direkt nach den Kennzahlen einfügen (statt hinten), auch in gespeicherten Layouts
   if (order.length && !order.includes("empfehlung")) order.splice(order.indexOf("kennzahlen") + 1, 0, "empfehlung");
+  // v1.18.0: „Deckungsbeitrag“ direkt nach „Bewertung & Empfehlung“ (bzw. Kennzahlen) einfügen, auch in gespeicherten Layouts
+  if (order.length && !order.includes("deckung")) {
+    const after = order.includes("empfehlung") ? "empfehlung" : "kennzahlen";
+    order.splice(order.indexOf(after) + 1, 0, "deckung");
+  }
   // v1.18.0b7: „Ehrentafel“ direkt nach „Gäste“ einfügen, auch in gespeicherten Layouts
   if (order.length && !order.includes("ehrentafel") && order.includes("gaeste")) order.splice(order.indexOf("gaeste") + 1, 0, "ehrentafel");
   for (const id of known) if (!order.includes(id)) order.push(id); // neue Module hinten anhängen
@@ -3459,6 +3474,94 @@ function bookingCalendar(card, d, m, controls) {
 const RATING = { schwach: ["bad", "Schwach"], normal: ["", "Normal"], stark: ["good", "Stark"], unbekannt: ["", "Zu wenig Daten"] };
 const ACTION = { senken: ["warn", "↓ Preis senken"], erhoehen: ["good", "↑ Preis erhöhen"], "erhöhen": ["good", "↑ Preis erhöhen"], halten: ["", "→ Preis halten"] };
 const STATS_MODULES = {
+  // v1.18.0 (Wunsch Betreiber 20.11.2026): Deckungsbeitrag mit Vergleich und Brücke. Anlass: 2026 höhere Preise,
+  // geringere Auslastung, trotzdem höherer RevPAR – steigt auch der DB, weil weniger Nächte weniger Kosten machen?
+  // Brücke (exakt, Summe = ΔDB): mit N = Nächte, p = Netto/Nacht, c = variable Kosten/Nacht (0 = Vergleich, 1 = jetzt)
+  //   Preis je Nacht   = N1 × (p1 − p0)
+  //   Nächte (Menge)   = (N1 − N0) × (p0 − c0)   → Umsatz (N1 − N0) × p0, Kosten −(N1 − N0) × c0
+  //   Kosten je Nacht  = −N1 × (c1 − c0)          (Saisonmix: Winternächte kosten mehr Heizung)
+  // Gleicher Zeitraum, Vergleich und Kanalfilter wie die Kennzahlen; Fixkosten sind nicht enthalten.
+  deckung: {
+    load: async (c) => {
+      const ids = ["netto", "var_kosten", "db", "naechte", "db_pro_nacht", "db_revpar", "auslastung", "revpar"];
+      const one = (id, r, ex) => c.q(id, "gesamt", r, ex).then(statCell);
+      const [cur, cmp, ser, serC, fin] = await Promise.all([
+        Promise.all(ids.map((id) => one(id, c.range))),
+        Promise.all(ids.map((id) => one(id, c.cmp.range, c.cmpExtra))),
+        c.q("db", "monat", c.range).then(statSeries),
+        c.q("db", "monat", c.cmp.range, c.cmpExtra).then(statSeries),
+        c.withFinal ? one("db", c.cmp.range) : null]);
+      const obj = (arr) => Object.fromEntries(ids.map((id, i) => [id, arr[i]]));
+      return { cur: obj(cur), cmp: obj(cmp), ser, serC, fin };
+    },
+    render: (card, d, m) => {
+      const cur = d.apt.currency;
+      const a = m.cur, b = m.cmp;
+      const v = (x, k) => x[k]?.wert ?? null;
+      const N1 = v(a, "naechte") || 0, N0 = v(b, "naechte") || 0;
+      const NE1 = v(a, "netto") || 0, NE0 = v(b, "netto") || 0, V1 = v(a, "var_kosten") || 0, V0 = v(b, "var_kosten") || 0;
+      const DB1 = NE1 - V1, DB0 = NE0 - V0;
+      const cmpName = card.cmpName(d);
+      const rel = (x, y) => (x === null || y === null || !y ? null : ((x - y) / Math.abs(y)) * 100);
+      const n = a.naechte?.n || 0;
+      if (!V1 && !V0) return panel(t("Deckungsbeitrag"), "", `<div class="empty">${t("Keine variablen Kosten hinterlegt – Einstellungen → Kosten")}</div>`);
+      const vg = (k, f) => `${t("Vgl.")} ${f(v(b, k))}`;
+      const m0 = (x) => money(x, cur), m2 = (x) => money(x, cur, 2);
+      const tiles = tilesRow([
+        [t("Deckungsbeitrag"), `${m0(DB1)} ${delta(rel(DB1, DB0))}`, `${vg("db", () => m0(DB0))}${m.fin ? ` · ${t("Endstand")} ${m0(m.fin.wert)}` : ""}`,
+          t("Netto − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom); Fixkosten nicht enthalten"), n < 5],
+        [t("DB je belegter Nacht"), `${m2(v(a, "db_pro_nacht"))} ${delta(rel(v(a, "db_pro_nacht"), v(b, "db_pro_nacht")))}`, vg("db_pro_nacht", m2)],
+        ["DB-RevPAR", `${m2(v(a, "db_revpar"))} ${delta(rel(v(a, "db_revpar"), v(b, "db_revpar")))}`, vg("db_revpar", m2), t("Deckungsbeitrag je verfügbarer Nacht")],
+        [t("Variable Kosten"), `${m0(V1)} ${delta(rel(V1, V0), "%", true)}`, `${vg("var_kosten", m0)} · ${N1 ? m2(V1 / N1) : "–"}/${t("Nacht")}`],
+        [t("Netto"), `${m0(NE1)} ${delta(rel(NE1, NE0))}`, `${vg("netto", m0)} · ${N1 ? m2(NE1 / N1) : "–"}/${t("Nacht")}`],
+        [t("Belegte Nächte"), `${num(N1)} ${delta(rel(N1, N0))}`, `${t("Vgl.")} ${num(N0)} · ${t("Ausl.")} ${pct(v(a, "auslastung"), 0)} (${pct(v(b, "auslastung"), 0)})`,
+          `${t("Auslastung")} ${pct(v(a, "auslastung"), 1)}, ${t("Vergleich")} ${pct(v(b, "auslastung"), 1)}`],
+      ]);
+      // Brücke
+      let bridge = "", lead = "";
+      if (N0 && N1) {
+        const p0 = NE0 / N0, p1 = NE1 / N1, c0 = V0 / N0, c1 = V1 / N1;
+        const ePreis = N1 * (p1 - p0), eUms = (N1 - N0) * p0, eKost = -(N1 - N0) * c0, eMenge = eUms + eKost, eKn = -N1 * (c1 - c0);
+        const steps = [
+          { l: `${t("DB")} ${cmpName}`, tot: DB0 },
+          { l: t("Preis je Nacht (netto)"), d: ePreis, s: `${m2(p0)} → ${m2(p1)} ${t("je Nacht")} × ${num(N1)} ${t("Nächte")}` },
+          { l: N1 < N0 ? t("Weniger Nächte") : t("Mehr Nächte"), d: eMenge,
+            s: `${num(N1 - N0)} ${t("Nächte")}: ${t("Umsatz")} ${eUms >= 0 ? "+" : "−"}${m0(Math.abs(eUms))}, ${t("variable Kosten")} ${eKost >= 0 ? "+" : "−"}${m0(Math.abs(eKost))}` },
+          { l: t("Kosten je Nacht"), d: eKn, s: `${m2(c0)} → ${m2(c1)} ${t("je Nacht")} (${t("Saisonmix, Preise")})` },
+          { l: `${t("DB")} ${t("jetzt")}`, tot: DB1 },
+        ];
+        // Treppen-Balken: Gesamtsäulen ab 0, Effekte schwebend ab dem laufenden Stand
+        let run = 0;
+        const segs = steps.map((st) => {
+          if (st.tot !== undefined) { run = st.tot; return { ...st, from: 0, to: st.tot }; }
+          const from = run; run += st.d; return { ...st, from, to: run };
+        });
+        const lo = Math.min(0, ...segs.map((x) => Math.min(x.from, x.to))), hi = Math.max(...segs.map((x) => Math.max(x.from, x.to)), 1);
+        const X = (val) => ((val - lo) / (hi - lo || 1)) * 100;
+        bridge = `<div class="wf">${segs.map((x) => {
+          const l = X(Math.min(x.from, x.to)), w = Math.max(Math.abs(X(x.to) - X(x.from)), 0.4);
+          const cls = x.tot !== undefined ? "tot" : x.d >= 0 ? "pos" : "neg";
+          const val = x.tot !== undefined ? m0(x.tot) : `${x.d >= 0 ? "+" : "−"}${m0(Math.abs(x.d))}`;
+          return `<div class="wr" data-tip="${esc(`${x.l}: ${val}${x.s ? `\n${x.s}` : ""}`)}"><div class="wl">${esc(x.l)}${x.s ? `<span class="sub2">${esc(x.s)}</span>` : ""}</div>
+            <div class="wt"><i class="${cls}" style="left:${l}%;width:${w}%"></i></div><div class="wv ${cls}">${val}</div></div>`;
+        }).join("")}</div>`;
+        const dDB = DB1 - DB0;
+        lead = `<p class="sub" style="margin:2px 0 10px">${t("Deckungsbeitrag")} <b>${dDB >= 0 ? "+" : "−"}${m0(Math.abs(dDB))}</b> ${t("ggü.")} ${esc(cmpName)}.
+          ${p1 >= p0 ? t("Höhere Preise je Nacht") : t("Niedrigere Preise je Nacht")}: <b>${ePreis >= 0 ? "+" : "−"}${m0(Math.abs(ePreis))}</b>;
+          ${N1 < N0 ? t("die geringere Auslastung kostete") : t("die höhere Auslastung brachte")} ${m0(Math.abs(eUms))} ${t("Umsatz")},
+          ${N1 < N0 ? t("sparte aber") : t("verursachte aber")} ${m0(Math.abs(eKost))} ${t("variable Kosten")} → ${t("netto")} <b>${eMenge >= 0 ? "+" : "−"}${m0(Math.abs(eMenge))}</b>.</p>`;
+      }
+      const labels = m.ser.map((x) => x.fach);
+      const chart = labels.length ? barChart({ labels, unit: "monat", fmt: (x) => money(x, cur),
+        stacks: [{ name: t("DB"), color: "var(--sm-accent)", values: m.ser.map((x) => x.wert || 0) }],
+        line: { label: cmpName, values: labels.map((_, i) => m.serC[i]?.wert || 0) } }) : "";
+      return panel(t("Deckungsbeitrag"), `${t("Netto − variable Kosten")} · ${t("Vergleich")}: ${esc(cmpName)}`,
+        `${lead}${tiles}<div class="split2"><div><div class="kl">${t("Was hat den DB verändert?")}</div>${bridge || `<div class="empty">${t("Keine Daten")}</div>`}</div>
+          <div><div class="kl">${t("DB je Monat")} <span class="sub" style="margin-left:6px;font-weight:400">${t("Linie = Vergleich")}</span></div>${chart}</div></div>
+        ${gloss(["DB", "DB-RevPAR", "Vgl."])}
+        <div class="sub" style="margin-top:8px;font-size:.8rem">${t("Fixkosten (Grundsteuer, Versicherung, Internet …) sind nicht enthalten. Variable Kosten aus Einstellungen → Kosten; Heizung/Warmwasser nach Gradtagszahlen je Monat verteilt.")}</div>`);
+    },
+  },
   // v1.18.0: Bewertung & Empfehlung – Pace je Monat, Preisuntergrenzen, Hinweise (Backend: empfehlung.py)
   empfehlung: {
     load: (c) => c.card.store.ws("smoobu/stats", { ...c.target, mode: "empfehlung" }),
@@ -4258,6 +4361,15 @@ class SmoobuStatsCard extends SmoobuCard {
     .mtile .kv { font-size: 1.35rem; }
     .mtile.big .kv { font-size: 2.2rem; }
     .ins { padding-left: 18px; margin: 4px 0; font-size: .86rem; } .ins li { margin: 4px 0; }
+    /* v1.18.0: DB-Brücke (Wasserfall, waagerecht) */
+    .wf { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+    .wr { display: grid; grid-template-columns: minmax(120px, 38%) 1fr auto; gap: 10px; align-items: center; font-size: .84rem; }
+    .wl .sub2 { display: block; font-size: .7rem; color: var(--sm-muted); }
+    .wt { position: relative; height: 18px; background: var(--sm-surf2); border-radius: 4px; }
+    .wt i { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; }
+    .wt i.tot { background: var(--sm-accent); } .wt i.pos { background: var(--sm-good); } .wt i.neg { background: var(--sm-bad); }
+    .wv { font-variant-numeric: tabular-nums; font-weight: 650; min-width: 72px; text-align: right; }
+    .wv.pos { color: var(--sm-good); } .wv.neg { color: var(--sm-bad); }
     td .sub2 { display: block; font-size: .7rem; color: var(--sm-muted); }
     @media (max-width: 700px) {
       .panel { padding: 14px 14px; }
@@ -4347,7 +4459,7 @@ class SmoobuStatsCard extends SmoobuCard {
     }
     // Module 4–11 und eigene Baukasten-Module: parallel laden, Fehler je Modul statt für die ganze Karte
     // v1.18.0: ctx für die Baukasten-Vorschau merken (gleicher Zeitraum/Filter wie die Werkbank)
-    const ctx = this._ctx = { card: this, s, info, apt, today, range, q, target: this.target, channels: s.channels,
+    const ctx = this._ctx = { card: this, s, info, apt, today, range, q, target: this.target, channels: s.channels, cmp, cmpExtra, withFinal,
       ws: (mode) => this.store.ws("smoobu/stats", { ...this.target, mode, start: iso(range[0]), end: iso(range[1]),
         ...(s.channels.length ? { channels: s.channels } : {}) }) };
     const mods = {};
