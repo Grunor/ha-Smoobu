@@ -1913,7 +1913,9 @@ class SmoobuBookingsCard extends SmoobuCard {
     tr.grp td { background: var(--sm-surf2); color: var(--sm-ink); font-weight: 600; font-size: .8rem; letter-spacing: .02em;
       border-top: 2px solid var(--sm-line); padding-top: 10px; cursor: default; }
     tr.grp td ha-icon { --mdc-icon-size: 16px; color: var(--sm-accent); margin-right: 6px; vertical-align: -2px; }
-    tr.grp td .cnt { color: var(--sm-muted); font-weight: 400; margin-left: 6px; }`;
+    tr.grp td .cnt { color: var(--sm-muted); font-weight: 400; margin-left: 6px; }
+    tr.grp td.lbl { white-space: nowrap; }
+    tr.grp td.n { font-variant-numeric: tabular-nums; }`;
   async load() {
     const apt = await this.apartment();
     const info = await this.store.getInfo();
@@ -1963,7 +1965,17 @@ class SmoobuBookingsCard extends SmoobuCard {
     const rows = this.filtered(data);
     this._rows = rows;
     const valid = rows.filter((b) => !b.storniert && !b.blockiert);
-    const sum = (k) => valid.reduce((a, b) => a + (b[k] || 0), 0);
+    // v1.18.0 (Wunsch Betreiber 20.11.2026): Summenzellen für Fußzeile UND Trennzeilen (Anstehend/Aktuell/Vergangen),
+    // gemeinsamer Code, damit beide nie auseinanderlaufen. Nur gültige Buchungen (ohne Sperren/Stornos).
+    // Netto/Nacht = Summe Netto ÷ Summe Nächte (gewichtet, nicht Mittel der Einzelwerte); Vorlauf bleibt leer wie bisher.
+    const sumCells = (list, grp = false) => {
+      const sm = (k) => list.reduce((a, b) => a + (b[k] || 0), 0);
+      const n = sm("naechte");
+      return `<td class="n">${num(n)}</td><td></td><td class="n">${num(sm("personen"))}</td><td></td>`
+        + `<td class="n">${money(sm("brutto"), cur)}</td><td class="n">${money(sm("kosten"), cur)}</td><td class="n">${money(sm("netto"), cur)}</td>`
+        + `<td class="n">${n ? money(sm("netto") / n, cur) : ""}</td><td class="n">${grp && !sm("offen") ? "" : money(sm("offen"), cur)}</td><td></td>`; // Trennzeile: „0 €“ offen weglassen
+    };
+    const nB = (n) => `${n} ${t(n === 1 ? "Buchung" : "Buchungen")}`;
     const statusChips = ["kommend", "laufend", "vergangen", "storniert", "blockiert"].map((st) =>
       `<button class="chip" data-st="${st}" aria-pressed="${s.status.includes(st)}"><ha-icon icon="${STATUS_ICON[st]}"></ha-icon>${t(st)}</button>`).join("");
     const cols = this.multi ? [BOOKING_COLS[0], ["wohnung", "Wohnung"], ...BOOKING_COLS.slice(1)] : BOOKING_COLS;
@@ -1978,12 +1990,11 @@ class SmoobuBookingsCard extends SmoobuCard {
       <td class="n">${b.blockiert ? "" : money(b.netto, cur, 2)}</td><td class="n">${b.netto_pro_nacht ? money(b.netto_pro_nacht, cur) : ""}</td>
       <td class="n">${b.offen > 0 ? `<span class="badge bad">${money(b.offen, cur, 2)}</span>` : ""}</td>
       <td class="n">${b.vorlauf_tage ?? ""}</td></tr>`;
-    // Je Gruppe eine Trennzeile mit Anzahl gültiger Buchungen (ohne Sperren/Stornos) und Nächten
+    // Je Gruppe eine Trennzeile: Name + Anzahl gültiger Buchungen, darunter spaltengenau die Summen wie in der Fußzeile
     const body = (this._groups || []).map((g) => {
       const ok = g.rows.filter((b) => !b.storniert && !b.blockiert);
-      const n = ok.reduce((a, b) => a + (b.naechte || 0), 0);
-      return `<tr class="grp"><td colspan="${cols.length}"><ha-icon icon="${g.icon}"></ha-icon>${t(g.label)}`
-        + `<span class="cnt">${ok.length} ${t("Buchungen")} · ${num(n)} ${t("Nächte")}</span></td></tr>${g.rows.map(row).join("")}`;
+      return `<tr class="grp"><td class="lbl" colspan="${this.multi ? 4 : 3}"><ha-icon icon="${g.icon}"></ha-icon>${t(g.label)}`
+        + `<span class="cnt">${nB(ok.length)}</span></td>${sumCells(ok, true)}</tr>${g.rows.map(row).join("")}`;
     }).join("");
     return `
       <div class="head"><h2>${esc(this._config.title || t("Buchungen"))}</h2>
@@ -1996,10 +2007,7 @@ class SmoobuBookingsCard extends SmoobuCard {
       <div class="toolbar">${channelChips(apt, s.channels)}</div>
       <div class="toolbar">${statusChips}</div>
       <div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="14" class="empty">${t("Keine Daten")}</td></tr>`}</tbody>
-      <tfoot><tr><td colspan="${this.multi ? 4 : 3}">${t("Summe")}: ${valid.length} ${t("Buchungen")}</td><td class="n">${num(sum("naechte"))}</td><td></td>
-        <td class="n">${num(sum("personen"))}</td><td></td><td class="n">${money(sum("brutto"), cur)}</td><td class="n">${money(sum("kosten"), cur)}</td>
-        <td class="n">${money(sum("netto"), cur)}</td><td class="n">${sum("naechte") ? money(sum("netto") / sum("naechte"), cur) : ""}</td>
-        <td class="n">${money(sum("offen"), cur)}</td><td></td></tr></tfoot></table></div>`;
+      <tfoot><tr><td colspan="${this.multi ? 4 : 3}">${t("Summe")}: ${nB(valid.length)}</td>${sumCells(valid)}</tr></tfoot></table></div>`;
   }
   bind(root) {
     const s = this._state;
