@@ -1,0 +1,12 @@
+# Testumgebung / test environment (lokal und CI)
+# pytest-homeassistant-custom-component bringt Home Assistant in passender Version mit.
+# Die übrigen Pakete brauchen die abhängigen HA-Komponenten (cloud, frontend, ai_task, webhook).
+pytest-homeassistant-custom-component==0.13.316
+voluptuous
+PyTurboJPEG
+hassil==3.5.0
+home-assistant-intents==2026.1.28
+mutagen
+ha-ffmpeg
+pymicro_vad
+pyspeex_noise

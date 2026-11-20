@@ -1,0 +1,38 @@
+# Issue-Formular „Funktion wünschen“ / "Request a feature"
+# Zweck: Wünsche mit dem eigentlichen Anwendungsfall (Problem statt Lösung), damit sie sich einordnen lassen.
+name: "💡 Funktion wünschen / Request a feature"
+description: "Idee für eine neue Funktion oder Verbesserung / Idea for a new feature or improvement"
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Welches Problem soll gelöst werden? / What problem should be solved?"
+      description: "Beschreibe den Anwendungsfall aus deinem Alltag mit der Ferienwohnung. / Describe the use case from running your rental."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: "Vorschlag / Proposal"
+      description: "Wie stellst du dir die Lösung vor? Wo soll sie erscheinen (Karte, Sensor, Push, Aktion)? / How should it work? Where (card, sensor, push, action)?"
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "Alternativen / Alternatives"
+      description: "Was nutzt du bisher, oder welche andere Lösung kommt infrage? / What do you use today, or what else could work?"
+  - type: dropdown
+    id: smoobu_api
+    attributes:
+      label: "Braucht es Daten aus Smoobu, die heute nicht angezeigt werden? / Does it need Smoobu data that is not shown today?"
+      options:
+        - "Nein / No"
+        - "Ja / Yes"
+        - "Weiß nicht / Don't know"
+  - type: textarea
+    id: context
+    attributes:
+      label: "Weitere Infos / Additional context"
+      description: "Skizzen, Screenshots (ohne Gästedaten), Links. / Sketches, screenshots (no guest data), links."

@@ -1,0 +1,94 @@
+# Issue-Formular „Fehler melden“ / "Report a bug"
+# Zweck: Fehlerberichte mit allen Angaben, die zur Analyse nötig sind (Versionen, Log, Diagnose).
+# Wichtig: Hinweis auf API-Schlüssel/Gästedaten, weil Issues öffentlich sind.
+name: "🐞 Fehler melden / Report a bug"
+description: "Etwas funktioniert nicht wie beschrieben / Something does not work as documented"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Bitte keine API-Schlüssel, Secrets, Webhook-URLs oder echten Gästedaten posten – Issues sind öffentlich.**
+        Der Diagnose-Download (Einstellungen → Geräte & Dienste → Smoobu → ⋮ → Diagnose herunterladen) schwärzt Gästedaten bereits.
+
+        **Please do not post API keys, secrets, webhook URLs or real guest data – issues are public.**
+        The diagnostics download (Settings → Devices & services → Smoobu → ⋮ → Download diagnostics) already redacts guest data.
+
+        Sicherheitslücke? Bitte **nicht** hier, sondern privat melden: [Sicherheitsrichtlinie](https://github.com/Grunor/ha-Smoobu/security/policy) / Security issue? Report it privately, see the security policy.
+  - type: input
+    id: version
+    attributes:
+      label: "Version der Integration / Integration version"
+      description: "Einstellungen → Geräte & Dienste → Smoobu, oder HACS / Settings → Devices & services → Smoobu, or HACS"
+      placeholder: "1.18.0"
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: "Home-Assistant-Version / Home Assistant version"
+      description: "Einstellungen → Über / Settings → About"
+      placeholder: "2026.11.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: "Bereich / Area"
+      multiple: true
+      options:
+        - "Einrichtung / Setup"
+        - "Sensoren & Kalender / Sensors & calendar"
+        - "Webhook / Echtzeit"
+        - "Dashboard: Übersicht / Overview"
+        - "Dashboard: Kalender & Preise / Calendar & prices"
+        - "Dashboard: Buchungen / Bookings"
+        - "Dashboard: Finanzen / Finances"
+        - "Dashboard: Statistik / Statistics"
+        - "Dashboard: Nachrichten / Inbox"
+        - "Dashboard: Einstellungen / Settings"
+        - "Benachrichtigungen / Notifications"
+        - "KI-Assistent / AI assistant"
+        - "Aktionen / Actions (smoobu.*)"
+        - "Sonstiges / Other"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: "Was ist passiert? / What happened?"
+      description: "Was hast du getan, was hast du erwartet, was kam stattdessen? / What did you do, what did you expect, what happened instead?"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Schritte zum Nachstellen / Steps to reproduce"
+      placeholder: |
+        1. …
+        2. …
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Log-Auszug / Log excerpt"
+      description: "Einstellungen → System → Protokolle, nach „smoobu“ filtern. Wird automatisch als Code formatiert. / Settings → System → Logs, filter for \"smoobu\"."
+      render: text
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: "Diagnose / Diagnostics"
+      description: "Diagnose-Datei hier hineinziehen (optional, Gästedaten sind geschwärzt). / Drag the diagnostics file here (optional, guest data redacted)."
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: "Screenshots"
+      description: "Bei Dashboard-Fehlern hilfreich – Gästenamen bitte unkenntlich machen. / Helpful for dashboard issues – please blur guest names."
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: "Prüfung / Checks"
+      options:
+        - label: "Ich habe die neueste Version getestet bzw. den [Changelog](https://github.com/Grunor/ha-Smoobu/blob/main/CHANGELOG.md) geprüft / I tested the latest version or checked the changelog"
+          required: true
+        - label: "Der Bericht enthält keine Schlüssel, Secrets oder echten Gästedaten / The report contains no keys, secrets or real guest data"
+          required: true

@@ -2,6 +2,11 @@
 
 # Smoobu für Home Assistant / Smoobu for Home Assistant
 
+[![Release](https://img.shields.io/github/v/release/Grunor/ha-Smoobu)](https://github.com/Grunor/ha-Smoobu/releases)
+[![Validate](https://github.com/Grunor/ha-Smoobu/actions/workflows/validate.yml/badge.svg)](https://github.com/Grunor/ha-Smoobu/actions/workflows/validate.yml)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **[🇩🇪 Deutsch](#deutsch) · [🇬🇧 English](#english)**
 
 ---
@@ -1434,6 +1439,15 @@ X-Signature = Base64( HMAC-SHA256(secret, canonical) )
 ### Changelog
 
 All changes are listed in [CHANGELOG.md](CHANGELOG.md) and under [Releases](https://github.com/Grunor/ha-Smoobu/releases).
+
+---
+
+## Hilfe & Mitmachen / Support & contributing
+
+- **Fragen / Questions:** [Discussions](https://github.com/Grunor/ha-Smoobu/discussions)
+- **Fehler, Wünsche / Bugs, ideas:** [Issue anlegen / open an issue](https://github.com/Grunor/ha-Smoobu/issues/new/choose) – bitte keine Schlüssel oder echten Gästedaten / no keys or real guest data
+- **Sicherheitslücken / Vulnerabilities:** privat melden / report privately, see [SECURITY.md](SECURITY.md)
+- **Mitentwickeln / Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) · [Verhaltenskodex / Code of conduct](CODE_OF_CONDUCT.md)
 
 ---
 
