@@ -197,6 +197,19 @@
               "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
             }
           },
+          "umbuchung": {
+            "name": "Rebooking (dates / property)",
+            "description": "Dates or property of a booking changed – before → after. Without own setting like \"Cancellation / change\".",
+            "data": {
+              "aktiv": "Enabled",
+              "empfaenger": "Recipients",
+              "ruhezeit": "Respects quiet hours"
+            },
+            "data_description": {
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons.",
+              "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
+            }
+          },
           "nachricht": {
             "name": "New guest message",
             "description": "Message text when no AI suggestion is sent (AI off, suggestion push off or suggestion failed). Disappears once answered or marked done.",

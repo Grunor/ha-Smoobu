@@ -576,6 +576,7 @@ class SmoobuOptionsFlow(OptionsFlow):
             {
                 vol.Optional("buchung"): kind_section("buchung", collapsed=False),
                 vol.Optional("storno"): kind_section("storno"),
+                vol.Optional("umbuchung"): kind_section("umbuchung"),
                 vol.Optional("nachricht"): kind_section("nachricht"),
                 vol.Optional("vorschlag"): kind_section("vorschlag"),
                 vol.Optional("zahlung"): kind_section("zahlung", {

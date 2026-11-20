@@ -197,6 +197,19 @@
               "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
             }
           },
+          "umbuchung": {
+            "name": "Umbuchung (Zeitraum / Unterkunft)",
+            "description": "Zeitraum oder Unterkunft einer Buchung geändert – mit Vorher → Nachher. Ohne eigene Einstellung wie „Storno & Änderung“.",
+            "data": {
+              "aktiv": "Aktiv",
+              "empfaenger": "Empfänger",
+              "ruhezeit": "Hält Ruhezeit ein"
+            },
+            "data_description": {
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons.",
+              "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
+            }
+          },
           "nachricht": {
             "name": "Neue Gästenachricht",
             "description": "Text der Nachricht, wenn kein KI-Vorschlag kommt (KI aus, Vorschlag-Push aus oder Vorschlag fehlgeschlagen). Verschwindet, sobald geantwortet oder abgehakt wurde.",

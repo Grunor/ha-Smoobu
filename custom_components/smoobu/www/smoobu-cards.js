@@ -5371,7 +5371,9 @@ const SET_TABS = [
 ];
 const PUSH_INFO = {
   buchung: ["Neue Buchung", "Sobald eine neue Buchung eingeht (keine Sperrzeiten)."],
-  storno: ["Storno & Änderung", "Storniert oder geändert (Zeitraum, Personen, Ankunft, Preis) – mit Vorher → Nachher."],
+  storno: ["Storno & Änderung", "Storniert oder geändert (Personen, Ankunft, Preis) – mit Vorher → Nachher."],
+  // v1.18.0: eigene Push-Art für Zeitraum/Unterkunft (ohne eigene Einstellung wie „Storno & Änderung“)
+  umbuchung: ["Umbuchung", "Zeitraum oder Unterkunft geändert – Vorher → Nachher mit Nächten."],
   nachricht: ["Gästenachricht", "Neue Nachricht eines Gastes. Mit KI-Vorschlag kommt stattdessen der Vorschlag."],
   vorschlag: ["KI-Antwortvorschlag", "Vorschlag mit Buttons Senden / Bearbeiten / Ignorieren."],
   zahlung: ["Zahlungserinnerung", "Offene Zahlung einige Tage vor Anreise (ohne Kanäle mit Zahlung über das Portal)."],

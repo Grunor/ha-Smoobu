@@ -67,3 +67,13 @@ def test_preisaktion_single_night():
                       {"datum": "2026-11-21", "preis_alt": 55, "preis_neu": 50, "min_alt": None, "min_neu": None},
                       {"datum": "2026-11-22", "preis_alt": 55, "preis_neu": 50, "min_alt": None, "min_neu": None}])
     assert ops == [{"dates": ["2026-11-19", "2026-11-21:2026-11-22"], "daily_price": 50}]
+
+
+def test_umbuchung_inherits_storno():
+    """v1.18.0: neue Push-Art „umbuchung“ – ohne eigene Einstellung wie „storno“."""
+    from custom_components.smoobu.notifications import opt_enabled, opt_quiet, opt_recipients
+    o = {"notify_storno": True, "notify_storno_to": ["notify.mobile_app_r"], "notify_storno_quiet": False}
+    assert opt_enabled(o, "umbuchung") and opt_recipients(o, "umbuchung") == ["notify.mobile_app_r"] and not opt_quiet(o, "umbuchung")
+    o2 = {**o, "notify_umbuchung": False, "notify_umbuchung_to": []}
+    assert not opt_enabled(o2, "umbuchung") and opt_recipients(o2, "umbuchung") == []
+    assert not opt_enabled({}, "umbuchung")

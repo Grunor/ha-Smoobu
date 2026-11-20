@@ -803,7 +803,22 @@ async def test_notifications(hass, setup, freezer):
     c.records_all = lambda: [changed if r is base else r for r in recs]
     c.notifier._on_data()
     await hass.async_block_till_done()
-    assert calls and calls[-1][0] == "storno" and "Abreise" in calls[-1][2] and "31.12." in calls[-1][2]
+    # v1.18.0: Zeitraum geändert → eigene Push „Umbuchung“ (erbt „Storno & Änderung“: an, gleiche Empfänger)
+    assert calls and calls[-1][0] == "umbuchung" and calls[-1][1].startswith("📅") and "Zeitraum" in calls[-1][2] and "31.12." in calls[-1][2]
+    assert opt_recipients(c.config_entry.options, "umbuchung") == ["notify.mobile_app_x"]
+    # Unterkunft gewechselt → „🏠 Unterkunft gewechselt“, alte und neue Wohnung
+    moved = {**changed, "wohnung_id": 4711}
+    c.records_all = lambda: [moved if r is base else r for r in recs]
+    c.notifier._on_data()
+    await hass.async_block_till_done()
+    assert calls[-1][0] == "umbuchung" and calls[-1][1].startswith("🏠") and "Unterkunft" in calls[-1][2] and "4711" in calls[-1][2]
+    # Nur Personen geändert → weiter „Storno & Änderung“
+    more = {**moved, "personen": (moved["personen"] or 0) + 1}
+    c.records_all = lambda: [more if r is base else r for r in recs]
+    c.notifier._on_data()
+    await hass.async_block_till_done()
+    assert calls[-1][0] == "storno" and "Personen" in calls[-1][2]
+    changed = more
     # Storno
     c.records_all = lambda: [{**changed, "storniert": True} if r is base else r for r in recs]
     c.notifier._on_data()

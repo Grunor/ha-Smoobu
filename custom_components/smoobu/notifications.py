@@ -3,7 +3,8 @@
 Push-Arten (je an/aus und eigene Empfänger, Optionsschritt „Benachrichtigungen“):
 
 - buchung    Neue Buchung (aus dem Datenabgleich, nicht aus Sperrzeiten)
-- storno     Storno oder Änderung (Zeitraum, Personen, Ankunftszeit, Preis), Vorher → Nachher
+- storno     Storno oder Änderung (Personen, Ankunftszeit, Preis), Vorher → Nachher
+- umbuchung  v1.18.0: Zeitraum oder Unterkunft geändert (eigene Push-Art; ohne eigene Einstellung wie „storno“)
 - nachricht  Neue Gästenachricht (auch ohne KI; mit KI-Vorschlag kommt stattdessen der Vorschlag)
 - vorschlag  KI-Antwortvorschlag mit Buttons (bisheriges Verhalten)
 - zahlung    Zahlungserinnerung X Tage vor Anreise (ohne Kanäle mit Zahlung über das Portal)
@@ -61,7 +62,10 @@ _LOGGER = logging.getLogger(__name__)
 STORE_VERSION = 1
 
 # Felder, deren Änderung als „Änderung“ gemeldet wird (Datensatz-Schlüssel → Anzeige)
-CHANGE_FIELDS = {"anreise": "Anreise", "abreise": "Abreise", "personen": "Personen", "check_in": "Ankunft", "brutto": "Preis"}
+CHANGE_FIELDS = {"anreise": "Anreise", "abreise": "Abreise", "wohnung_id": "Unterkunft", "personen": "Personen",
+                 "check_in": "Ankunft", "brutto": "Preis"}
+# v1.18.0: diese Felder machen aus einer Änderung eine „Umbuchung“ (eigene Push-Art)
+MOVE_FIELDS = ("anreise", "abreise", "wohnung_id")
 
 
 def opt_enabled(opts: dict[str, Any], kind: str) -> bool:
@@ -71,6 +75,8 @@ def opt_enabled(opts: dict[str, Any], kind: str) -> bool:
         return bool(opts[key])
     if kind == "vorschlag":
         return True
+    if kind == "umbuchung":  # v1.18.0: neue Push-Art erbt ohne eigene Einstellung „Storno & Änderung“
+        return opt_enabled(opts, "storno")
     if kind == "briefing":
         return bool(opts.get(CONF_ASSIST_BRIEFING))
     if kind == "luecken":
@@ -83,6 +89,8 @@ def opt_quiet(opts: dict[str, Any], kind: str) -> bool:
     key = f"notify_{kind}_quiet"
     if key in opts:
         return bool(opts[key])
+    if kind == "umbuchung" and "notify_storno_quiet" in opts:
+        return bool(opts["notify_storno_quiet"])  # v1.18.0: wie „Storno & Änderung“, bis eigens eingestellt
     if kind == "nachricht":
         # Altwert „Gästenachrichten sofort“ (Standard an) → hält die Ruhezeit nicht ein
         return not opts.get(CONF_NOTIFY_QUIET_MESSAGES, True)
@@ -92,6 +100,8 @@ def opt_quiet(opts: dict[str, Any], kind: str) -> bool:
 def opt_recipients(opts: dict[str, Any], kind: str) -> list[str]:
     """Empfänger je Push-Art; ohne eigene Auswahl die bisherigen Assistent-Empfänger."""
     own = opts.get(f"notify_{kind}_to")
+    if not own and kind == "umbuchung" and "notify_umbuchung" not in opts:
+        own = opts.get("notify_storno_to")  # v1.18.0: Empfänger wie „Storno & Änderung“, bis eigene gewählt sind
     return list(own) if own else list(opts.get(CONF_ASSIST_RECIPIENTS) or [])
 
 
@@ -268,9 +278,15 @@ class SmoobuNotifier:
                 continue
             if cur["storniert"]:
                 continue
-            changes = [(label, old[k], cur[k]) for k, label in CHANGE_FIELDS.items() if old[k] != cur[k]]
-            if changes:
-                self.hass.async_create_task(self.send("storno", *self._change_text(rec, changes)))
+            changes = [(k, label, old[k], cur[k]) for k, label in CHANGE_FIELDS.items() if old[k] != cur[k]]
+            if not changes:
+                continue
+            # v1.18.0: Zeitraum/Unterkunft geändert → eigene Push „Umbuchung“ (inkl. weiterer Änderungen);
+            # ist sie ausgeschaltet, kommt die Änderung wie bisher unter „Storno & Änderung“
+            if any(k in MOVE_FIELDS for k, *_ in changes) and self.enabled("umbuchung"):
+                self.hass.async_create_task(self.send("umbuchung", *self._move_text(rec, old, changes)))
+            else:
+                self.hass.async_create_task(self.send("storno", *self._change_text(rec, [c[1:] for c in changes])))
 
     def _path(self) -> str:
         return self.opts.get(CONF_ASSIST_PATH) or "/lovelace"
@@ -293,10 +309,36 @@ class SmoobuNotifier:
         return (f"❌ {self._apt(r)}Storniert: {r.get('gast')}", body,
                 {"tag": f"smoobu_buchung_{r['id']}", "url": self._path(), "group": "smoobu_buchungen"})
 
+    def _apt_name(self, apt_id: Any) -> str:
+        """Name der Wohnung (mit Kürzel bei mehreren Wohnungen)."""
+        apts = self.c.data.apartments if self.c.data else {}
+        name = (apts.get(apt_id) or {}).get("name") or str(apt_id)
+        return f"[{self.c.apartment_code(apt_id)}] {name}" if len(apts) > 1 else name
+
+    def _move_text(self, r: dict[str, Any], old: dict[str, Any], changes: list[tuple[str, str, Any, Any]]) -> tuple[str, str, dict[str, Any]]:
+        """v1.18.0: Umbuchung – Zeitraum (mit Nächten) und Unterkunft Vorher → Nachher, dann weitere Änderungen."""
+        keys = {k for k, *_ in changes}
+        lines = []
+        if keys & {"anreise", "abreise"}:
+            n_old = (date.fromisoformat(old["abreise"]) - date.fromisoformat(old["anreise"])).days
+            lines.append(f"Zeitraum: {_d(old['anreise'])} – {_d(old['abreise'])} ({n_old} N.)\n"
+                         f"→ {_d(r['anreise'])} – {_d(r['abreise'])} ({r['naechte']} N.)")
+        if "wohnung_id" in keys:
+            lines.append(f"Unterkunft: {self._apt_name(old['wohnung_id'])} → {self._apt_name(r.get('wohnung_id'))}")
+        rest = [c[1:] for c in changes if c[0] not in MOVE_FIELDS]
+        if rest:
+            lines.append(self._change_text(r, rest)[1])
+        what = "Unterkunft gewechselt" if keys == {"wohnung_id"} else "Umgebucht"
+        icon = "🏠" if keys == {"wohnung_id"} else "📅"
+        return (f"{icon} {self._apt(r)}{what}: {r.get('gast')}", "\n".join(lines),
+                {"tag": f"smoobu_buchung_{r['id']}", "url": self._path(), "group": "smoobu_buchungen"})
+
     def _change_text(self, r: dict[str, Any], changes: list[tuple[str, Any, Any]]) -> tuple[str, str, dict[str, Any]]:
         def fmt(label: str, v: Any) -> str:
             if label in ("Anreise", "Abreise"):
                 return _d(v)
+            if label == "Unterkunft":
+                return self._apt_name(v)
             if label == "Preis":
                 return _money(v)
             return str(v) if v not in (None, "") else "–"
