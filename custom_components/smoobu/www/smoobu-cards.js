@@ -3809,7 +3809,9 @@ const STATS_MODULES = {
         c.q("db", "monat", c.cmp.range, c.cmpExtra).then(statSeries),
         c.withFinal ? one("db", c.cmp.range) : null]);
       const obj = (arr) => Object.fromEntries(ids.map((id, i) => [id, arr[i]]));
-      return { cur: obj(cur), cmp: obj(cmp), ser, serC, fin };
+      // v1.19.0: gemessener Leerstand-Strom (Modus „separat“ = Fixkosten, nicht im DB) als Hinweis
+      const vac = await c.card.store.ws("smoobu/energie/leerstand", { ...c.target, start: iso(c.range[0]), end: iso(c.range[1]) }).catch(() => null);
+      return { cur: obj(cur), cmp: obj(cmp), ser, serC, fin, vac };
     },
     render: (card, d, m) => {
       const cur = d.apt.currency;
@@ -3876,6 +3878,9 @@ const STATS_MODULES = {
         `${lead}${tiles}<div class="split2"><div><div class="kl">${t("Was hat den DB verändert?")}</div>${bridge || `<div class="empty">${t("Keine Daten")}</div>`}</div>
           <div><div class="kl">${t("DB je Monat")} <span class="sub" style="margin-left:6px;font-weight:400">${t("Linie = Vergleich")}</span></div>${chart}</div></div>
         ${gloss(["DB", "DB-RevPAR", "Vgl."])}
+        ${m.vac?.gemessen && m.vac.kosten ? `<div class="note" style="margin-top:8px">⚡ ${m.vac.modus === "separat"
+          ? `${t("Strom im Leerstand (gemessen, Fixkosten – nicht im DB)")}: ${num(m.vac.kwh, 0)} kWh · ${money(m.vac.kosten, cur, 2)}`
+          : `${t("Strom im Leerstand ist anteilig in den variablen Kosten enthalten")}: ${num(m.vac.kwh, 0)} kWh · ${money(m.vac.kosten, cur, 2)}`}</div>` : ""}
         <div class="sub" style="margin-top:8px;font-size:.8rem">${t("Fixkosten (Grundsteuer, Versicherung, Internet …) sind nicht enthalten. Variable Kosten aus Einstellungen → Kosten; Heizung/Warmwasser nach Gradtagszahlen je Monat verteilt.")}</div>`);
     },
   },
@@ -5705,7 +5710,7 @@ const SET_ERR = {
   invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_role: "Unbekannte Rolle",
   // v1.19.0: Rollenkonfigurator
   invalid_right: "Unbekanntes Recht", invalid_role_name: "Name 1–30 Zeichen", duplicate_role_name: "Rollenname schon vergeben",
-  invalid_role_count: "Höchstens 10 eigene Rollen", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
+  invalid_role_count: "Höchstens 10 eigene Rollen", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
   // v1.18.0: Saisons
   invalid_season_count: "2 bis 6 Saisons", invalid_season: "Ungültige Saison", invalid_season_name: "Jede Saison braucht einen Namen",
   invalid_season_start: "Startmonat 1–12", invalid_season_duplicate_name: "Saisonnamen doppelt", invalid_season_duplicate_start: "Zwei Saisons mit gleichem Startmonat",
@@ -5964,6 +5969,120 @@ class SmoobuSettingsCard extends SmoobuCard {
         <div class="gb">${this.pick("payment_excluded_channels", meta.kanaele, chn, true)}${this.err("payment_excluded_channels")}</div></div>`;
   }
   // v1.18.0: variable Kosten (Deckungsbeitrag) und Preisaufschläge aus dem Smoobu-Preistool
+  // v1.19.0 (Wunsch Betreiber 20.11.2026): Strom konstant (wie bisher) oder aus Zähler-Entitäten. Gemessen:
+  // Verbrauch je Buchung ab Vorheizstart bis Check-out aus der HA-Statistik, Leerstand je Monat anteilig nach
+  // Gästenächten verteilt, Preis optional aus einer Entität, Netzanteil stündlich aus dem Energie-Dashboard.
+  powerBlock(meta) {
+    const d = this._draft;
+    const on = d.cost_power_source === "zaehler";
+    const dl = (id, list) => `<datalist id="${id}">${(list || []).map((e) => `<option value="${esc(e.entity_id)}">${esc(e.name)}${e.unit ? ` (${esc(e.unit)})` : ""}</option>`).join("")}</datalist>`;
+    const apts = meta.wohnungen || [];
+    const seg = `<div class="seg" role="group">${[["konstant", "Konstant"], ["zaehler", "Aus Zähler (gemessen)"]]
+      .map(([k, l]) => `<button data-psrc="${k}" aria-pressed="${d.cost_power_source === k}">${t(l)}</button>`).join("")}</div>`;
+    let body = "";
+    if (on) {
+      const rows = apts.map((a) => `${this.fld(`${t("Stromzähler")}${apts.length > 1 ? ` · ${a.name}` : ""}`,
+          `<input list="sm-zaehler" data-pent="${esc(a.id)}" value="${esc(d.cost_power_entities?.[a.id] || "")}" placeholder="sensor.…" style="width:320px">`,
+          apts.length === 1 ? "Gesamtzähler der Wohnung (Energie, kWh oder Wh) – wie im Energie-Dashboard." : "", "cost_power_entities")}
+        ${this.fld(`${t("Vorheizstart")}${apts.length > 1 ? ` · ${a.name}` : ""}`,
+          `<input list="sm-stempel" data-preh="${esc(a.id)}" value="${esc(d.cost_preheat_entities?.[a.id] || "")}" placeholder="${t("optional")}" style="width:320px">`,
+          "Zeitstempel-Sensor; nur soweit der Recorder ihn noch kennt (ältere Buchungen: Check-in − Stunden unten).", "cost_preheat_entities")}`).join("");
+      body = `${rows}
+        ${this.fld("Vorheizen vor Check-in", this.numIn("cost_preheat_hours", 0, 24, 0.5, "h"), "Ab hier zählt der Strom zur Buchung, wenn kein Vorheizstart bekannt ist.", "cost_preheat_hours")}
+        ${this.fld("Strom im Leerstand", `<div class="seg" role="group">${[["separat", "Separat (Fixkosten)"], ["anteilig", "Anteilig auf Buchungen"]]
+          .map(([k, l]) => `<button data-vmode="${k}" aria-pressed="${d.cost_vacancy_mode === k}">${t(l)}</button>`).join("")}</div>`,
+          d.cost_vacancy_mode === "anteilig" ? "Leerstand des Monats nach Gästenächten auf die Buchungen verteilt – der DB enthält alle Stromkosten."
+            : "Frostschutz, Kühlschrank, Router ohne Gast: eigene Zeile (Statistik → Deckungsbeitrag), nicht im DB der Buchungen.", "cost_vacancy_mode")}
+        ${this.fld("Strompreis aus Entität", `<input list="sm-preise" data-ent="cost_price_entity" value="${esc(d.cost_price_entity || "")}" placeholder="${t("optional – sonst Netzstrompreis oben")}" style="width:320px">`,
+          "Verlauf aus dem Recorder; davor gilt der Netzstrompreis oben. Einheit €/kWh oder ct/kWh.", "cost_price_entity")}
+        ${this.fld("Netzanteil stündlich messen", this.sw("cost_grid_share_auto", "Netzanteil stündlich messen"),
+          "Netzbezug ÷ Hausverbrauch je Stunde aus dem Energie-Dashboard. Aus: feste Monatswerte oben.", "cost_grid_share_auto")}
+        ${apts.map((a) => this.powerResult(meta, a, apts.length > 1)).join("")}
+        ${dl("sm-zaehler", meta.energie_zaehler)}${dl("sm-stempel", meta.energie_zeitstempel)}${dl("sm-preise", meta.energie_preise)}`;
+    }
+    return `<div class="grp" data-neu="strom"><div class="gh"><div class="grow"><b>${t("Stromkosten")}${neuBadge("opt-strom")}</b>
+        <span class="sub">${on ? t("Je Buchung gemessen: Vorheizstart bis Check-out. Ohne Messwert (vor Zählerstart, künftige Buchungen) gelten die konstanten Werte oben.")
+          : t("Konstant: Strom je Nacht × Mischpreis aus den festen Werten oben.")}</span></div></div>
+      <div class="gb">${this.fld("Quelle", seg, "", "cost_power_source")}${body}</div></div>`;
+  }
+  // v1.19.0 (Wunsch Betreiber 20.11.2026): Nebenkostenabrechnung hochladen → KI liest die Werte → Vorschlag mit
+  // Herleitung, Fundstelle und Prüfung → ausgewählte Werte in den Entwurf übernehmen (gespeichert erst mit „Speichern“).
+  billsBlock(meta) {
+    const d = this._draft;
+    if (this._bills === undefined && !this._billsLoading) {
+      this._billsLoading = true;
+      this.store.ws("smoobu/nebenkosten/list", { entry_id: this._data.entry_id }, { cache: false })
+        .then((r) => { this._bills = r.belege; }).catch(() => { this._bills = []; })
+        .finally(() => { this._billsLoading = false; this.render(); });
+    }
+    const ai = d.ai_enabled && d.ai_entity;
+    const aiName = (d.ai_entity && this._hass?.states[d.ai_entity]?.attributes?.friendly_name) || d.ai_entity || "";
+    const list = this._bills || [];
+    const sel = list.find((b) => b.id === this._billSel) || list.find((b) => b.auswertung) || null;
+    const rows = list.map((b) => `<tr class="${sel && b.id === sel.id ? "on" : ""}"><td>${esc(b.name)}</td><td>${fdate(b.zeit)}</td><td>${b.jahr || "–"}</td>
+      <td>${b.fehler ? `<span class="badge bad" title="${esc(b.fehler)}">${t("Fehler")}</span>` : b.auswertung ? `<span class="badge good">${t("ausgewertet")}</span>` : "–"}</td>
+      <td class="n"><button class="lnk" data-bill-show="${esc(b.id)}">${t("Vorschlag")}</button> · <button class="lnk" data-bill-re="${esc(b.id)}" ${ai ? "" : "disabled"}>${t("Neu auswerten")}</button>
+        · <button class="lnk" data-bill-del="${esc(b.id)}">🗑</button></td></tr>`).join("");
+    let prop = "";
+    const v = sel?.auswertung?.vorschlag;
+    if (sel && v) {
+      const fmt = (x, unit) => (x === null || x === undefined ? "–" : unit === "" ? String(x) : `${num(Number(x), 2)} ${unit}`);
+      prop = `<div class="kl" style="margin-top:12px">${t("Vorschlag aus")} „${esc(sel.name)}“${v.zeitraum ? ` · ${esc(v.zeitraum)}` : ""}${v.naechte ? ` · ${num(v.naechte)} ${t("Gästenächte")} (${t(v.naechte_quelle === "smoobu" ? "aus Smoobu" : "laut Dokument")})` : ""}</div>
+        <div class="scroll"><table><thead><tr><th></th><th>${t("Wert")}</th><th class="n">${t("Aktuell")}</th><th class="n">${t("Neu")}</th><th>${t("Herleitung")}</th><th>${t("Fundstelle")}</th><th></th></tr></thead><tbody>
+        ${v.werte.map((w) => `<tr><td><input type="checkbox" data-bill-pick="${esc(w.key)}" ${w.status === "ok" && !w.gleich ? "checked" : ""} ${w.gleich ? "disabled" : ""}></td>
+          <td>${esc(t(w.label))}</td><td class="n">${fmt(w.alt, w.einheit)}</td><td class="n"><b>${fmt(w.neu, w.einheit)}</b></td>
+          <td class="sub">${esc(w.herleitung)}</td><td class="sub">${esc(w.fundstelle || "–")}</td>
+          <td>${w.gleich ? `<span class="muted">${t("unverändert")}</span>` : w.status === "ok" ? `<span class="badge good">${t("ok")}</span>` : `<span class="badge warn" title="${esc(w.hinweis)}">${t("prüfen")}</span> <span class="sub">${esc(w.hinweis)}</span>`}</td></tr>`).join("")}
+        </tbody></table></div>
+        ${v.pruefungen?.length ? `<ul class="sub" style="margin:6px 0 0 18px;padding:0">${v.pruefungen.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+        ${v.hinweise_ki ? `<div class="note" style="border-left-color:var(--sm-warn);white-space:pre-wrap">🤖 ${t("Hinweise der KI")}: ${esc(v.hinweise_ki)}</div>` : ""}
+        <div class="row" style="margin-top:8px"><button class="btn" data-bill-apply="${esc(sel.id)}">${t("Ausgewählte übernehmen")}</button>
+          <span class="sub">${t("Setzt die Werte im Entwurf – erst „Speichern“ übernimmt sie.")}</span></div>`;
+    } else if (sel?.fehler) {
+      prop = `<div class="ferr" style="margin-top:8px">${esc(sel.fehler)}</div>`;
+    }
+    return `<div class="grp" data-neu="nebenkosten"><div class="gh"><div class="grow"><b>${t("Nebenkostenabrechnung auswerten (KI)")}${neuBadge("opt-nebenkosten")}</b>
+        <span class="sub">${t("PDF oder Foto hochladen – die KI liest Heizung, Warmwasser, Wasser und Strom; du prüfst und übernimmst.")}</span></div></div>
+      <div class="gb">${ai ? `<div class="note">🔒 ${t("Die Datei geht vollständig an")} ${esc(aiName)} ${t("(inkl. Name, Adresse, Zählernummern). Gespeichert wird sie nur lokal in Home Assistant.")}</div>` :
+        `<div class="note">${t("KI ist aus oder nicht gewählt (Reiter KI-Assistent) – Upload möglich, Auswertung nicht.")}</div>`}
+        <div class="row"><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" data-bill-file>
+          <button class="btn" data-bill-up ${this._billBusy ? "disabled" : ""}>${this._billBusy ? t("KI liest … (bis 2 min)") : t("Hochladen & auswerten")}</button></div>
+        ${rows ? `<div class="scroll" style="margin-top:8px"><table><thead><tr><th>${t("Datei")}</th><th>${t("Hochgeladen")}</th><th>${t("Jahr")}</th><th>${t("Status")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : ""}
+        ${prop}</div></div>`;
+  }
+  async billUpload(file) {
+    if (!file) { toast(t("Bitte eine Datei wählen")); return; }
+    if (file.size > 15 * 1024 * 1024) { toast(t("Datei größer als 15 MB")); return; }
+    this._billBusy = true; this.render();
+    try {
+      const fd = new FormData();
+      fd.append("datei", file, file.name);
+      const resp = await this._hass.fetchWithAuth(`/api/smoobu/nebenkosten/${this._data.entry_id}`, { method: "POST", body: fd });
+      const r = await resp.json();
+      if (!resp.ok) throw new Error(r.message || resp.statusText);
+      this._bills = [r, ...(this._bills || []).filter((b) => b.id !== r.id)];
+      this._billSel = r.id;
+      toast(r.fehler ? `${t("Gespeichert, Auswertung fehlgeschlagen")}: ${r.fehler}` : t("Ausgewertet – bitte Vorschlag prüfen"));
+    } catch (e) { toast(`${t("Fehler")}: ${e?.message || e}`); }
+    this._billBusy = false; this.render();
+  }
+  // Messergebnis einer Wohnung (nach dem Speichern berechnet): letzte 13 Monate + Vorschlag für „konstant“
+  powerResult(meta, a, named) {
+    const m = meta.energie_messung?.[a.id];
+    if (!m) return `<div class="note">${t("Messung erscheint nach dem Speichern.")}</div>`;
+    if (!m.monate?.length) return `<div class="note">${t("Keine Stundenwerte für")} ${esc(m.entitaet || "")} ${t("gefunden")}${m.fehler ? ` (${esc(m.fehler)})` : ""}.</div>`;
+    const rows = m.monate.slice().reverse().map((x) => `<tr><td>${esc(D(`${x.monat}-01`).toLocaleDateString(locale(), { month: "short", year: "numeric" }))}${x.vollstaendig ? "" : " *"}</td>
+      <td class="n">${num(x.kwh, 1)}</td><td class="n">${num(x.kwh_aufenthalt, 1)}</td><td class="n">${num(x.kwh_leerstand, 1)}</td>
+      <td class="n">${x.netzanteil_prozent === null ? "–" : pct(x.netzanteil_prozent, 0)}</td><td class="n">${money(x.kosten, "EUR", 2)}</td>
+      <td class="n">${num(x.naechte)}</td><td>${x.leerstand_verteilt ? t("verteilt") : `<span class="muted">${t("Fixkosten")} ${money(x.kosten_leerstand, "EUR", 2)}</span>`}</td></tr>`).join("");
+    const avg = m.kwh_je_nacht;
+    return `<div class="kl" style="margin-top:10px">${t("Gemessen")}${named ? ` · ${esc(a.name)}` : ""}: ${num(m.buchungen_gemessen)} ${t("Buchungen")}
+        · ${t("Netzanteil")} ${m.netzanteil_gemessen ? t("stündlich gemessen") : t("feste Monatswerte")} · ${t("Preis")} ${m.preis_entitaet ? esc(m.preis_entitaet) : t("fest")}</div>
+      <div class="scroll"><table><thead><tr><th>${t("Monat")}</th><th class="n">kWh</th><th class="n">${t("Aufenthalte")}</th><th class="n">${t("Leerstand")}</th>
+        <th class="n">${t("Netzanteil")}</th><th class="n">${t("Kosten")}</th><th class="n">${t("Nächte")}</th><th>${t("Leerstand")}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="sub">* ${t("Monat unvollständig")}${avg ? ` · Ø ${num(avg, 1)} kWh ${t("je Gästenacht inkl. Leerstand (12 Monate)")}
+        <button class="lnk" data-pavg="${avg}">${t("als konstanten Wert übernehmen")}</button>` : ""}</div>`;
+  }
   tabCost(meta) {
     const d = this._draft;
     const share = d.cost_grid_share || [];
@@ -5977,6 +6096,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const wJan = HEAT_PROMILLE[0] / 31;
     const dist = MONTHS_SHORT.map((m, i) => `${t(m)} ${num((HEAT_PROMILLE[i] / days[i]) / wJan * 100, 0)} %`).join(" · ");
     return `<div class="note">${t("Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.")}</div>
+      ${this.billsBlock(meta)}
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Je Aufenthalt")}</b></div></div><div class="gb">
         ${this.fld("Reinigung", this.numIn("cost_cleaning", 0, 1000, 0.5, "€"), "", "cost_cleaning")}
         ${this.fld("Wäsche", this.numIn("cost_laundry", 0, 1000, 0.5, "€"), "", "cost_laundry")}</div></div>
@@ -5993,6 +6113,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Netzstrompreis", this.numIn("cost_grid_price", 0, 200, 0.01, "ct/kWh"), "", "cost_grid_price")}
         ${this.fld("Wert PV-Strom", this.numIn("cost_pv_value", 0, 200, 0.01, "ct/kWh"), "", "cost_pv_value")}
         ${this.fld("Netzanteil je Monat", `<div class="chips">${months}</div>`, "Netzbezug ÷ Hausverbrauch, z. B. aus dem Energie-Dashboard.", "cost_grid_share")}</div></div>
+      ${this.powerBlock(meta)}
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Aufschläge je Kanal")}</b>
         <span class="sub">${t("Wie im Smoobu-Preistool: Kanalpreis = Basispreis + Aufschlag. Grundlage für Preisuntergrenzen und Empfehlungen.")}</span></div></div>
       <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Aufschlag")}</th><th></th></tr></thead><tbody>${mk}</tbody></table></div>
@@ -6255,6 +6376,42 @@ class SmoobuSettingsCard extends SmoobuCard {
       d.user_roles = Object.fromEntries(Object.entries(d.user_roles || {}).filter(([, r]) => r !== rid));
       redraw();
     }));
+    // v1.19.0: Nebenkostenabrechnung (Upload, Auswertung, Vorschlag übernehmen)
+    root.querySelector("[data-bill-up]")?.addEventListener("click", () => this.billUpload(root.querySelector("[data-bill-file]")?.files?.[0]));
+    root.querySelectorAll("[data-bill-show]").forEach((b) => b.addEventListener("click", () => { this._billSel = b.dataset.billShow; this.render(); }));
+    root.querySelectorAll("[data-bill-re]").forEach((b) => b.addEventListener("click", async () => {
+      this._billBusy = true; this.render();
+      try {
+        const r = await this.store.ws("smoobu/nebenkosten/analyse", { entry_id: this._data.entry_id, beleg_id: b.dataset.billRe }, { cache: false });
+        this._bills = this._bills.map((x) => (x.id === r.beleg.id ? r.beleg : x)); this._billSel = r.beleg.id;
+      } catch (e) { toast(`${t("Fehler")}: ${e?.message || e}`); }
+      this._billBusy = false; this.render();
+    }));
+    root.querySelectorAll("[data-bill-del]").forEach((b) => b.addEventListener("click", async () => {
+      if (!(await confirmDialog(t("Datei und Auswertung löschen?")))) return;
+      const r = await this.store.ws("smoobu/nebenkosten/delete", { entry_id: this._data.entry_id, beleg_id: b.dataset.billDel }, { cache: false });
+      this._bills = r.belege; this.render();
+    }));
+    root.querySelector("[data-bill-apply]")?.addEventListener("click", (e) => {
+      const bill = (this._bills || []).find((x) => x.id === e.target.dataset.billApply);
+      const picks = new Set([...root.querySelectorAll("[data-bill-pick]:checked")].map((x) => x.dataset.billPick));
+      let n = 0;
+      for (const w of bill?.auswertung?.vorschlag?.werte || []) if (picks.has(w.key)) { d[w.key] = w.neu; n++; }
+      toast(n ? `${n} ${t("Werte übernommen – mit „Speichern“ übernehmen")}` : t("Nichts ausgewählt"));
+      redraw();
+    });
+    // v1.19.0: Stromkosten konstant/gemessen
+    root.querySelectorAll("[data-psrc]").forEach((b) => b.addEventListener("click", () => { d.cost_power_source = b.dataset.psrc; redraw(); }));
+    root.querySelectorAll("[data-vmode]").forEach((b) => b.addEventListener("click", () => { d.cost_vacancy_mode = b.dataset.vmode; redraw(); }));
+    const mapIn = (attr, key) => root.querySelectorAll(`[${attr}]`).forEach((inp) => inp.addEventListener("input", () => {
+      const m = { ...(d[key] || {}) }; const id = inp.getAttribute(attr);
+      if (inp.value.trim()) m[id] = inp.value.trim(); else delete m[id];
+      d[key] = m; this.refreshFoot();
+    }));
+    mapIn("data-pent", "cost_power_entities");
+    mapIn("data-preh", "cost_preheat_entities");
+    root.querySelectorAll("[data-ent]").forEach((inp) => inp.addEventListener("input", () => { d[inp.dataset.ent] = inp.value.trim() || null; this.refreshFoot(); }));
+    root.querySelector("[data-pavg]")?.addEventListener("click", (e) => { d.cost_power_kwh = Number(e.target.dataset.pavg); toast(t("Übernommen – mit „Speichern“ übernehmen")); redraw(); });
     // v1.19.0: Handy je Reinigungskraft
     root.querySelectorAll("[data-cphone]").forEach((sel) => sel.addEventListener("change", () => {
       const ph = { ...(d.cleaning_phones || {}) };

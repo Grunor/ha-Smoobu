@@ -224,6 +224,45 @@ def _shots(base: str, token: str, set_options) -> list[str]:
         page.wait_for_timeout(500)
         page.locator(card_settings).locator('[data-neu="rollen"]').screenshot(path=str(OUT / "einstellungen_rollen.png"))
         done.append("einstellungen_rollen.png")
+        # v1.19.0: Stromkosten aus Zähler – Messergebnis als Demowert eingesetzt (die Screenshot-Umgebung hat keinen Recorder)
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", [card_settings, {"tab": "kosten"}, 1180])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-settings-card')?.shadowRoot;"
+                               " return r && r.querySelector('[data-neu=strom]'); }", timeout=20000)
+        page.evaluate("""() => { const c = document.querySelector('smoobu-settings-card'); const m = c._data.meta;
+            const apt = m.wohnungen[0].id; c._draft.cost_power_source = 'zaehler';
+            c._draft.cost_power_entities = { [apt]: 'sensor.ferienwohnung_strom_energie' };
+            c._draft.cost_price_entity = 'input_number.strompreis'; c._draft.cost_vacancy_mode = 'separat';
+            const mon = ['2025-11','2025-12','2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09','2026-10','2026-11'];
+            const kwh = [105, 91, 43, 175, 132, 114, 83, 66, 45, 37, 58, 88, 49];
+            const n = [16, 13, 6, 22, 19, 18, 15, 14, 10, 8, 12, 16, 8];
+            m.energie_messung = { [apt]: { entitaet: 'sensor.ferienwohnung_strom_energie', netzanteil_gemessen: true,
+              preis_entitaet: 'input_number.strompreis', buchungen_gemessen: 71, kwh_je_nacht: 5.9,
+              monate: mon.map((k, i) => ({ monat: k, kwh: kwh[i], kwh_aufenthalt: Math.round(kwh[i] * 0.68 * 10) / 10,
+                kwh_leerstand: Math.round(kwh[i] * 0.32 * 10) / 10, netzanteil_prozent: [80,85,82,60,30,15,8,6,5,20,45,70,78][i],
+                kosten: Math.round(kwh[i] * 0.24 * 100) / 100, kosten_leerstand: Math.round(kwh[i] * 0.32 * 0.24 * 100) / 100, naechte: n[i], leerstand_verteilt: false, vollstaendig: i < 12 })) } };
+            c.render(); }""")
+        page.wait_for_timeout(500)
+        page.locator(card_settings).locator('[data-neu="strom"]').screenshot(path=str(OUT / "einstellungen_strom.png"))
+        done.append("einstellungen_strom.png")
+        # v1.19.0: Nebenkostenabrechnung – Auswertung als Demowert (keine KI in der Screenshot-Umgebung)
+        page.evaluate("""() => { const c = document.querySelector('smoobu-settings-card'); const d = c._draft;
+            d.ai_enabled = true; d.ai_entity = 'ai_task.demo_ki';
+            const w = (key, label, unit, alt, neu, how, src, status, hint) => ({ key, label, einheit: unit, alt, neu, herleitung: how,
+              fundstelle: src, status, hinweis: hint || '', gleich: alt === neu });
+            c._bills = [{ id: 'b1', name: 'Nebenkostenabrechnung 2025.pdf', zeit: '2026-11-20T20:30:00', jahr: 2025, fehler: null,
+              auswertung: { vorschlag: { jahr: 2025, zeitraum: '01.01.–31.12.2025', naechte: 204, naechte_quelle: 'smoobu',
+                werte: [w('cost_ref_year', 'Abrechnungsjahr', '', 2025, 2025, 'aus dem Dokument', 'Seite 1 – Abrechnungszeitraum 2025', 'ok'),
+                  w('cost_heating_year', 'Heizkosten im Abrechnungsjahr', '€', 473.31, 488.9, 'Heizkosten laut Abrechnung', 'Seite 2 – Heizkosten Ferienwohnung 488,90 €', 'ok'),
+                  w('cost_hot_water_year', 'Warmwasser im Abrechnungsjahr', '€', 161.53, 166.2, 'Warmwasser laut Abrechnung', 'Seite 2 – Warmwasser 166,20 €', 'ok'),
+                  w('cost_water_night', 'Wasser/Abwasser je Nacht', '€', 0.47, 0.49, '99,80 € ÷ 204 Gästenächte (Smoobu)', 'Seite 3 – Frisch- und Abwasser 99,80 €', 'ok'),
+                  w('cost_power_kwh', 'Strom je Nacht', 'kWh', 4.6, 4.3, '877 kWh ÷ 204 Gästenächte', 'Seite 3 – Unterzähler 877 kWh', 'ok'),
+                  w('cost_grid_price', 'Netzstrompreis', 'ct/kWh', 30.54, 32.1, 'Arbeitspreis laut Abrechnung', 'Seite 3 – Arbeitspreis 32,10 ct/kWh', 'pruefen', 'weicht vom Strompreis in HA (30,54 ct) ab')],
+                pruefungen: ['Strom: Abrechnung 877 kWh, Zähler in HA 874 kWh – passt'],
+                hinweise_ki: 'Umrechnungsfaktor Warmwasser 0,6 kWh/l wirkt hoch (üblich ≈ 0,058 kWh/l je K).' } } }];
+            c._billSel = 'b1'; c.render(); }""")
+        page.wait_for_timeout(500)
+        page.locator(card_settings).locator('[data-neu="nebenkosten"]').screenshot(path=str(OUT / "einstellungen_nebenkosten.png"))
+        done.append("einstellungen_nebenkosten.png")
         page.set_viewport_size({"width": 1212, "height": 900})
         card("reinigung", "smoobu-cleaning-card", {"days": 14})
         page.set_viewport_size({"width": 430, "height": 900})

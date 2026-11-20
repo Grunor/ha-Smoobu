@@ -4,7 +4,10 @@
   "after_dependencies": [
     "cloud",
     "frontend",
-    "ai_task"
+    "ai_task",
+    "recorder",
+    "energy",
+    "media_source"
   ],
   "codeowners": [
     "@Grunor"

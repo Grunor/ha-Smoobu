@@ -93,6 +93,8 @@ from .analytics import block_channel_id
 from .assistant import SmoobuAssistant
 from .notifications import SmoobuNotifier
 from .reinigung import CleaningBoard
+from .nebenkosten import UtilityBills
+from .websocket_api import NebenkostenUploadView
 from .coordinator import SmoobuCoordinator
 from .frontend import async_register_frontend
 from .websocket_api import async_register as async_register_websocket
@@ -116,6 +118,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Aktionen, WebSocket-Befehle und Dashboard-Karten einmalig registrieren."""
     _register_services(hass)
     async_register_websocket(hass)
+    hass.http.register_view(NebenkostenUploadView())  # v1.19.0: Upload Nebenkostenabrechnung
     await async_register_frontend(hass)
     return True
 
@@ -136,6 +139,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> bo
     # v1.19.0: Reinigungsboard (Zuweisungen, Vorabend-Erinnerung)
     coordinator.cleaning = CleaningBoard(hass, coordinator)
     await coordinator.cleaning.async_setup()
+    coordinator.bills = UtilityBills(hass, coordinator)  # v1.19.0: Nebenkostenabrechnungen (KI-Auswertung)
     coordinator.assistant = SmoobuAssistant(hass, coordinator)
     await coordinator.assistant.async_setup()
 

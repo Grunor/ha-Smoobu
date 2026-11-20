@@ -195,11 +195,13 @@ def build_table(records: list[dict[str, Any]], cfg: CostConfig) -> CostTable:
                      heat_factor(cfg.hot_water_year, nights, cfg.ref_year))
 
 
-def apply(records: list[dict[str, Any]], table: CostTable) -> None:
+def apply(records: list[dict[str, Any]], table: CostTable, measured: dict[Any, dict[str, Any]] | None = None) -> None:
     """Je Gästebuchung variable Kosten und Deckungsbeitrag ergänzen (in place).
 
     `var_naechte` = Kosten je Nacht inkl. anteiliger Reinigung/Wäsche (Aufenthaltskosten
     gleichmäßig auf die Nächte verteilt) – die Statistik verbucht so je Nacht wie beim Umsatz.
+    v1.19.0: `measured` = gemessene Stromkosten je Buchung (energie.allocate) – ersetzt den
+    geschätzten Stromanteil je Nacht; `strom_quelle` zeigt, was gilt.
     """
     for r in records:
         if r["blockiert"] or r["storniert"] or not r["naechte"]:
@@ -207,7 +209,15 @@ def apply(records: list[dict[str, Any]], table: CostTable) -> None:
             continue
         arrival = date.fromisoformat(r["anreise"])
         stay_part = table.cfg.per_stay / r["naechte"]
-        per_night = [round(table.night(arrival + timedelta(days=i))["summe"] + stay_part, 4) for i in range(r["naechte"])]
+        m = (measured or {}).get(r["id"])
+        nights = [table.night(arrival + timedelta(days=i)) for i in range(r["naechte"])]
+        if m and len(m["naechte_kosten"]) == r["naechte"]:
+            per_night = [round(n["summe"] - n["strom"] + mk + stay_part, 4) for n, mk in zip(nights, m["naechte_kosten"])]
+            r["strom_quelle"], r["strom_kwh"], r["strom_kosten"] = "gemessen", m["kwh"], m["kosten"]
+        else:
+            per_night = [round(n["summe"] + stay_part, 4) for n in nights]
+            r["strom_quelle"], r["strom_kwh"] = "geschätzt", round(table.cfg.power_kwh * r["naechte"], 2)
+            r["strom_kosten"] = round(sum(n["strom"] for n in nights), 2)
         r["var_naechte"] = per_night
         r["var_kosten"] = round(sum(per_night), 2)
         r["db"] = round(r["netto"] - r["var_kosten"], 2)

@@ -52,6 +52,7 @@ from .const import (
     FALLBACK_CHECKOUT,
 )
 from .analytics import build_records, is_cancelled
+from . import energie
 from .deckungsbeitrag import apply as db_apply
 from .deckungsbeitrag import build_table as db_build_table
 from .deckungsbeitrag import config_from_options as cost_config_from_options
@@ -140,6 +141,8 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         self._no_reply: dict[str, int] | None = None  # None = noch nicht geladen
         # KI-Assistent (assistant.py), gesetzt in __init__.async_setup_entry
         self.assistant: Any = None
+        self._energy = energie.EnergyData(hass)  # v1.19.0: Stundenwerte der Zähler (im Speicher)
+        self.bills: Any = None  # v1.19.0: Nebenkostenabrechnungen (nebenkosten.UtilityBills)
         self.cleaning: Any = None  # v1.19.0: Reinigungsboard (reinigung.CleaningBoard)
         self.notifier: Any = None  # v1.17.0: Benachrichtigungen (notifications.SmoobuNotifier)
         # Statistik-Werkbank (Teilschritte 3/4):
@@ -329,7 +332,6 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             # v1.18.0: variable Kosten + Deckungsbeitrag je Buchung (Heizung skaliert auf die
             # Gästenächte des Bezugsjahres dieser Wohnung)
             cost_tables[apt_id] = db_build_table(records[apt_id], cost_cfg)
-            db_apply(records[apt_id], cost_tables[apt_id])
             # Für alle bisherigen Umsatzwerte nur gültige Buchungen (ohne Stornos)
             items = [
                 b
@@ -344,6 +346,17 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             rows[apt_id] = night_rows(
                 items, self.commissions, self.commission_other, self.direct_channels
             )
+
+        # v1.19.0: Stromkosten gemessen (Modus „zaehler“) oder konstant – danach DB je Buchung.
+        # Fehler der Messung sind nie fatal: dann gelten die konstanten Werte.
+        energy: dict[int, dict[str, Any]] = {}
+        try:
+            energy = await energie.measure(self.hass, self._energy, dict(self.config_entry.options), records,
+                                           cost_cfg, self.default_checkin, self.default_checkout)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Smoobu: Stromkosten aus Messwerten nicht berechnet: %s", err)
+        for apt_id in apartments:
+            db_apply(records[apt_id], cost_tables[apt_id], (energy.get(apt_id) or {}).get("buchungen"))
 
         self._maybe_start_response_job()
         return SmoobuData(
@@ -361,6 +374,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             night_rows=rows,
             records=records,
             cost_tables=cost_tables,
+            energy=energy,
         )
 
     async def _async_load_rates(

@@ -192,6 +192,10 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_cleaning_get)
     websocket_api.async_register_command(hass, ws_cleaning_set)
     websocket_api.async_register_command(hass, ws_cleaning_stats)
+    websocket_api.async_register_command(hass, ws_energy_vacancy)
+    websocket_api.async_register_command(hass, ws_bills_list)
+    websocket_api.async_register_command(hass, ws_bills_analyse)
+    websocket_api.async_register_command(hass, ws_bills_delete)
 
 
 _TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): _apt_id}
@@ -1178,3 +1182,124 @@ async def ws_cleaning_stats(hass: HomeAssistant, connection: websocket_api.Activ
     # Mehrere Konten: zusammenführen (selten; Personen gleichen Namens werden addiert)
     from .reinigung import merge_stats
     connection.send_result(msg["id"], merge_stats(parts))
+
+
+# ---------------------------------------------------------------------------
+# Nebenkostenabrechnung (v1.19.0) – Upload per HTTP (Datei), Rest per WebSocket; Logik in nebenkosten.py
+# ---------------------------------------------------------------------------
+from aiohttp import web  # noqa: E402
+
+from homeassistant.components.http import HomeAssistantView  # noqa: E402
+from homeassistant.helpers.http import KEY_HASS  # noqa: E402
+
+
+def _bills(hass: HomeAssistant, entry_id: str, user: Any):
+    """Belege eines Kontos, nur mit Recht „einstellungen“ (sonst None)."""
+    entry = hass.config_entries.async_get_entry(entry_id)
+    c = getattr(entry, "runtime_data", None) if entry and entry.domain == DOMAIN else None
+    if c is None or getattr(c, "bills", None) is None or not rechte.allowed(user, entry.options, "einstellungen") or user is None:
+        return None
+    return c.bills
+
+
+class NebenkostenUploadView(HomeAssistantView):
+    """POST multipart (Feld „datei“) → speichern und sofort auswerten. Antwort: Beleg mit Auswertung/Fehler."""
+
+    url = "/api/smoobu/nebenkosten/{entry_id}"
+    name = "api:smoobu:nebenkosten"
+    requires_auth = True
+
+    async def post(self, request: web.Request, entry_id: str) -> web.Response:
+        hass = request.app[KEY_HASS]
+        user = request.get("hass_user")
+        bills = _bills(hass, entry_id, user)
+        if bills is None:
+            return self.json_message("Keine Berechtigung: Einstellungen ändern", 403)
+        reader = await request.multipart()
+        field = await reader.next()
+        if field is None or field.name != "datei":
+            return self.json_message("Feld „datei“ fehlt", 400)
+        chunks, size = [], 0
+        from .nebenkosten import MAX_BYTES
+        while chunk := await field.read_chunk(256 * 1024):
+            size += len(chunk)
+            if size > MAX_BYTES:
+                return self.json_message("Datei größer als 15 MB", 413)
+            chunks.append(chunk)
+        try:
+            from urllib.parse import unquote  # Browser/aiohttp kodieren Leerzeichen und Umlaute im Dateinamen
+            item = await bills.add(unquote(field.filename or "beleg.pdf"), b"".join(chunks), user.name)
+        except ValueError as err:
+            return self.json_message({"invalid_type": "Nur PDF, JPG oder PNG", "invalid_size": "Datei leer oder zu groß"}.get(str(err), str(err)), 400)
+        try:
+            item = await bills.analyse(item["id"])
+        except Exception as err:  # noqa: BLE001 – Beleg bleibt gespeichert, Auswertung kann wiederholt werden
+            item = {**item, "fehler": str(err)}
+        return self.json(item)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/nebenkosten/list", vol.Required("entry_id"): str})
+@websocket_api.async_response
+async def ws_bills_list(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    bills = _bills(hass, msg["entry_id"], connection.user)
+    if bills is None:
+        connection.send_error(msg["id"], "unauthorized", f"Keine Berechtigung: {rechte.RIGHTS['einstellungen']}")
+        return
+    connection.send_result(msg["id"], {"belege": await bills.list()})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/nebenkosten/analyse", vol.Required("entry_id"): str,
+                                  vol.Required("beleg_id"): vol.All(str, vol.Length(max=60))})
+@websocket_api.async_response
+async def ws_bills_analyse(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    bills = _bills(hass, msg["entry_id"], connection.user)
+    if bills is None:
+        connection.send_error(msg["id"], "unauthorized", f"Keine Berechtigung: {rechte.RIGHTS['einstellungen']}")
+        return
+    try:
+        connection.send_result(msg["id"], {"beleg": await bills.analyse(msg["beleg_id"])})
+    except Exception as err:  # noqa: BLE001
+        connection.send_error(msg["id"], "analyse_failed", str(err))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/nebenkosten/delete", vol.Required("entry_id"): str,
+                                  vol.Required("beleg_id"): vol.All(str, vol.Length(max=60))})
+@websocket_api.async_response
+async def ws_bills_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    bills = _bills(hass, msg["entry_id"], connection.user)
+    if bills is None:
+        connection.send_error(msg["id"], "unauthorized", f"Keine Berechtigung: {rechte.RIGHTS['einstellungen']}")
+        return
+    await bills.delete(msg["beleg_id"])
+    connection.send_result(msg["id"], {"belege": await bills.list()})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/energie/leerstand", **_TARGET,
+                                  vol.Required("start"): str, vol.Required("end"): str})
+@callback
+def ws_energy_vacancy(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """v1.19.0: gemessener Leerstand-Strom im Zeitraum (Fixkosten, nicht im Deckungsbeitrag – Modus „separat“)."""
+    from .energie import vacancy_costs
+
+    try:
+        pairs = _targets(hass, msg)
+        start, end = _date(msg["start"]), _date(msg["end"])
+    except (vol.Invalid, ValueError) as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c for c, _ in pairs], "finanzen"):
+        return
+    kwh = cost = 0.0
+    found = False
+    modes = set()
+    for c, apt in pairs:
+        res = (c.data.energy if c.data else {}).get(apt)
+        if not res:
+            continue
+        found = True
+        modes.add(res.get("leerstand_modus") or "separat")
+        v = vacancy_costs(res, start, end)
+        kwh += v["kwh"]
+        cost += v["kosten"]
+    connection.send_result(msg["id"], {"gemessen": found, "kwh": round(kwh, 1), "kosten": round(cost, 2),
+                                       "modus": "anteilig" if modes == {"anteilig"} else "separat"})

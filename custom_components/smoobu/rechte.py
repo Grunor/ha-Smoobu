@@ -173,7 +173,7 @@ def matrix(options: Any = None) -> dict[str, Any]:
 FINANCE_KEYS = {
     "brutto", "netto", "provision", "provision_quelle", "zahlungsgebuehr", "kostenquote_prozent",
     "brutto_pro_nacht", "netto_pro_nacht", "offen", "anzahlung", "anzahlung_bezahlt", "bezahlt",
-    "kurtaxe", "positionen", "var_kosten", "db", "var_naechte", "price", "price-details", "prepayment",
+    "kurtaxe", "positionen", "var_kosten", "db", "var_naechte", "strom_kosten", "price", "price-details", "prepayment",
     "prepayment-paid", "price-paid", "commission-included", "deposit", "deposit-paid", "city-tax", "priceElements",
 }
 # Felder, die nur mit „gaeste“ ausgeliefert werden (Personenbezug)

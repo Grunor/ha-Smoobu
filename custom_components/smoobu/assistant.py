@@ -536,7 +536,8 @@ GÄSTENACHRICHT: {guest or '(keine – Nachricht aus Anlass oben schreiben)'}
                             "required": False, "selector": {"text": None}},
     }
 
-    async def _ai(self, instructions: str, structure: dict[str, Any], task: str) -> dict[str, Any]:
+    async def _ai(self, instructions: str, structure: dict[str, Any], task: str,
+                  attachments: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         # Zentrale Sperre: einzige Stelle mit ai_task-Aufruf → hier greift die Option immer
         self._require_ai()
         entity = self.opts.get(CONF_AI_ENTITY)
@@ -550,7 +551,9 @@ GÄSTENACHRICHT: {guest or '(keine – Nachricht aus Anlass oben schreiben)'}
                 resp = await self.hass.services.async_call(
                     "ai_task",
                     "generate_data",
-                    {"entity_id": entity, "task_name": task, "instructions": instructions, "structure": structure},
+                    {"entity_id": entity, "task_name": task, "instructions": instructions, "structure": structure,
+                     # v1.19.0: Anhänge (z. B. Nebenkostenabrechnung als PDF, nebenkosten.py)
+                     **({"attachments": attachments} if attachments else {})},
                     blocking=True,
                     return_response=True,
                 )

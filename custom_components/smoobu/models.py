@@ -45,6 +45,8 @@ class SmoobuData:
     records: dict[int, list] = field(default_factory=dict)
     # Wohnungs-ID → Kostentabelle (deckungsbeitrag.CostTable) für variable Kosten je Nacht
     cost_tables: dict[int, Any] = field(default_factory=dict)
+    # v1.19.0: Stromkosten aus Messwerten je Wohnung (energie.allocate), leer im Modus „konstant“
+    energy: dict[int, Any] = field(default_factory=dict)
 
 
 def parse_time(value: Any, fallback: time | None) -> time | None:

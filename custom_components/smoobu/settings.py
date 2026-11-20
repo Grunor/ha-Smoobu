@@ -30,6 +30,21 @@ from . import seasons as season_cfg
 from .codes import all_codes, clean_code
 from .deckungsbeitrag import parse_grid_share, parse_markups
 from . import rechte
+from . import energie
+from .energie import (
+    CONF_COST_GRID_SHARE_AUTO,
+    CONF_COST_POWER_ENTITIES,
+    CONF_COST_POWER_SOURCE,
+    CONF_COST_PREHEAT_ENTITIES,
+    CONF_COST_PREHEAT_HOURS,
+    CONF_COST_PRICE_ENTITY,
+    CONF_COST_VACANCY_MODE,
+    DEFAULT_COST_POWER_SOURCE,
+    DEFAULT_COST_VACANCY_MODE,
+    VACANCY_MODES,
+    DEFAULT_COST_PREHEAT_HOURS,
+    POWER_SOURCES,
+)
 from .reinigung import (
     CONF_CLEANING_NOTIFY,
     CONF_CLEANING_PHONES,
@@ -228,6 +243,14 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_COST_GRID_PRICE: float(o.get(CONF_COST_GRID_PRICE, DEFAULT_COST_GRID_PRICE)),
         CONF_COST_PV_VALUE: float(o.get(CONF_COST_PV_VALUE, DEFAULT_COST_PV_VALUE)),
         CONF_COST_GRID_SHARE: [float(x) for x in (o.get(CONF_COST_GRID_SHARE) or DEFAULT_COST_GRID_SHARE)],
+        # v1.19.0: Stromkosten konstant oder aus Zähler-Entitäten (energie.py)
+        CONF_COST_POWER_SOURCE: str(o.get(CONF_COST_POWER_SOURCE, DEFAULT_COST_POWER_SOURCE)),
+        CONF_COST_POWER_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_POWER_ENTITIES) or {}).items() if v},
+        CONF_COST_PRICE_ENTITY: o.get(CONF_COST_PRICE_ENTITY) or None,
+        CONF_COST_GRID_SHARE_AUTO: bool(o.get(CONF_COST_GRID_SHARE_AUTO, True)),
+        CONF_COST_PREHEAT_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_PREHEAT_ENTITIES) or {}).items() if v},
+        CONF_COST_PREHEAT_HOURS: float(o.get(CONF_COST_PREHEAT_HOURS, DEFAULT_COST_PREHEAT_HOURS)),
+        CONF_COST_VACANCY_MODE: str(o.get(CONF_COST_VACANCY_MODE, DEFAULT_COST_VACANCY_MODE)),
         CONF_CHANNEL_MARKUPS: {str(k): float(v) for k, v in (o.get(CONF_CHANNEL_MARKUPS, DEFAULT_CHANNEL_MARKUPS)).items()},
         CONF_GENIUS_DISCOUNT: float(o.get(CONF_GENIUS_DISCOUNT, DEFAULT_GENIUS_DISCOUNT)),
         CONF_GENIUS_SHARE: float(o.get(CONF_GENIUS_SHARE, DEFAULT_GENIUS_SHARE)),
@@ -355,7 +378,37 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
             [r for apt_id in (data.apartments if data else {}) for r in coordinator.records(apt_id)], date.today(),
             units=max(len(data.apartments), 1) if data else 1),
         "saison_standard": season_cfg.DEFAULT_SEASONS,
+        # v1.19.0: Auswahl für Stromzähler, Strompreis und Vorheizstart + Messergebnis je Wohnung
+        **energy_meta(hass, coordinator),
     }
+
+
+def energy_meta(hass: HomeAssistant, coordinator: Any) -> dict[str, Any]:
+    """Entitäten-Vorschläge (Energiezähler, Preise, Zeitstempel) und Messung je Wohnung (letzte 13 Monate)."""
+    def item(st):
+        return {"entity_id": st.entity_id, "name": st.attributes.get("friendly_name") or st.entity_id,
+                "unit": st.attributes.get("unit_of_measurement")}
+    states = hass.states.async_all(["sensor", "input_number", "number"])
+    meters = [item(st) for st in states if st.domain == "sensor" and st.attributes.get("device_class") == "energy"
+              and st.attributes.get("state_class") in ("total", "total_increasing")]
+    prices = [item(st) for st in states if "/kwh" in str(st.attributes.get("unit_of_measurement") or "").casefold()]
+    stamps = [item(st) for st in states if st.domain == "sensor" and st.attributes.get("device_class") == "timestamp"]
+    data = coordinator.data if coordinator else None
+    today = date.today()
+    measured = {}
+    for apt, res in ((data.energy if data else {}) or {}).items():
+        months = sorted(res.get("monate", {}).items())[-13:]
+        measured[str(apt)] = {
+            "entitaet": res.get("entitaet"), "von": res.get("von"), "bis": res.get("bis"), "fehler": res.get("fehler"),
+            "netzanteil_gemessen": res.get("netzanteil_gemessen"), "preis_entitaet": res.get("preis_entitaet"),
+            "leerstand_modus": res.get("leerstand_modus"),
+            "monate": [{"monat": k, **v} for k, v in months],
+            "buchungen_gemessen": len(res.get("buchungen", {})),
+            "kwh_je_nacht": energie.average_kwh_per_night(res, today),
+        }
+    key = lambda x: x["name"].casefold()  # noqa: E731
+    return {"energie_zaehler": sorted(meters, key=key), "energie_preise": sorted(prices, key=key),
+            "energie_zeitstempel": sorted(stamps, key=key), "energie_messung": measured}
 
 
 # ---------------------------------------------------------------------------
@@ -514,6 +567,20 @@ def _custom_roles(value: Any) -> dict[str, dict[str, Any]]:
     return out
 
 
+def _entity_map(value: Any) -> dict[str, str]:
+    """{Wohnungs-ID: sensor.…} – leere Einträge fallen weg (v1.19.0, Strom je Wohnung)."""
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    out = {}
+    for apt, ent in value.items():
+        if ent in (None, ""):
+            continue
+        if not re.fullmatch(r"sensor\.[a-z0-9_]+", str(ent)):
+            raise vol.Invalid("invalid_entity")
+        out[str(apt)] = str(ent)
+    return out
+
+
 def _phones(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         raise vol.Invalid("invalid_list")
@@ -584,6 +651,13 @@ FIELDS: dict[str, Any] = {
     CONF_COST_GRID_PRICE: _num(0, 200),
     CONF_COST_PV_VALUE: _num(0, 200),
     CONF_COST_GRID_SHARE: _grid_share,
+    CONF_COST_POWER_SOURCE: vol.In(POWER_SOURCES),
+    CONF_COST_POWER_ENTITIES: _entity_map,
+    CONF_COST_PRICE_ENTITY: vol.Any(None, "", vol.Match(r"^(sensor|input_number|number)\.[a-z0-9_]+$")),
+    CONF_COST_GRID_SHARE_AUTO: bool,
+    CONF_COST_PREHEAT_ENTITIES: _entity_map,
+    CONF_COST_PREHEAT_HOURS: _num(0, 24),
+    CONF_COST_VACANCY_MODE: vol.In(VACANCY_MODES),
     CONF_CHANNEL_MARKUPS: _markups,
     CONF_GENIUS_DISCOUNT: _num(0, 50),
     CONF_GENIUS_SHARE: _num(0, 100),
@@ -631,6 +705,10 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
             errors[CONF_USER_ROLES] = "invalid_role"
         values[CONF_USER_ROLES] = {u: r for u, r in values[CONF_USER_ROLES].items() if r in known}
 
+    # v1.19.0: Modus „zaehler“ braucht mindestens einen Zähler
+    if values[CONF_COST_POWER_SOURCE] == "zaehler" and not values[CONF_COST_POWER_ENTITIES] and CONF_COST_POWER_ENTITIES not in errors:
+        errors[CONF_COST_POWER_ENTITIES] = "power_entity_required"
+
     # KI erlauben ohne KI-Entität ergibt keinen Sinn (gleiche Regel wie im Options-Dialog)
     if values[CONF_AI_ENABLED] and not values[CONF_AI_ENTITY]:
         errors[CONF_AI_ENTITY] = "ai_entity_required"
@@ -660,7 +738,10 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
     overrides = {rid: r for rid, r in values[CONF_ROLE_RIGHTS].items()
                  if rid in rechte.ROLES and frozenset(r) != rechte._clean(rechte.ROLES[rid][1])}
     for key, val in ((CONF_ROLE_RIGHTS, overrides), (CONF_CUSTOM_ROLES, values[CONF_CUSTOM_ROLES]),
-                     (CONF_CLEANING_PHONES, values[CONF_CLEANING_PHONES])):
+                     (CONF_CLEANING_PHONES, values[CONF_CLEANING_PHONES]),
+                     (CONF_COST_POWER_ENTITIES, values[CONF_COST_POWER_ENTITIES]),
+                     (CONF_COST_PREHEAT_ENTITIES, values[CONF_COST_PREHEAT_ENTITIES]),
+                     (CONF_COST_PRICE_ENTITY, values[CONF_COST_PRICE_ENTITY])):
         if val:
             merged[key] = val
         else:

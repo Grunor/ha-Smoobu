@@ -107,6 +107,12 @@ Alle Bilder zeigen eine **erfundene Demo-Ferienwohnung**. Die Bilder stammen aus
 **Statistik „Reinigung“:** wer hat wann welche Wohnung gereinigt – je Person (Anteil, Gästewechsel, Hunde, Gäste Ø, Nächte, Zeit bis zum Abhaken), je Monat, je Wohnung und als Liste
 ![Statistik Reinigung](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_reinigung.png)
 
+**Stromkosten (ab 1.19.0):** konstant wie bisher oder gemessen aus dem Stromzähler der Wohnung – Vorheizstart bis Check-out, Leerstand separat oder anteilig, Netzanteil stündlich aus dem Energie-Dashboard
+![Stromkosten](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_strom.png)
+
+**Nebenkostenabrechnung (ab 1.19.0):** PDF hochladen, die KI liest die Werte, Vorschlag mit Herleitung, Fundstelle und Prüfung – übernommen erst nach Bestätigung
+![Nebenkosten](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_nebenkosten.png)
+
 **Rollenkonfigurator (ab 1.19.0):** Rechte je Rolle per Häkchen, eigene Rollen anlegen; Hinweis bei Kombinationen, die im Dashboard kaum nutzbar sind
 ![Rollen](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_rollen.png)
 
@@ -247,7 +253,7 @@ Schritt **Benachrichtigungen** (ab 1.17.0) – je Push-Art an/aus und eigene Emp
 
 Schritt **Wohnungskürzel** (ab 1.17.0): eigenes Kürzel je Wohnung (bis 4 Zeichen, Buchstaben/Ziffern, eindeutig über alle Konten); leer = automatisch. Gilt für Dashboard und Pushes.
 
-**Nur in der Einstellungs-Karte** (`custom:smoobu-settings-card`, ab 1.18.0): **Kosten & Preise** (variable Kosten je Aufenthalt und Nacht, Aufschläge je Kanal, Genius, Last-Minute), **Benutzer & Rechte** (Rollen, nur Admins), **Saisons** (2–6 Saisons mit Namen und Startmonat, automatische Erkennung aus den bisherigen Jahren) und die Kategorien des Aufgaben-Boards. Neue Optionen nach einem Update erscheinen in der Übersicht unter **„Wartet auf dich“ → Einrichtung** mit Link zur Stelle.
+**Nur in der Einstellungs-Karte** (`custom:smoobu-settings-card`, ab 1.18.0): **Kosten & Preise** (variable Kosten je Aufenthalt und Nacht, ab 1.19.0 **Stromkosten konstant oder aus Zähler** und **Nebenkostenabrechnung per KI**, Aufschläge je Kanal, Genius, Last-Minute), **Benutzer & Rechte** (Rollen, nur Admins), **Saisons** (2–6 Saisons mit Namen und Startmonat, automatische Erkennung aus den bisherigen Jahren) und die Kategorien des Aufgaben-Boards. Neue Optionen nach einem Update erscheinen in der Übersicht unter **„Wartet auf dich“ → Einrichtung** mit Link zur Stelle.
 
 Nach dem Speichern wird die Integration automatisch neu geladen.
 
@@ -842,6 +848,12 @@ All images show a **fictional demo apartment**. They come from the real integrat
 
 **Statistics "Cleaning":** who cleaned which property when – per person (share, changeovers, dogs, average guests, nights, time to tick off), per month, per property and as a list
 ![Statistics cleaning](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_reinigung.png)
+
+**Electricity costs (from 1.19.0):** constant as before or measured from the property's meter – pre-heating start to check-out, vacancy separately or distributed, grid share hourly from the energy dashboard
+![Electricity costs](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_strom.png)
+
+**Utility bill (from 1.19.0):** upload a PDF, the AI reads the values, suggestion with derivation, source location and checks – applied only after confirmation
+![Utility bill](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_nebenkosten.png)
 
 **Role configurator (from 1.19.0):** permissions per role via checkboxes, custom roles; hint for combinations that are hardly usable in the dashboard
 ![Roles](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_rollen.png)
