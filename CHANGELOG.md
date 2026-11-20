@@ -8,6 +8,44 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.18.0 – 2026-11-20
+
+**Deutsch**
+- Stabiler Release mit allen Änderungen der Betas 1.17.1b1–1.17.1b4 und 1.18.0b1–1.18.0b9 (Einzelheiten in den Abschnitten unten). Die wichtigsten Neuerungen:
+  - **Einstellungen im Dashboard** (neue Karte `custom:smoobu-settings-card`) mit **Benutzerrollen** und Rechten je Seite/Aktion
+  - **Bewertung & Empfehlung**, Preise per Button übernehmen und rückgängig machen, Last-Minute- und Lücken-Hinweise, Aufgaben-Board **„Wartet auf dich“**
+  - **Kosten & Preise**: variable Kosten, Deckungsbeitrag, Preisuntergrenzen je Kanal; neues Statistik-Modul **Deckungsbeitrag** mit Brücke
+  - **Statistik**: Ehrentafel, Saison-Matrix mit Abweichungen, eigene Module mit Vorlagen/Vorschau/Bearbeiten, Anordnung im HA-Benutzerprofil
+  - **Saisons** frei einstellbar, mit automatischer Erkennung aus den bisherigen Jahren
+  - **Finanzen** mit Filter und Vergleich wie die Statistik; Seite **Kalender** (vorher „Belegung“)
+  - **Buchungen**: Summen je Gruppe, Stammgäste, **Umbuchen** (Beta) in den Details
+  - **Benachrichtigungen**: Ruhezeit je Push-Art, neue Push-Art **Umbuchung**
+  - **„Was ist neu“** in der Kopfzeile und neue Einstellungen im Reiter „Einrichtung“
+  - Korrekturen: Preise für einzelne Nächte, Sperren bei Smoobu-Konten mit Pflichtfeldern im Buchungsformular
+- **Hinweise beim Umstieg von 1.17.0**
+  - Benutzerrollen: Admins haben alle Rechte. Alle anderen HA-Benutzer bekommen die Standardrolle **„Betrieb“** (alles außer Einstellungen ändern) – bitte unter Einstellungen → Benutzer & Rechte prüfen
+  - Neue Einstellungen (Saisons, variable Kosten, Push „Umbuchung“, Ruhezeit je Push-Art, Rollen) erscheinen in der Übersicht unter „Wartet auf dich“ → **Einrichtung**
+  - Die Seite „Belegung“ heißt jetzt „Kalender“ (Pfad `smoobu-kalender`). Bestehende Dashboards mit `smoobu-belegung` funktionieren weiter; zum Umbenennen den Pfad der Ansicht ändern
+  - Für die Seite Einstellungen eine Ansicht mit Pfad `smoobu-einstellungen` und der Karte `custom:smoobu-settings-card` anlegen (siehe README / `docs/dashboard-vorlage.yaml`)
+
+**English**
+- Stable release with all changes of betas 1.17.1b1–1.17.1b4 and 1.18.0b1–1.18.0b9 (details in the sections below). Main changes:
+  - **Settings in the dashboard** (new card `custom:smoobu-settings-card`) with **user roles** and rights per page/action
+  - **Rating & recommendation**, apply prices with one click and undo, last-minute and gap hints, task board **"Waiting for you"**
+  - **Costs & prices**: variable costs, contribution margin, price floors per channel; new statistics module **contribution margin** with bridge
+  - **Statistics**: hall of fame, season matrix with deviations, custom modules with templates/preview/edit, arrangement in the HA user profile
+  - **Seasons** freely adjustable, with automatic detection from past years
+  - **Finances** with filters and comparison like the statistics; page **Calendar** (formerly "Occupancy")
+  - **Bookings**: totals per group, returning guests, **rebooking** (beta) in the details
+  - **Notifications**: quiet hours per push type, new push type **Rebooking**
+  - **"What's new"** in the header and new settings in the "Setup" tab
+  - Fixes: prices for single nights, blocking for Smoobu accounts with required fields in the booking form
+- **Notes when upgrading from 1.17.0**
+  - User roles: admins have all rights. All other HA users get the default role **"Operations"** (everything except changing settings) – please check under Settings → Users & rights
+  - New settings (seasons, variable costs, "Rebooking" push, quiet hours per push type, roles) appear in the overview under "Waiting for you" → **Setup**
+  - The page "Occupancy" is now called "Calendar" (path `smoobu-kalender`). Existing dashboards with `smoobu-belegung` keep working; to rename, change the path of the view
+  - For the settings page create a view with path `smoobu-einstellungen` and the card `custom:smoobu-settings-card` (see README / `docs/dashboard-vorlage.yaml`)
+
 ## 1.18.0b9 – 2026-11-20
 
 > Beta / Pre-release
