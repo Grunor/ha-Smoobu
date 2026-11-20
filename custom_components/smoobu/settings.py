@@ -563,6 +563,9 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
     # Rollen gespeichert → Altwert settings_users ist darin aufgegangen (sonst zählte er weiter als „verwalter“)
     if CONF_USER_ROLES in changes:
         merged[CONF_SETTINGS_USERS] = []
+    # v1.18.0: Aufgaben-Kategorien bewusst gespeichert → neue Kategorie „einrichtung“ nicht mehr automatisch ergänzen
+    if CONF_TASK_CATEGORIES in changes:
+        merged["task_categories_rev"] = 2
     # Alte Schalter mitführen (wie der Options-Dialog), damit ein Downgrade dasselbe tut
     merged[CONF_ASSIST_BRIEFING] = merged["notify_briefing"]
     merged[CONF_ASSIST_GAPS] = merged["notify_luecken"]

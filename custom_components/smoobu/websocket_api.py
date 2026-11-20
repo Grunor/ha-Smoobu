@@ -64,7 +64,7 @@ from .analytics import (
 )
 from .api import SmoobuError
 from .seasons import from_options as seasons_from_options
-from . import umbuchung
+from . import neuigkeiten, umbuchung
 from .stats import DIMENSIONS, MEASURES, gaps as stats_gaps, pace as stats_pace, query as stats_query
 from .stats import ranking as stats_ranking, service as stats_service, storno as stats_storno
 from .empfehlung import recommend as stats_recommend
@@ -245,7 +245,10 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
     connection.send_result(
         msg["id"],
         # v1.18.0: Saisons (Zeitraum-Filter „Saison“, Anzeige der Definition) – bei mehreren Konten die des ersten
-        {"wohnungen": result, "zeitraeume": PERIODS, "vergleiche": COMPARES, "sperr_farbe": BLOCKED_COLOR,
+        # v1.18.0: „Was ist neu“ / neue Einstellungen – nur Einträge, deren Recht der Benutzer in einem Konto hat
+        {"neuigkeiten": neuigkeiten.for_user(frozenset().union(*[rechte.rights_of(connection.user, c.config_entry.options)
+                                                                  for c in _coordinators(hass)])),
+         "wohnungen": result, "zeitraeume": PERIODS, "vergleiche": COMPARES, "sperr_farbe": BLOCKED_COLOR,
          "saisons": seasons_from_options(next(iter(_coordinators(hass)), None).config_entry.options) if _coordinators(hass) else seasons_from_options({}),
          "heute": dt_util.now().date().isoformat()},
     )
@@ -941,7 +944,13 @@ async def ws_tasks_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
     cats: list[str] = []
     for c in dict.fromkeys(c for c, _ in pairs):
         state.update(await c.async_task_state())
-        for cat in c.config_entry.options.get(CONF_TASK_CATEGORIES, DEFAULT_TASK_CATEGORIES):
+        opts = c.config_entry.options
+        own = list(opts.get(CONF_TASK_CATEGORIES, DEFAULT_TASK_CATEGORIES))
+        # v1.18.0: neue Kategorie „einrichtung“ auch in bereits gespeicherten Auswahlen zeigen, bis die
+        # Auswahl danach bewusst gespeichert wurde (Marker task_categories_rev ≥ 2)
+        if "einrichtung" not in own and int(opts.get("task_categories_rev", 0)) < 2:
+            own.append("einrichtung")
+        for cat in own:
             if cat not in cats:
                 cats.append(cat)
     connection.send_result(msg["id"], {"zustand": state, "kategorien": cats})

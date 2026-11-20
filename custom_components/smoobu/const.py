@@ -165,10 +165,12 @@ DEFAULT_LASTMINUTE_DAYS = 3
 DEFAULT_LASTMINUTE_MAX_DISCOUNT = 10.0
 # Aufgaben-Board „Wartet auf dich“ (Betreiber 17.11.2026): sichtbare Kategorien (einstellbar)
 CONF_TASK_CATEGORIES = "task_categories"
-TASK_CATEGORIES = ["nachrichten", "rechnungen", "preise", "lastminute", "luecken"]
+# v1.18.0: „einrichtung“ = neue Optionen der Integration, die einzustellen sind (neuigkeiten.py)
+TASK_CATEGORIES = ["nachrichten", "rechnungen", "preise", "lastminute", "luecken", "einrichtung"]
 DEFAULT_TASK_CATEGORIES = list(TASK_CATEGORIES)
 # Kategorie → Recht zum Erledigen/Verschieben (Anzeigen: siehe Karte)
-TASK_RIGHTS = {"nachrichten": "antworten", "rechnungen": "belegung", "preise": "preise", "lastminute": "preise", "luecken": "preise"}
+TASK_RIGHTS = {"nachrichten": "antworten", "rechnungen": "belegung", "preise": "preise", "lastminute": "preise", "luecken": "preise",
+               "einrichtung": "einstellungen"}
 
 SERVICE_ASSIST_SUGGEST = "assistant_suggest"
 SERVICE_ASSIST_IMPORT = "assistant_import"

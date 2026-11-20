@@ -179,6 +179,10 @@ const EN = {
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
   // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
   "Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum": "Share of bookings (arrival in period) and of nights in period",
+  // v1.18.0: Was ist neu / Einrichtung
+  "NEU": "NEW", "Neu": "New", "Was ist neu": "What's new", "Alle als gelesen markieren": "Mark all as read", "Nur ungelesene": "Unread only",
+  "Auch gelesene zeigen": "Show read ones too", "Einstellung": "Setting", "Neue Funktion": "New feature", "Einstellen": "Configure",
+  "Ansehen": "View", "Alles gelesen.": "All read.", "Einrichtung": "Setup", "Neu in": "New in",
   // v1.18.0: Umbuchen
   "Umbuchen": "Rebook", "Umgebucht": "Rebooked", "Prüfen": "Check", "Prüfe …": "Checking …", "Unterkunft": "Property",
   "Zeitraum oder Unterkunft nur bei": "Dates or property can only be changed at", "änderbar": "",
@@ -489,7 +493,8 @@ const HeaderApts = {
 const ALL_RIGHTS = ["finanzen", "gaeste", "nachrichten", "antworten", "belegung", "preise", "einstellungen"];
 const rightsOf = (apt) => new Set(apt?.zugriff?.rechte ?? ALL_RIGHTS);
 // v1.18.0: Kategorien des Aufgaben-Boards (gleiche Schlüssel wie const.TASK_CATEGORIES)
-const TASK_CATS = [["nachrichten", "Nachrichten"], ["rechnungen", "Rechnungen"], ["preise", "Preise"], ["lastminute", "Last-Minute"], ["luecken", "Lücken"]];
+const TASK_CATS = [["nachrichten", "Nachrichten"], ["rechnungen", "Rechnungen"], ["preise", "Preise"], ["lastminute", "Last-Minute"], ["luecken", "Lücken"],
+  ["einrichtung", "Einrichtung"]]; // v1.18.0: neue Optionen der Integration (neuigkeiten.py)
 // Seite (Pfad) → nötiges Recht; Seiten ohne Eintrag sind für jede Rolle außer „Kein Zugriff“ sichtbar
 const PAGE_RIGHT = { finanzen: "finanzen", statistik: "finanzen", nachrichten: "nachrichten", assistent: "nachrichten",
   einstellungen: "einstellungen", buchungen: "gaeste", belegung: "gaeste", kalender: "gaeste" };
@@ -549,6 +554,8 @@ class SmoobuStore {
     if (!this.info) {
       this.info = await this.ws("smoobu/info");
       if (Array.isArray(this.info.saisons) && this.info.saisons.length >= 2) setSeasons(this.info.saisons); // v1.18.0
+      News.list = Array.isArray(this.info.neuigkeiten) ? this.info.neuigkeiten : []; // v1.18.0
+      await News.load(this.hass);
     }
     return this.info;
   }
@@ -599,6 +606,10 @@ class SmoobuStore {
 // Gemeinsames Aussehen
 // ---------------------------------------------------------------------------
 const BASE_CSS = `
+  /* v1.18.0: „NEU“-Markierung + Hervorhebung beim Ansprung */
+  .neu { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: .64rem; font-weight: 700; letter-spacing: .06em;
+    vertical-align: 2px; color: var(--sm-acc-ink); background: var(--sm-accent); cursor: pointer; }
+  .neu-flash { outline: 2px solid var(--sm-accent) !important; outline-offset: 3px; border-radius: 8px; transition: outline-color .6s; }
   :host([panel]) { padding-left: clamp(8px, 2vw, 28px); padding-right: clamp(8px, 2vw, 28px); }
   :host([panel]:last-child) { padding-bottom: 24px; }
   :host { display: block; --sm-gap: 14px; --sm-r: 14px; --sm-rs: 10px; color: var(--sm-ink);
@@ -688,6 +699,76 @@ function toast(msg) {
 // ---------------------------------------------------------------------------
 // Basisklasse aller Karten
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// v1.18.0 (Wunsch Betreiber 20.11.2026): „Was ist neu“ + neue Einstellungen (Backend neuigkeiten.py, smoobu/info)
+// Gelesen je HA-Benutzer im Benutzerprofil (frontend/user_data „smoobu_neu_gesehen“), localStorage als
+// Zwischenspeicher. Sprungziel über sessionStorage: die Zielseite scrollt zur Stelle (sel) und hebt sie hervor,
+// die Einstellungs-Karte öffnet vorher den passenden Reiter (tab).
+// ---------------------------------------------------------------------------
+const NEWS_KEY = "smoobu_neu_gesehen";
+const News = {
+  list: [], seen: new Set(), hass: null, sync: null,
+  load(hass) {
+    try { JSON.parse(lsGet(NEWS_KEY, "[]")).forEach((x) => this.seen.add(x)); } catch (e) { /* egal */ }
+    if (this.sync || !hass?.callWS) return this.sync || Promise.resolve();
+    this.hass = hass;
+    this.sync = hass.callWS({ type: "frontend/get_user_data", key: NEWS_KEY }).then((r) => {
+      if (Array.isArray(r?.value)) r.value.forEach((x) => this.seen.add(x));
+    }).catch(() => { /* ohne user_data nur lokal */ });
+    return this.sync;
+  },
+  unseen(art) { return this.list.filter((n) => !this.seen.has(n.id) && (!art || n.art === art)); },
+  get(id) { return this.list.find((n) => n.id === id); },
+  mark(ids) {
+    ids.forEach((x) => this.seen.add(x));
+    const v = [...this.seen];
+    lsSet(NEWS_KEY, JSON.stringify(v));
+    this.hass?.callWS({ type: "frontend/set_user_data", key: NEWS_KEY, value: v }).catch(() => {});
+    window.dispatchEvent(new CustomEvent("smoobu-news"));
+  },
+  title(n) { return LANG !== "de" && n.titel_en ? n.titel_en : n.titel; },
+  text(n) { return LANG !== "de" && n.text_en ? n.text_en : n.text; },
+};
+const NewsTarget = {
+  set(v) { try { sessionStorage.setItem("smoobu-neu-ziel", JSON.stringify(v)); } catch (e) { /* egal */ } },
+  peek() { try { return JSON.parse(sessionStorage.getItem("smoobu-neu-ziel") || "null"); } catch (e) { return null; } },
+  clear() { try { sessionStorage.removeItem("smoobu-neu-ziel"); } catch (e) { /* egal */ } },
+};
+// Zur Stelle einer Neuerung springen: als gelesen merken, Ziel setzen, Ansicht wechseln (HA-Navigation)
+function gotoNews(id) {
+  const n = News.get(id);
+  if (!n) return;
+  News.mark([id]);
+  NewsTarget.set({ sel: n.sel, tab: n.tab || null, t: Date.now() });
+  const parts = location.pathname.split("/").filter(Boolean);
+  const path = `/${parts[0] || "lovelace"}/${n.seite}`;
+  if (location.pathname !== path) {
+    history.pushState(null, "", path);
+    window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+  } else window.dispatchEvent(new CustomEvent("smoobu-news"));
+}
+// Kleine „NEU“-Markierung an der Stelle selbst (verschwindet, sobald gelesen; Klick = gelesen)
+function neuBadge(id) {
+  const n = News.get(id);
+  if (!n || News.seen.has(id)) return "";
+  return `<span class="neu" data-news-seen="${esc(id)}" title="${esc(`${News.title(n)}: ${News.text(n)}`)}">${t("NEU")}</span>`;
+}
+// Nach dem Zeichnen jeder Karte: gemerktes Sprungziel anspringen (max. 20 s alt), Links/Markierungen binden
+function applyNews(card, root) {
+  root.querySelectorAll("[data-news-go]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); gotoNews(el.dataset.newsGo); }));
+  root.querySelectorAll("[data-news-seen]").forEach((el) => el.addEventListener("click", (e) => { e.stopPropagation(); News.mark([el.dataset.newsSeen]); }));
+  const tgt = NewsTarget.peek();
+  if (!tgt?.sel || Date.now() - (tgt.t || 0) > 20000) return;
+  const el = root.querySelector(tgt.sel);
+  if (!el || el.closest?.(".tabs")) return;
+  NewsTarget.clear();
+  requestAnimationFrame(() => {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("neu-flash");
+    setTimeout(() => el.classList.remove("neu-flash"), 2600);
+  });
+}
+
 class SmoobuCard extends HTMLElement {
   constructor() {
     super();
@@ -724,7 +805,9 @@ class SmoobuCard extends HTMLElement {
     const onApt = () => { if (!this._config?.apartment_id) { this._data = null; this._reload(); } };
     Theme.listeners.add(onTheme);
     AptSel.listeners.add(onApt);
-    this._unsub = () => { offData(); Theme.listeners.delete(onTheme); AptSel.listeners.delete(onApt); };
+    const onNews = () => { if (this._data) this.render(); }; // v1.18.0: NEU-Markierungen/Sprungziel aktualisieren
+    window.addEventListener("smoobu-news", onNews);
+    this._unsub = () => { offData(); Theme.listeners.delete(onTheme); AptSel.listeners.delete(onApt); window.removeEventListener("smoobu-news", onNews); };
   }
   disconnectedCallback() { this._unsub?.(); this._unsub = null; this._hass && (this._rebind = true); }
   connectedCallback() {
@@ -772,6 +855,9 @@ class SmoobuCard extends HTMLElement {
     reload ? this._reload() : this.render();
   }
   render() {
+    // v1.18.0: Sprungziel mit Reiter (Einstellungs-Karte) – Reiter vor dem Zeichnen setzen
+    const nt = this.constructor.newsTabs ? NewsTarget.peek() : null;
+    if (nt?.tab && this._state && this._state.tab !== nt.tab && Date.now() - (nt.t || 0) < 20000) this._state.tab = nt.tab;
     const body = this._error
       ? (/Keine Berechtigung/.test(this._error) ? `<div class="empty">🔒 ${esc(t(this._error))}</div>` : `<div class="err">${t("Fehler")}: ${esc(this._error)}</div>`)
       : this._data ? this.body(this._data) : `<div class="empty">${t("Laden …")}</div>`;
@@ -783,6 +869,7 @@ class SmoobuCard extends HTMLElement {
     this.shadowRoot.innerHTML = `<style>${vars}${BASE_CSS}${this.constructor.css || ""}</style><ha-card>${body}</ha-card>`;
     if (scroll) { const s = this.shadowRoot.querySelector(".scroll"); if (s) s.scrollLeft = scroll; }
     this.bind?.(this.shadowRoot);
+    if (this._data) applyNews(this, this.shadowRoot); // v1.18.0
   }
   // v1.15.1: In Panel-Ansichten liegen die Karten ohne Rand am Fensterrand → Seitenabstand selbst setzen
   inPanelView() {
@@ -1473,6 +1560,11 @@ class SmoobuOverviewCard extends SmoobuCard {
         }
       }
     }
+    // v1.18.0: neue Einstellungen der Integration → „Einrichtung“ (nur wer Einstellungen ändern darf)
+    if (rightsOf(allApartment(d.info)).has("einstellungen")) News.list.filter((x) => x.art === "einstellung").forEach((n, i) => {
+      add("einrichtung", `einrichtung:${n.id}`, `<div class="tt">⚙ ${esc(News.title(n))}</div><p>${esc(News.text(n))}</p>
+        <div class="ta"><span class="sub">${t("Neu in")} v${esc(n.version)}</span><button class="btn" data-news-go="${esc(n.id)}">${t("Einstellen")} →</button>`, `8${String(i).padStart(2, "0")}`); // Reihenfolge wie im Register
+    });
     const zustand = d.taskState?.zustand || {};
     const cats = (d.taskState?.kategorien?.length ? d.taskState.kategorien : TASK_CATS.map(([k]) => k));
     const visible = tasks.filter((x) => cats.includes(x.cat) && !zustand[x.key]).sort((a, b) => a.sort.localeCompare(b.sort));
@@ -1685,7 +1777,7 @@ class SmoobuTimelineCard extends SmoobuCard {
             <button class="btn" data-act="do-rate">${t("Speichern")}</button>`
           : `${can("belegung", this.target.apartment_id) ? `<button class="btn" data-act="block">🔒 ${t("Sperren")}</button>` : ""}${can("preise", this.target.apartment_id) ? `<button class="btn" data-act="rate">€ ${t("Preis setzen")}</button>` : ""}`}
         <button class="btn flat" data-act="clear">${t("Abbrechen")}</button></div>`
-      : `<div class="legend">${t("Zeitraum markieren: Anreise, dann Abreise antippen (ein Tipp = 1 Nacht)")}</div>`;
+      : `<div class="legend">${t("Zeitraum markieren: Anreise, dann Abreise antippen (ein Tipp = 1 Nacht)")}${neuBadge("neu-kalenderauswahl")}</div>`;
     const chans = apts.flatMap((w) => w.kanaele).filter((c, i, a) => a.findIndex((x) => x.name === c.name) === i);
     return `
       <div class="head"><h2>${esc(this._config.title || t("Belegungsplan"))}</h2>
@@ -2074,7 +2166,7 @@ class SmoobuBookingsCard extends SmoobuCard {
         + `<span class="cnt">${nB(ok.length)}</span></td>${sumCells(ok, true)}</tr>${g.rows.map(row).join("")}`;
     }).join("");
     return `
-      <div class="head"><h2>${esc(this._config.title || t("Buchungen"))}</h2>
+      <div class="head"><h2>${esc(this._config.title || t("Buchungen"))}${neuBadge("neu-stammgast")}${neuBadge("neu-summen")}</h2>
         <button class="btn flat" data-act="csv">⬇ ${t("Export CSV")}</button></div>
       <div class="toolbar">
         <input type="search" data-k="search" placeholder="${t("Suche")} (Name, E-Mail, Telefon, Notiz …)" value="${esc(s.search)}">
@@ -2273,7 +2365,7 @@ function filterBarHtml(card, d, { simple = false, compares = STATS_COMPARE, rast
   // v1.18.0: bei „Saison“ die Definition zeigen (aktuelle Saison hervorgehoben)
   const cur = s.ptype === "saison" ? seasonOf(d.range[0].getMonth()) : -1;
   const sdef = s.ptype === "saison" ? `<div class="sdef" title="${esc(t("Einstellbar unter Einstellungen → Allgemein & Abruf → Saisons"))}">
-      <span class="lbl">${t("Saisons")}</span>${SEASONS.map((_, j) => (j + seasonOf(0)) % SEASONS.length).map((i) =>
+      <span class="lbl">${t("Saisons")}${neuBadge("neu-saisonfilter")}</span>${SEASONS.map((_, j) => (j + seasonOf(0)) % SEASONS.length).map((i) =>
         `<span class="sx${i === cur ? " on" : ""}"><b>${esc(t(SEASONS[i].name))}</b> ${seasonSpan(i)}</span>`).join("")}</div>` : ""; // ab der Januar-Saison wie in den Auswertungen
   if (simple) return `<div class="fbar">${period}${anchor}${cmp}${sdef}</div>`;
   const ws = d.info.wohnungen;
@@ -2815,7 +2907,7 @@ class SmoobuBookingDialog extends HTMLElement {
     const m = this.move;
     // BETA-Kennzeichnung (Entscheidung Betreiber 20.11.2026): entfernen, sobald Umbuchen mit echten Smoobu-Buchungen
     // bestätigt ist (Smoobu dokumentiert Zeitraum/Unterkunft beim Ändern nicht) – Suche: BETA_UMBUCHEN
-    if (!m) return `<div class="row" style="margin-top:8px"><button class="btn flat" data-act="move">📅 ${t("Umbuchen")}${BETA_UMBUCHEN}</button></div>`;
+    if (!m) return `<div class="row" style="margin-top:8px"><button class="btn flat" data-act="move">📅 ${t("Umbuchen")}${BETA_UMBUCHEN}${neuBadge("neu-umbuchen")}</button></div>`;
     const info = this.store.info || { wohnungen: [] };
     const entry = info.wohnungen.find((w) => w.apartment_id === b.wohnung_id)?.entry_id;
     const apts = info.wohnungen.filter((w) => w.entry_id === entry);
@@ -3757,7 +3849,7 @@ const STATS_MODULES = {
       const chart = labels.length ? barChart({ labels, unit: "monat", fmt: (x) => money(x, cur),
         stacks: [{ name: t("DB"), color: "var(--sm-accent)", values: m.ser.map((x) => x.wert || 0) }],
         line: { label: cmpName, values: labels.map((_, i) => m.serC[i]?.wert || 0) } }) : "";
-      return panel(t("Deckungsbeitrag"), `${t("Netto − variable Kosten")} · ${t("Vergleich")}: ${esc(cmpName)}`,
+      return panel(`${t("Deckungsbeitrag")}${neuBadge("neu-deckung")}`, `${t("Netto − variable Kosten")} · ${t("Vergleich")}: ${esc(cmpName)}`,
         `${lead}${tiles}<div class="split2"><div><div class="kl">${t("Was hat den DB verändert?")}</div>${bridge || `<div class="empty">${t("Keine Daten")}</div>`}</div>
           <div><div class="kl">${t("DB je Monat")} <span class="sub" style="margin-left:6px;font-weight:400">${t("Linie = Vergleich")}</span></div>${chart}</div></div>
         ${gloss(["DB", "DB-RevPAR", "Vgl."])}
@@ -4756,7 +4848,7 @@ class SmoobuStatsCard extends SmoobuCard {
   // ---- Filterleiste (v1.18.0b8: gemeinsam mit Finanzen, filterBarHtml) ----
   filterBar(d) {
     const s = this._state;
-    const tools = `<span class="grow"></span><button class="btn flat sm" data-k="builder" aria-pressed="${s.builder}">＋ ${t("Modul")}</button>
+    const tools = `<span class="grow"></span><button class="btn flat sm" data-k="builder" aria-pressed="${s.builder}">＋ ${t("Modul")}${neuBadge("neu-baukasten")}</button>
       <button class="btn flat sm" data-k="edit" aria-pressed="${s.edit}">${s.edit ? t("Fertig") : t("Anordnen")}</button>`;
     return filterBarHtml(this, d, { simple: d.simple, tools });
   }
@@ -5051,7 +5143,7 @@ class SmoobuStatsCard extends SmoobuCard {
     html += `<div class="c avg tot">${this.fmt(id, yRef, cur)}</div>${yRow}`;
     const seg = `<div class="seg" role="group" aria-label="${t("Kennzahl")}">${MATRIX_MEASURES.map(([k, l]) =>
       `<button data-matrix="${k}" aria-pressed="${id === k}">${t(l)}</button>`).join("")}</div>`;
-    return `<div class="panel"><div class="ph"><h2>${t("Saison-Matrix")}</h2><span class="sub">${t("Monate × Jahre seit")} ${m.since}</span>${seg}</div>
+    return `<div class="panel"><div class="ph"><h2>${t("Saison-Matrix")}${neuBadge("neu-saisonmatrix")}</h2><span class="sub">${t("Monate × Jahre seit")} ${m.since}</span>${seg}</div>
       <div class="scroll"><div class="mx" style="${cols}">${html}</div></div>
       <div class="legend"><span class="scale"><i style="background:linear-gradient(90deg, color-mix(in srgb, var(--sm-accent) 8%, var(--sm-surf)), var(--sm-accent))"></i>
           ${this.fmt(id, lo, cur)} – ${this.fmt(id, hi, cur)}</span>
@@ -5089,7 +5181,7 @@ class SmoobuStatsCard extends SmoobuCard {
         <button class="btn flat sm" data-hide="${id}">${hidden ? t("Einblenden") : t("Ausblenden")}</button>
         ${def ? `<button class="btn flat sm" data-cedit="${id}">✎ ${t("Bearbeiten")}</button><button class="btn flat sm" data-del="${id}">${t("Löschen")}</button>` : ""}</div>` : "";
       if (hidden) return `<section class="mod">${bar}</section>`;
-      return `<section class="mod">${bar}${this.module(id, d, def)}</section>`;
+      return `<section class="mod" data-neu-mod="${esc(id)}">${bar}${this.module(id, d, def)}</section>`;
     }).join("");
     return `${head}${this.filterBar(d)}${s.builder ? this.builder(d) : ""}${parts}${tt}`;
   }
@@ -5366,6 +5458,15 @@ class SmoobuHeaderCard extends SmoobuCard {
     .seg svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .seg .n { opacity: .7; margin-left: 2px; }
     @media (max-width: 700px) { .seg .lbl { display: none; } }
+    /* v1.18.0: Was ist neu */
+    .newsbtn i { font-style: normal; font-size: .7rem; font-weight: 700; background: var(--sm-accent); color: var(--sm-acc-ink); border-radius: 9px; padding: 0 6px; margin-left: 4px; }
+    .news { margin-top: 10px; background: var(--sm-surf); border: 1px solid var(--sm-line); border-radius: var(--sm-r); padding: 12px 16px; display: grid; gap: 10px; }
+    .news .nh { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .news .ni { display: flex; gap: 12px; align-items: center; justify-content: space-between; border-top: 1px solid var(--sm-line); padding-top: 10px; }
+    .news .ni.seen { opacity: .6; }
+    .news .ni .sub { display: block; margin-top: 2px; }
+    .btn.sm { padding: 4px 11px; font-size: .8rem; }
+    .grow { flex: 1 1 auto; }
   `;
   async load() {
     const info = await this.store.getInfo();
@@ -5440,7 +5541,18 @@ class SmoobuHeaderCard extends SmoobuCard {
     const mode = Theme.mode;
     const theme = `<div class="seg theme" role="group" aria-label="${t("Darstellung")}">${[["hell", "Hell"], ["dunkel", "Dunkel"], ["system", "System"]]
       .map(([k, l]) => `<button data-theme="${k}" aria-pressed="${mode === k}" title="${t(l)}">${ICON_SVG[k]}<span class="lbl">${t(l)}</span></button>`).join("")}</div>`;
-    return `<div class="bar"><nav class="tabs">${tabs}</nav><div class="right">${apts}${theme}</div></div>`;
+    // v1.18.0: „✨ Neu“ – ungelesene Neuerungen (Funktionen + Einstellungen) mit Link zur Stelle
+    const unseen = News.unseen();
+    const all = this._newsAll ? News.list : unseen;
+    const newsBtn = News.list.length ? `<button class="btn flat sm newsbtn" data-news-toggle aria-pressed="${!!this._newsOpen}" title="${t("Was ist neu")}">✨ ${t("Neu")}${unseen.length ? ` <i>${unseen.length}</i>` : ""}</button>` : "";
+    const panel = this._newsOpen ? `<div class="news"><div class="nh"><b>${t("Was ist neu")}</b><span class="grow"></span>
+        ${unseen.length ? `<button class="lnk" data-news-all>${t("Alle als gelesen markieren")}</button>` : ""}
+        <button class="lnk" data-news-more>${this._newsAll ? t("Nur ungelesene") : t("Auch gelesene zeigen")}</button></div>
+      ${all.length ? all.map((n) => `<div class="ni${News.seen.has(n.id) ? " seen" : ""}"><div><b>${n.art === "einstellung" ? "⚙ " : "✨ "}${esc(News.title(n))}</b>
+          <span class="sub">${n.art === "einstellung" ? t("Einstellung") : t("Neue Funktion")} · v${esc(n.version)}</span>
+          <div class="sub">${esc(News.text(n))}</div></div><button class="btn flat sm" data-news-go="${esc(n.id)}">${n.art === "einstellung" ? t("Einstellen") : t("Ansehen")} →</button></div>`).join("")
+        : `<div class="sub">✓ ${t("Alles gelesen.")}</div>`}</div>` : "";
+    return `<div class="bar"><nav class="tabs">${tabs}</nav><div class="right">${newsBtn}${apts}${theme}</div></div>${panel}`;
   }
   render() {
     super.render();
@@ -5463,7 +5575,14 @@ class SmoobuHeaderCard extends SmoobuCard {
     if (this._aptReg) { this._aptReg = false; HeaderApts.remove(); }
     this._restoreBg(); super.disconnectedCallback();
   }
+  // v1.18.0: Liste „Was ist neu“
+  bindNews(root) {
+    root.querySelector("[data-news-toggle]")?.addEventListener("click", () => { this._newsOpen = !this._newsOpen; this.render(); });
+    root.querySelector("[data-news-all]")?.addEventListener("click", () => News.mark(News.unseen().map((n) => n.id)));
+    root.querySelector("[data-news-more]")?.addEventListener("click", () => { this._newsAll = !this._newsAll; this.render(); });
+  }
   bind(root) {
+    this.bindNews(root);
     root.querySelectorAll("[data-href]").forEach((el) => el.addEventListener("click", () => {
       history.pushState(null, "", el.dataset.href);
       window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
@@ -5564,6 +5683,7 @@ function promptDialog(title, res) {
 class SmoobuSettingsCard extends SmoobuCard {
   // tab: Start-Reiter (benachrichtigungen | assistent | provisionen | kosten | allgemein)
   static defaults = { title: "Einstellungen", entry_id: null, tab: "benachrichtigungen" };
+  static newsTabs = true; // v1.18.0: Sprungziel „Einstellen →“ öffnet den passenden Reiter
   static initialState = (c) => ({ tab: c.tab || "benachrichtigungen", errors: {}, saving: false });
   static css = `
     /* v1.18.0: Saisons */
@@ -5675,12 +5795,12 @@ class SmoobuSettingsCard extends SmoobuCard {
         d.notify_quiet ? (d[`notify_${kind}_quiet`] ? "Wird in der Ruhezeit gesammelt und zum Ende zugestellt." : "Kommt auch in der Ruhezeit sofort.")
           : "Ruhezeit ist aus – wirkt erst, wenn sie eingeschaltet ist.", `notify_${kind}_quiet`);
       const to = d[`notify_${kind}_to`] || [];
-      return `<div class="grp ${on ? "" : "off"}"><div class="gh"><div class="grow"><b>${esc(t(name))}</b><span class="sub">${esc(t(desc))}</span>
+      return `<div class="grp ${on ? "" : "off"}" data-neu="push-${kind}"><div class="gh"><div class="grow"><b>${esc(t(name))}${kind === "umbuchung" ? neuBadge("opt-umbuchung") : ""}</b><span class="sub">${esc(t(desc))}</span>
           ${on && !to.length ? `<div class="ferr">${t("Kein Empfänger gewählt – es kommt kein Push.")}</div>` : ""}</div>${this.sw(`notify_${kind}`, name)}</div>
         <div class="gb">${this.fld("Empfänger", this.pick(`notify_${kind}_to`, meta.handys, phoneName), "", `notify_${kind}_to`)}${extra}</div></div>`;
     }).join("");
     const waits = meta.push_arten.filter((k) => d[`notify_${k}`] && d[`notify_${k}_quiet`]);
-    const quiet = `<div class="grp ${d.notify_quiet ? "" : "off"}"><div class="gh"><div class="grow"><b>${t("Ruhezeit")}</b>
+    const quiet = `<div class="grp ${d.notify_quiet ? "" : "off"}" data-neu="ruhezeit"><div class="gh"><div class="grow"><b>${t("Ruhezeit")}${neuBadge("opt-ruhezeit")}</b>
         <span class="sub">${t("Pushes mit „Hält Ruhezeit ein“ werden gesammelt und zum Ende der Ruhezeit zugestellt.")}</span></div>${this.sw("notify_quiet", "Ruhezeit")}</div>
       <div class="gb">${this.fld("Von", this.timeIn("notify_quiet_from"), "", "notify_quiet_from")}${this.fld("Bis", this.timeIn("notify_quiet_to"), "", "notify_quiet_to")}
         ${this.fld("Warten in der Ruhezeit", waits.length ? waits.map((k) => `<span class="chip" aria-pressed="true">${esc(t((PUSH_INFO[k] || [k])[0]))}</span>`).join(" ") : `<span class="muted">${t("keine – alle kommen sofort")}</span>`,
@@ -5868,7 +5988,7 @@ class SmoobuSettingsCard extends SmoobuCard {
             ${bar(l, shade)}<div class="sub">${v.saisons.map((x) => `<b>${esc(t(x.name))}</b> ${t(MONTHS_SHORT[x.monate[0] - 1])}–${t(MONTHS_SHORT[x.monate[x.monate.length - 1] - 1])} (${t("Index")} ${x.index}, ${t("Auslastung")} ${num(x.auslastung, 0)} %)`).join(" · ")}</div></div>`;
         }).join("")}`;
     }
-    return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Saisons")}</b>
+    return `<div class="grp" data-neu="saisons"><div class="gh"><div class="grow"><b>${t("Saisons")}${neuBadge("opt-saisons")}</b>
         <span class="sub">${t("Für Statistik und Finanzen: Zeitraum „Saison“ und Gruppierung „Saison“. Jede Saison läuft bis zum Start der nächsten.")}</span></div></div>
       <div class="gb">${bar(list)}${rows}
         <div class="row" style="margin-top:6px;gap:8px">${list.length < 6 ? `<button class="btn flat sm" data-sadd>＋ ${t("Saison")}</button>` : ""}

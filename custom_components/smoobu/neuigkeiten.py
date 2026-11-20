@@ -1,0 +1,100 @@
+"""„Was ist neu“ und neue Einstellungen (ab v1.18.0, Wunsch Betreiber 20.11.2026).
+
+Ein Eintrag je Neuerung, damit Nutzer der Integration sehen, was sich geändert hat und was sie für ihre
+Ferienwohnung einstellen sollten:
+
+- art "einstellung": neue Option → erscheint im Aufgaben-Board „Wartet auf dich“, Reiter „Einrichtung“
+  (nur mit Recht „einstellungen“), Button springt in den passenden Reiter der Einstellungen
+- art "funktion": neue Karte/Funktion → Liste „✨ Neu“ in der Kopfzeile + „NEU“-Markierung an der Stelle
+
+Ziel: seite = Pfad der Smoobu-Ansicht (wie in der Kopfzeile), tab = Reiter der Einstellungs-Karte,
+sel = CSS-Selektor der Stelle in der Karte (wird angesprungen und kurz hervorgehoben).
+Gelesen/erledigt: „Neu“ je HA-Benutzer im Benutzerprofil (frontend/user_data), „Einrichtung“ über den
+Aufgaben-Zustand des Kontos (wie die übrigen Aufgaben, Erledigt/Später).
+
+Pflege: neue Einträge oben anfügen; `id` nie ändern (sonst erscheint der Eintrag erneut).
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+NEWS: list[dict[str, Any]] = [
+    # --- neue Einstellungen (Einrichtung) ------------------------------------------------------------
+    {"id": "opt-saisons", "version": "1.18.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "allgemein", "sel": '[data-neu="saisons"]',
+     "titel": "Saisons festlegen", "titel_en": "Define seasons",
+     "text": "Eigene Saisons (z. B. Haupt- und Nebensaison) für Statistik und Finanzen – mit Vorschlag aus euren bisherigen Jahren.",
+     "text_en": "Own seasons (e.g. peak and off-season) for statistics and finances – with a suggestion from your past years."},
+    {"id": "opt-umbuchung", "version": "1.18.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "benachrichtigungen", "sel": '[data-neu="push-umbuchung"]',
+     "titel": "Benachrichtigung „Umbuchung“ prüfen", "titel_en": "Check the \"Rebooking\" notification",
+     "text": "Neue Push-Art, wenn sich Zeitraum oder Unterkunft einer Buchung ändert. Startet mit den Einstellungen von „Storno & Änderung“.",
+     "text_en": "New push type when the dates or the property of a booking change. Starts with the settings of \"Cancellation / change\"."},
+    {"id": "opt-ruhezeit", "version": "1.18.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "benachrichtigungen", "sel": '[data-neu="ruhezeit"]',
+     "titel": "Ruhezeit je Push-Art", "titel_en": "Quiet hours per push type",
+     "text": "Je Push-Art wählbar, ob sie in der Ruhezeit gesammelt wird oder sofort kommt.",
+     "text_en": "Per push type choose whether it is held during quiet hours or arrives immediately."},
+    {"id": "opt-kosten", "version": "1.18.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "kosten", "sel": ".stabs",
+     "titel": "Variable Kosten eintragen", "titel_en": "Enter variable costs",
+     "text": "Reinigung, Wäsche, Heizung, Warmwasser, Wasser und Strom je Aufenthalt bzw. Nacht – Grundlage für Deckungsbeitrag und Preisuntergrenzen.",
+     "text_en": "Cleaning, laundry, heating, hot water, water and power per stay or night – basis for contribution margin and price floors."},
+    {"id": "opt-rechte", "version": "1.18.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "rechte", "sel": ".stabs",
+     "titel": "Benutzerrollen prüfen", "titel_en": "Check user roles",
+     "text": "Wer welche Smoobu-Seiten sehen und was ändern darf (Verwalter, Betrieb, Mitarbeiter …).",
+     "text_en": "Who may see which Smoobu pages and change what (manager, operations, staff …)."},
+    # --- neue Funktionen („Was ist neu“) -------------------------------------------------------------
+    {"id": "neu-deckung", "version": "1.18.0", "art": "funktion", "recht": "finanzen",
+     "seite": "smoobu-statistik", "sel": '[data-neu-mod="deckung"]',
+     "titel": "Statistik: Deckungsbeitrag", "titel_en": "Statistics: contribution margin",
+     "text": "Netto minus variable Kosten mit Vergleich und Brücke: was Preis, Anzahl der Nächte und Kosten je Nacht am Ergebnis geändert haben.",
+     "text_en": "Net minus variable costs with comparison and a bridge: what price, number of nights and costs per night changed."},
+    {"id": "neu-saisonmatrix", "version": "1.18.0", "art": "funktion", "recht": "finanzen",
+     "seite": "smoobu-statistik", "sel": '[data-neu-mod="saison"]',
+     "titel": "Saison-Matrix mit Abweichungen", "titel_en": "Season matrix with deviations",
+     "text": "Jede Zelle zeigt, wie der Monat zum Ø liegt (▲/▼); zusätzlich Kennzahl DB.",
+     "text_en": "Each cell shows how the month compares with the average (▲/▼); additional measure CM."},
+    {"id": "neu-baukasten", "version": "1.18.0", "art": "funktion", "recht": "finanzen",
+     "seite": "smoobu-statistik", "sel": '[data-k="builder"]',
+     "titel": "Eigene Module: Vorlagen, Vorschau, Bearbeiten", "titel_en": "Custom modules: templates, preview, edit",
+     "text": "Über „＋ Modul“: fertige Vorlagen, Live-Vorschau; bestehende eigene Module lassen sich nachträglich bearbeiten.",
+     "text_en": "Via \"＋ Module\": ready-made templates, live preview; existing custom modules can be edited afterwards."},
+    {"id": "neu-saisonfilter", "version": "1.18.0", "art": "funktion", "recht": "finanzen",
+     "seite": "smoobu-statistik", "sel": '[data-ptype="saison"]',
+     "titel": "Saison-Zeitraum zeigt die Definition", "titel_en": "Season period shows its definition",
+     "text": "Beim Zeitraum „Saison“ steht unter der Filterleiste, welche Monate zu welcher Saison gehören.",
+     "text_en": "With period \"Season\" the filter bar shows which months belong to which season."},
+    {"id": "neu-umbuchen", "version": "1.18.0", "art": "funktion", "recht": "belegung",
+     "seite": "smoobu-buchungen", "sel": "table",
+     "titel": "Umbuchen in den Buchungsdetails (Beta)", "titel_en": "Rebooking in the booking details (beta)",
+     "text": "Zeitraum oder Unterkunft einer Direktbuchung ändern – mit Belegungsprüfung und Preisvorschlag. Buchung öffnen → „📅 Umbuchen“.",
+     "text_en": "Change dates or property of a direct booking – with availability check and price suggestion. Open a booking → \"📅 Rebook\"."},
+    {"id": "neu-stammgast", "version": "1.18.0", "art": "funktion", "recht": "gaeste",
+     "seite": "smoobu-buchungen", "sel": "table",
+     "titel": "Stammgäste erkennen", "titel_en": "Recognise returning guests",
+     "text": "Buchungsliste und Details zeigen, wie oft ein Gast schon da war und wann zuletzt.",
+     "text_en": "Booking list and details show how often a guest has stayed before and when last."},
+    {"id": "neu-summen", "version": "1.18.0", "art": "funktion", "recht": "finanzen",
+     "seite": "smoobu-buchungen", "sel": "tr.grp",
+     "titel": "Summen je Gruppe", "titel_en": "Totals per group",
+     "text": "Die Trennzeilen Anstehend / Aktuell / Vergangen zeigen Nächte, Personen und Beträge.",
+     "text_en": "The group rows upcoming / current / past show nights, guests and amounts."},
+    {"id": "neu-kalenderauswahl", "version": "1.18.0", "art": "funktion", "recht": "belegung",
+     "seite": "smoobu-kalender", "sel": ".legend",
+     "titel": "Kalender: Anreise + Abreise antippen", "titel_en": "Calendar: tap arrival + departure",
+     "text": "Sperren und Preise setzen wie eine Buchung: erster Tipp Anreise, zweiter Abreise; ein Tipp = 1 Nacht.",
+     "text_en": "Block and set prices like a booking: first tap arrival, second departure; one tap = 1 night."},
+    {"id": "neu-anordnung", "version": "1.18.0", "art": "funktion", "recht": "finanzen",
+     "seite": "smoobu-statistik", "sel": '[data-k="edit"]',
+     "titel": "Anordnung bleibt erhalten", "titel_en": "Arrangement is kept",
+     "text": "Reihenfolge und eigene Module der Statistik werden im HA-Benutzerprofil gespeichert – auf allen Geräten gleich, auch nach Updates.",
+     "text_en": "Order and custom modules of the statistics are stored in the HA user profile – the same on all devices, also after updates."},
+]
+
+
+def for_user(allowed: frozenset[str] | set[str]) -> list[dict[str, Any]]:
+    """Einträge, deren Recht der Benutzer hat (ohne Recht ergibt ein Link ins Leere keinen Sinn)."""
+    return [n for n in NEWS if n["recht"] in allowed]
