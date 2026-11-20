@@ -25,7 +25,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .analytics import channels_of
+from .channel_catalog import channel_choices, configured_channels
 from .codes import all_codes, clean_code
 from .deckungsbeitrag import parse_grid_share, parse_markups
 from . import rechte
@@ -122,8 +122,6 @@ from .const import (
 from .notifications import opt_enabled, opt_recipients
 from . import privacy
 
-# Kanäle, die immer zur Auswahl stehen (wie im Options-Dialog), dazu alle aus den Buchungen
-BASE_CHANNELS = ["Airbnb", "Booking.com", "FeWo-direkt", "Expedia", "Vrbo", "HomeToGo", "Direct booking", "Website"]
 
 _HHMM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _NOTIFY_RE = re.compile(r"^notify\.[a-z0-9_]+$")
@@ -285,13 +283,9 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
     ]
     coordinator = getattr(entry, "runtime_data", None)
     data = coordinator.data if coordinator else None
-    channels = list(BASE_CHANNELS)
     apartments = []
     auto = all_codes(hass, {entry.entry_id: {}})  # automatische Kürzel (ohne eigene) als Vorschau
     for apt_id, apt in (data.apartments if data else {}).items():
-        for ch in channels_of(coordinator.records(apt_id)):
-            if ch["name"] and ch["name"] not in channels and not ch["name"].startswith("Blocked"):
-                channels.append(ch["name"])
         apartments.append({"id": str(apt_id), "name": apt.get("name") or str(apt_id),
                            "auto": auto.get((entry.entry_id, int(apt_id)), "?")})
     users = []
@@ -301,10 +295,22 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
             for u in await hass.auth.async_get_users()
             if u.is_active and not u.system_generated
         ]
+    # v1.18.0: Kanal-Auswahl (Dropdowns statt Freitext). Smoobu hat keinen Endpunkt für angebundene
+    # Kanäle → Buchungen (alle geladenen, inkl. Stornos) + in den Optionen genutzte + Smoobu-Katalog
+    o = entry.options
+    choices = channel_choices(
+        [r for apt_id in (data.apartments if data else {}) for r in coordinator.records(apt_id)],
+        configured_channels(o, o.get(CONF_COMMISSIONS) or DEFAULT_COMMISSIONS,
+                            o.get(CONF_DIRECT_CHANNELS, DEFAULT_DIRECT_CHANNELS),
+                            o.get(CONF_PAYMENT_EXCLUDED_CHANNELS, DEFAULT_PAYMENT_EXCLUDED_CHANNELS),
+                            o.get(CONF_CHANNEL_MARKUPS, DEFAULT_CHANNEL_MARKUPS)),
+    )
     return {
         "handys": phones,
         "ki_entitaeten": ai,
-        "kanaele": channels,
+        # Chips (Direktkanäle, Portal-Zahlung): genutzte Kanäle; Dropdowns zusätzlich der Katalog
+        "kanaele": [c["name"] for c in choices["buchungen"]] + choices["eingestellt"],
+        "kanal_auswahl": choices,
         "wohnungen": apartments,
         "benutzer": users,
         "feste_provisionen": list(COMMISSION_FIELDS.values()),

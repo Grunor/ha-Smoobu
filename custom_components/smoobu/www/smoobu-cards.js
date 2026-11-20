@@ -67,6 +67,10 @@ const EN = {
   "Eigene Namen": "Own names", "Nachrichten aus dem Verlauf": "Messages from the history",
   "Einstellungen": "Settings", "Benachrichtigungen": "Notifications", "KI-Assistent": "AI assistant",
   "Provisionen & Kanäle": "Commissions & channels", "Allgemein & Abruf": "General & polling", "Speichern": "Save",
+  // v1.18.0: Kanal-Dropdown in den Einstellungen
+  "Kanal hinzufügen": "Add channel", "＋ Kanal hinzufügen …": "＋ Add channel …", "＋ Weiteren Kanal wählen …": "＋ Choose another channel …",
+  "Kanäle mit Buchungen": "Channels with bookings", "In den Einstellungen genutzt": "Used in the settings",
+  "Weitere Smoobu-Kanäle": "Other Smoobu channels", "In die Tabelle übernehmen": "Add to the table", "Buchung": "Booking",
   "Verwerfen": "Discard", "Alles gespeichert.": "All saved.", "ungespeicherte Änderung": "unsaved change",
   "ungespeicherte Änderungen": "unsaved changes", "Empfänger": "Recipients", "Uhrzeit": "Time", "Ruhezeit": "Quiet hours",
   "Einstellungen gespeichert.": "Settings saved.", "Bitte die markierten Felder prüfen.": "Please check the marked fields.",
@@ -5028,7 +5032,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     .fld .hint { grid-column: 2; font-size: .78rem; color: var(--sm-muted); margin-top: -2px; }
     .fld .ferr, .ferr { grid-column: 2; font-size: .8rem; color: var(--sm-bad); font-weight: 600; }
     .fld input[type=number] { width: 110px; } .fld input[type=text] { width: min(100%, 360px); }
-    .fld select { max-width: 360px; }
+    .fld select { max-width: 360px; } select.chadd { max-width: 300px; }
     .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .unit { color: var(--sm-muted); font-size: .84rem; }
     .chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -5079,8 +5083,24 @@ class SmoobuSettingsCard extends SmoobuCard {
     const sel = this._draft[key] || [];
     const all = [...options, ...sel.filter((v) => !options.includes(v))];
     const chips = all.map((v) => `<button class="chip" data-pick="${esc(key)}" data-v="${esc(v)}" aria-pressed="${sel.includes(v)}">${esc(label(v))}</button>`).join("");
-    const add = custom ? `<input type="text" class="add" data-addto="${esc(key)}" placeholder="${esc(t("Eigener Wert + Enter"))}" style="width:170px">` : "";
+    // v1.18.0: weitere Kanäle per Dropdown (Smoobu-Kanäle) statt Freitext
+    const add = custom ? this.chanSelect(key, all, "＋ Weiteren Kanal wählen …") : "";
     return `<div class="chips">${chips || `<span class="muted">${t("keine verfügbar")}</span>`}${add}</div>`;
+  }
+  // v1.18.0: Kanal-Dropdown in drei Gruppen (Backend meta.kanal_auswahl): mit Buchungen (Anzahl),
+  // in den Einstellungen genutzt, übrige Smoobu-Kanäle. Bereits gewählte Kanäle (exclude) fehlen.
+  // Smoobu hat keinen Endpunkt „angebundene Kanäle“ – daher Buchungen + Katalog aus der API-Doku.
+  chanSelect(target, exclude, placeholder = "＋ Kanal hinzufügen …") {
+    const a = this._data?.meta?.kanal_auswahl || { buchungen: [], eingestellt: [], katalog: [] };
+    const skip = new Set((exclude || []).map((x) => String(x).toLowerCase()));
+    const opt = (name, text) => skip.has(name.toLowerCase()) ? "" : `<option value="${esc(name)}">${esc(text)}</option>`;
+    const grp = (label, html) => html ? `<optgroup label="${esc(t(label))}">${html}</optgroup>` : "";
+    const booked = a.buchungen.map((c) => opt(c.name, `${chn(c.name)} · ${c.buchungen} ${t(c.buchungen === 1 ? "Buchung" : "Buchungen")}`)).join("");
+    const used = a.eingestellt.map((n) => opt(n, chn(n))).join("");
+    const cat = a.katalog.map((n) => opt(n, chn(n))).join("");
+    if (!booked && !used && !cat) return "";
+    return `<select class="chadd" data-chadd="${esc(target)}" aria-label="${esc(t("Kanal hinzufügen"))}">
+      <option value="">${esc(t(placeholder))}</option>${grp("Kanäle mit Buchungen", booked)}${grp("In den Einstellungen genutzt", used)}${grp("Weitere Smoobu-Kanäle", cat)}</select>`;
   }
   // --- Reiter -----------------------------------------------------------------
   tabPush(meta) {
@@ -5155,19 +5175,18 @@ class SmoobuSettingsCard extends SmoobuCard {
       if (x.status === "teilweise") return `<span class="badge warn" title="${esc(tip)}">◐ ${t("teilweise")} (${x.mit_provision}/${x.buchungen})</span>`;
       return `<span class="badge" title="${esc(tip)}">${t("Wert hier wird genutzt")}</span>`;
     };
-    const rows = Object.entries(d.commissions).map(([ch, pct]) => `<tr><td>${fixed.includes(ch) ? esc(chn(ch))
-        : `<input type="text" class="name" data-cname="${esc(ch)}" value="${esc(ch)}">`}</td>
+    const rows = Object.entries(d.commissions).map(([ch, pct]) => `<tr><td>${esc(chn(ch))}</td>
       <td class="n"><span class="inline" style="justify-content:flex-end"><input type="number" data-comm="${esc(ch)}" min="0" max="50" step="0.1" value="${esc(pct)}"><span class="unit">%</span></span></td>
       <td>${srcBadge(ch)}</td>
       <td>${fixed.includes(ch) ? "" : `<button class="lnk" data-cdel="${esc(ch)}">${t("Entfernen")}</button>`}</td></tr>`).join("");
     // Kanäle mit Buchungen, aber ohne eigene Zeile (laufen über „Alle übrigen Portale“)
     const others = Object.keys(src).filter((ch) => !(ch in d.commissions) && !(d.direct_channels || []).includes(ch));
-    const otherNote = others.length ? `<div class="sub" style="margin-top:6px">${t("Weitere Kanäle mit Buchungen")}: ${others.map((ch) => `${esc(chn(ch))} ${srcBadge(ch)}`).join(" · ")}</div>` : "";
+    const otherNote = others.length ? `<div class="sub" style="margin-top:6px">${t("Weitere Kanäle mit Buchungen")}: ${others.map((ch) => `<button class="lnk" data-cuse="${esc(ch)}" title="${esc(t("In die Tabelle übernehmen"))}">＋ ${esc(chn(ch))}</button> ${srcBadge(ch)}`).join(" · ")}</div>` : "";
     return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Provision je Kanal")}</b>
         <span class="sub">${t("Gilt nur für Buchungen, zu denen Smoobu keine Provision liefert.")}</span></div></div>
       <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Provision")}</th><th>${t("Provision von Smoobu (24 Monate)")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
         ${otherNote}
-        <div class="inline"><button class="btn flat" data-cadd>＋ ${t("Kanal hinzufügen")}</button></div>${this.err("commissions")}
+        <div class="inline">${this.chanSelect("commissions", Object.keys(d.commissions))}</div>${this.err("commissions")}
         ${this.fld("Alle übrigen Portale", this.numIn("commission_other", 0, 50, 0.1, "%"), "", "commission_other")}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Direktkanäle")}</b><span class="sub">${t("Zählen als Direktvermarktung (Direkt vs. Portale).")}</span></div></div>
         <div class="gb">${this.pick("direct_channels", meta.kanaele, chn, true)}${this.err("direct_channels")}</div></div>
@@ -5180,7 +5199,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const share = d.cost_grid_share || [];
     const months = MONTHS_SHORT.map((m, i) => `<label class="inline" style="gap:4px"><span class="unit" style="width:28px">${esc(t(m))}</span>
       <input type="number" data-share="${i}" min="0" max="100" step="1" value="${esc(share[i] ?? "")}" style="width:64px"><span class="unit">%</span></label>`).join("");
-    const mk = Object.entries(d.channel_markups || {}).map(([ch, pct]) => `<tr><td><input type="text" class="name" data-mname="${esc(ch)}" value="${esc(ch)}"></td>
+    const mk = Object.entries(d.channel_markups || {}).map(([ch, pct]) => `<tr><td>${esc(chn(ch))}</td>
       <td class="n"><span class="inline" style="justify-content:flex-end"><input type="number" data-mk="${esc(ch)}" min="-50" max="300" step="1" value="${esc(pct)}"><span class="unit">%</span></span></td>
       <td><button class="lnk" data-mdel="${esc(ch)}">${t("Entfernen")}</button></td></tr>`).join("");
     // Vorschau Heizkosten-Verteilung: Anteil je Monat relativ zum Januar (je Nacht)
@@ -5207,7 +5226,7 @@ class SmoobuSettingsCard extends SmoobuCard {
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Aufschläge je Kanal")}</b>
         <span class="sub">${t("Wie im Smoobu-Preistool: Kanalpreis = Basispreis + Aufschlag. Grundlage für Preisuntergrenzen und Empfehlungen.")}</span></div></div>
       <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Aufschlag")}</th><th></th></tr></thead><tbody>${mk}</tbody></table></div>
-        <div class="inline"><button class="btn flat" data-madd>＋ ${t("Kanal hinzufügen")}</button></div>${this.err("channel_markups")}
+        <div class="inline">${this.chanSelect("channel_markups", Object.keys(d.channel_markups || {}))}</div>${this.err("channel_markups")}
         ${this.fld("Booking.com Genius-Rabatt", this.numIn("genius_discount", 0, 50, 1, "%"), "Genius-Gäste zahlen weniger als den Kanalpreis.", "genius_discount")}
         ${this.fld("Anteil Genius-Buchungen", this.numIn("genius_share", 0, 100, 1, "%"), "Unbekannt? 100 % lassen – vorsichtige Annahme (siehe Booking.com-Extranet).", "genius_share")}
         ${(() => {
@@ -5326,25 +5345,24 @@ class SmoobuSettingsCard extends SmoobuCard {
     root.querySelectorAll("[data-code]").forEach((inp) => inp.addEventListener("input", () => {
       d.apartment_codes = { ...d.apartment_codes, [inp.dataset.code]: inp.value }; this.refreshFoot();
     }));
-    // Provisionen: Prozent, Kanalname umbenennen (bei Verlassen des Feldes), entfernen, hinzufügen
+    // Provisionen: Prozent, entfernen; hinzufügen über das Kanal-Dropdown (data-chadd)
     root.querySelectorAll("[data-comm]").forEach((inp) => inp.addEventListener("input", () => {
       d.commissions = { ...d.commissions, [inp.dataset.comm]: inp.value === "" ? "" : Number(inp.value) }; this.refreshFoot();
-    }));
-    root.querySelectorAll("[data-cname]").forEach((inp) => inp.addEventListener("change", () => {
-      const old = inp.dataset.cname, name = inp.value.trim();
-      if (!name || name === old || name in d.commissions) { inp.value = old; return; }
-      d.commissions = Object.fromEntries(Object.entries(d.commissions).map(([k, v]) => [k === old ? name : k, v]));
-      redraw();
     }));
     root.querySelectorAll("[data-cdel]").forEach((b) => b.addEventListener("click", () => {
       const c = { ...d.commissions }; delete c[b.dataset.cdel]; d.commissions = c; redraw();
     }));
-    root.querySelector("[data-cadd]")?.addEventListener("click", () => {
-      let name = t("Neuer Kanal"), i = 2;
-      while (name in d.commissions) name = `${t("Neuer Kanal")} ${i++}`;
-      d.commissions = { ...d.commissions, [name]: d.commission_other };
+    // v1.18.0: Kanal aus dem Dropdown übernehmen. Provision startet mit „Alle übrigen Portale“
+    // (bisher gerechneter Satz, Ergebnis ändert sich erst beim Anpassen), Aufschlag mit 0 %, Listen hängen an.
+    const addChannel = (target, name) => {
+      if (!name) return;
+      if (target === "commissions") { if (!(name in d.commissions)) d.commissions = { ...d.commissions, [name]: d.commission_other }; }
+      else if (target === "channel_markups") { if (!(name in (d.channel_markups || {}))) d.channel_markups = { ...d.channel_markups, [name]: 0 }; }
+      else if (!(d[target] || []).includes(name)) d[target] = [...(d[target] || []), name];
       redraw();
-    });
+    };
+    root.querySelectorAll("[data-chadd]").forEach((sel) => sel.addEventListener("change", () => addChannel(sel.dataset.chadd, sel.value)));
+    root.querySelectorAll("[data-cuse]").forEach((b) => b.addEventListener("click", () => addChannel("commissions", b.dataset.cuse)));
     root.querySelector("[data-genius]")?.addEventListener("click", (e) => { d.genius_share = Number(e.target.dataset.genius); redraw(); });
     // Benutzerrollen (nur Admins sehen die Auswahl); leer = Standardrolle
     root.querySelectorAll("[data-role]").forEach((sel) => sel.addEventListener("change", () => {
@@ -5352,7 +5370,7 @@ class SmoobuSettingsCard extends SmoobuCard {
       if (sel.value) roles[sel.dataset.role] = sel.value; else delete roles[sel.dataset.role];
       d.user_roles = roles; this.refreshFoot();
     }));
-    // Kosten & Preise: Netzanteil je Monat, Aufschläge (Kanal umbenennen, entfernen, hinzufügen)
+    // Kosten & Preise: Netzanteil je Monat, Aufschläge (entfernen; hinzufügen über das Kanal-Dropdown)
     root.querySelectorAll("[data-share]").forEach((inp) => inp.addEventListener("input", () => {
       const list = [...(d.cost_grid_share || [])];
       list[Number(inp.dataset.share)] = inp.value === "" ? "" : Number(inp.value);
@@ -5361,21 +5379,9 @@ class SmoobuSettingsCard extends SmoobuCard {
     root.querySelectorAll("[data-mk]").forEach((inp) => inp.addEventListener("input", () => {
       d.channel_markups = { ...d.channel_markups, [inp.dataset.mk]: inp.value === "" ? "" : Number(inp.value) }; this.refreshFoot();
     }));
-    root.querySelectorAll("[data-mname]").forEach((inp) => inp.addEventListener("change", () => {
-      const old = inp.dataset.mname, name = inp.value.trim();
-      if (!name || name === old || name in d.channel_markups) { inp.value = old; return; }
-      d.channel_markups = Object.fromEntries(Object.entries(d.channel_markups).map(([k, v]) => [k === old ? name : k, v]));
-      redraw();
-    }));
     root.querySelectorAll("[data-mdel]").forEach((b) => b.addEventListener("click", () => {
       const c = { ...d.channel_markups }; delete c[b.dataset.mdel]; d.channel_markups = c; redraw();
     }));
-    root.querySelector("[data-madd]")?.addEventListener("click", () => {
-      let name = t("Neuer Kanal"), i = 2;
-      while (name in d.channel_markups) name = `${t("Neuer Kanal")} ${i++}`;
-      d.channel_markups = { ...d.channel_markups, [name]: 0 };
-      redraw();
-    });
     root.querySelector("[data-entry]")?.addEventListener("change", async (e) => {
       if (this.dirty && !(await confirmDialog(t("Ungespeicherte Änderungen verwerfen?")))) { e.target.value = this._data.entry_id; return; }
       this._config = { ...this._config, entry_id: e.target.value };

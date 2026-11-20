@@ -8,6 +8,18 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+**Deutsch**
+- **Einstellungen: Kanäle per Dropdown statt Freitext.** Provisionen, Aufschläge je Kanal, Direktkanäle und „Zahlung über das Portal“ wählen Kanäle aus einer Liste in drei Gruppen: **Kanäle mit Buchungen** (alle geladenen Buchungen ab „Daten abrufen seit“, inkl. Stornos und künftiger, mit Anzahl), **in den Einstellungen genutzt** und **weitere Smoobu-Kanäle** (Kanaltabelle der Smoobu-API-Doku, z. B. HomeToGo, Hundeurlaub.de, HRS). Bereits eingetragene Kanäle und Sperr-Kanäle fehlen in der Liste. Ein neuer Provisions-Kanal startet mit dem Satz von „Alle übrigen Portale“, ein neuer Aufschlag mit 0 %. Kanalnamen in den Tabellen lassen sich nicht mehr per Freitext umbenennen. „Weitere Kanäle mit Buchungen“ unter der Provisionstabelle übernimmt einen Kanal per Klick
+- Hintergrund: Smoobu hat **keinen API-Endpunkt für angebundene Kanäle**. Ein angebundenes Portal ohne bisherige Buchung erscheint deshalb in der Katalog-Gruppe. Sobald eine Buchung kommt, steht es unter „Kanäle mit Buchungen“
+- Options-Dialog: Direktkanäle und „Zahlung über das Portal“ bieten dieselbe Kanalliste (eigene Namen weiter möglich)
+- `smoobu/settings/get` → `meta.kanal_auswahl` (`buchungen` mit `name`, `buchungen`, `letzte`; `eingestellt`; `katalog`; `alle`). `meta.kanaele` enthält jetzt nur noch genutzte Kanäle (Buchungen + Einstellungen) statt einer festen Grundliste
+
+**English**
+- **Settings: channels from a dropdown instead of free text.** Commissions, markups per channel, direct channels and "payment via the portal" pick channels from a list in three groups: **channels with bookings** (all loaded bookings since "Fetch data since", incl. cancellations and future ones, with count), **used in the settings** and **other Smoobu channels** (channel table of the Smoobu API docs, e.g. HomeToGo, Hundeurlaub.de, HRS). Channels already entered and block channels are left out. A new commission channel starts with the rate of "All other portals", a new markup with 0 %. Channel names in the tables can no longer be renamed as free text. "Other channels with bookings" below the commission table adds a channel with one click
+- Background: Smoobu has **no API endpoint for connected channels**. A connected portal without any booking yet therefore appears in the catalogue group. As soon as a booking arrives, it is listed under "Channels with bookings"
+- Options dialog: direct channels and "payment via the portal" offer the same channel list (custom names still possible)
+- `smoobu/settings/get` → `meta.kanal_auswahl` (`buchungen` with `name`, `buchungen`, `letzte`; `eingestellt`; `katalog`; `alle`). `meta.kanaele` now only contains channels in use (bookings + settings) instead of a fixed base list
+
 ## 1.18.0b8 – 2026-11-17
 
 > Beta / Pre-release

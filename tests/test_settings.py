@@ -21,6 +21,10 @@ async def test_settings_admin(hass, setup, hass_ws_client):  # noqa: F811
     assert werte["scan_interval"] == 10 and werte["default_checkin"] == "16:00"
     assert werte["commissions"]["Airbnb"] == 15.5 and werte["notify_vorschlag"] is True
     assert meta["admin"] is True and "Airbnb" in meta["kanaele"]
+    # v1.18.0: Kanal-Dropdown – drei Gruppen, Katalog enthält z. B. HomeToGo
+    auswahl = meta["kanal_auswahl"]
+    assert set(auswahl) == {"buchungen", "eingestellt", "katalog", "alle"}
+    assert "HomeToGo" in auswahl["alle"] and "Airbnb" in auswahl["alle"]
     assert meta["wohnungen"][0]["id"] == "123" and meta["benutzer"]
 
     # Ungültige Werte → Fehler je Feld, nichts gespeichert

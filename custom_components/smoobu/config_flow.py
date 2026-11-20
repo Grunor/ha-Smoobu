@@ -31,6 +31,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .api import SmoobuAuthError, SmoobuClient, SmoobuError
+from .channel_catalog import channel_choices, configured_channels
 from .codes import all_codes, clean_code
 from .deckungsbeitrag import parse_grid_share, parse_markups
 from .notifications import opt_enabled, opt_recipients
@@ -228,6 +229,16 @@ def _time_default(value: str) -> str:
 class SmoobuOptionsFlow(OptionsFlow):
     """Abfrageintervall, Zeitfenster, Standardzeiten, Webhook an/aus."""
 
+    def _channel_options(self) -> list[str]:
+        """v1.18.0: Kanal-Auswahl wie in der Einstellungs-Karte (Buchungen, Optionen, Smoobu-Katalog)."""
+        entry = self.config_entry
+        coordinator = getattr(entry, "runtime_data", None)
+        records = coordinator.records_all() if coordinator else []
+        o = entry.options
+        return channel_choices(records, configured_channels(
+            o, CONF_COMMISSIONS, CONF_DIRECT_CHANNELS, CONF_PAYMENT_EXCLUDED_CHANNELS, CONF_CHANNEL_MARKUPS,
+        ))["alle"]
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             # TimeSelector liefert HH:MM:SS → auf HH:MM kürzen.
@@ -279,7 +290,7 @@ class SmoobuOptionsFlow(OptionsFlow):
                     NumberSelectorConfig(min=0, max=240, step=5, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
                 ),
                 # Kanäle, deren Zahlung das Portal abwickelt (nicht als offen zählen).
-                # Eigene Kanalnamen können frei eingetragen werden.
+                # Auswahl: Kanäle aus Buchungen + Optionen + Smoobu-Katalog; eigene Namen weiter möglich.
                 vol.Required(
                     CONF_PAYMENT_EXCLUDED_CHANNELS,
                     default=opts.get(
@@ -287,7 +298,7 @@ class SmoobuOptionsFlow(OptionsFlow):
                     ),
                 ): SelectSelector(
                     SelectSelectorConfig(
-                        options=["Airbnb", "Booking.com", "Expedia", "Vrbo", "HomeToGo", "Direct booking", "Website"],
+                        options=self._channel_options(),
                         multiple=True,
                         custom_value=True,
                         mode=SelectSelectorMode.DROPDOWN,
@@ -389,7 +400,7 @@ class SmoobuOptionsFlow(OptionsFlow):
                     default=opts.get(CONF_DIRECT_CHANNELS, DEFAULT_DIRECT_CHANNELS),
                 ): SelectSelector(
                     SelectSelectorConfig(
-                        options=["Direct booking", "Website", "Airbnb", "Booking.com", "FeWo-direkt"],
+                        options=self._channel_options(),
                         multiple=True,
                         custom_value=True,
                         mode=SelectSelectorMode.DROPDOWN,
