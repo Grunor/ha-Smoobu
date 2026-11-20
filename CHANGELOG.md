@@ -8,6 +8,14 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+**Deutsch**
+- Karte `custom:smoobu-timeline-card`: Standardtitel jetzt „Kalender & Preise“ (vorher „Belegungsplan“), passend zur Seite **Kalender**
+- README und Screenshots auf den Stand von 1.18.0 gebracht (Funktionsliste, neue Bilder zu Was ist neu, Einrichtung, Deckungsbeitrag, Saison-Matrix, Saisons, Kalender-Auswahl, Buchungen, Umbuchen; Optionen Saisons und Push „Umbuchung“)
+
+**English**
+- Card `custom:smoobu-timeline-card`: default title is now "Calendar & prices" (previously "Occupancy plan"), matching the **Calendar** page
+- README and screenshots updated to 1.18.0 (feature list, new images for what's new, setup, contribution margin, season matrix, seasons, calendar selection, bookings, rebooking; options seasons and push "Rebooking")
+
 ## 1.18.0 – 2026-11-20
 
 **Deutsch**

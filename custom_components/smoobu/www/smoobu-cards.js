@@ -110,7 +110,7 @@ const EN = {
   "Anstehend": "Upcoming", "Aktuell": "Current", "Vergangen": "Past",
   "Status": "Status", "kommend": "upcoming", "laufend": "current", "vergangen": "past", "storniert": "cancelled",
   "blockiert": "blocked", "Anreise": "Arrival", "Abreise": "Departure", "Gast": "Guest", "Offen": "Open",
-  "Summe": "Total", "Export CSV": "Export CSV", "Belegungsplan": "Occupancy plan", "Preise": "Prices",
+  "Summe": "Total", "Export CSV": "Export CSV", "Belegungsplan": "Occupancy plan", "Kalender & Preise": "Calendar & prices", "Preise": "Prices",
   "Mindestaufenthalt": "Minimum stay", "Sperren": "Block", "Preis setzen": "Set price", "Abbrechen": "Cancel",
   "Speichern": "Save", "Auswahl": "Selection", "Sperre löschen": "Delete block", "Stornieren": "Cancel booking",
   "Nachrichten": "Messages", "Antworten": "Reply", "Senden": "Send", "Notiz": "Note", "Preis": "Price",
@@ -1780,7 +1780,7 @@ class SmoobuTimelineCard extends SmoobuCard {
       : `<div class="legend">${t("Zeitraum markieren: Anreise, dann Abreise antippen (ein Tipp = 1 Nacht)")}${neuBadge("neu-kalenderauswahl")}</div>`;
     const chans = apts.flatMap((w) => w.kanaele).filter((c, i, a) => a.findIndex((x) => x.name === c.name) === i);
     return `
-      <div class="head"><h2>${esc(this._config.title || t("Belegungsplan"))}</h2>
+      <div class="head"><h2>${esc(this._config.title || t("Kalender & Preise"))}</h2>
         <button class="btn flat" data-act="prev" aria-label="${t("Zurück")}">◀</button><button class="btn flat" data-act="now">${t("Heute")}</button>
         <button class="btn flat" data-act="next" aria-label="${t("Weiter")}">▶</button></div>
       <div class="scroll"><div class="months ${this.multi ? "multi" : ""}">${rows.join("")}</div></div>
