@@ -176,10 +176,12 @@
             "description": "Guest, dates, nights, guests, channel, price and 🐕 – as soon as the booking exists in Smoobu.",
             "data": {
               "aktiv": "Enabled",
-              "empfaenger": "Recipients"
+              "empfaenger": "Recipients",
+              "ruhezeit": "Respects quiet hours"
             },
             "data_description": {
-              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons.",
+              "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
             }
           },
           "storno": {
@@ -187,10 +189,12 @@
             "description": "Cancelled, or dates, guests, arrival time or price changed (before → after).",
             "data": {
               "aktiv": "Enabled",
-              "empfaenger": "Recipients"
+              "empfaenger": "Recipients",
+              "ruhezeit": "Respects quiet hours"
             },
             "data_description": {
-              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons.",
+              "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
             }
           },
           "nachricht": {
@@ -198,10 +202,12 @@
             "description": "Message text when no AI suggestion is sent (AI off, suggestion push off or suggestion failed). Disappears once answered or marked done.",
             "data": {
               "aktiv": "Enabled",
-              "empfaenger": "Recipients"
+              "empfaenger": "Recipients",
+              "ruhezeit": "Respects quiet hours"
             },
             "data_description": {
-              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons.",
+              "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
             }
           },
           "vorschlag": {
@@ -209,10 +215,12 @@
             "description": "Suggestion with Send/Edit/Ignore buttons (only with AI allowed and automatic suggestions). Urgent suggestions also arrive during quiet hours.",
             "data": {
               "aktiv": "Enabled",
-              "empfaenger": "Recipients"
+              "empfaenger": "Recipients",
+              "ruhezeit": "Respects quiet hours"
             },
             "data_description": {
-              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons.",
+              "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
             }
           },
           "zahlung": {
@@ -222,10 +230,12 @@
               "aktiv": "Enabled",
               "empfaenger": "Recipients",
               "tage": "Days before arrival",
-              "uhrzeit": "Time"
+              "uhrzeit": "Time",
+              "ruhezeit": "Respects quiet hours"
             },
             "data_description": {
-              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons.",
+              "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
             }
           },
           "briefing": {
@@ -234,10 +244,12 @@
             "data": {
               "aktiv": "Enabled",
               "empfaenger": "Recipients",
-              "uhrzeit": "Time"
+              "uhrzeit": "Time",
+              "ruhezeit": "Respects quiet hours"
             },
             "data_description": {
-              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons.",
+              "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
             }
           },
           "luecken": {
@@ -246,24 +258,23 @@
             "data": {
               "aktiv": "Enabled",
               "empfaenger": "Recipients",
-              "uhrzeit": "Time"
+              "uhrzeit": "Time",
+              "ruhezeit": "Respects quiet hours"
             },
             "data_description": {
-              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons."
+              "empfaenger": "Empty = recipients of the previous assistant setting. Only mobile_app services support buttons.",
+              "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
             }
           },
           "ruhezeit": {
             "name": "Quiet hours",
-            "description": "New bookings, cancellations/changes and non-urgent suggestions are collected during quiet hours and delivered at the end (latest state per booking only). Briefing, gaps and payments arrive at their time.",
+            "description": "Push types with \"Respects quiet hours\" are collected during quiet hours and delivered at the end (latest state per topic only). Set per push type in its section. Urgent suggestions and confirmations always arrive immediately.",
             "data": {
               "aktiv": "Quiet hours enabled",
               "von": "From",
-              "bis": "Until",
-              "nachrichten_sofort": "Guest messages immediately anyway"
+              "bis": "Until"
             },
-            "data_description": {
-              "nachrichten_sofort": "A guest who cannot get in at night should not wait until morning."
-            }
+            "data_description": {}
           }
         }
       },

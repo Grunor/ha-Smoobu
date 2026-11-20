@@ -34,7 +34,7 @@ from .api import SmoobuAuthError, SmoobuClient, SmoobuError
 from .channel_catalog import channel_choices, configured_channels
 from .codes import all_codes, clean_code
 from .deckungsbeitrag import parse_grid_share, parse_markups
-from .notifications import opt_enabled, opt_recipients
+from .notifications import opt_enabled, opt_quiet, opt_recipients
 from . import privacy
 from .const import (
     COMMISSION_FIELDS,
@@ -566,6 +566,8 @@ class SmoobuOptionsFlow(OptionsFlow):
             fields = {
                 vol.Required("aktiv", default=opt_enabled(opts, kind)): BooleanSelector(),
                 vol.Optional("empfaenger", default=opt_recipients(opts, kind)): recipients,
+                # v1.18.0: an = wird in der Ruhezeit gesammelt, aus = kommt immer sofort
+                vol.Required("ruhezeit", default=opt_quiet(opts, kind)): BooleanSelector(),
                 **(extra or {}),
             }
             return section(vol.Schema(fields), {"collapsed": collapsed})
@@ -592,7 +594,6 @@ class SmoobuOptionsFlow(OptionsFlow):
                     vol.Required("aktiv", default=bool(opts.get(CONF_NOTIFY_QUIET, False))): BooleanSelector(),
                     vol.Required("von", default=_time_default(opts.get(CONF_NOTIFY_QUIET_FROM, DEFAULT_NOTIFY_QUIET_FROM))): hhmm,
                     vol.Required("bis", default=_time_default(opts.get(CONF_NOTIFY_QUIET_TO, DEFAULT_NOTIFY_QUIET_TO))): hhmm,
-                    vol.Required("nachrichten_sofort", default=bool(opts.get(CONF_NOTIFY_QUIET_MESSAGES, True))): BooleanSelector(),
                 }), {"collapsed": False}),
             }
         )
@@ -609,6 +610,7 @@ class SmoobuOptionsFlow(OptionsFlow):
                 sec = user_input.get(kind) or {}
                 flat[f"notify_{kind}"] = bool(sec.get("aktiv"))
                 flat[f"notify_{kind}_to"] = list(sec.get("empfaenger") or [])
+                flat[f"notify_{kind}_quiet"] = bool(sec.get("ruhezeit"))
             br, gp, pay, quiet = (user_input.get(k) or {} for k in ("briefing", "luecken", "zahlung", "ruhezeit"))
             flat[CONF_ASSIST_BRIEFING_TIME] = str(br.get("uhrzeit") or "07:30")[:5]
             flat[CONF_NOTIFY_GAPS_TIME] = str(gp.get("uhrzeit") or DEFAULT_NOTIFY_GAPS_TIME)[:5]
@@ -617,7 +619,8 @@ class SmoobuOptionsFlow(OptionsFlow):
             flat[CONF_NOTIFY_QUIET] = bool(quiet.get("aktiv"))
             flat[CONF_NOTIFY_QUIET_FROM] = str(quiet.get("von") or DEFAULT_NOTIFY_QUIET_FROM)[:5]
             flat[CONF_NOTIFY_QUIET_TO] = str(quiet.get("bis") or DEFAULT_NOTIFY_QUIET_TO)[:5]
-            flat[CONF_NOTIFY_QUIET_MESSAGES] = bool(quiet.get("nachrichten_sofort", True))
+            # Altwert für Downgrades: Gästenachrichten sofort = hält die Ruhezeit nicht ein
+            flat[CONF_NOTIFY_QUIET_MESSAGES] = not flat["notify_nachricht_quiet"]
             # Alte Schalter mitführen, damit ältere Versionen nach einem Downgrade dasselbe tun
             flat[CONF_ASSIST_BRIEFING] = flat["notify_briefing"]
             flat[CONF_ASSIST_GAPS] = flat["notify_luecken"]

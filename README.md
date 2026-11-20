@@ -200,7 +200,7 @@ Schritt **Benachrichtigungen** (ab 1.17.0) – je Push-Art an/aus und eigene Emp
 | Zahlungserinnerung | aus, 7 Tage, 09:00 | täglich zur Uhrzeit: offener Betrag X Tage vor und am Anreisetag |
 | Tagesbriefing | aus, 07:30 | täglich zur Uhrzeit, funktioniert ohne KI |
 | Nicht buchbare Lücken | aus, 09:05 | täglich zur Uhrzeit, funktioniert ohne KI |
-| **Ruhezeit** | aus, 21:00–07:00 | Buchungen, Stornos/Änderungen und nicht dringende Vorschläge werden gesammelt und zum Ende zugestellt (je Buchung der neueste Stand). „Gästenachrichten trotzdem sofort“ (Standard an) |
+| **Ruhezeit** | aus, 21:00–07:00 | Je Push-Art einstellbar („Hält Ruhezeit ein“): solche Pushes werden gesammelt und zum Ende zugestellt (je Thema der neueste Stand). Standard: Buchung, Storno/Änderung und KI-Vorschlag warten; Gästenachricht, Zahlung, Briefing und Lücken kommen sofort. Dringende Vorschläge und Bestätigungen kommen immer sofort |
 
 Schritt **Wohnungskürzel** (ab 1.17.0): eigenes Kürzel je Wohnung (bis 4 Zeichen, Buchstaben/Ziffern, eindeutig über alle Konten); leer = automatisch. Gilt für Dashboard und Pushes.
 
@@ -894,7 +894,7 @@ Step **Notifications** (since 1.17.0) – per push type on/off and own recipient
 | Payment reminder | off, 7 days, 09:00 | daily at the time: open amount X days before and on the arrival day |
 | Daily briefing | off, 07:30 | daily at the time, works without AI |
 | Unbookable gaps | off, 09:05 | daily at the time, works without AI |
-| **Quiet hours** | off, 21:00–07:00 | bookings, cancellations/changes and non-urgent suggestions are collected and delivered at the end (latest state per booking). "Guest messages immediately anyway" (default on) |
+| **Quiet hours** | off, 21:00–07:00 | Set per push type ("Respects quiet hours"): those pushes are collected and delivered at the end (latest state per topic). Default: booking, cancellation/change and AI suggestion wait; guest message, payment, briefing and gaps arrive immediately. Urgent suggestions and confirmations always arrive immediately |
 
 Step **Property codes** (since 1.17.0): own code per property (up to 4 characters, letters/digits, unique across accounts); empty = automatic. Used in dashboard and pushes.
 

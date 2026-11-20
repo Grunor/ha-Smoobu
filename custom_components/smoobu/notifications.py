@@ -44,6 +44,7 @@ from .const import (
     CONF_NOTIFY_QUIET_FROM,
     CONF_NOTIFY_QUIET_MESSAGES,
     CONF_NOTIFY_QUIET_TO,
+    NOTIFY_QUIET_DEFAULT,
     DEFAULT_NOTIFY_GAPS_TIME,
     DEFAULT_NOTIFY_PAYMENT_DAYS,
     DEFAULT_NOTIFY_PAYMENT_TIME,
@@ -75,6 +76,17 @@ def opt_enabled(opts: dict[str, Any], kind: str) -> bool:
     if kind == "luecken":
         return bool(opts.get(CONF_ASSIST_GAPS))
     return False
+
+
+def opt_quiet(opts: dict[str, Any], kind: str) -> bool:
+    """v1.18.0: Hält diese Push-Art die Ruhezeit ein (wird gesammelt)? Ohne eigene Option: bisheriges Verhalten."""
+    key = f"notify_{kind}_quiet"
+    if key in opts:
+        return bool(opts[key])
+    if kind == "nachricht":
+        # Altwert „Gästenachrichten sofort“ (Standard an) → hält die Ruhezeit nicht ein
+        return not opts.get(CONF_NOTIFY_QUIET_MESSAGES, True)
+    return NOTIFY_QUIET_DEFAULT.get(kind, True)
 
 
 def opt_recipients(opts: dict[str, Any], kind: str) -> list[str]:
@@ -186,8 +198,10 @@ class SmoobuNotifier:
             self._drop(data.get("tag"))
             await self._deliver(kind, None, message, data)
             return True
-        hold = not urgent and self.quiet_now() and not (kind == "nachricht" and self.opts.get(CONF_NOTIFY_QUIET_MESSAGES, True))
-        if hold and kind in ("vorschlag", "nachricht", "buchung", "storno"):
+        # v1.18.0: je Push-Art einstellbar, ob sie die Ruhezeit einhält. Dringende Vorschläge und
+        # Bestätigungen/Fehler (urgent) kommen immer sofort.
+        hold = not urgent and self.quiet_now() and opt_quiet(self.opts, kind)
+        if hold:
             self._drop(data.get("tag"))  # je Thema nur der neueste Stand
             self.data["warteschlange"].append({"art": kind, "titel": title, "text": message, "daten": data,
                                                "zeit": dt_util.now().isoformat()})
@@ -319,4 +333,4 @@ class SmoobuNotifier:
         return _hm(self.opts.get(CONF_ASSIST_BRIEFING_TIME), "07:30")
 
 
-__all__ = ["NOTIFY_TYPES", "SmoobuNotifier", "in_quiet", "opt_enabled", "opt_recipients"]
+__all__ = ["NOTIFY_TYPES", "SmoobuNotifier", "in_quiet", "opt_enabled", "opt_quiet", "opt_recipients"]

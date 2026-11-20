@@ -224,12 +224,12 @@ async def test_options_and_unload(hass, setup):
     assert result["type"] == "form" and result["step_id"] == "benachrichtigungen"
     result = await hass.config_entries.options.async_configure(result["flow_id"], {
         "buchung": {"aktiv": True, "empfaenger": ["notify.mobile_app_test"]},
-        "storno": {"aktiv": True, "empfaenger": []}, "nachricht": {"aktiv": True, "empfaenger": []},
+        "storno": {"aktiv": True, "empfaenger": []}, "nachricht": {"aktiv": True, "empfaenger": [], "ruhezeit": False},
         "vorschlag": {"aktiv": True, "empfaenger": []},
-        "zahlung": {"aktiv": True, "empfaenger": [], "tage": 5, "uhrzeit": "08:15:00"},
+        "zahlung": {"aktiv": True, "empfaenger": [], "tage": 5, "uhrzeit": "08:15:00", "ruhezeit": True},
         "briefing": {"aktiv": False, "empfaenger": [], "uhrzeit": "07:30:00"},
         "luecken": {"aktiv": False, "empfaenger": [], "uhrzeit": "09:05:00"},
-        "ruhezeit": {"aktiv": True, "von": "22:00:00", "bis": "06:30:00", "nachrichten_sofort": True}})
+        "ruhezeit": {"aktiv": True, "von": "22:00:00", "bis": "06:30:00"}})
     assert result["type"] == "form" and result["step_id"] == "wohnungen"
     label = next(str(k) for k in result["data_schema"].schema)
     bad = await hass.config_entries.options.async_configure(result["flow_id"], {label: "#!"})
@@ -242,6 +242,9 @@ async def test_options_and_unload(hass, setup):
     assert o["notify_buchung"] is True and o["notify_buchung_to"] == ["notify.mobile_app_test"]
     assert o["notify_zahlung_days"] == 5 and o["notify_zahlung_time"] == "08:15"
     assert o["notify_quiet"] is True and o["notify_quiet_from"] == "22:00" and o["notify_quiet_to"] == "06:30"
+    # v1.18.0: Ruhezeit je Push-Art; ohne Angabe bisheriger Standard (Buchung wartet)
+    assert o["notify_nachricht_quiet"] is False and o["notify_zahlung_quiet"] is True and o["notify_buchung_quiet"] is True
+    assert o["notify_quiet_messages"] is True
     assert list(o["apartment_codes"].values()) == ["FW1X"]
     await hass.async_block_till_done()
     assert setup.options["default_checkin"] == "15:00"
@@ -631,6 +634,9 @@ async def test_options_ai_switch(hass, setup):
     # Durchklicken übernimmt die bisherigen Werte (Vorschlag-Push bleibt an, neue Arten aus)
     assert result["data"]["notify_vorschlag"] is True and result["data"]["notify_buchung"] is False
     assert result["data"]["notify_quiet_messages"] is True
+    # v1.18.0: Ruhezeit je Push-Art – Standard wie bisher (Gästenachricht sofort, Buchung wartet, Zahlung sofort)
+    assert result["data"]["notify_nachricht_quiet"] is False and result["data"]["notify_buchung_quiet"] is True
+    assert result["data"]["notify_zahlung_quiet"] is False
 
 
 async def test_no_reply_and_guest_message(hass, setup, hass_ws_client, aioclient_mock):
@@ -818,6 +824,34 @@ async def test_notifications(hass, setup, freezer):
     assert not calls and c.notifier.data["warteschlange"][-1]["art"] == "buchung"
     await c.notifier._flush(None)
     assert calls and calls[0][1].startswith("🆕") and not c.notifier.data["warteschlange"]
+
+    # v1.18.0: Buchung hält die Ruhezeit nicht ein → sofort; Zahlung hält sie ein → gesammelt
+    hass.config_entries.async_update_entry(setup, options={**setup.options, "notify_buchung_quiet": False,
+                                                            "notify_zahlung": True, "notify_zahlung_quiet": True,
+                                                            "notify_zahlung_to": ["notify.mobile_app_x"]})
+    await hass.async_block_till_done()
+    c = hass.config_entries.async_get_entry(setup.entry_id).runtime_data
+    calls.clear()
+    c.notifier._deliver = fake_deliver
+    assert await c.notifier.send("buchung", "🆕 Test", "sofort")
+    assert calls == [("buchung", "🆕 Test", "sofort")]
+    assert await c.notifier.send("zahlung", "💶 Test", "gesammelt", {"tag": "z1"})
+    assert len(calls) == 1 and c.notifier.data["warteschlange"][-1]["art"] == "zahlung"
+    # Dringend kommt trotz „hält Ruhezeit ein“ sofort
+    assert await c.notifier.send("zahlung", "💶 Dringend", "sofort", urgent=True)
+    assert calls[-1][1] == "💶 Dringend"
+
+
+def test_opt_quiet_defaults():
+    """v1.18.0: ohne eigene Option bisheriges Verhalten; Altwert „Gästenachrichten sofort“ wird übernommen."""
+    from custom_components.smoobu.notifications import opt_quiet
+
+    assert opt_quiet({}, "buchung") and opt_quiet({}, "storno") and opt_quiet({}, "vorschlag")
+    assert not opt_quiet({}, "zahlung") and not opt_quiet({}, "briefing") and not opt_quiet({}, "luecken")
+    assert not opt_quiet({}, "nachricht")  # Standard bisher: Gästenachrichten sofort
+    assert opt_quiet({"notify_quiet_messages": False}, "nachricht")
+    assert not opt_quiet({"notify_quiet_messages": False, "notify_nachricht_quiet": False}, "nachricht")
+    assert opt_quiet({"notify_zahlung_quiet": True}, "zahlung")
 
 
 async def test_apartment_codes(hass, setup, hass_ws_client):

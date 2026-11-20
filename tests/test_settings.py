@@ -49,11 +49,22 @@ async def test_settings_admin(hass, setup, hass_ws_client):  # noqa: F811
     assert o["commissions"]["Expedia"] == 18.5 and o["apartment_codes"] == {"123": "FW1X"}
     assert o["history_since"] == "2020-01-01" and o["assist_briefing"] is True  # alter Schalter mitgeführt
     assert "ai_entity" not in o
+
+    # v1.18.0: Ruhezeit je Push-Art speichern; Altwert für Downgrades mitgeführt
+    res = (await _call(ws, 30, type="smoobu/settings/set", changes={"notify_nachricht_quiet": True, "notify_zahlung_quiet": True}))
+    assert res.get("success"), res
+    res = res["result"]
+    await hass.async_block_till_done()
+    assert res["ok"] is True
+    o = setup.options
+    assert o["notify_nachricht_quiet"] is True and o["notify_zahlung_quiet"] is True and o["notify_quiet_messages"] is False
+    werte = (await _call(ws, 31, type="smoobu/settings/get"))["result"]["werte"]
+    assert werte["notify_buchung_quiet"] is True and "notify_quiet_messages" not in werte
     entry = hass.config_entries.async_get_entry(setup.entry_id)
     assert entry.state is ConfigEntryState.LOADED and entry.runtime_data is not None
 
     # Leeren von „Daten abrufen seit“ entfernt den Schlüssel
-    res = (await _call(ws, 4, type="smoobu/settings/set", changes={"history_since": None}))["result"]
+    res = (await _call(ws, 40, type="smoobu/settings/set", changes={"history_since": None}))["result"]
     await hass.async_block_till_done()
     assert res["ok"] is True and "history_since" not in setup.options
 

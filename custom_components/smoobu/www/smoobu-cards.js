@@ -67,6 +67,12 @@ const EN = {
   "Eigene Namen": "Own names", "Nachrichten aus dem Verlauf": "Messages from the history",
   "Einstellungen": "Settings", "Benachrichtigungen": "Notifications", "KI-Assistent": "AI assistant",
   "Provisionen & Kanäle": "Commissions & channels", "Allgemein & Abruf": "General & polling", "Speichern": "Save",
+  // v1.18.0: Ruhezeit je Push-Art
+  "Hält Ruhezeit ein": "Respects quiet hours", "Wird in der Ruhezeit gesammelt und zum Ende zugestellt.": "Held during quiet hours and delivered when they end.",
+  "Kommt auch in der Ruhezeit sofort.": "Arrives immediately, even during quiet hours.", "Ruhezeit ist aus – wirkt erst, wenn sie eingeschaltet ist.": "Quiet hours are off – takes effect once they are on.",
+  "Warten in der Ruhezeit": "Held during quiet hours", "keine – alle kommen sofort": "none – all arrive immediately",
+  "Einstellbar je Push-Art („Hält Ruhezeit ein“). Dringende Vorschläge und Bestätigungen kommen immer sofort.": "Set per push type (\"Respects quiet hours\"). Urgent suggestions and confirmations always arrive immediately.",
+  "Pushes mit „Hält Ruhezeit ein“ werden gesammelt und zum Ende der Ruhezeit zugestellt.": "Pushes with \"Respects quiet hours\" are collected and delivered when quiet hours end.",
   // v1.18.0: Kanal-Dropdown in den Einstellungen
   "Kanal hinzufügen": "Add channel", "＋ Kanal hinzufügen …": "＋ Add channel …", "＋ Weiteren Kanal wählen …": "＋ Choose another channel …",
   "Kanäle mit Buchungen": "Channels with bookings", "In den Einstellungen genutzt": "Used in the settings",
@@ -5111,15 +5117,21 @@ class SmoobuSettingsCard extends SmoobuCard {
       let extra = "";
       if (kind === "zahlung") extra += this.fld("Tage vor Anreise", this.numIn("notify_zahlung_days", 1, 60, 1, "Tage"), "", "notify_zahlung_days");
       if (PUSH_TIME[kind]) extra += this.fld("Uhrzeit", this.timeIn(PUSH_TIME[kind]), "", PUSH_TIME[kind]);
+      // v1.18.0: je Push-Art, ob sie in der Ruhezeit wartet (an) oder immer sofort kommt (aus)
+      extra += this.fld("Hält Ruhezeit ein", this.sw(`notify_${kind}_quiet`, "Hält Ruhezeit ein"),
+        d.notify_quiet ? (d[`notify_${kind}_quiet`] ? "Wird in der Ruhezeit gesammelt und zum Ende zugestellt." : "Kommt auch in der Ruhezeit sofort.")
+          : "Ruhezeit ist aus – wirkt erst, wenn sie eingeschaltet ist.", `notify_${kind}_quiet`);
       const to = d[`notify_${kind}_to`] || [];
       return `<div class="grp ${on ? "" : "off"}"><div class="gh"><div class="grow"><b>${esc(t(name))}</b><span class="sub">${esc(t(desc))}</span>
           ${on && !to.length ? `<div class="ferr">${t("Kein Empfänger gewählt – es kommt kein Push.")}</div>` : ""}</div>${this.sw(`notify_${kind}`, name)}</div>
         <div class="gb">${this.fld("Empfänger", this.pick(`notify_${kind}_to`, meta.handys, phoneName), "", `notify_${kind}_to`)}${extra}</div></div>`;
     }).join("");
+    const waits = meta.push_arten.filter((k) => d[`notify_${k}`] && d[`notify_${k}_quiet`]);
     const quiet = `<div class="grp ${d.notify_quiet ? "" : "off"}"><div class="gh"><div class="grow"><b>${t("Ruhezeit")}</b>
-        <span class="sub">${t("Nicht dringende Pushes werden gesammelt und zum Ende der Ruhezeit zugestellt.")}</span></div>${this.sw("notify_quiet", "Ruhezeit")}</div>
+        <span class="sub">${t("Pushes mit „Hält Ruhezeit ein“ werden gesammelt und zum Ende der Ruhezeit zugestellt.")}</span></div>${this.sw("notify_quiet", "Ruhezeit")}</div>
       <div class="gb">${this.fld("Von", this.timeIn("notify_quiet_from"), "", "notify_quiet_from")}${this.fld("Bis", this.timeIn("notify_quiet_to"), "", "notify_quiet_to")}
-        ${this.fld("Gästenachrichten sofort", this.sw("notify_quiet_messages", "Gästenachrichten sofort"), "Nachrichten von Gästen kommen auch in der Ruhezeit sofort.")}</div></div>`;
+        ${this.fld("Warten in der Ruhezeit", waits.length ? waits.map((k) => `<span class="chip" aria-pressed="true">${esc(t((PUSH_INFO[k] || [k])[0]))}</span>`).join(" ") : `<span class="muted">${t("keine – alle kommen sofort")}</span>`,
+          "Einstellbar je Push-Art („Hält Ruhezeit ein“). Dringende Vorschläge und Bestätigungen kommen immer sofort.")}</div></div>`;
     const none = meta.handys.length ? "" : `<div class="note">${t("Kein Handy mit HA-App gefunden (notify.mobile_app_…).")}</div>`;
     return none + groups + quiet;
   }

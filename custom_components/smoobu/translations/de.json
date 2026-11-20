@@ -176,10 +176,12 @@
             "description": "Gast, Zeitraum, Nächte, Personen, Kanal, Preis und 🐕 – sobald die Buchung in Smoobu angelegt ist.",
             "data": {
               "aktiv": "Aktiv",
-              "empfaenger": "Empfänger"
+              "empfaenger": "Empfänger",
+              "ruhezeit": "Hält Ruhezeit ein"
             },
             "data_description": {
-              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons.",
+              "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
             }
           },
           "storno": {
@@ -187,10 +189,12 @@
             "description": "Storniert oder Zeitraum, Personen, Ankunftszeit bzw. Preis geändert (mit Vorher → Nachher).",
             "data": {
               "aktiv": "Aktiv",
-              "empfaenger": "Empfänger"
+              "empfaenger": "Empfänger",
+              "ruhezeit": "Hält Ruhezeit ein"
             },
             "data_description": {
-              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons.",
+              "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
             }
           },
           "nachricht": {
@@ -198,10 +202,12 @@
             "description": "Text der Nachricht, wenn kein KI-Vorschlag kommt (KI aus, Vorschlag-Push aus oder Vorschlag fehlgeschlagen). Verschwindet, sobald geantwortet oder abgehakt wurde.",
             "data": {
               "aktiv": "Aktiv",
-              "empfaenger": "Empfänger"
+              "empfaenger": "Empfänger",
+              "ruhezeit": "Hält Ruhezeit ein"
             },
             "data_description": {
-              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons.",
+              "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
             }
           },
           "vorschlag": {
@@ -209,10 +215,12 @@
             "description": "Vorschlag mit Buttons Senden/Bearbeiten/Ignorieren (nur mit erlaubter KI und automatischen Vorschlägen). Dringende Vorschläge kommen auch in der Ruhezeit.",
             "data": {
               "aktiv": "Aktiv",
-              "empfaenger": "Empfänger"
+              "empfaenger": "Empfänger",
+              "ruhezeit": "Hält Ruhezeit ein"
             },
             "data_description": {
-              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons.",
+              "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
             }
           },
           "zahlung": {
@@ -222,10 +230,12 @@
               "aktiv": "Aktiv",
               "empfaenger": "Empfänger",
               "tage": "Tage vor Anreise",
-              "uhrzeit": "Uhrzeit"
+              "uhrzeit": "Uhrzeit",
+              "ruhezeit": "Hält Ruhezeit ein"
             },
             "data_description": {
-              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons.",
+              "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
             }
           },
           "briefing": {
@@ -234,10 +244,12 @@
             "data": {
               "aktiv": "Aktiv",
               "empfaenger": "Empfänger",
-              "uhrzeit": "Uhrzeit"
+              "uhrzeit": "Uhrzeit",
+              "ruhezeit": "Hält Ruhezeit ein"
             },
             "data_description": {
-              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons.",
+              "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
             }
           },
           "luecken": {
@@ -246,24 +258,23 @@
             "data": {
               "aktiv": "Aktiv",
               "empfaenger": "Empfänger",
-              "uhrzeit": "Uhrzeit"
+              "uhrzeit": "Uhrzeit",
+              "ruhezeit": "Hält Ruhezeit ein"
             },
             "data_description": {
-              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons."
+              "empfaenger": "Leer = Empfänger der bisherigen Assistent-Einstellung. Nur mobile_app-Dienste können Buttons.",
+              "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
             }
           },
           "ruhezeit": {
             "name": "Ruhezeit",
-            "description": "Neue Buchungen, Stornos/Änderungen und nicht dringende Vorschläge werden in der Ruhezeit gesammelt und zum Ende zugestellt (je Buchung nur der neueste Stand). Briefing, Lücken und Zahlungen kommen zu ihrer Uhrzeit.",
+            "description": "Push-Arten mit „Hält Ruhezeit ein“ werden in der Ruhezeit gesammelt und zum Ende zugestellt (je Thema nur der neueste Stand). Einstellbar je Push-Art in ihrem Abschnitt. Dringende Vorschläge und Bestätigungen kommen immer sofort.",
             "data": {
               "aktiv": "Ruhezeit aktiv",
               "von": "Von",
-              "bis": "Bis",
-              "nachrichten_sofort": "Gästenachrichten trotzdem sofort"
+              "bis": "Bis"
             },
-            "data_description": {
-              "nachrichten_sofort": "Ein Gast, der nachts nicht in die Wohnung kommt, soll nicht bis morgens warten."
-            }
+            "data_description": {}
           }
         }
       },

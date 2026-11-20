@@ -101,7 +101,11 @@ NOTIFY_TYPES = ["buchung", "storno", "nachricht", "vorschlag", "zahlung", "brief
 CONF_NOTIFY_QUIET = "notify_quiet"  # Ruhezeit an/aus
 CONF_NOTIFY_QUIET_FROM = "notify_quiet_from"
 CONF_NOTIFY_QUIET_TO = "notify_quiet_to"
-CONF_NOTIFY_QUIET_MESSAGES = "notify_quiet_messages"  # Gästenachrichten auch in der Ruhezeit sofort
+CONF_NOTIFY_QUIET_MESSAGES = "notify_quiet_messages"  # Altwert (bis 1.18.0b8): Gästenachrichten in der Ruhezeit sofort
+# v1.18.0: je Push-Art notify_<art>_quiet = hält die Ruhezeit ein (wird gesammelt). Standard = Verhalten bis 1.18.0b8:
+# Buchung, Storno, KI-Vorschlag warten; Zahlung, Briefing, Lücken kommen zur eingestellten Uhrzeit sofort;
+# Gästenachricht folgt dem Altwert notify_quiet_messages (Standard: sofort).
+NOTIFY_QUIET_DEFAULT = {"buchung": True, "storno": True, "vorschlag": True, "zahlung": False, "briefing": False, "luecken": False}
 CONF_NOTIFY_PAYMENT_DAYS = "notify_zahlung_days"
 CONF_NOTIFY_PAYMENT_TIME = "notify_zahlung_time"
 CONF_NOTIFY_GAPS_TIME = "notify_luecken_time"

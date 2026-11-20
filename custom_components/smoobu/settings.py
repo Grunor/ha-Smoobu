@@ -119,7 +119,7 @@ from .const import (
     DOMAIN,
     NOTIFY_TYPES,
 )
-from .notifications import opt_enabled, opt_recipients
+from .notifications import opt_enabled, opt_quiet, opt_recipients
 from . import privacy
 
 
@@ -190,7 +190,8 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_NOTIFY_QUIET: bool(o.get(CONF_NOTIFY_QUIET, False)),
         CONF_NOTIFY_QUIET_FROM: str(o.get(CONF_NOTIFY_QUIET_FROM, DEFAULT_NOTIFY_QUIET_FROM))[:5],
         CONF_NOTIFY_QUIET_TO: str(o.get(CONF_NOTIFY_QUIET_TO, DEFAULT_NOTIFY_QUIET_TO))[:5],
-        CONF_NOTIFY_QUIET_MESSAGES: bool(o.get(CONF_NOTIFY_QUIET_MESSAGES, True)),
+        # v1.18.0: je Push-Art „hält Ruhezeit ein“ (ersetzt den Schalter „Gästenachrichten sofort“)
+        **{f"notify_{kind}_quiet": opt_quiet(o, kind) for kind in NOTIFY_TYPES},
         # Wer im Dashboard ändern darf (nur Admins können das selbst ändern)
         CONF_SETTINGS_USERS: list(o.get(CONF_SETTINGS_USERS) or []),
         # Benutzerrollen (v1.18.0): nur Admins ändern; Altwert settings_users → „verwalter“
@@ -478,7 +479,6 @@ FIELDS: dict[str, Any] = {
     CONF_NOTIFY_QUIET: bool,
     CONF_NOTIFY_QUIET_FROM: _hhmm,
     CONF_NOTIFY_QUIET_TO: _hhmm,
-    CONF_NOTIFY_QUIET_MESSAGES: bool,
     CONF_SETTINGS_USERS: _names,
     CONF_USER_ROLES: _roles,
     CONF_DEFAULT_ROLE: _role,
@@ -500,6 +500,7 @@ FIELDS: dict[str, Any] = {
     CONF_LASTMINUTE_MAX_DISCOUNT: _num(0, 30),
     **{f"notify_{kind}": bool for kind in NOTIFY_TYPES},
     **{f"notify_{kind}_to": _pattern_list(_NOTIFY_RE) for kind in NOTIFY_TYPES},
+    **{f"notify_{kind}_quiet": bool for kind in NOTIFY_TYPES},
 }
 
 
@@ -556,6 +557,7 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
     # Alte Schalter mitführen (wie der Options-Dialog), damit ein Downgrade dasselbe tut
     merged[CONF_ASSIST_BRIEFING] = merged["notify_briefing"]
     merged[CONF_ASSIST_GAPS] = merged["notify_luecken"]
+    merged[CONF_NOTIFY_QUIET_MESSAGES] = not merged["notify_nachricht_quiet"]
     # Leere Werte entfernen statt als None speichern (gleiches Verhalten wie der Options-Dialog)
     for key in (CONF_AI_ENTITY, CONF_HISTORY_SINCE):
         if not merged.get(key):
