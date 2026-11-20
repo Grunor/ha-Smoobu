@@ -4042,8 +4042,10 @@ const CUSTOM_MODULE = {
       return panel(title, sub, `<div class="mtile big${c.n < 5 ? " low" : ""}"><div class="kv">${f(c.wert)}</div><div class="ks">n = ${c.n}${c.n < 5 ? ` · ${t("wenig Daten")}` : ""}</div></div>`, extra);
     }
     const rows = res.zeilen || [];
-    const labels = rows.map((z) => (["monat", "woche", "buchungsmonat"].includes(def.dimension) ? binLabel(z.fach) : t(z.fach)));
-    const series = (res.serien || []).map((name, i) => ({ name: name === "Gesamt" ? res.bezeichnung : t(name), color: seriesColor(name, def.split, i),
+    // v1.18.0: Kanalnamen wie überall in der Karte anzeigen (chn: „Direct booking“ → „Direktbuchung“), sonst übersetzen
+    const nm = (dim, v) => (dim === "kanal" ? chn(v) : t(v));
+    const labels = rows.map((z) => (["monat", "woche", "buchungsmonat"].includes(def.dimension) ? binLabel(z.fach) : nm(def.dimension, z.fach)));
+    const series = (res.serien || []).map((name, i) => ({ name: name === "Gesamt" ? res.bezeichnung : nm(def.split, name), color: seriesColor(name, def.split, i),
       values: rows.map((z) => z.werte[name]?.wert ?? null), n: rows.map((z) => z.werte[name]?.n ?? 0) }));
     if (!rows.length) return panel(title, sub, `<div class="empty">${t("Keine Daten")}</div>`, extra);
     if (def.view === "tabelle") {
