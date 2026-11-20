@@ -64,6 +64,7 @@ from .analytics import (
 )
 from .api import SmoobuError
 from .seasons import from_options as seasons_from_options
+from . import umbuchung
 from .stats import DIMENSIONS, MEASURES, gaps as stats_gaps, pace as stats_pace, query as stats_query
 from .stats import ranking as stats_ranking, service as stats_service, storno as stats_storno
 from .empfehlung import recommend as stats_recommend
@@ -186,6 +187,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_rates_changes)
     websocket_api.async_register_command(hass, ws_tasks_get)
     websocket_api.async_register_command(hass, ws_tasks_set)
+    websocket_api.async_register_command(hass, ws_booking_move)
 
 
 _TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): _apt_id}
@@ -962,3 +964,94 @@ async def ws_tasks_set(hass: HomeAssistant, connection: websocket_api.ActiveConn
         return
     state = await c.async_set_task(msg["key"], msg["aktion"], connection.user.name if connection.user else None, msg["tage"])
     connection.send_result(msg["id"], {"zustand": state})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smoobu/booking/move",
+        **_TARGET,
+        vol.Required("reservation_id"): vol.Coerce(int),
+        vol.Required("anreise"): str,
+        vol.Required("abreise"): str,  # exklusiv (Abreisetag)
+        vol.Optional("wohnung_id"): vol.Coerce(int),  # Ziel-Unterkunft (Standard: bisherige)
+        vol.Optional("preis"): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=0, max=100000))),
+        vol.Optional("dry_run", default=True): bool,
+    }
+)
+@websocket_api.async_response
+async def ws_booking_move(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """v1.18.0: Direktbuchung umbuchen (Zeitraum/Unterkunft), siehe umbuchung.py. dry_run = nur prüfen + Preisvorschlag."""
+    try:
+        c, _apt = _resolve(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c], "belegung"):
+        return
+    finance = rechte.allowed(connection.user, c.config_entry.options, "finanzen")
+    rid = msg["reservation_id"]
+    record = next((r for r in c.records_all() if r["id"] == rid), None)
+    if record is None:
+        connection.send_error(msg["id"], "not_found", f"Buchung {rid} nicht gefunden")
+        return
+    try:
+        arrival, departure = date.fromisoformat(msg["anreise"][:10]).isoformat(), date.fromisoformat(msg["abreise"][:10]).isoformat()
+    except ValueError:
+        connection.send_error(msg["id"], "invalid_format", "Datum ungültig")
+        return
+    target = msg.get("wohnung_id") or record.get("wohnung_id")
+    if not c.data or target not in c.data.apartments:
+        connection.send_error(msg["id"], "not_found", f"Unterkunft {target} unbekannt")
+        return
+    today = dt_util.now().date()
+    errors = umbuchung.check(record, c.records(target), arrival, departure, target, today)
+    clash = umbuchung.conflicts(record, c.records(target), arrival, departure)
+    if clash:
+        errors.append("belegt")
+    # Tagespreise für den Vorschlag (alte Nächte ggf. ohne Preis → anteilig)
+    rates_new: dict[str, Any] = {}
+    rates_old: dict[str, Any] = {}
+    try:
+        last_new = (date.fromisoformat(departure) - timedelta(days=1)).isoformat()
+        last_old = (date.fromisoformat(record["abreise"]) - timedelta(days=1)).isoformat()
+        if departure > arrival:
+            rates_new = await c.client.get_rates(target, arrival, last_new)
+        rates_old = await c.client.get_rates(record["wohnung_id"], record["anreise"], last_old)
+    except SmoobuError:
+        pass  # Vorschlag dann anteilig; Prüfung der Belegung läuft über die Buchungsdaten
+    result: dict[str, Any] = {
+        "moeglich": not errors, "gruende": errors, "konflikte": clash,
+        "naechte": max((date.fromisoformat(departure) - date.fromisoformat(arrival)).days, 0),
+        "naechte_alt": record["naechte"], "mindestaufenthalt": umbuchung.min_stay_hint(rates_new, arrival, departure),
+        **(umbuchung.price_suggestion(record, arrival, departure, target, rates_old, rates_new) if finance else {}),
+    }
+    if msg["dry_run"] or errors:
+        connection.send_result(msg["id"], {**result, "gespeichert": False})
+        return
+    if msg.get("preis") is not None and not finance:
+        connection.send_error(msg["id"], "unauthorized", f"Keine Berechtigung: {rechte.RIGHTS['finanzen']}")
+        return
+    body: dict[str, Any] = {"arrivalDate": arrival, "departureDate": departure}
+    if target != record.get("wohnung_id"):
+        body["apartmentId"] = target
+    try:
+        await c.client.update_reservation(rid, body)
+        raw = await c.client.get_reservation(rid)
+    except SmoobuError as err:
+        connection.send_error(msg["id"], "smoobu_error", str(err))
+        return
+    check = umbuchung.verify(raw or {}, arrival, departure, target)
+    if not check["ok"]:
+        # Smoobu hat die (nicht dokumentierte) Änderung nicht übernommen → nichts weiter ändern, klar melden
+        connection.send_result(msg["id"], {**result, "gespeichert": False, "nicht_uebernommen": True, "smoobu": check["smoobu"]})
+        return
+    price_saved = False
+    if msg.get("preis") is not None and msg["preis"] != record.get("brutto"):
+        try:
+            await c.client.update_reservation(rid, {"price": msg["preis"]})
+            price_saved = True
+        except SmoobuError as err:
+            result["preis_fehler"] = str(err)
+    c.force_revenue_refresh = True
+    await c.async_request_refresh()
+    connection.send_result(msg["id"], {**result, "gespeichert": True, "preis_gespeichert": price_saved})

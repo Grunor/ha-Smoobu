@@ -101,6 +101,11 @@ def _shots(base: str, token: str) -> list[str]:
                 page.evaluate("""(sel) => { for (const c of document.querySelectorAll('#stage > *')) {
                     const el = c.shadowRoot && c.shadowRoot.querySelector(sel); if (el) { el.scrollIntoView(); el.click(); return; } } }""", klick)
                 page.wait_for_timeout(int(os.environ.get("SMOOBU_KLICK_WARTEN", "900")))
+                # v1.18.0: SMOOBU_KLICK_DIALOG="sel1,sel2" klickt danach nacheinander im Buchungsdialog (am body)
+                for dsel in [x for x in os.environ.get("SMOOBU_KLICK_DIALOG", "").split(",") if x]:
+                    page.evaluate("""(sel) => { const d = document.querySelector('smoobu-booking-dialog');
+                        const el = d && d.shadowRoot.querySelector(sel); if (el) { el.scrollIntoView(); el.click(); } }""", dsel)
+                    page.wait_for_timeout(1200)
                 # SMOOBU_KLICK_VOLL=1: ganze Seite statt nur Fenster (z. B. Baukasten mit Vorschau)
                 page.screenshot(path=str(path), full_page=bool(os.environ.get("SMOOBU_KLICK_VOLL")))
                 done.append(path.name)

@@ -179,6 +179,17 @@ const EN = {
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
   // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
   "Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum": "Share of bookings (arrival in period) and of nights in period",
+  // v1.18.0: Umbuchen
+  "Umbuchen": "Rebook", "Umgebucht": "Rebooked", "Prüfen": "Check", "Prüfe …": "Checking …", "Unterkunft": "Property",
+  "Zeitraum oder Unterkunft nur bei": "Dates or property can only be changed at", "änderbar": "",
+  "Überschneidung mit": "Overlaps with", "Sperre": "Block", "Mindestaufenthalt am Anreisetag": "Minimum stay on arrival day",
+  "Neuer Preis": "New price", "bisher": "before", "alter Preis ± Tagespreise der Nächte": "old price ± daily prices of the nights",
+  "anteilig nach Nächten": "pro rata by nights", "Preis bleibt": "Price stays", "Preis nicht gespeichert": "Price not saved",
+  "Smoobu hat die Änderung nicht übernommen": "Smoobu did not apply the change", "Stand in Smoobu": "in Smoobu",
+  "Bitte direkt in Smoobu umbuchen.": "Please rebook directly in Smoobu.", "Portalbuchung": "Portal booking", "Aufenthalt vorbei": "Stay is over",
+  "Abreise muss nach der Anreise liegen": "Departure must be after arrival", "Anreise liegt in der Vergangenheit": "Arrival is in the past",
+  "Abreise liegt in der Vergangenheit": "Departure is in the past", "Zeitraum ist belegt": "Period is occupied",
+  "Smoobu dokumentiert das Umbuchen per Schnittstelle nicht – nach dem Speichern wird bei Smoobu nachgelesen, ob es angekommen ist.": "Smoobu does not document rebooking via its API – after saving, the booking is read back from Smoobu to confirm the change.",
   // v1.18.0: Kalender-Auswahl Anreise/Abreise
   "Zeitraum markieren: Anreise, dann Abreise antippen (ein Tipp = 1 Nacht)": "Select a period: tap arrival, then departure (one tap = 1 night)",
   // v1.18.0: Saisons
@@ -2643,6 +2654,10 @@ const aiCtlHtml = (ai, allowed, reason, thinking) => {
     <button class="btn flat ${lock ? "locked" : ""}" data-act="ai" ${thinking || lock ? "disabled" : ""} ${lock ? `title="${tip}"` : ""}>${lock ? `🔒 ${t("KI gesperrt")}` : thinking ? `⏳ ${t("KI denkt …")}` : `✨ ${t("Vorschlag")}`}</button>`;
 };
 const DIALOG_CSS = `
+  /* v1.18.0: Umbuchen */
+  .mvbox { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--sm-line); border-radius: var(--sm-rs); display: grid; gap: 8px; }
+  .mvbox label { font-size: .84rem; color: var(--sm-muted); display: inline-flex; gap: 6px; align-items: center; }
+  .mvres { display: grid; gap: 4px; font-size: .88rem; }
   .back { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 10000; font-family: ${FONT}; display: flex; justify-content: center; align-items: flex-start;
     overflow-y: auto; padding: 24px 8px; box-sizing: border-box; }
   .dlg { background: var(--sm-surf); color: var(--sm-ink); border-radius: 18px; width: min(780px, 100%); border: 1px solid var(--sm-line);
@@ -2747,7 +2762,7 @@ class SmoobuBookingDialog extends HTMLElement {
         ${!b.blockiert ? `<div class="row" style="margin-top:8px">
           <label>${t("Ankunftszeit")} <input type="time" data-k="ci" value="${esc((b.check_in || "").slice(0, 5))}"></label>
           <label>${t("Abreisezeit")} <input type="time" data-k="co" value="${esc((b.check_out || "").slice(0, 5))}"></label>
-          <button class="btn flat" data-act="times">${t("Speichern")}</button></div>` : ""}</div>
+          <button class="btn flat" data-act="times">${t("Speichern")}</button></div>` : ""}${this.moveHtml(b)}</div>
         ${!b.blockiert ? `<div><h3>${t("Gast")}</h3>${kv([
           ["Gast", esc(b.gast)],
           // v1.18.0: frühere Aufenthalte; Klick öffnet die letzte Buchung (ggf. andere Wohnung des Kontos)
@@ -2785,6 +2800,93 @@ class SmoobuBookingDialog extends HTMLElement {
           title="${esc(`${t("Smoobu-Anmeldung öffnen – Buchung dort über die ID suchen")}: ${b.id}`)}">${t("Smoobu öffnen")} ↗</a>
       </div>`;
   }
+  // v1.18.0 (Wunsch Betreiber 20.11.2026): Umbuchen – Zeitraum und/oder Unterkunft einer Direktbuchung ändern.
+  // Backend smoobu/booking/move: erst Probelauf (Belegung, Mindestaufenthalt, Preisvorschlag), dann ausführen und
+  // bei Smoobu nachlesen, ob die (nicht dokumentierte) Änderung angekommen ist. Portalbuchungen: nur Hinweis.
+  moveHtml(b) {
+    if (b.blockiert || b.storniert || b.status === "vergangen") return "";
+    if (b.gruppe !== "Direkt") return `<div class="sub" style="margin-top:8px">📅 ${t("Zeitraum oder Unterkunft nur bei")} ${esc(chn(b.kanal))} ${t("änderbar")}</div>`;
+    if (!can("belegung", b.wohnung_id)) return "";
+    const m = this.move;
+    if (!m) return `<div class="row" style="margin-top:8px"><button class="btn flat" data-act="move">📅 ${t("Umbuchen")}</button></div>`;
+    const info = this.store.info || { wohnungen: [] };
+    const entry = info.wohnungen.find((w) => w.apartment_id === b.wohnung_id)?.entry_id;
+    const apts = info.wohnungen.filter((w) => w.entry_id === entry);
+    const aptSel = apts.length > 1 ? `<label>${t("Unterkunft")} <select data-mv="apt">${apts.map((w) =>
+      `<option value="${w.apartment_id}" ${w.apartment_id === m.apt ? "selected" : ""}>${esc(w.name)}</option>`).join("")}</select></label>` : "";
+    const ck = m.check;
+    const cur = this.apt?.currency || "EUR";
+    const why = { portal: "Portalbuchung", storniert: "Storniert", sperrzeit: "Sperrzeit", vergangen: "Aufenthalt vorbei",
+      zeitraum: "Abreise muss nach der Anreise liegen", anreise_vergangen: "Anreise liegt in der Vergangenheit",
+      abreise_vergangen: "Abreise liegt in der Vergangenheit", belegt: "Zeitraum ist belegt" };
+    let res = "";
+    if (m.busy) res = `<div class="muted">${t("Prüfe …")}</div>`;
+    else if (m.fail) res = `<div class="err">${m.fail}</div>`;
+    else if (ck) {
+      const lines = [`${t("Nächte")}: ${ck.naechte_alt} → <b>${ck.naechte}</b>`];
+      if (ck.konflikte?.length) lines.push(`<span style="color:var(--sm-bad)">${t("Überschneidung mit")}: ${ck.konflikte.map((k) =>
+        `${k.blockiert ? `🔒 ${t("Sperre")}` : esc(k.gast || t("Buchung"))} ${fdate(k.anreise)} – ${fdate(k.abreise)}`).join(", ")}</span>`);
+      if (ck.gruende?.length) lines.push(`<span style="color:var(--sm-bad)">${ck.gruende.filter((g) => g !== "belegt").map((g) => esc(t(why[g] || g))).join(" · ")}</span>`);
+      if (ck.mindestaufenthalt) lines.push(`<span style="color:var(--sm-warn)">⚠ ${t("Mindestaufenthalt am Anreisetag")}: ${ck.mindestaufenthalt} ${t("Nächte")}</span>`);
+      const priceRow = ck.preis_alt !== undefined && ck.preis_vorschlag !== null && ck.preis_vorschlag !== undefined
+        ? `<label>${t("Neuer Preis")} <input type="number" data-mv="preis" min="0" step="1" style="width:110px" value="${esc(m.preis ?? ck.preis_vorschlag)}"> €</label>
+           <span class="sub">${t("bisher")} ${money(ck.preis_alt, cur, 2)} · ${t("Vorschlag")} ${money(ck.preis_vorschlag, cur, 2)}
+             (${t(ck.basis === "tagespreise" ? "alter Preis ± Tagespreise der Nächte" : "anteilig nach Nächten")})</span>`
+        : ck.preis_alt !== undefined ? `<span class="sub">${t("Preis bleibt")} ${money(ck.preis_alt, cur, 2)}</span>` : "";
+      res = `<div class="mvres">${lines.map((l) => `<div>${l}</div>`).join("")}${priceRow ? `<div class="row" style="gap:8px;flex-wrap:wrap">${priceRow}</div>` : ""}</div>`;
+    }
+    return `<div class="mvbox"><b>📅 ${t("Umbuchen")}</b>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <label>${t("Anreise")} <input type="date" data-mv="an" value="${esc(m.an)}"></label>
+        <label>${t("Abreise")} <input type="date" data-mv="ab" value="${esc(m.ab)}"></label>${aptSel}</div>
+      ${res}
+      <div class="row" style="gap:8px"><button class="btn flat" data-act="mvcheck">${t("Prüfen")}</button>
+        <button class="btn" data-act="mvdo" ${ck?.moeglich && !m.busy && (m.an !== b.anreise || m.ab !== b.abreise || m.apt !== b.wohnung_id) ? "" : "disabled"}>${t("Umbuchen")}</button>
+        <button class="btn flat" data-act="mvcancel">${t("Abbrechen")}</button></div>
+      <div class="sub">${t("Smoobu dokumentiert das Umbuchen per Schnittstelle nicht – nach dem Speichern wird bei Smoobu nachgelesen, ob es angekommen ist.")}</div></div>`;
+  }
+  moveTarget(aptId) {
+    const w = (this.store.info?.wohnungen || []).find((x) => x.apartment_id === aptId);
+    return { ...(w?.entry_id ? { entry_id: w.entry_id } : {}), apartment_id: aptId };
+  }
+  async moveAct(a) {
+    const b = this.data?.buchung || {};
+    if (a === "move") { this.move = { an: b.anreise, ab: b.abreise, apt: b.wohnung_id, check: null }; return this.render(); }
+    if (a === "mvcancel") { this.move = null; return this.render(); }
+    const m = this.move;
+    if (!m) return;
+    const call = (dry, extra = {}) => this.store.ws("smoobu/booking/move", { ...this.moveTarget(b.wohnung_id), reservation_id: this.rid,
+      anreise: m.an, abreise: m.ab, wohnung_id: m.apt, dry_run: dry, ...extra }, { cache: false });
+    if (a === "mvcheck") {
+      Object.assign(m, { busy: true, fail: null, check: null, preis: null }); this.render();
+      try { m.check = await call(true); } catch (e) { m.fail = esc(e.message || String(e)); }
+      m.busy = false; return this.render();
+    }
+    if (a === "mvdo") {
+      const ck = m.check;
+      if (!ck?.moeglich) return;
+      const pIn = this.shadowRoot.querySelector('[data-mv="preis"]');
+      const preis = pIn && pIn.value !== "" ? Number(pIn.value) : null;
+      const aptName = (this.store.info?.wohnungen || []).find((w) => w.apartment_id === m.apt)?.name;
+      const txt = `${b.gast || ""}: ${fdate(m.an)} – ${fdate(m.ab)} (${plural(ck.naechte, t("Nacht"), t("Nächte"))})`
+        + (m.apt !== b.wohnung_id ? `, ${aptName}` : "") + (preis !== null && preis !== ck.preis_alt ? `, ${money(preis, this.apt?.currency || "EUR", 2)}` : "");
+      if (!(await confirmDialog(`${t("Umbuchen")} – ${txt} ${t("in Smoobu speichern")}?`))) return;
+      m.busy = true; this.render();
+      try {
+        const r = await call(false, preis !== null ? { preis } : {});
+        if (r.gespeichert) {
+          toast(`✓ ${t("Umgebucht")}${r.preis_fehler ? ` – ${t("Preis nicht gespeichert")}: ${r.preis_fehler}` : ""}`);
+          this.move = null; this.store.invalidate();
+          if (m.apt !== b.wohnung_id) this.target = this.moveTarget(m.apt); // Buchung liegt jetzt in der anderen Wohnung
+          return this.load();
+        }
+        m.fail = r.nicht_uebernommen
+          ? `${t("Smoobu hat die Änderung nicht übernommen")} (${t("Stand in Smoobu")}: ${fdate(r.smoobu?.anreise)} – ${fdate(r.smoobu?.abreise)}). ${t("Bitte direkt in Smoobu umbuchen.")}`
+          : esc((r.gruende || []).join(", "));
+      } catch (e) { m.fail = esc(e.message || String(e)); }
+      m.busy = false; m.check = null; return this.render();
+    }
+  }
   // v1.17.0: Zahlungseingang markieren (Logik gemeinsam mit der Übersicht: payInfo/markPayment)
   payHtml(b) {
     const p = payInfo(b);
@@ -2803,6 +2905,14 @@ class SmoobuBookingDialog extends HTMLElement {
     // Entwurf mitschreiben, damit er beim Neuzeichnen (z. B. nach „Keine Antwort nötig“) nicht verloren geht
     r.querySelector('[data-k="msg"]')?.addEventListener("input", (e) => { this.draft = e.target.value; });
     r.querySelector("[data-noreply]")?.addEventListener("click", () => this.noReply(true));
+    // v1.18.0: Umbuchen – Datum/Unterkunft geändert → altes Prüfergebnis gilt nicht mehr; Preis nur merken
+    r.querySelectorAll("[data-mv]").forEach((el) => el.addEventListener("change", () => {
+      if (!this.move) return;
+      const k = el.dataset.mv;
+      if (k === "preis") { this.move.preis = el.value === "" ? null : Number(el.value); return; }
+      this.move[k] = k === "apt" ? Number(el.value) : el.value;
+      this.move.check = null; this.move.fail = null; this.render();
+    }));
     r.querySelector("[data-prev]")?.addEventListener("click", (e) => {
       const el = e.currentTarget;
       const apt = Number(el.dataset.prevApt);
@@ -2838,6 +2948,7 @@ class SmoobuBookingDialog extends HTMLElement {
   async act(a) {
     if (a === "close") return this.remove();
     if (a === "ai") return this.aiSuggest();
+    if (["move", "mvcancel", "mvcheck", "mvdo"].includes(a)) return this.moveAct(a); // v1.18.0: Umbuchen
     const v = (k) => this.shadowRoot.querySelector(`[data-k="${k}"]`)?.value;
     const id = this.rid;
     // v1.17.0: Zahlungsstatus – markPayment fragt nach, schreibt und meldet selbst
