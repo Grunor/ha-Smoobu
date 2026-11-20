@@ -63,6 +63,7 @@ from .analytics import (
     period_range,
 )
 from .api import SmoobuError
+from .seasons import from_options as seasons_from_options
 from .stats import DIMENSIONS, MEASURES, gaps as stats_gaps, pace as stats_pace, query as stats_query
 from .stats import ranking as stats_ranking, service as stats_service, storno as stats_storno
 from .empfehlung import recommend as stats_recommend
@@ -241,7 +242,9 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
         apt["kuerzel"] = codes.get((apt["entry_id"], apt["apartment_id"]), "?")
     connection.send_result(
         msg["id"],
+        # v1.18.0: Saisons (Zeitraum-Filter „Saison“, Anzeige der Definition) – bei mehreren Konten die des ersten
         {"wohnungen": result, "zeitraeume": PERIODS, "vergleiche": COMPARES, "sperr_farbe": BLOCKED_COLOR,
+         "saisons": seasons_from_options(next(iter(_coordinators(hass)), None).config_entry.options) if _coordinators(hass) else seasons_from_options({}),
          "heute": dt_util.now().date().isoformat()},
     )
 
@@ -397,7 +400,8 @@ async def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
         return
     try:
         result = stats_query(recs, msg["measure"], msg["dimension"], start, end, split=msg.get("split"),
-                             channels=channels, units=len(pairs), filters=msg.get("filters"))
+                             channels=channels, units=len(pairs), filters=msg.get("filters"),
+                             seasons=seasons_from_options(pairs[0][0].config_entry.options) if pairs else None)
     except ValueError as err:
         connection.send_error(msg["id"], "invalid_format", str(err))
         return

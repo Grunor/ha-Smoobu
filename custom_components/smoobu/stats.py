@@ -27,6 +27,7 @@ from datetime import date, timedelta
 from typing import Any, Callable
 
 from .analytics import _guest_keys, as_of, channel_filter
+from .seasons import month_map as season_month_map, order as season_order
 
 # ---------------------------------------------------------------------------
 # Kennzahlen und Dimensionen
@@ -71,6 +72,7 @@ DIMENSIONS = (
 TIME_DIMS = {"jahr", "monat", "monat_im_jahr", "woche", "wochentag", "saison"}
 
 WEEKDAYS = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+# v1.18.0: Saisons einstellbar (seasons.py); SEASONS bleibt als Standard-Zuordnung (Abwärtskompatibilität, Tests)
 SEASONS = {12: "Winter", 1: "Winter", 2: "Winter", 3: "Frühling", 4: "Frühling", 5: "Frühling",
            6: "Sommer", 7: "Sommer", 8: "Sommer", 9: "Herbst", 10: "Herbst", 11: "Herbst"}
 LEAD_BUCKETS = ((7, "0–7"), (14, "8–14"), (30, "15–30"), (60, "31–60"), (90, "61–90"), (180, "91–180"))
@@ -111,8 +113,8 @@ def _repeat_guests(records: list[dict[str, Any]]) -> set[str]:
     return {k for k, c in count.items() if c >= 2}
 
 
-def _key(dim: str, r: dict[str, Any], day: date, repeat: set[str]) -> str:
-    """Fach einer Buchung (bzw. einer Nacht `day`) in Dimension `dim`."""
+def _key(dim: str, r: dict[str, Any], day: date, repeat: set[str], smap: dict[int, str] | None = None) -> str:
+    """Fach einer Buchung (bzw. einer Nacht `day`) in Dimension `dim` (smap = Monat → Saisonname)."""
     if dim == "gesamt":
         return "Gesamt"
     if dim == "jahr":
@@ -127,7 +129,7 @@ def _key(dim: str, r: dict[str, Any], day: date, repeat: set[str]) -> str:
     if dim == "wochentag":
         return WEEKDAYS[day.weekday()]
     if dim == "saison":
-        return SEASONS[day.month]
+        return (smap or SEASONS)[day.month]
     if dim == "kanal":
         return r["kanal"] or "unbekannt"
     if dim == "gruppe":
@@ -161,12 +163,12 @@ def _key(dim: str, r: dict[str, Any], day: date, repeat: set[str]) -> str:
     raise ValueError(f"Unbekannte Dimension: {dim}")
 
 
-def _time_key_days(dim: str, start: date, end: date) -> dict[str, int]:
+def _time_key_days(dim: str, start: date, end: date, smap: dict[int, str] | None = None) -> dict[str, int]:
     """Kalendertage je Fach einer Zeit-Dimension (für verfügbare Nächte)."""
     out: dict[str, int] = defaultdict(int)
     day = start
     while day < end:
-        out[_key(dim, {}, day, set())] += 1
+        out[_key(dim, {}, day, set(), smap)] += 1
         day += timedelta(days=1)
     return out
 
@@ -263,6 +265,7 @@ def query(
     channels: Any = None,
     units: int = 1,
     filters: dict[str, Any] | None = None,
+    seasons: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Baukasten-Abfrage. Ergebnis: Fächer (rows) × Aufteilung (series) mit Wert und n.
 
@@ -277,6 +280,8 @@ def query(
     f = filters or {}
     repeat = _repeat_guests(records)
     split_dim = split or "gesamt"
+    smap = season_month_map(seasons)
+    sorder = season_order(seasons)
 
     def keep(r: dict[str, Any]) -> bool:
         if r["blockiert"] or not match(r):
@@ -305,7 +310,7 @@ def query(
             day = max(arrival, start)
             last = min(date.fromisoformat(r["abreise"]), end)
             while day < last:
-                a = cells[(_key(dimension, r, day, repeat), _key(split_dim, r, day, repeat))]
+                a = cells[(_key(dimension, r, day, repeat, smap), _key(split_dim, r, day, repeat, smap))]
                 i = (day - arrival).days
                 v = var_n[i] if i < len(var_n) else 0.0
                 a["brutto"] += per_b
@@ -322,7 +327,7 @@ def query(
         else:
             if not (s_iso <= r["anreise"] < e_iso):
                 continue
-            a = cells[(_key(dimension, r, arrival, repeat), _key(split_dim, r, arrival, repeat))]
+            a = cells[(_key(dimension, r, arrival, repeat, smap), _key(split_dim, r, arrival, repeat, smap))]
             a["ids"].add(r["id"])
             if r["storniert"]:
                 a["stornos"] += 1
@@ -347,8 +352,8 @@ def query(
         """Tage je (Fach, Aufteilung) vorzählen – inkl. Teilsummen (None = alle), einmal statt je Zelle."""
         out: dict[tuple[str | None, str | None], int] = defaultdict(int)
         for day in days:
-            rk = _key(dimension, {}, day, set()) if dimension in TIME_DIMS else None
-            sk = _key(split_dim, {}, day, set()) if split_dim in TIME_DIMS else None
+            rk = _key(dimension, {}, day, set(), smap) if dimension in TIME_DIMS else None
+            sk = _key(split_dim, {}, day, set(), smap) if split_dim in TIME_DIMS else None
             out[(rk, sk)] += 1
         return out
 
@@ -359,7 +364,7 @@ def query(
         return tally.get((row, ser), 0)
 
     calendar_days, blocked_days = cal_tally, blk_tally
-    days_by_key = (_time_key_days(dimension, start, end) if dimension in TIME_DIMS else {})
+    days_by_key = (_time_key_days(dimension, start, end, smap) if dimension in TIME_DIMS else {})
 
     def _scope(row: str, ser: str) -> tuple[str | None, str | None]:
         # Nur Zeit-Dimensionen begrenzen die Tage; andere Dimensionen sehen den ganzen Zeitraum
@@ -372,8 +377,8 @@ def query(
         cal = _count(calendar_days, *_scope(row, ser)) * units_
         return max(cal - blocked(row, ser), 0)
 
-    rows = sorted({k[0] for k in cells} | set(days_by_key), key=lambda k: _order(dimension, k))
-    series = sorted({k[1] for k in cells}, key=lambda k: _order(split_dim, k))
+    rows = sorted({k[0] for k in cells} | set(days_by_key), key=lambda k: _order(dimension, k, sorder))
+    series = sorted({k[1] for k in cells}, key=lambda k: _order(split_dim, k, sorder))
     out_rows = []
     for row in rows:
         vals = {}
@@ -407,8 +412,8 @@ def query(
     }
 
 
-def _order(dim: str, key: str) -> tuple[int, str]:
-    fixed = ORDER.get(dim)
+def _order(dim: str, key: str, sorder: list[str] | None = None) -> tuple[int, str]:
+    fixed = sorder if dim == "saison" and sorder else ORDER.get(dim)
     if fixed and key in fixed:
         return (fixed.index(key), key)
     return (len(fixed) if fixed else 0, key)

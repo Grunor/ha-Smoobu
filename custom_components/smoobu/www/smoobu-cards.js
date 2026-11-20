@@ -179,10 +179,21 @@ const EN = {
   "Vorlauf": "Lead time", "Umsatz": "Revenue", "Verlauf": "Trend",
   // v1.18.0b7: Endstand neben dem Stichtag-Vergleich
   "Anteil der Buchungen (Anreise im Zeitraum) und der Nächte im Zeitraum": "Share of bookings (arrival in period) and of nights in period",
+  // v1.18.0: Saisons
+  "Saisons": "Seasons", "Frühling": "Spring", "Sommer": "Summer", "Herbst": "Autumn", "Winter": "Winter", "Entfernen": "Remove", "Name": "Name",
+  "Hauptsaison": "Peak season", "Nebensaison": "Off-season", "Zwischensaison": "Shoulder season",
+  "Mittelsaison": "Mid season", "Automatische Erkennung": "Automatic detection", "Empfohlen": "Recommended", "erklärt": "explains",
+  "der Schwankung": "of the variation", "Standard (Jahreszeiten)": "Default (seasons of the year)", "Index": "index",
+  "Einstellbar unter Einstellungen → Allgemein & Abruf → Saisons": "Adjustable under Settings → General & fetching → Seasons",
+  "Noch keine Erkennung möglich: es braucht mindestens": "No detection yet: it needs at least", "abgeschlossene Jahre mit Buchungen": "completed years with bookings",
+  "vorhanden": "available", "Aus den abgeschlossenen Jahren": "From the completed years",
+  "RevPAR je Monat im Verhältnis zum Jahres-Ø (Median über die Jahre). Ähnliche, aneinander grenzende Monate bilden eine Saison.": "RevPAR per month relative to the yearly average (median over the years). Similar adjacent months form a season.",
+  "Für Statistik und Finanzen: Zeitraum „Saison“ und Gruppierung „Saison“. Jede Saison läuft bis zum Start der nächsten.": "For statistics and finances: period \"Season\" and grouping \"Season\". Each season runs until the next one starts.",
+  "Vorschlag übernommen – mit „Speichern“ übernehmen": "Suggestion applied – confirm with \"Save\"",
   // v1.18.0: Modul Deckungsbeitrag
   "Deckungsbeitrag": "Contribution margin", "DB je belegter Nacht": "CM per occupied night", "Variable Kosten": "Variable costs", "variable Kosten": "variable costs",
   "Belegte Nächte": "Occupied nights", "Preis je Nacht (netto)": "Price per night (net)", "Weniger Nächte": "Fewer nights",
-  "Mehr Nächte": "More nights", "Kosten je Nacht": "Costs per night", "jetzt": "now", "je Nacht": "per night", "Saisonmix, Preise": "season mix, prices",
+  "Mehr Nächte": "More nights", "Kosten je Nacht": "Costs per night", "jetzt": "now", "Saisonmix, Preise": "season mix, prices",
   "Höhere Preise je Nacht": "Higher prices per night", "Niedrigere Preise je Nacht": "Lower prices per night", "Ausl.": "Occ.", "die geringere Auslastung kostete": "the lower occupancy cost",
   "die höhere Auslastung brachte": "the higher occupancy brought", "sparte aber": "but saved", "verursachte aber": "but caused",
   "Netto − variable Kosten": "Net − variable costs", "Was hat den DB verändert?": "What changed the CM?", "DB je Monat": "CM per month",
@@ -512,7 +523,10 @@ class SmoobuStore {
     }
   }
   async getInfo() {
-    if (!this.info) this.info = await this.ws("smoobu/info");
+    if (!this.info) {
+      this.info = await this.ws("smoobu/info");
+      if (Array.isArray(this.info.saisons) && this.info.saisons.length >= 2) setSeasons(this.info.saisons); // v1.18.0
+    }
     return this.info;
   }
   subscribe(cb) {
@@ -2188,6 +2202,11 @@ const FBAR_CSS = `
       cursor: pointer; font: inherit; font-size: 1rem; line-height: 1; }
     .step:hover { border-color: var(--sm-accent); }
     .plabel { font-weight: 650; min-width: 9ch; text-align: center; white-space: nowrap; }
+    /* v1.18.0: Saison-Definition unter der Leiste (eigene Zeile) */
+    .fbar .sdef { flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: .8rem; color: var(--sm-muted);
+      border-top: 1px dashed var(--sm-line); padding-top: 7px; }
+    .fbar .sdef .sx b { color: var(--sm-ink); font-weight: 600; }
+    .fbar .sdef .sx.on { color: var(--sm-ink); background: color-mix(in srgb, var(--sm-accent) 12%, transparent); border-radius: 999px; padding: 1px 8px; }
     @media (max-width: 700px) {
       /* am Handy nicht mitlaufen lassen: die Leiste wäre höher als ein Drittel des Bildschirms */
       .fbar { padding: 8px 10px; gap: 6px 8px; position: static; }
@@ -2229,7 +2248,12 @@ function filterBarHtml(card, d, { simple = false, compares = STATS_COMPARE, rast
         <button class="step" data-step="1" aria-label="${t("Weiter")}">›</button></span>`;
   const cmp = `<select data-k="compare" aria-label="${t("Vergleich")}">${compares.map(([k, l]) =>
     `<option value="${k}" ${k === s.compare ? "selected" : ""}>${t("Vergleich")}: ${t(l)}</option>`).join("")}</select>`;
-  if (simple) return `<div class="fbar">${period}${anchor}${cmp}</div>`;
+  // v1.18.0: bei „Saison“ die Definition zeigen (aktuelle Saison hervorgehoben)
+  const cur = s.ptype === "saison" ? seasonOf(d.range[0].getMonth()) : -1;
+  const sdef = s.ptype === "saison" ? `<div class="sdef" title="${esc(t("Einstellbar unter Einstellungen → Allgemein & Abruf → Saisons"))}">
+      <span class="lbl">${t("Saisons")}</span>${SEASONS.map((_, j) => (j + seasonOf(0)) % SEASONS.length).map((i) =>
+        `<span class="sx${i === cur ? " on" : ""}"><b>${esc(t(SEASONS[i].name))}</b> ${seasonSpan(i)}</span>`).join("")}</div>` : ""; // ab der Januar-Saison wie in den Auswertungen
+  if (simple) return `<div class="fbar">${period}${anchor}${cmp}${sdef}</div>`;
   const ws = d.info.wohnungen;
   const sel = card.target.apartment_id;
   const apts = ws.length > 1 && !card._config.apartment_id && !HeaderApts.n
@@ -2239,7 +2263,7 @@ function filterBarHtml(card, d, { simple = false, compares = STATS_COMPARE, rast
   const raster = `<span class="grp"><span class="lbl">${t("Raster")}</span><div class="seg">${rasters.map(([k, l]) =>
     `<button data-raster="${k}" aria-pressed="${s.raster === k}">${t(l)}</button>`).join("")}</div></span>`;
   return `<div class="fbar">${period}${qsel}${anchor}${cmp}${afterCmp}<span class="sep"></span>${raster}${apts}
-    <span class="sep"></span><div class="chips">${channelChips(d.apt, s.channels)}</div>${tools}</div>`;
+    <span class="sep"></span><div class="chips">${channelChips(d.apt, s.channels)}</div>${tools}${sdef}</div>`;
 }
 // Ereignisse der Leiste; shiftPatch = zusätzlicher Zustand beim Blättern (Statistik: Pace-Jahr zurücksetzen).
 // Heute/erster Datentag werden erst beim Klick aus card._data gelesen: bind() läuft auch beim Zeichnen
@@ -2256,8 +2280,10 @@ function bindFilterBar(card, root, shiftPatch = {}) {
     else card.setState({ ptype: p, anchor: iso(s.anchor ? a : D(todayIso)), quick: null }, true);
   }));
   root.querySelectorAll("[data-step]").forEach((el) => el.addEventListener("click", () => {
-    const [a] = statsRange(s, todayOf());
-    card.setState({ anchor: iso(addMonths(a, Number(el.dataset.step) * PERIOD_MONTHS[s.ptype])), ...shiftPatch }, true);
+    const [a, b] = statsRange(s, todayOf());
+    // vor: Beginn des nächsten Zeitraums (= Ende), zurück: Zeitraum, der den Vortag enthält (Saisons verschieden lang)
+    const next = Number(el.dataset.step) > 0 ? b : statsStart(s.ptype, addDays(a, -1));
+    card.setState({ anchor: iso(next), ...shiftPatch }, true);
   }));
   root.querySelector('[data-k="quick"]')?.addEventListener("change", (e) => {
     if (e.target.value) card.setState(quickState(e.target.value, todayOf(), card._data?.apt?.erster_tag), true);
@@ -3216,18 +3242,37 @@ const PERIOD_TYPES = [["monat", "Monat"], ["quartal", "Quartal"], ["saison", "Sa
 const PERIOD_MONTHS = { monat: 1, quartal: 3, saison: 3, jahr: 12 };
 const STATS_COMPARE = [["stichtag", "Stichtag Vorjahr"], ["vorjahr", "Ganzes Vorjahr"], ["vorperiode", "Vorperiode"]];
 const RASTER = [["auto", "Auto"], ["woche", "Woche"], ["monat", "Monat"]];
-// Schlüssel = Startmonat 0-basiert wie Date.getMonth() (11 = Dez, 2 = März, 5 = Juni, 8 = Sep)
-const SEASON_NAME = { 11: "Winter", 2: "Frühling", 5: "Sommer", 8: "Herbst" };
 const MONTHS_SHORT = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+// v1.18.0 (Wunsch Betreiber 20.11.2026): Saisons einstellbar (Einstellungen → Allgemein, Backend seasons.py).
+// SEASONS = [{ name, start (1–12) }] nach Startmonat sortiert; jede Saison läuft bis vor den Start der nächsten,
+// die letzte über den Jahreswechsel. Standard = bisher (Winter Dez–Feb, Frühling Mär–Mai, Sommer Jun–Aug, Herbst Sep–Nov).
+const DEFAULT_SEASONS = [{ name: "Frühling", start: 3 }, { name: "Sommer", start: 6 }, { name: "Herbst", start: 9 }, { name: "Winter", start: 12 }];
+let SEASONS = DEFAULT_SEASONS;
+function setSeasons(list) { SEASONS = [...list].map((x) => ({ name: String(x.name), start: Number(x.start) })).sort((a, b) => a.start - b.start); }
+// Saison zu einem Monat (0-basiert): Index in SEASONS und Länge in Monaten
+function seasonOf(m0) {
+  const m = m0 + 1;
+  let i = SEASONS.length - 1;
+  for (let j = 0; j < SEASONS.length; j++) if (SEASONS[j].start <= m) i = j;
+  return i;
+}
+const seasonLen = (i) => ((SEASONS[(i + 1) % SEASONS.length].start - SEASONS[i].start + 12) % 12) || 12;
+// „Dez–Feb“ bzw. „Jun“ (eine Saison über einen Monat)
+function seasonSpan(i) {
+  const a = SEASONS[i].start - 1, n = seasonLen(i), b = (a + n - 1) % 12;
+  return n === 1 ? t(MONTHS_SHORT[a]) : `${t(MONTHS_SHORT[a])}–${t(MONTHS_SHORT[b])}`;
+}
 
-// Beginn des Zeitraums, der `d` enthält (Saison wie stats.SEASONS: Winter = Dez–Feb)
+// Beginn des Zeitraums, der `d` enthält (Saison: einstellbare SEASONS, ggf. im Vorjahr begonnen)
 function statsStart(type, d) {
   const y = d.getFullYear(), m = d.getMonth();
   if (type === "monat") return new Date(y, m, 1);
   if (type === "quartal") return new Date(y, m - (m % 3), 1);
-  if (type === "saison") return m === 11 ? new Date(y, 11, 1) : m < 2 ? new Date(y - 1, 11, 1) : new Date(y, m - ((m - 2) % 3), 1);
+  if (type === "saison") { const st = SEASONS[seasonOf(m)].start - 1; return new Date(st > m ? y - 1 : y, st, 1); }
   return new Date(y, 0, 1);
 }
+// Länge eines Zeitraums ab Beginn `a` in Monaten (Saisons sind unterschiedlich lang)
+const periodMonths = (type, a) => (type === "saison" ? seasonLen(seasonOf(a.getMonth())) : PERIOD_MONTHS[type]);
 // Zeitraum [start, ende) aus dem Kartenzustand
 function statsRange(s, todayIso) {
   if (s.ptype === "frei") {
@@ -3236,14 +3281,16 @@ function statsRange(s, todayIso) {
     return b > a ? [a, b] : [a, addDays(a, 1)];
   }
   const a = statsStart(s.ptype, D(s.anchor || todayIso));
-  return [a, addMonths(a, PERIOD_MONTHS[s.ptype])];
+  return [a, addMonths(a, periodMonths(s.ptype, a))];
 }
 // Vergleichszeitraum + Stichtag (nur „Stichtag Vorjahr“)
 function statsCompare(s, [a, b], todayIso) {
   const yearBack = (d) => new Date(d.getFullYear() - 1, d.getMonth(), d.getDate());
   if (s.compare === "vorperiode") {
     if (s.ptype === "frei") { const n = Math.round((b - a) / 86400000); return { range: [addDays(a, -n), a], asOf: null }; }
-    return { range: [addMonths(a, -PERIOD_MONTHS[s.ptype]), a], asOf: null };
+    // Vorperiode = der unmittelbar vorangehende Zeitraum (bei Saisons die vorige Saison, eigene Länge)
+    const p = statsStart(s.ptype, addDays(a, -1));
+    return { range: [p, a], asOf: null };
   }
   return { range: [yearBack(a), yearBack(b)], asOf: s.compare === "stichtag" ? iso(yearBack(D(todayIso))) : null };
 }
@@ -3252,7 +3299,11 @@ function statsLabel(type, [a, b]) {
   const y = a.getFullYear();
   if (type === "monat") return a.toLocaleDateString(locale(), { month: "long", year: "numeric" });
   if (type === "quartal") return `Q${Math.floor(a.getMonth() / 3) + 1} ${y}`;
-  if (type === "saison") return a.getMonth() === 11 ? `${t("Winter")} ${y}/${String(y + 1).slice(-2)}` : `${t(SEASON_NAME[a.getMonth()])} ${y}`;
+  if (type === "saison") {
+    const i = seasonOf(a.getMonth());
+    const cross = a.getMonth() + seasonLen(i) > 12; // über den Jahreswechsel → „Winter 2025/26“
+    return `${t(SEASONS[i].name)} ${y}${cross ? `/${String(y + 1).slice(-2)}` : ""}`;
+  }
   if (type === "jahr") return String(y);
   return `${fdate(iso(a))} – ${fdate(iso(addDays(b, -1)))}`;
 }
@@ -5334,7 +5385,13 @@ const SET_ERR = {
   duplicate_code: "Kürzel schon vergeben", ai_entity_required: "Bitte eine KI wählen oder „KI erlauben“ ausschalten",
   admin_only: "Nur Admins können das ändern", unknown_field: "Unbekanntes Feld",
   invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_role: "Unbekannte Rolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
+  // v1.18.0: Saisons
+  invalid_season_count: "2 bis 6 Saisons", invalid_season: "Ungültige Saison", invalid_season_name: "Jede Saison braucht einen Namen",
+  invalid_season_start: "Startmonat 1–12", invalid_season_duplicate_name: "Saisonnamen doppelt", invalid_season_duplicate_start: "Zwei Saisons mit gleichem Startmonat",
 };
+// v1.18.0: Saisons in den Einstellungen – Monat (0–11) → Index in der (nach Start sortierten) Liste, Farben je Saison
+const seasonIdx = (list, m0) => { let i = list.length - 1; list.forEach((x, j) => { if (Number(x.start) <= m0 + 1) i = j; }); return i; };
+const SEASON_SHADES = [82, 50, 28, 66, 38, 16];
 // Gradtagszahlen (Promille je Monat) – gleiche Tabelle wie deckungsbeitrag.HEAT_PROMILLE (nur für die Vorschau)
 const HEAT_PROMILLE = [170, 150, 130, 80, 40, 13.33, 13.33, 13.34, 30, 80, 120, 160];
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -5380,6 +5437,17 @@ class SmoobuSettingsCard extends SmoobuCard {
   static defaults = { title: "Einstellungen", entry_id: null, tab: "benachrichtigungen" };
   static initialState = (c) => ({ tab: c.tab || "benachrichtigungen", errors: {}, saving: false });
   static css = `
+    /* v1.18.0: Saisons */
+    .sbar { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; margin: 4px 0 10px; }
+    .sbar > div { border-radius: 4px; padding: 5px 4px; font-size: .7rem; min-height: 38px; overflow: hidden; }
+    .sbar > div span { display: block; opacity: .8; } .sbar > div b { display: block; font-size: .72rem; white-space: nowrap; }
+    .srow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 4px 0; }
+    .srow input[type=text] { width: 180px; }
+    .sprop { border: 1px dashed var(--sm-line); border-radius: var(--sm-rs); padding: 10px 12px; margin-top: 8px; }
+    .sprop .gh { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+    .sprof { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; height: 70px; align-items: end; margin: 8px 0 2px; }
+    .sprof > div { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; font-size: .66rem; color: var(--sm-muted); }
+    .sprof i { display: block; width: 70%; background: var(--sm-accent); border-radius: 3px 3px 0 0; min-height: 2px; }
     .stabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 16px; border-bottom: 1px solid var(--sm-line); padding-bottom: 10px; }
     .stabs button { border: 0; background: none; font: inherit; font-size: .9rem; padding: 7px 14px; border-radius: 999px; cursor: pointer; color: var(--sm-muted); }
     .stabs button[aria-pressed="true"] { background: var(--sm-accent); color: var(--sm-acc-ink); font-weight: 600; }
@@ -5631,6 +5699,53 @@ class SmoobuSettingsCard extends SmoobuCard {
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Was darf welche Rolle?")}</b></div></div>
         <div class="gb"><div class="scroll"><table class="prov">${head}${rows}</table></div></div></div>`;
   }
+  // v1.18.0 (Wunsch Betreiber 20.11.2026): Saisons frei definieren (Name + Startmonat, 2–6) und automatische
+  // Erkennung aus der Vergangenheit (Backend seasons.detect: RevPAR-Profil je Monat, beste Aufteilung in 2/3/4 Saisons).
+  // „Übernehmen“ setzt nur den Entwurf – gespeichert wird wie alles andere mit „Speichern“.
+  seasonBlock(meta) {
+    const d = this._draft;
+    const list = (d.saisons || []).slice().sort((a, b) => a.start - b.start);
+    d.saisons = list;
+    const opts = (v) => MONTHS_SHORT.map((m, i) => `<option value="${i + 1}" ${Number(v) === i + 1 ? "selected" : ""}>${t(m)}</option>`).join("");
+    const span = (l, i) => { const a = l[i].start - 1, n = ((l[(i + 1) % l.length].start - l[i].start + 12) % 12) || 12;
+      return `${t(MONTHS_SHORT[a])}–${t(MONTHS_SHORT[(a + n - 1) % 12])} · ${n} ${t(n === 1 ? "Monat" : "Monate")}`; };
+    // 12-Monats-Leiste: jede Saison eine Farbstufe, Name im ersten Monat
+    const bar = (l, shade = (i) => SEASON_SHADES[i % SEASON_SHADES.length]) => `<div class="sbar">${MONTHS_SHORT.map((m, m0) => {
+      const i = seasonIdx(l, m0);
+      const first = Number(l[i].start) === m0 + 1;
+      const pc = shade(i);
+      return `<div style="background:color-mix(in srgb, var(--sm-accent) ${pc}%, var(--sm-surf));${pc > 50 ? "color:var(--sm-acc-ink);" : ""}"
+        title="${esc(`${t(m)}: ${l[i].name}`)}"><span>${t(m)}</span>${first ? `<b>${esc(l[i].name)}</b>` : ""}</div>`;
+    }).join("")}</div>`;
+    const rows = list.map((x, i) => `<div class="srow"><input type="text" data-sn="${i}" maxlength="30" value="${esc(x.name)}" placeholder="${t("Name")}">
+        <label class="sub">${t("ab")} <select data-ss="${i}">${opts(x.start)}</select></label><span class="sub">${span(list, i)}</span>
+        ${list.length > 2 ? `<button class="lnk" data-sdel="${i}">${t("Entfernen")}</button>` : ""}</div>`).join("");
+    // Erkennung
+    const det = meta.saison_erkennung || {};
+    let auto;
+    if (!det.vorschlaege?.length) auto = `<div class="hint">${t("Noch keine Erkennung möglich: es braucht mindestens")} ${det.min_jahre || 2} ${t("abgeschlossene Jahre mit Buchungen")}${det.jahre?.length ? ` (${t("vorhanden")}: ${det.jahre.join(", ")})` : ""}.</div>`;
+    else {
+      const pmax = Math.max(...(det.profil || [1]), 1);
+      const prof = det.profil ? `<div class="sprof">${det.profil.map((v, i) => `<div title="${esc(`${t(MONTHS_SHORT[i])}: RevPAR-Index ${v} · ${t("Auslastung")} ${num(det.auslastung[i], 0)} %`)}">
+          <i style="height:${(v / pmax) * 78}%"></i><span>${t(MONTHS_SHORT[i])}</span></div>`).join("")}</div>` : "";
+      auto = `<div class="hint">${t("Aus den abgeschlossenen Jahren")} ${det.jahre.join(", ")}: ${t("RevPAR je Monat im Verhältnis zum Jahres-Ø (Median über die Jahre). Ähnliche, aneinander grenzende Monate bilden eine Saison.")}</div>
+        ${prof}${det.vorschlaege.map((v) => {
+          const l = v.saisons.map((x) => ({ name: x.name, start: x.start }));
+          const rank = [...v.saisons].sort((a, b) => b.index - a.index).map((x) => x.start);
+          const shade = (i) => [82, 50, 28, 14][rank.indexOf(l[i].start)] ?? 30;
+          return `<div class="sprop"><div class="gh"><b>${v.anzahl} ${t("Saisons")}</b>${v.anzahl === det.empfohlen ? ` <span class="badge good">${t("Empfohlen")}</span>` : ""}
+              <span class="sub">${t("erklärt")} ${v.erklaert} % ${t("der Schwankung")}</span><span class="grow"></span>
+              <button class="btn flat sm" data-sapply="${v.anzahl}">${t("Übernehmen")}</button></div>
+            ${bar(l, shade)}<div class="sub">${v.saisons.map((x) => `<b>${esc(t(x.name))}</b> ${t(MONTHS_SHORT[x.monate[0] - 1])}–${t(MONTHS_SHORT[x.monate[x.monate.length - 1] - 1])} (${t("Index")} ${x.index}, ${t("Auslastung")} ${num(x.auslastung, 0)} %)`).join(" · ")}</div></div>`;
+        }).join("")}`;
+    }
+    return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Saisons")}</b>
+        <span class="sub">${t("Für Statistik und Finanzen: Zeitraum „Saison“ und Gruppierung „Saison“. Jede Saison läuft bis zum Start der nächsten.")}</span></div></div>
+      <div class="gb">${bar(list)}${rows}
+        <div class="row" style="margin-top:6px;gap:8px">${list.length < 6 ? `<button class="btn flat sm" data-sadd>＋ ${t("Saison")}</button>` : ""}
+          <button class="btn flat sm" data-sdef>${t("Standard (Jahreszeiten)")}</button></div>${this.err("saisons")}
+        <div class="kl" style="margin-top:14px">${t("Automatische Erkennung")}</div>${auto}</div></div>`;
+  }
   tabGeneral(meta) {
     const d = this._draft;
     const codes = meta.wohnungen.map((w) => this.fld(w.name, `<input type="text" data-code="${esc(w.id)}" maxlength="4" style="width:90px"
@@ -5652,6 +5767,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Jahre Historie", this.numIn("history_years", 1, 5, 1, "Jahre"), "Wird ignoriert, wenn „Daten abrufen seit“ gesetzt ist.", "history_years")}
         ${this.fld("Daten abrufen seit", `<input type="date" data-txt="history_since" value="${esc(d.history_since || "")}">${d.history_since ? `<button class="lnk" data-clear="history_since">${t("Leeren")}</button>` : ""}`,
           "Leer = „Jahre Historie“ gilt. Mindestens ab 01.01. des Vorjahres.", "history_since")}</div></div>
+      ${this.seasonBlock(meta)}
       ${codes ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Wohnungskürzel")}</b><span class="sub">${t("Höchstens 4 Buchstaben/Ziffern, eindeutig über alle Konten.")}</span></div></div><div class="gb">${codes}</div></div>` : ""}`;
   }
   body(res) {
@@ -5760,6 +5876,31 @@ class SmoobuSettingsCard extends SmoobuCard {
       this._draft = clone(this._data.werte); this.setState({ errors: {} });
     });
     root.querySelector("[data-save]")?.addEventListener("click", () => this.save());
+    // v1.18.0: Saisons
+    root.querySelectorAll("[data-sn]").forEach((inp) => inp.addEventListener("input", () => {
+      d.saisons = d.saisons.map((x, i) => (i === Number(inp.dataset.sn) ? { ...x, name: inp.value } : x)); this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-ss]").forEach((sel) => sel.addEventListener("change", () => {
+      d.saisons = d.saisons.map((x, i) => (i === Number(sel.dataset.ss) ? { ...x, start: Number(sel.value) } : x)); redraw();
+    }));
+    root.querySelectorAll("[data-sdel]").forEach((b) => b.addEventListener("click", () => {
+      d.saisons = d.saisons.filter((_, i) => i !== Number(b.dataset.sdel)); redraw();
+    }));
+    root.querySelector("[data-sadd]")?.addEventListener("click", () => {
+      const used = new Set(d.saisons.map((x) => Number(x.start)));
+      const free = [1, 4, 7, 10, 2, 5, 8, 11, 3, 6, 9, 12].find((m) => !used.has(m));
+      d.saisons = [...d.saisons, { name: `${t("Saison")} ${d.saisons.length + 1}`, start: free }]; redraw();
+    });
+    root.querySelector("[data-sdef]")?.addEventListener("click", () => {
+      d.saisons = clone(this._data?.meta?.saison_standard || DEFAULT_SEASONS); redraw();
+    });
+    root.querySelectorAll("[data-sapply]").forEach((b) => b.addEventListener("click", () => {
+      const v = this._data?.meta?.saison_erkennung?.vorschlaege?.find((x) => x.anzahl === Number(b.dataset.sapply));
+      if (!v) return;
+      d.saisons = v.saisons.map((x) => ({ name: t(x.name), start: x.start }));
+      toast(t("Vorschlag übernommen – mit „Speichern“ übernehmen"));
+      redraw();
+    }));
     // Datenschutz-Stufe: feste Stufe setzt die Einzelschalter auf deren Voreinstellung, damit
     // „Individuell“ danach mit der zuletzt gewählten Stufe beginnt
     root.querySelectorAll("[data-privacy]").forEach((b) => b.addEventListener("click", () => {

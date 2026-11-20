@@ -26,6 +26,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .channel_catalog import channel_choices, configured_channels
+from . import seasons as season_cfg
 from .codes import all_codes, clean_code
 from .deckungsbeitrag import parse_grid_share, parse_markups
 from . import rechte
@@ -215,6 +216,8 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_TASK_CATEGORIES: list(o.get(CONF_TASK_CATEGORIES, DEFAULT_TASK_CATEGORIES)),
         CONF_LASTMINUTE_DAYS: int(o.get(CONF_LASTMINUTE_DAYS, DEFAULT_LASTMINUTE_DAYS)),
         CONF_LASTMINUTE_MAX_DISCOUNT: float(o.get(CONF_LASTMINUTE_MAX_DISCOUNT, DEFAULT_LASTMINUTE_MAX_DISCOUNT)),
+        # v1.18.0: Saisons (Statistik/Finanzen: Zeitraum „Saison“, Gruppierung „Saison“)
+        "saisons": season_cfg.from_options(o),
     }
     # Je Push-Art an/aus und Empfänger (gleiche Rückfallregeln wie der Benachrichtigungsdienst)
     for kind in NOTIFY_TYPES:
@@ -327,6 +330,11 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
         "zugriff": rechte.describe(user, entry.options),
         # v1.18.0b6: Voreinstellungen der Datenschutz-Stufen (Karte setzt die Einzelschalter beim Wechsel)
         "datenschutz_stufen": privacy.PRESETS,
+        # v1.18.0: Saison-Vorschläge aus abgeschlossenen Jahren (RevPAR-Profil je Monat) + Standard
+        "saison_erkennung": season_cfg.detect(
+            [r for apt_id in (data.apartments if data else {}) for r in coordinator.records(apt_id)], date.today(),
+            units=max(len(data.apartments), 1) if data else 1),
+        "saison_standard": season_cfg.DEFAULT_SEASONS,
     }
 
 
@@ -498,6 +506,7 @@ FIELDS: dict[str, Any] = {
     CONF_TASK_CATEGORIES: vol.All(_names, [vol.In(TASK_CATEGORIES)]),
     CONF_LASTMINUTE_DAYS: _int(1, 14),
     CONF_LASTMINUTE_MAX_DISCOUNT: _num(0, 30),
+    "saisons": season_cfg.validate,
     **{f"notify_{kind}": bool for kind in NOTIFY_TYPES},
     **{f"notify_{kind}_to": _pattern_list(_NOTIFY_RE) for kind in NOTIFY_TYPES},
     **{f"notify_{kind}_quiet": bool for kind in NOTIFY_TYPES},
