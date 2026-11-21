@@ -113,3 +113,39 @@ async def test_aufgaben_board(hass, setup, hass_ws_client, hass_read_only_access
     assert res["error"]["code"] == "unauthorized"
     res = await _call(guest, 9, type="smoobu/tasks/set", key="msg:2:y", kategorie="nachrichten", aktion="erledigt")
     assert res["success"] is True
+
+
+async def test_fokus_modus(hass, setup, hass_ws_client, hass_read_only_access_token, hass_read_only_user):  # noqa: F811
+    """v1.19.0b7: Fokus-Modus – Standard für Rolle „Reinigung“, Startseite automatisch/einstellbar, Admins nie."""
+    from custom_components.smoobu import settings
+
+    admin = SimpleNamespace(id="a", is_admin=True)
+    u = SimpleNamespace(id="u", is_admin=False)
+    opts = {"user_roles": {"u": "reinigung"}, "assist_path": "/dashboard-fewo/smoobu-nachrichten"}
+    assert rechte.focus_of(admin, opts) is None
+    f = rechte.focus_of(u, opts)
+    assert f["start"] == "/dashboard-fewo/smoobu-reinigung" and f["erlaubt"] == ["/dashboard-fewo/smoobu", "/dashboard-fewo/smoobu-reinigung"]
+    assert rechte.focus_of(u, {**opts, "user_roles": {"u": "betrieb"}}) is None
+    f = rechte.focus_of(u, {**opts, "user_roles": {"u": "lesen"}, "focus_roles": {"lesen": ""}})
+    assert f["start"] == "/dashboard-fewo/smoobu"
+    f = rechte.focus_of(u, {**opts, "focus_roles": {"reinigung": "/x-y/smoobu-kalender"}})
+    assert f["start"] == "/x-y/smoobu-kalender" and "/x-y/smoobu" in f["erlaubt"]
+    assert rechte.focus_of(u, {**opts, "focus_roles": {}}) is None  # abgeschaltet
+
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    _v, err = settings.validate(hass, entry, {"focus_roles": {"reinigung": "javascript:alert(1)"}}, admin)
+    assert err["focus_roles"] == "invalid_focus_path"
+    _v, err = settings.validate(hass, entry, {"focus_roles": {"kein": ""}}, admin)
+    assert err["focus_roles"] == "invalid_role"
+    _v, err = settings.validate(hass, entry, {"focus_roles": {}}, u)
+    assert err["focus_roles"] == "admin_only"
+
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "user_roles": {hass_read_only_user.id: "reinigung"}})
+    await hass.async_block_till_done()
+    ws = await hass_ws_client(hass, hass_read_only_access_token)
+    await ws.send_json({"id": 1, "type": "smoobu/focus"})
+    res = (await ws.receive_json())["result"]
+    assert res["aktiv"] and res["start"].endswith("/smoobu-reinigung")
+    adm = await hass_ws_client(hass)
+    await adm.send_json({"id": 1, "type": "smoobu/focus"})
+    assert (await adm.receive_json())["result"] == {"aktiv": False}

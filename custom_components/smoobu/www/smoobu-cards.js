@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.0b6";
+const SMOOBU_CARDS_VERSION = "1.19.0b7";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -5690,7 +5690,7 @@ class SmoobuHeaderCard extends SmoobuCard {
     // die neue Ansicht nicht kennt, die alte aber schon
     const pages = (this._config.pages || []).map((p) => (p.legacy && known && !known.has(p.path) && known.has(p.legacy) ? { ...p, path: p.legacy } : p)).filter((p) => (!p.optional || !known || known.has(p.path))
       && (p.path === "smoobu" ? rights.has("belegung_sehen") : pageAllowed(p.path, rights)));
-    const home = this._config.home?.path ? `<a class="home" data-href="${esc(this.href(this._config.home.path))}" title="${esc(t("Zurück zu"))} ${esc(this._config.home.name || "")}">← ${esc(t(this._config.home.name || "Zurück"))}</a><span class="hsep"></span>` : "";
+    const home = this._config.home?.path && !window.__smoobuFocus ? `<a class="home" data-href="${esc(this.href(this._config.home.path))}" title="${esc(t("Zurück zu"))} ${esc(this._config.home.name || "")}">← ${esc(t(this._config.home.name || "Zurück"))}</a><span class="hsep"></span>` : "";
     const tabs = home + pages.map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${p.icon && ICON_SVG[p.icon] ? `${ICON_SVG[p.icon]}<span class="lbl">${esc(t(p.name))}</span>` : esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
     const ws = info.wohnungen;
     const sel = this.target.apartment_id;
@@ -5798,7 +5798,7 @@ const SET_ERR = {
   // v1.19.0: Rollenkonfigurator
   invalid_right: "Unbekanntes Recht", invalid_role_name: "Name 1–30 Zeichen", duplicate_role_name: "Rollenname schon vergeben",
   invalid_role_count: "Höchstens 10 eigene Rollen", invalid_lock: "Unbekannter Schloss-Typ", invalid_lock_entity: "Schloss-Entität bzw. Skript prüfen",
-  invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", invalid_static_code: "Statischer Code: 4–12 Ziffern/Buchstaben", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“",
+  invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", invalid_static_code: "Statischer Code: 4–12 Ziffern/Buchstaben", invalid_focus_path: "Startseite: Pfad wie /dashboard/ansicht", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“",
   meter_entity_required: "Bitte einen Zähler wählen oder „Konstant“", price_required: "Bitte Preis oder Preis-Entität angeben", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
   // v1.18.0: Saisons
   invalid_season_count: "2 bis 6 Saisons", invalid_season: "Ungültige Saison", invalid_season_name: "Jede Saison braucht einen Namen",
@@ -6353,7 +6353,35 @@ class SmoobuSettingsCard extends SmoobuCard {
         <div class="gb">${users}${this.fld("Standardrolle", `<select data-sel="default_role">${opts(d.default_role, false)}</select>`, "Für Benutzer ohne eigene Rolle (bisheriges Verhalten: Betrieb).", "default_role")}</div></div>` : ""}
       <div class="grp" data-neu="rollen"><div class="gh"><div class="grow"><b>${t("Was darf welche Rolle?")}${neuBadge("opt-rollen")}</b>
         ${edit ? `<span class="sub">${t("Häkchen setzen und speichern. Gilt sofort für alle Benutzer mit dieser Rolle.")}</span>` : ""}</div></div>
-        <div class="gb"><div class="scroll"><table class="prov rr">${head}${rows}</table></div>${this.err("role_rights")}${this.err("custom_roles")}${warnHtml}${add}</div></div>`;
+        <div class="gb"><div class="scroll"><table class="prov rr">${head}${rows}</table></div>${this.err("role_rights")}${this.err("custom_roles")}${warnHtml}${add}</div></div>
+      ${this.focusBlock(meta, roles)}`;
+  }
+  // v1.19.0b7 (Wunsch Betreiber 21.11.2026): Fokus-Modus je Rolle – Benutzer der Rolle sehen in HA nur Smoobu
+  // (ohne Seitenleiste und Menüs, andere Seiten leiten auf die Startseite um). Nur Admins ändern.
+  focusBlock(meta, roles) {
+    const d = this._draft;
+    const f = d.focus_roles || {};
+    const fm = meta.fokus || { dashboard: "/lovelace", seiten: [] };
+    const edit = meta.admin;
+    const pageName = { smoobu: "Übersicht", "smoobu-kalender": "Kalender", "smoobu-reinigung": "Reinigung", "smoobu-buchungen": "Buchungen",
+      "smoobu-nachrichten": "Nachrichten", "smoobu-assistent": "Assistent", "smoobu-finanzen": "Finanzen", "smoobu-statistik": "Statistik",
+      "smoobu-einstellungen": "Einstellungen" };
+    const rows = roles.filter((r) => r.id !== "kein").map((r) => {
+      const on = r.id in f;
+      const val = f[r.id] || "";
+      const known = !val || fm.seiten.some((p) => `${fm.dashboard}/${p}` === val);
+      const sel = `<select data-fstart="${esc(r.id)}" ${!edit || !on ? "disabled" : ""}>
+          <option value="" ${val ? "" : "selected"}>${t("Automatisch")}</option>
+          ${fm.seiten.map((p) => `<option value="${esc(`${fm.dashboard}/${p}`)}" ${val === `${fm.dashboard}/${p}` ? "selected" : ""}>${esc(t(pageName[p] || p))}</option>`).join("")}
+          ${known ? "" : `<option value="${esc(val)}" selected>${esc(val)}</option>`}</select>`;
+      return this.fld(t(r.name), `<label style="display:inline-flex;align-items:center;gap:6px"><input type="checkbox" data-focus="${esc(r.id)}" ${on ? "checked" : ""} ${edit ? "" : "disabled"}>
+        <span>${t("Nur Smoobu")}</span></label> <span class="unit">${t("Startseite")}</span> ${sel}`, "", "focus_roles");
+    }).join("");
+    return `<div class="grp" data-neu="fokus"><div class="gh"><div class="grow"><b>${t("Fokus-Modus")}${neuBadge("opt-fokus")}</b>
+        <span class="sub">${t("Benutzer dieser Rollen sehen in Home Assistant nur Smoobu: keine Seitenleiste, keine Menüs, andere Seiten leiten auf die Startseite um. Eingestellt hier – kein Eingriff am Handy nötig. Admins sind nie betroffen.")}</span></div></div>
+      <div class="gb">${rows}${this.err("focus_roles")}
+        <div class="note">${t("Sperrt die Oberfläche, nicht die HA-API: Home Assistant kennt keine Rechte je Benutzer und Gerät. Die Smoobu-Daten prüft weiterhin der Server. Automatisch = Seite Reinigung für reine Reinigungsrollen, sonst die Übersicht.")}
+          ${t("Dashboard")}: <code>${esc(fm.dashboard)}</code></div></div></div>`;
   }
   // v1.18.0 (Wunsch Betreiber 20.11.2026): Saisons frei definieren (Name + Startmonat, 2–6) und automatische
   // Erkennung aus der Vergangenheit (Backend seasons.detect: RevPAR-Profil je Monat, beste Aufteilung in 2/3/4 Saisons).
@@ -6581,6 +6609,15 @@ class SmoobuSettingsCard extends SmoobuCard {
       const c = { ...d.custom_roles }; delete c[rid]; d.custom_roles = c;
       d.user_roles = Object.fromEntries(Object.entries(d.user_roles || {}).filter(([, r]) => r !== rid));
       redraw();
+    }));
+    // v1.19.0b7: Fokus-Modus je Rolle (an/aus + Startseite)
+    root.querySelectorAll("[data-focus]").forEach((cb) => cb.addEventListener("change", () => {
+      const f = { ...(d.focus_roles || {}) };
+      if (cb.checked) f[cb.dataset.focus] = f[cb.dataset.focus] || ""; else delete f[cb.dataset.focus];
+      d.focus_roles = f; redraw();
+    }));
+    root.querySelectorAll("[data-fstart]").forEach((sel) => sel.addEventListener("change", () => {
+      d.focus_roles = { ...(d.focus_roles || {}), [sel.dataset.fstart]: sel.value }; this.refreshFoot();
     }));
     // v1.19.0: Schloss je Wohnung (Typ wechselt → neu zeichnen, Texte nur Fußzeile)
     root.querySelectorAll("[data-lock]").forEach((el) => el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
@@ -6883,6 +6920,80 @@ class SmoobuCleaningCard extends SmoobuCard {
   }
   getCardSize() { return 8; }
 }
+
+// ===========================================================================
+// Fokus-Modus (v1.19.0b7, Wunsch Betreiber 21.11.2026)
+// Benutzer einer Fokus-Rolle (Einstellungen → Benutzer & Rechte) sehen in HA nur Smoobu: Seitenleiste und
+// Menüs (Suche, Assist, Drei-Punkte) werden ausgeblendet, jede andere Seite (andere Dashboards, Verlauf,
+// Energie …) leitet auf die Startseite der Rolle um. Zentral eingestellt – kein Eingriff am Gerät nötig.
+// Läuft auf jeder HA-Seite, weil die Integration diese Datei global lädt (frontend.add_extra_js_url).
+// Grenze: reine Oberflächen-Sperre. Über die HA-API bleibt ein Benutzer technisch Benutzer; die Smoobu-Daten
+// prüft weiterhin der Server. Admins sind nie betroffen.
+// ===========================================================================
+const FOCUS_DOCK_KEY = "smoobu_focus_dock"; // merkt, dass wir die Seitenleiste ausgeblendet haben (zum Zurücksetzen)
+const FOCUS_CSS = {
+  main: "ha-sidebar{display:none!important}",
+  root: "ha-menu-button,.action-items,ha-button-menu{display:none!important}",
+};
+const Focus = {
+  state: null, started: false,
+  wait(fn, ms = 30000) {
+    return new Promise((res) => {
+      const t0 = Date.now();
+      const tick = () => { const v = fn(); if (v) return res(v); if (Date.now() - t0 > ms) return res(null); setTimeout(tick, 250); };
+      tick();
+    });
+  },
+  async start() {
+    if (this.started) return;
+    this.started = true;
+    const ha = await this.wait(() => document.querySelector("home-assistant"));
+    const hass = ha && await this.wait(() => (ha.hass?.connection && ha.hass?.user ? ha.hass : null));
+    if (!hass) return;
+    let r = null;
+    if (!hass.user.is_admin) {
+      try { r = await hass.connection.sendMessagePromise({ type: "smoobu/focus" }); } catch (e) { r = null; }
+    }
+    if (!r?.aktiv) return this.release(ha);
+    this.state = r;
+    window.__smoobuFocus = r;
+    // Seitenleiste dauerhaft ausblenden (HA-eigene Einstellung „always_hidden“, merkt sich das Gerät)
+    try { localStorage.setItem(FOCUS_DOCK_KEY, "1"); } catch (e) { /* ohne Speicher: nur CSS */ }
+    ha.dispatchEvent(new CustomEvent("hass-dock-sidebar", { detail: { dock: "always_hidden" }, bubbles: true, composed: true }));
+    const guard = () => setTimeout(() => this.guard(), 0);
+    window.addEventListener("location-changed", guard);
+    window.addEventListener("popstate", guard);
+    setInterval(() => { this.guard(); this.style(ha); }, 700);
+    this.guard();
+    this.style(ha);
+  },
+  // Nicht (mehr) im Fokus: von uns ausgeblendete Seitenleiste wieder zeigen
+  release(ha) {
+    let mine = false;
+    try { mine = localStorage.getItem(FOCUS_DOCK_KEY) === "1"; localStorage.removeItem(FOCUS_DOCK_KEY); } catch (e) { mine = false; }
+    if (mine && ha) ha.dispatchEvent(new CustomEvent("hass-dock-sidebar", { detail: { dock: "docked" }, bubbles: true, composed: true }));
+  },
+  allowed(path) { return (this.state?.erlaubt || []).some((p) => path === p || path.startsWith(p)); },
+  guard() {
+    if (!this.state || this.allowed(location.pathname)) return;
+    history.replaceState(null, "", this.state.start);
+    window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: true } }));
+  },
+  inject(root, id, css) {
+    if (!root || root.getElementById?.(id)) return;
+    const st = document.createElement("style");
+    st.id = id; st.textContent = css;
+    root.appendChild(st);
+  },
+  // CSS in die Shadow-Roots von HA (Hauptlayout und Lovelace-Kopfzeile) setzen – idempotent, alle 0,7 s
+  style(ha) {
+    const main = ha.shadowRoot?.querySelector("home-assistant-main");
+    this.inject(main?.shadowRoot, "smoobu-focus-main", FOCUS_CSS.main);
+    const panel = main?.shadowRoot?.querySelector("partial-panel-resolver")?.querySelector("ha-panel-lovelace");
+    this.inject(panel?.shadowRoot?.querySelector("hui-root")?.shadowRoot, "smoobu-focus-root", FOCUS_CSS.root);
+  },
+};
+Focus.start();
 
 // ===========================================================================
 // Registrierung

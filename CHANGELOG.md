@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b7 – 2026-11-21
+
+### Neu / New
+- **Fokus-Modus je Rolle** (Einstellungen → Benutzer & Rechte → Fokus-Modus, nur Admins): Benutzer ausgewählter Rollen sehen in Home Assistant nur noch Smoobu – Seitenleiste und Menüs (Suche, Assist, Drei-Punkte) sind ausgeblendet, jede andere Seite (andere Dashboards, Verlauf, Energie …) leitet auf die Startseite der Rolle um. Startseite je Rolle wählbar (Automatisch = Reinigung für reine Reinigungsrollen, sonst Übersicht). Standard: an für „Reinigung“. Zentral eingestellt, ohne Eingriff am Gerät; Admins sind nie betroffen. Hinweis: Sperre der Oberfläche, nicht der HA-API – Smoobu-Daten prüft weiterhin der Server.
+- **Focus mode per role** (Settings → Users & permissions → Focus mode, admins only): users of selected roles only see Smoobu in Home Assistant – sidebar and menus (search, Assist, three dots) are hidden and every other page (other dashboards, history, energy …) redirects to the role's start page. Start page selectable per role (automatic = cleaning page for cleaning-only roles, otherwise overview). Default: on for "Cleaning". Configured centrally, no access to the device needed; admins are never affected. Note: this locks the UI, not the HA API – Smoobu data is still checked by the server.
+
 ## 1.19.0b6 – 2026-11-21
 
 ### Korrigiert / Fixed

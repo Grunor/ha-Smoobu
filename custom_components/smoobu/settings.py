@@ -83,6 +83,7 @@ from .const import (
     DEFAULT_LASTMINUTE_DAYS,
     DEFAULT_LASTMINUTE_MAX_DISCOUNT,
     CONF_CUSTOM_ROLES,
+    CONF_FOCUS_ROLES,
     CONF_DEFAULT_ROLE,
     CONF_ROLE_RIGHTS,
     CONF_USER_ROLES,
@@ -254,6 +255,8 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
                            if r["art"] == "standard" and rid not in rechte.LOCKED_ROLES},
         CONF_CUSTOM_ROLES: {rid: {"name": r["name"], "rechte": sorted(r["rechte"])}
                             for rid, r in rechte.roles(o).items() if r["art"] == "eigen"},
+        # Fokus-Modus (v1.19.0b7): {Rolle: Startseite} – Rollen, die in HA nur Smoobu sehen
+        CONF_FOCUS_ROLES: rechte.focus_roles(o),
         # Reinigungsboard (v1.19.0): Pushes, Vorabend-Erinnerung, Handy je HA-Benutzer
         CONF_CLEANING_NOTIFY: bool(o.get(CONF_CLEANING_NOTIFY, True)),
         CONF_CLEANING_REMIND_TIME: str(o.get(CONF_CLEANING_REMIND_TIME, DEFAULT_CLEANING_REMIND_TIME))[:5],
@@ -413,6 +416,8 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
             [r for apt_id in (data.apartments if data else {}) for r in coordinator.records(apt_id)], date.today()),
         # v1.18.0: Rollen × Rechte und eigene Rolle (Anzeige im Reiter „Benutzer & Rechte“)
         "rollen": rechte.matrix(entry.options),
+        # v1.19.0b7: Fokus-Modus – Dashboard der Smoobu-Seiten und auswählbare Startseiten
+        "fokus": {"dashboard": rechte.focus_dashboard(entry.options), "seiten": list(rechte.FOCUS_PAGES)},
         # v1.19.0: Benutzer mit Recht „reinigung“ (Handy je Person im Reiter Benachrichtigungen)
         "reinigungskraefte": await coordinator.cleaning.cleaners() if coordinator and getattr(coordinator, "cleaning", None) else [],
         "zugriff": rechte.describe(user, entry.options),
@@ -635,6 +640,22 @@ def _role_rights(value: Any) -> dict[str, list[str]]:
     return out
 
 
+def _focus(value: Any) -> dict[str, str]:
+    """{Rolle: Startseite}: Startseite leer (automatisch) oder ein Dashboard-Pfad „/dashboard/ansicht“ (v1.19.0b7)."""
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    out = {}
+    for role, start in value.items():
+        rid = _role_id(role)
+        if rid in rechte.LOCKED_ROLES:
+            raise vol.Invalid("invalid_role")
+        start = str(start or "").strip()
+        if start and not re.fullmatch(r"/[a-z0-9_\-]+/[a-z0-9_\-]+", start):
+            raise vol.Invalid("invalid_focus_path")
+        out[rid] = start
+    return out
+
+
 def _custom_roles(value: Any) -> dict[str, dict[str, Any]]:
     """{"eigen_…": {name, rechte}}: Name 1–30 Zeichen, eindeutig (auch ggü. Standardrollen), max. 10."""
     if not isinstance(value, dict):
@@ -780,6 +801,7 @@ FIELDS: dict[str, Any] = {
     CONF_DEFAULT_ROLE: _role,
     CONF_ROLE_RIGHTS: _role_rights,
     CONF_CUSTOM_ROLES: _custom_roles,
+    CONF_FOCUS_ROLES: _focus,
     CONF_CLEANING_NOTIFY: bool,
     CONF_CLEANING_REMIND_TIME: _hhmm,
     CONF_CLEANING_PHONES: _phones,
@@ -849,13 +871,16 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
     # Wer im Dashboard ändern darf und welche Rolle jemand hat, legen nur Admins fest
     if not (user and user.is_admin):
         before = current(entry)
-        for key in (CONF_SETTINGS_USERS, CONF_USER_ROLES, CONF_DEFAULT_ROLE, CONF_ROLE_RIGHTS, CONF_CUSTOM_ROLES):
+        for key in (CONF_SETTINGS_USERS, CONF_USER_ROLES, CONF_DEFAULT_ROLE, CONF_ROLE_RIGHTS, CONF_CUSTOM_ROLES,
+                    CONF_FOCUS_ROLES):  # v1.19.0b7: Fokus-Modus ebenfalls nur Admins
             if key in changes and key not in errors and values[key] != before[key]:
                 errors[key] = "admin_only"
 
     # v1.19.0: Rollen müssen existieren. Gelöschte eigene Rolle: Benutzer damit bekommen die Standardrolle;
     # ist sie selbst die Standardrolle, wird das abgelehnt (sonst fiele jeder still auf „Betrieb“ zurück).
     known = set(rechte.ROLES) | set(values[CONF_CUSTOM_ROLES])
+    if CONF_FOCUS_ROLES not in errors:  # Fokus für gelöschte eigene Rollen stillschweigend entfernen
+        values[CONF_FOCUS_ROLES] = {r: p for r, p in values[CONF_FOCUS_ROLES].items() if r in known}
     if CONF_DEFAULT_ROLE not in errors and values[CONF_DEFAULT_ROLE] not in known:
         errors[CONF_DEFAULT_ROLE] = "role_is_default" if CONF_CUSTOM_ROLES in changes else "invalid_role"
     if CONF_USER_ROLES not in errors:

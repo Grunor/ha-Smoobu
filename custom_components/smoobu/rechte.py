@@ -34,7 +34,9 @@ from typing import Any
 from .const import (
     CONF_CUSTOM_ROLES,
     CONF_DEFAULT_ROLE,
+    CONF_FOCUS_ROLES,
     CONF_ROLE_RIGHTS,
+    DEFAULT_FOCUS_ROLES,
     CONF_SETTINGS_USERS,
     CONF_USER_ROLES,
     DEFAULT_ROLE,
@@ -147,6 +149,52 @@ def describe(user: Any, options: Any) -> dict[str, Any]:
         "rechte": sorted(rights_of(user, options)),
         "admin": role == ADMIN,
     }
+
+
+# ---------------------------------------------------------------------------
+# Fokus-Modus (v1.19.0b7, Wunsch Betreiber 21.11.2026)
+# Benutzer einer Fokus-Rolle sehen in HA nur noch Smoobu: die Karten blenden Seitenleiste und Menü aus und
+# leiten jede andere Seite auf die Startseite der Rolle um. Das ist eine Sperre der Oberfläche, keine
+# Rechteprüfung (HA kennt keine Rechte je Benutzer und Entität); Smoobu-Daten prüft weiterhin der Server.
+# Admins sind nie betroffen. Startseite "" = automatisch: Seite Reinigung für reine Reinigungsrollen,
+# sonst die Übersicht – jeweils im Dashboard des Assistent-Pfads (assist_path), sonst /lovelace.
+# ---------------------------------------------------------------------------
+FOCUS_PAGES = ("smoobu", "smoobu-kalender", "smoobu-reinigung", "smoobu-buchungen", "smoobu-nachrichten",
+               "smoobu-assistent", "smoobu-finanzen", "smoobu-statistik", "smoobu-einstellungen")
+_CLEANING_ONLY = frozenset({"belegung_sehen", "reinigung", "reinigung_zuweisen"})
+
+
+def focus_roles(options: Any) -> dict[str, str]:
+    """{Rolle: Startseite} der Fokus-Rollen (gespeichert oder Standard); unbekannte Rollen fallen weg."""
+    o = options or {}
+    cfg = o.get(CONF_FOCUS_ROLES, DEFAULT_FOCUS_ROLES)
+    known = roles(o)
+    return {str(r): str(p or "") for r, p in (cfg or {}).items() if r in known and r not in LOCKED_ROLES}
+
+
+def focus_dashboard(options: Any) -> str:
+    """Dashboard der Smoobu-Seiten, z. B. „/dashboard-ferienwohnung“ (aus dem Assistent-Pfad)."""
+    path = str((options or {}).get("assist_path") or "")
+    parts = [p for p in path.split("/") if p]
+    return f"/{parts[0]}" if parts else "/lovelace"
+
+
+def focus_of(user: Any, options: Any) -> dict[str, Any] | None:
+    """Fokus-Modus eines Benutzers: {start, erlaubt: [Pfad-Präfixe]} oder None (kein Fokus, Admin, System)."""
+    role = role_of(user, options)
+    if role in (ADMIN, SYSTEM):
+        return None
+    cfg = focus_roles(options)
+    if role not in cfg:
+        return None
+    dash = focus_dashboard(options)
+    start = cfg[role]
+    if not start:
+        have = rights_of(user, options)
+        start = f"{dash}/smoobu-reinigung" if have <= _CLEANING_ONLY and have & {"reinigung", "reinigung_zuweisen"} else f"{dash}/smoobu"
+    sdash = "/" + start.strip("/").split("/")[0]
+    # erlaubt: alle Smoobu-Seiten im Dashboard der Startseite (Präfix „…/smoobu“ deckt smoobu-* ab) + Startseite
+    return {"start": start, "erlaubt": sorted({f"{sdash}/smoobu", start}), "rolle": role}
 
 
 def hints(rights: Any) -> list[dict[str, Any]]:

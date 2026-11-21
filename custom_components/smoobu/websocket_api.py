@@ -193,6 +193,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_cleaning_set)
     websocket_api.async_register_command(hass, ws_cleaning_stats)
     websocket_api.async_register_command(hass, ws_energy_vacancy)
+    websocket_api.async_register_command(hass, ws_focus)
     websocket_api.async_register_command(hass, ws_doorcode_get)
     websocket_api.async_register_command(hass, ws_doorcode_renew)
     websocket_api.async_register_command(hass, ws_bills_list)
@@ -1351,3 +1352,16 @@ async def ws_doorcode_renew(hass: HomeAssistant, connection: websocket_api.Activ
     except ValueError as err:
         # v1.19.0b2: statischer Code (Schlüsseltresor) wird nur in den Einstellungen geändert
         connection.send_error(msg["id"], "static_code" if str(err) == "statisch" else "not_found", str(err))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/focus"})
+@callback
+def ws_focus(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """v1.19.0b7: Fokus-Modus des angemeldeten Benutzers (für jeden Benutzer abrufbar, verrät nur den eigenen
+    Zustand). Erstes Konto mit Fokus-Rolle gewinnt; ohne Fokus: {"aktiv": false}."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        focus = rechte.focus_of(connection.user, entry.options)
+        if focus:
+            connection.send_result(msg["id"], {"aktiv": True, **focus})
+            return
+    connection.send_result(msg["id"], {"aktiv": False})

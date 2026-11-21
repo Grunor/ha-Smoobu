@@ -137,6 +137,8 @@ DEFAULT_ROLE = "betrieb"
 # Standardwerte = Nebenkostenabrechnung der Referenz-Ferienwohnung 2025 (siehe deckungsbeitrag.py)
 CONF_COST_CLEANING = "cost_cleaning"            # ab v1.19.0: Standard-Stundenlohn Reinigung (€/h); vorher € je Aufenthalt
 CONF_COST_CLEANING_MINUTES = "cost_cleaning_minutes"  # v1.19.0: Standard-Reinigungszeit je Aufenthalt (min)
+CONF_FOCUS_ROLES = "focus_roles"              # v1.19.0b7: Fokus-Modus {Rolle: Startseite ("" = automatisch)}
+DEFAULT_FOCUS_ROLES = {"reinigung": ""}        # Standard: Rolle „Reinigung“ sieht nur Smoobu
 CONF_CLEANING_WAGES = "cleaning_wages"          # v1.19.0: {HA-Benutzer-ID: €/h} je Reinigungskraft
 DEFAULT_COST_CLEANING_MINUTES = 60
 CONF_COST_LAUNDRY = "cost_laundry"              # € je Aufenthalt
