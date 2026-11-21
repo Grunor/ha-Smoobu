@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b8 – 2026-11-21
+
+### Neu / New
+- **Neue HA-Benutzer werden gemeldet:** Wird in Home Assistant ein Benutzer angelegt (auch während die Integration nicht lief), erscheint eine HA-Meldung und ein sofortiger Push an alle Smoobu-Empfänger mit dem Hinweis, Rolle und Fokus-Modus dringend zu prüfen (Link zu den Smoobu-Einstellungen). Beim ersten Start werden vorhandene Benutzer still übernommen; Systembenutzer werden ignoriert.
+- **New HA users are reported:** when a user is created in Home Assistant (also while the integration was not running), an HA notification and an immediate push to all Smoobu recipients ask to check role and focus mode urgently (link to the Smoobu settings). Existing users are taken over silently on the first start; system users are ignored.
+
 ## 1.19.0b7 – 2026-11-21
 
 ### Neu / New

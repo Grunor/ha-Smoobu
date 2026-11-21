@@ -121,6 +121,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async_register_websocket(hass)
     hass.http.register_view(NebenkostenUploadView())  # v1.19.0: Upload Nebenkostenabrechnung
     await async_register_frontend(hass)
+    # v1.19.0b8: neue HA-Benutzer erkennen und melden (Rechte dringend prüfen)
+    from .benutzer import async_setup_user_watch
+
+    await async_setup_user_watch(hass)
     return True
 
 
