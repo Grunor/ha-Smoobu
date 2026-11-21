@@ -41,6 +41,11 @@ async def test_upload_auswertung_und_medienquelle(hass, setup, hass_client, hass
     entry = hass.config_entries.async_entries(DOMAIN)[0]
     c = entry.runtime_data
     c.assistant._ai = AsyncMock(return_value=KI)
+    # media_source vor dem HTTP-Client einrichten: danach ist der Router eingefroren (in CI sonst
+    # „Cannot register a resource into frozen router“, je nach Lade-Reihenfolge der Komponenten)
+    from homeassistant.setup import async_setup_component
+    assert await async_setup_component(hass, "media_source", {})
+    await hass.async_block_till_done()
     client = await hass_client()
     form = FormData()
     form.add_field("datei", b"%PDF-1.4 demo", filename="Nebenkosten 2025.pdf", content_type="application/pdf")
@@ -69,9 +74,6 @@ async def test_upload_auswertung_und_medienquelle(hass, setup, hass_client, hass
         await src.async_browse_media(MediaSourceItem(hass, DOMAIN, "", None))
     # Über HA selbst (wie ai_task): Medienquelle wird als Plattform gefunden
     from homeassistant.components import media_source
-    from homeassistant.setup import async_setup_component
-    assert await async_setup_component(hass, "media_source", {})
-    await hass.async_block_till_done()
     res = await media_source.async_resolve_media(hass, f"media-source://smoobu/{entry.entry_id}/{item['datei']}", None)
     assert res.path == play.path
     # Liste, falscher Dateityp, Löschen
