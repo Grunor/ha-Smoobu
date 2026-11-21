@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.0b11";
+const SMOOBU_CARDS_VERSION = "1.19.0b12";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -291,6 +291,292 @@ const EN = {
   "Zeitraum vergrößern": "widen the period",
   "Stand": "as of", "Endstand": "Final", "Endstand Vergleichszeitraum": "Final value of comparison period",
   "Pfeil und Farbe vergleichen mit dem Stand am Stichtag, nicht mit dem Endstand.": "Arrow and colour compare with the status on the reference day, not with the final value.",
+  // v1.19.0b12 (Review 21.11.2026): fehlende englische Texte ergänzt
+  "(inkl. Name, Adresse, Zählernummern). Gespeichert wird sie nur lokal in Home Assistant.": "(incl. name, address, meter numbers). It is only stored locally in Home Assistant.", "12 Werte zwischen 0 und 100": "12 values between 0 and 100",
+  "2 bis 6 Saisons": "2 to 6 seasons", "Ab": "From",
+  "Ab hier zählt der Verbrauch zur Buchung, wenn kein Vorheizstart bekannt ist.": "From here on, consumption counts towards the booking if no preheat start is known.", "Ab wann eine Buchung zählt und wohin der Verbrauch ohne Gast geht.": "From when a booking counts and where consumption without a guest goes.",
+  "Abfrageintervall": "Polling interval", "Abgeben": "Hand back",
+  "Abgehakt": "Ticked off", "Abgehakt nach": "Ticked off after",
+  "Abgehakte Reinigungen im Reinigungsboard mit Abreise im Zeitraum": "Cleanings ticked off on the cleaning board with departure in the period", "Abreise und Anreise am selben Tag – enges Zeitfenster": "Departure and arrival on the same day – tight time window",
+  "Abreisen": "Departures", "Abreisende Gäste mit Hund – meist mehr Aufwand": "Departing guests with a dog – usually more work",
+  "Abruf": "Polling", "Abruf läuft …": "Fetching …",
+  "Admin": "Admin", "Admins dürfen immer alles und vergeben die Rollen.": "Admins may always do everything and assign the roles.",
+  "Alle offenen": "All open", "Alle übrigen Portale": "All other portals",
+  "An die zugewiesene Person: bei Zuweisung/Abgabe und am Vorabend. Hält die Ruhezeit ein.": "To the assigned person: on assignment/hand-back and the evening before. Respects quiet hours.", "An: die geschätzten Warmwasserkosten entfallen bei gemessenen Buchungen.": "On: the estimated hot water costs are dropped for measured bookings.",
+  "Analyse-Werkbank: Kennzahlen mit Vergleich, Buchungstempo mit Prognose, Saison-Matrix": "Analysis workbench: KPIs with comparison, booking pace with forecast, season matrix", "Andere Entität…": "Other entity…",
+  "Anordnen": "Arrange", "Anreise − Änderungsdatum (Smoobu liefert kein Stornodatum, Näherung)": "Arrival − change date (Smoobu provides no cancellation date, approximation)",
+  "Anreisen": "Arrivals", "Ansicht": "View",
+  "Anteil Nächte": "Share of nights", "Anteil der Zeile": "Share of row",
+  "Antwort unter 1 h": "Reply within 1 h", "Antworten nur mit dem Recht „Antworten“": "Replying only with the \"Reply\" permission",
+  "Antwortzeit (Median)": "Response time (median)", "Antwortzeit auf Gästenachrichten": "Response time to guest messages",
+  "Antwortzeit auf Gästenachrichten, Buchungen mit Anreise im Zeitraum": "Response time to guest messages, bookings with arrival in the period", "Aufenthalt": "Stay",
+  "Aufenthalt (Nächte)": "Stay (nights)", "Aufenthalte": "Stays",
+  "Aufenthaltsjahr": "Year of stay", "Aufenthaltsjahres": "year of stay",
+  "Aufteilung": "Split", "Ausblenden": "Hide",
+  "Ausfall": "Loss", "Ausgeblendet": "Hidden",
+  "Ausgeschaltete Module verschwinden aus Dashboard, Einstellungen und Pushes. Gespeicherte Daten bleiben erhalten.": "Modules switched off disappear from the dashboard, settings and pushes. Stored data is kept.", "Ausgewertet": "Analysed",
+  "Ausgewertet – bitte Vorschlag prüfen": "Analysed – please check the proposal", "Ausgewählte übernehmen": "Apply selected",
+  "Auslastung auf Vergleichsniveau": "Occupancy at comparison level", "Auslastung je Wochentag": "Occupancy by weekday",
+  "Auswertungen": "Reports", "Auto": "Auto",
+  "Automatisch": "Automatic", "Automatische Antwortvorschläge": "Automatic reply suggestions",
+  "Basis": "Base", "Belegung mit Preisen und Mindestaufenthalt; sperren und Preise setzen": "Occupancy with prices and minimum stay; block dates and set prices",
+  "Belegung nach Wochentag": "Occupancy by weekday", "Benachrichtigungen, KI-Assistent, Provisionen und Abruf direkt im Dashboard ändern": "Change notifications, AI assistant, commissions and polling directly in the dashboard",
+  "Benutzer dieser Rollen sehen in Home Assistant nur Smoobu: keine Seitenleiste, keine Menüs, andere Seiten leiten auf die Startseite um. Eingestellt hier – kein Eingriff am Handy nötig. Admins sind nie betroffen.": "Users of these roles only see Smoobu in Home Assistant: no sidebar, no menus, other pages redirect to the start page. Set here – no access to the phone needed. Admins are never affected.", "Bewertung & Empfehlung, Preis- und Last-Minute-Aufgaben, Aufschläge, Genius und Last-Minute-Einstellungen. Preise im Kalender setzen bleibt möglich.": "Rating & recommendation, price and last-minute tasks, markups, Genius and last-minute settings. Setting prices in the calendar stays possible.",
+  "Bis": "To", "Bitte Preis oder Preis-Entität angeben": "Please enter a price or a price entity",
+  "Bitte eine Datei wählen": "Please choose a file", "Bitte eine KI wählen oder „KI erlauben“ ausschalten": "Please choose an AI or switch off \"Allow AI\"",
+  "Bitte einen Stromzähler wählen oder „Konstant“": "Please choose an energy meter or \"Constant\"", "Bitte einen Zähler wählen oder „Konstant“": "Please choose a meter or \"Constant\"",
+  "Booking.com-Buchungen der letzten 24 Monate waren Genius-Gäste": "Booking.com bookings of the last 24 months were Genius guests", "Brutto der stornierten Buchungen": "Gross of cancelled bookings",
+  "Buchungen dieser Kanäle zählen nicht als offene Zahlung.": "Bookings of these channels do not count as open payments.", "Buchungen im Filter (inkl. Stornos)": "Bookings in the filter (incl. cancellations)",
+  "Buchungen mit Anreise im Zeitraum": "Bookings with arrival in the period", "Buchungen mit Nachrichten-Verlauf": "Bookings with message history",
+  "Buchungen mit Provision von Smoobu": "Bookings with commission from Smoobu", "Buchungsfenster & Aufenthalt": "Booking window & stay",
+  "Buchungsliste mit Suche, Filtern, Summen und CSV-Export": "Booking list with search, filters, totals and CSV export", "Buchungsstand Ende": "Bookings on hand at end",
+  "Buchungstempo, Verlauf und Saison-Matrix:": "Booking pace, history and season matrix:", "Buchungszeitpunkt": "Booking time",
+  "CSV exportieren": "Export CSV", "Code": "Code",
+  "Code-Platz": "Code slot", "Code-Platz 1–250, „von“ ≤ „bis“": "Code slot 1–250, \"from\" ≤ \"to\"",
+  "Custom": "Custom", "Danach gesperrt ab": "Then blocked from",
+  "Danach keine Anreise geplant": "No arrival planned afterwards", "Das ist die Standardrolle – bitte zuerst eine andere Standardrolle wählen.": "This is the default role – please choose another default role first.",
+  "Dashboard": "Dashboard", "Dashboard-Pfad für „Bearbeiten“": "Dashboard path for \"Edit\"",
+  "Datei": "File", "Datei größer als 15 MB": "File larger than 15 MB",
+  "Datei und Auswertung löschen?": "Delete file and analysis?", "Daten abrufen seit": "Fetch data since",
+  "Datenschutz-Stufe": "Privacy level", "Datentabelle": "Data table",
+  "Deckungsbeitrag je verfügbarer Nacht": "Contribution margin per available night", "Den Rabatt selbst (10/15/20 %) liefert Booking.com nicht – bitte im Extranet unter Genius nachsehen.": "Booking.com does not provide the discount itself (10/15/20 %) – please check the extranet under Genius.",
+  "Details für nächste Buchungen": "Details for upcoming bookings", "Die Datei geht vollständig an": "The file is sent in full to",
+  "Diese Kombinationen sind erlaubt, im Dashboard aber kaum nutzbar:": "These combinations are allowed but hardly usable in the dashboard:", "Direktkanäle": "Direct channels",
+  "Du": "You", "Eigene Rolle": "Custom role",
+  "Eigene Zeile „Türcode: … (gültig …)“; der Rest der Notiz bleibt.": "Own line \"Door code: … (valid …)\"; the rest of the note stays.", "Eigenes Modul": "Custom module",
+  "Eigenes Modul löschen?": "Delete custom module?", "Einblenden": "Show",
+  "Einzelne Nächte zwischen zwei Gästen bucht kaum jemand zum vollen Preis.": "Hardly anyone books single nights between two guests at the full price.", "Endstand bzw. Buchungsstand – für eine Prognose fehlen Vorjahre": "Final value or bookings on hand – previous years are missing for a forecast",
+  "Entgangen (vergangen)": "Lost (past)", "Enthalten in „Gästedaten und Buchungen sehen“": "Included in \"View guest data and bookings\"",
+  "Entität suchen + Enter": "Search entity + Enter", "Entitäten „Türcode aktueller Gast“ / „Türcode nächster Gast“ je Wohnung: den Zustand sieht jeder HA-Benutzer, der sie sehen kann – nicht auf Gäste-Dashboards zeigen.": "Entities \"Door code current guest\" / \"Door code next guest\" per apartment: every HA user who can see them sees the state – do not show them on guest dashboards.",
+  "Erinnerung am Vorabend": "Reminder the evening before", "Erwartete Nachbuchung": "Expected late bookings",
+  "Fertig": "Done", "Fester Code der Wohnung, änderbar in den Einstellungen": "Fixed code of the apartment, changeable in the settings",
+  "Fixkosten": "Fixed costs", "Fokus-Modus": "Focus mode",
+  "Freie Nächte bis 31.12.": "Free nights until 31 Dec", "Freie Nächte zwischen zwei Belegungen (bis 14 Nächte), Sperrzeiten zählen als belegt": "Free nights between two stays (up to 14 nights), blocked dates count as occupied",
+  "Fundstelle": "Source", "Für Benutzer ohne eigene Rolle (bisheriges Verhalten: Betrieb).": "For users without their own role (previous behaviour: Operations).",
+  "Für dich": "For you", "Für diesen Zeitraum liegen keine Buchungen vor.": "There are no bookings for this period.",
+  "Für mich": "For me", "Gebucht (Stand heute)": "Booked (as of today)",
+  "Gebucht im": "Booked in", "Gebuchte Reinigungszeit (sonst Standard) × Stundenlohn der Person (Einstellungen → Reinigung & Zugang)": "Booked cleaning time (otherwise default) × hourly wage of the person (Settings → Cleaning & access)",
+  "Gelöschte Rolle ist noch Standardrolle": "Deleted role is still the default role", "Gemessen": "Measured",
+  "Genius-Check: keine Booking.com-Buchungen in den letzten 24 Monaten.": "Genius check: no Booking.com bookings in the last 24 months.", "Genius-Gäste zahlen weniger als den Kanalpreis.": "Genius guests pay less than the channel price.",
+  "Gerätename in Zigbee2MQTT": "Device name in Zigbee2MQTT", "Gespeichert, Auswertung fehlgeschlagen": "Saved, analysis failed",
+  "Gilt für die Smoobu-Seiten und -Aktionen. Normale HA-Entitäten kann HA nicht je Benutzer sperren.": "Applies to the Smoobu pages and actions. HA cannot restrict normal HA entities per user.", "Gilt nur für Buchungen, zu denen Smoobu keine Provision liefert.": "Only applies to bookings for which Smoobu provides no commission.",
+  "Gruppierung": "Grouping", "Gäste Ø": "Guests avg.",
+  "Gästenachricht": "Guest message", "Gästenächte": "Guest nights",
+  "Gültig": "Valid", "Gültig ab": "Valid from",
+  "Gültig bis": "Valid until", "HA-Admin: immer alle Rechte": "HA admin: always all permissions",
+  "Herleitung": "Derivation", "Heute keine An- oder Abreise.": "No arrival or departure today.",
+  "Hinweise der KI": "Notes from the AI", "Hochgeladen": "Uploaded",
+  "Hochladen & auswerten": "Upload & analyse", "Häkchen setzen und speichern. Gilt sofort für alle Benutzer mit dieser Rolle.": "Tick and save. Applies immediately to all users with this role.",
+  "Hälfte gebucht bis": "Half booked by", "Höchstens 10 eigene Rollen": "At most 10 custom roles",
+  "Höchstens 4 Buchstaben/Ziffern, eindeutig über alle Konten.": "At most 4 letters/digits, unique across all accounts.", "Höchster Rabatt": "Maximum discount",
+  "Ignorieren": "Ignore", "Im": "In",
+  "Im Sommer deckt die Solarthermie – gleiche Verteilung wie die Heizung.": "In summer the solar thermal system covers it – same distribution as heating.", "In Smoobu-Notiz schreiben": "Write to Smoobu note",
+  "In welchem Monat wird für welchen Monat gebucht?": "In which month is which month booked?", "Jahre Historie": "Years of history",
+  "Jahreskosten aus der Nebenkostenabrechnung. Verteilung nach Gradtagszahlen, skaliert auf die Gästenächte des Abrechnungsjahres.": "Annual costs from the utility bill. Distributed by heating degree days, scaled to the guest nights of the billing year.", "Je Buchung gemessen: Vorheizstart bis Check-out. Ohne Messwert (vor Zählerstart, künftige Buchungen) gelten die konstanten Werte oben.": "Measured per booking: preheat start to check-out. Without a measured value (before the meter started, future bookings) the constant values above apply.",
+  "Je Buchung gemessen: Vorheizstart bis Check-out. Ohne Messwert gelten die konstanten Werte oben.": "Measured per booking: preheat start to check-out. Without a measured value the constant values above apply.", "Je Monat": "Per month",
+  "Je Person": "Per person", "Je Reinigung im Board oder in den Buchungsdetails änderbar.": "Changeable per cleaning on the board or in the booking details.",
+  "Je Wohnung": "Per apartment", "Jede Saison braucht einen Namen": "Every season needs a name",
+  "KI erlauben": "Allow AI", "KI ist aus oder nicht gewählt (Reiter KI-Assistent) – Upload möglich, Auswertung nicht.": "AI is off or not chosen (AI assistant tab) – upload possible, analysis not.",
+  "KI liest … (bis 2 min)": "AI is reading … (up to 2 min)", "KI-Antwortvorschlag": "AI reply suggestion",
+  "KI-Assistent: Wissensdatenbank, Lernbeispiele, Vorschläge": "AI assistant: knowledge base, learning examples, suggestions", "KI-Entität": "AI entity",
+  "Kanal-Wirtschaftlichkeit": "Channel profitability", "Kanalpreise am Basispreis-Tag bei": "Channel prices on the base-price day at",
+  "Kein Empfänger gewählt – es kommt kein Push.": "No recipient chosen – no push will be sent.", "Kein Handy mit HA-App gefunden (notify.mobile_app_…).": "No phone with the HA app found (notify.mobile_app_…).",
+  "Keine Buchungen": "No bookings", "Keine Gastnachrichten im Zeitraum": "No guest messages in the period",
+  "Keine Lücken im Zeitraum": "No gaps in the period", "Keine Reinigungen.": "No cleanings.",
+  "Keine Spanne – zu wenige Vorjahre": "No range – too few previous years", "Keine Stundenwerte für": "No hourly values for",
+  "Keine auffälligen Vorausbuchungen (≥ 2 Monate voraus, mindestens 12 % eines Buchungsmonats).": "No notable advance bookings (≥ 2 months ahead, at least 12 % of a booking month).", "Keine kommende Lücke unter dem Mindestaufenthalt.": "No upcoming gap below the minimum stay.",
+  "Keine trivialen Codes (1234, 1111, 1212 …), keine Doppelten bei überschneidender Gültigkeit.": "No trivial codes (1234, 1111, 1212 …), no duplicates with overlapping validity.", "Kennzahl": "KPI",
+  "Kennzahl oben anklicken zum Wechseln": "Click a KPI above to switch", "Kennzahlen": "KPIs",
+  "Kommagetrennt, werden nie ersetzt (z. B. eure Signatur). Standard: Wörter aus dem Kontonamen.": "Comma-separated, never replaced (e.g. your signature). Default: words from the account name.", "Kommende Lücken × aktueller Tagespreis": "Upcoming gaps × current daily price",
+  "Konstant: Strom je Nacht × Mischpreis aus den festen Werten oben.": "Constant: power per night × blended price from the fixed values above.", "Kontext & Links": "Context & links",
+  "Kontext-Entitäten": "Context entities", "Kopieren": "Copy",
+  "Kopiert": "Copied", "Kosten je Aufenthalt = Reinigungszeit × Stundenlohn der Person (sonst Standard). Fließt in den Deckungsbeitrag.": "Cost per stay = cleaning time × hourly wage of the person (otherwise default). Included in the contribution margin.",
+  "Kürzel schon vergeben": "Code already taken", "Last-Minute-Fenster": "Last-minute window",
+  "Leer = Standard": "Empty = default", "Leer = Standard. Gilt für Reinigungen, die die Person laut Reinigungsboard erledigt hat oder die ihr zugewiesen sind.": "Empty = default. Applies to cleanings the person completed according to the cleaning board or that are assigned to them.",
+  "Leeren": "Clear", "Leerstand": "Vacancy",
+  "Letzte Lücken": "Recent gaps", "Letzte Reinigungen": "Recent cleanings",
+  "Löschen?": "Delete?", "Lücke kürzer als der Mindestaufenthalt am ersten freien Tag (nur wo der Mindestaufenthalt bekannt ist)": "Gap shorter than the minimum stay on the first free day (only where the minimum stay is known)",
+  "Lücken, die der Mindestaufenthalt sperrt – zur festen Uhrzeit.": "Gaps blocked by the minimum stay – at a fixed time.", "Lückenlänge (Nächte)": "Gap length (nights)",
+  "Median der Nachbuchung aus": "Median of late bookings from", "Median je Kanal": "Median per channel",
+  "Median vor Anreise": "Median before arrival", "Median: Zeit vom Check-out bis zum Abhaken": "Median: time from check-out to ticking off",
+  "Messung (alle Zähler)": "Measurement (all meters)", "Messung erscheint nach dem Speichern.": "Measurement appears after saving.",
+  "Mindestaufenthalt ab": "Minimum stay from", "Mit Hund": "With dog",
+  "Modul": "Module", "Modul „Kosten“ ist aus (Reiter Allgemein & Abruf → Module).": "Module \"Costs\" is off (General & polling tab → Modules).",
+  "Modul „Reinigung“ ist aus (Reiter Allgemein & Abruf → Module): kein Reinigungsboard, keine Pushes; Kosten nach Standard.": "Module \"Cleaning\" is off (General & polling tab → Modules): no cleaning board, no pushes; costs by default.", "Module": "Modules",
+  "Monat unvollständig": "Month incomplete", "Monate voraus": "Months ahead",
+  "Monate × Jahre seit": "Months × years since", "Nachrichten der Gäste lesen und beantworten": "Read and answer guest messages",
+  "Nachrichten werden im Hintergrund gedrosselt nachgeladen (einmalig ab 2020, danach stündlich neue)": "Messages are loaded throttled in the background (once from 2020, then new ones hourly)", "Nacht von … auf …, je Kalenderwoche": "Night from … to …, per calendar week",
+  "Name 1–30 Zeichen": "Name 1–30 characters", "Nebenkostenabrechnung auswerten (KI)": "Analyse utility bill (AI)",
+  "Netto und Provision/Gebühren (schraffiert) je Kanal": "Net and commission/fees (hatched) per channel", "Netto-RevPAR": "Net RevPAR",
+  "Netzanteil": "Grid share", "Netzanteil stündlich messen": "Measure grid share hourly",
+  "Netzbezug ÷ Hausverbrauch je Stunde aus dem Energie-Dashboard. Aus: feste Monatswerte oben.": "Grid import ÷ house consumption per hour from the energy dashboard. Off: fixed monthly values above.", "Netzbezug ÷ Hausverbrauch, z. B. aus dem Energie-Dashboard.": "Grid import ÷ house consumption, e.g. from the energy dashboard.",
+  "Neu auswerten": "Analyse again", "Neu erzeugen": "Renew",
+  "Neue Buchung": "New booking", "Neue Nachricht eines Gastes. Mit KI-Vorschlag kommt stattdessen der Vorschlag.": "New guest message. With an AI suggestion, the suggestion is sent instead.",
+  "Neue Rolle": "New role", "Neuer Türcode erzeugt": "New door code created",
+  "Neukunde": "New guest", "Nicht abgehakt": "Not ticked off",
+  "Nicht buchbare Lücken": "Unbookable gaps", "Nicht zugewiesen": "Not assigned",
+  "Nichts ausgewählt": "Nothing selected", "Noch keine Nachrichten ausgewertet – der Abruf startet etwa 10 Minuten nach dem Start von Home Assistant.": "No messages analysed yet – fetching starts about 10 minutes after Home Assistant starts.",
+  "Noch keine abgehakten Reinigungen im Zeitraum – die Auswertung beginnt mit dem Reinigungsboard (Seite Reinigung).": "No ticked-off cleanings in the period yet – the report starts with the cleaning board (Cleaning page).", "Noch keine erledigten Reinigungen.": "No completed cleanings yet.",
+  "Noch nicht abgehakt": "Not ticked off yet", "Noch niemand mit Recht „Reinigung übernehmen und abhaken“ (Reiter Benutzer & Rechte).": "Nobody has the permission \"Take over and tick off cleaning\" yet (Users & permissions tab).",
+  "Nur": "Only", "Nur Admins können das ändern": "Only admins can change this",
+  "Nur Buchstaben und Ziffern": "Letters and digits only", "Nur Smoobu": "Smoobu only",
+  "Nächste": "Next", "Nächste Anreise": "Next arrival",
+  "Nächte so nicht buchbar": "Nights not bookable like this", "Nächte stornierter Buchungen, die später von einer anderen Buchung belegt sind": "Nights of cancelled bookings later taken by another booking",
+  "Nächte: je Nacht im jeweiligen Monat": "Nights: per night in the respective month", "Offen (kommend)": "Open (upcoming)",
+  "Offene Zahlung einige Tage vor Anreise (ohne Kanäle mit Zahlung über das Portal).": "Open payment a few days before arrival (without channels paid via the portal).", "PDF oder Foto hochladen – die KI liest Heizung, Warmwasser, Wasser und Strom; du prüfst und übernimmst.": "Upload a PDF or photo – the AI reads heating, hot water, water and power; you check and apply.",
+  "Personen je Reinigung (abgereiste Gäste)": "Persons per cleaning (departed guests)", "Platz": "Slot",
+  "Preis aus Entität": "Price from entity", "Preis je Nacht": "Price per night",
+  "Preis je Nacht auf Vergleichsniveau": "Price per night at comparison level", "Preisänderung": "Price change",
+  "Probelauf mit den gespeicherten Einstellungen – nichts wurde gesendet.": "Dry run with the saved settings – nothing was sent.", "Prognose-Spanne": "Forecast range",
+  "Provision je Kanal": "Commission per channel", "Quelle": "Source",
+  "Reinigung & Zugang": "Cleaning & access", "Reinigung je Aufenthalt": "Cleaning per stay",
+  "Reinigung nicht zugewiesen": "Cleaning not assigned", "Reinigungen": "Cleanings",
+  "Reinigungsboard, Reinigung in den Buchungsdetails, Reinigungs-Pushes und -Aufgaben, Statistik-Modul. Aus: Reinigungskosten nach Standardlohn.": "Cleaning board, cleaning in the booking details, cleaning pushes and tasks, statistics module. Off: cleaning costs at the default wage.", "Reinigungsboard: Reinigungen je Abreise zuweisen, übernehmen und abhaken": "Cleaning board: assign, take over and tick off cleanings per departure",
+  "Reinigungskosten": "Cleaning costs", "Reinigungszeit (Standard)": "Cleaning time (default)",
+  "Reinigungszeit (leer = Standard)": "Cleaning time (empty = default)", "Reinigungszeit gespeichert": "Cleaning time saved",
+  "Rolle löschen": "Delete role", "Rollenname schon vergeben": "Role name already taken",
+  "Saisonnamen doppelt": "Duplicate season names", "Schließen": "Close",
+  "Schloss": "Lock", "Schloss-Entität bzw. Skript prüfen": "Check the lock entity or script",
+  "Seit dem letzten Neustart ging noch keine Anfrage an die KI.": "No request has gone to the AI since the last restart.", "Seite „Reinigung“ fehlt in diesem Dashboard – Ansicht mit Pfad smoobu-reinigung und der Karte custom:smoobu-cleaning-card anlegen (Vorlage: docs/dashboard-vorlage.yaml).": "The \"Cleaning\" page is missing in this dashboard – add a view with path smoobu-reinigung and the card custom:smoobu-cleaning-card (template: docs/dashboard-vorlage.yaml).",
+  "Seiten-Navigation, Wohnungsauswahl und Hell/Dunkel/System": "Page navigation, apartment selection and light/dark/system", "Service": "Service",
+  "Setzt die Werte im Entwurf – erst „Speichern“ übernimmt sie.": "Sets the values in the draft – only \"Save\" applies them.", "Smoobu Assistent": "Smoobu Assistant",
+  "Smoobu Belegungsplan": "Smoobu Occupancy", "Smoobu Buchungen": "Smoobu Bookings",
+  "Smoobu Einstellungen": "Smoobu Settings", "Smoobu Finanzen": "Smoobu Finances",
+  "Smoobu Kopfleiste": "Smoobu Header", "Smoobu Posteingang": "Smoobu Inbox",
+  "Smoobu Reinigung": "Smoobu Cleaning", "Smoobu Statistik": "Smoobu Statistics",
+  "Smoobu meldet Änderungen sofort über Nabu Casa.": "Smoobu reports changes immediately via Nabu Casa.", "Smoobu Übersicht": "Smoobu Overview",
+  "So viele Tage vor Anreise gilt eine freie Nacht als Last-Minute.": "A free night counts as last-minute this many days before arrival.", "Sobald eine neue Buchung eingeht (keine Sperrzeiten).": "As soon as a new booking arrives (no blocked dates).",
+  "Später fällig": "Due later", "Standard: kein Rabatt. Nur Lücken zwischen zwei Gästen oder Nächte in schwach gebuchten Monaten bekommen einen Vorschlag – nie unter der Untergrenze.": "Default: no discount. Only gaps between two guests or nights in weakly booked months get a suggestion – never below the floor.",
+  "Standardrechte wiederherstellen": "Restore default permissions", "Standardrollen lassen sich anpassen, aber nicht löschen. „Kein Zugriff“ ist fest.": "Default roles can be adjusted but not deleted. \"No access\" is fixed.",
+  "Standardzeit (keine Zeit gebucht)": "Default time (no time booked)", "Standardzeiten": "Default times",
+  "Startmonat 1–12": "Start month 1–12", "Startseite": "Start page",
+  "Startseite: Pfad wie /dashboard/ansicht": "Start page: path like /dashboard/view", "Statisch (z. B. Schlüsseltresor)": "Static (e.g. key safe)",
+  "Statischer Code: 4–12 Ziffern/Buchstaben": "Static code: 4–12 digits/letters", "Status, Gäste, Kennzahlen, Lücken, offene Zahlungen": "Status, guests, KPIs, gaps, open payments",
+  "Stellen": "Digits", "Storniert oder geändert (Personen, Ankunft, Preis) – mit Vorher → Nachher.": "Cancelled or changed (persons, arrival, price) – with before → after.",
+  "Storno & Änderung": "Cancellation & change", "Storno-Vorlauf": "Cancellation lead time",
+  "Storno-Vorlauf (Tage vor Anreise)": "Cancellation lead time (days before arrival)", "Strom im Leerstand (gemessen, Fixkosten – nicht im DB)": "Power during vacancy (measured, fixed costs – not in CM)",
+  "Strom im Leerstand ist anteilig in den variablen Kosten enthalten": "Power during vacancy is included proportionally in the variable costs", "Stromkosten": "Power costs",
+  "Strompreis aus Entität": "Electricity price from entity", "Stundenlohn": "Hourly wage",
+  "Stundenlohn (Standard)": "Hourly wage (default)", "Summe der Nächte der abgereisten Gäste": "Sum of nights of departed guests",
+  "Tag wird geändert": "Day is being changed", "Tage Rückblick": "Days back",
+  "Tage Vorschau": "Days ahead", "Tage vor Anreise": "Days before arrival",
+  "Tage weichen ab – bitte prüfen": "Days differ – please check", "Tage weichen in Smoobu ab – bitte prüfen": "Days differ in Smoobu – please check",
+  "Tage werden geändert": "Days are being changed", "Tagesbriefing": "Daily briefing",
+  "Titel": "Title", "Tooltip: Anteil am Aufenthaltsmonat": "Tooltip: share of the month of stay",
+  "Tresorcode": "Key safe code", "Türcodes": "Door codes",
+  "Uhrzeit als HH:MM": "Time as HH:MM", "Umbuchung": "Rebooking",
+  "Umsatz brutto": "Gross revenue", "Umsatz brutto der Nächte im Jahr nach Buchungsdatum, gleicher Tag wie in den Vorjahren": "Gross revenue of the nights in the year by booking date, same day as in previous years",
+  "Umsatz, Kosten und Kennzahlen je Kanal, frei filterbar mit Vergleich": "Revenue, costs and KPIs per channel, freely filterable with comparison", "Unbekannte Rolle": "Unknown role",
+  "Unbekannter Schloss-Typ": "Unknown lock type", "Unbekanntes Feld": "Unknown field",
+  "Unbekanntes Recht": "Unknown permission", "Ungespeicherte Änderungen verwerfen?": "Discard unsaved changes?",
+  "Ungültige Entität": "Invalid entity", "Ungültige Liste": "Invalid list",
+  "Ungültige Saison": "Invalid season", "Ungültige Zahl oder außerhalb des erlaubten Bereichs": "Invalid number or out of the allowed range",
+  "Ungültiger Wert": "Invalid value", "Ungültiges Datum": "Invalid date",
+  "Unter Mindestaufenthalt": "Below minimum stay", "Unter der Untergrenze: diese Kanäle bringen bei 2 Nächten keinen Deckungsbeitrag mehr.": "Below the floor: these channels no longer bring a contribution margin for 2 nights.",
+  "Variable Kosten, Deckungsbeitrag in Finanzen und Statistik, Zählermessung, Nebenkosten-Upload. Aus: nur Umsatz und Provisionen.": "Variable costs, contribution margin in finances and statistics, meter measurement, utility bill upload. Off: only revenue and commissions.", "Verbrauch im Leerstand": "Consumption during vacancy",
+  "Vergangene Abreisen im Zeitraum ohne „Erledigt“, gezählt ab dem ersten Eintrag im Reinigungsboard": "Past departures in the period without \"Done\", counted from the first entry on the cleaning board", "Vergangene freie Nächte zwischen zwei Belegungen × Tagespreis (gespeichert) bzw. Ø-Monatspreis (geschätzt)": "Past free nights between two stays × daily price (stored) or avg. monthly price (estimated)",
+  "Verlauf aus dem Recorder; davor gilt der Netzstrompreis oben. Einheit €/kWh oder ct/kWh.": "History from the recorder; before that the grid electricity price above applies. Unit €/kWh or ct/kWh.", "Verlauf aus dem Recorder; davor gilt der feste Preis.": "History from the recorder; before that the fixed price applies.",
+  "Verlorene Nächte": "Lost nights", "Verteilung der Antwortzeiten": "Distribution of response times",
+  "Vgl.": "Cmp.", "Vom Gast nur der Vorname": "First name of the guest only",
+  "Von": "From", "Vorheizen vor Check-in": "Preheat before check-in",
+  "Vorheizstart": "Preheat start", "Vorjahr am gleichen Tag": "Previous year on the same day",
+  "Vorjahren": "previous years", "Vorjahres": "previous year's",
+  "Vorlauf (Tage zwischen Buchung und Anreise)": "Lead time (days between booking and arrival)", "Vorname, Kurtaxe usw. für die laufende + n kommende Buchungen je Wohnung.": "First name, tourist tax etc. for the current + n upcoming bookings per apartment.",
+  "Vorschlag aus": "Suggestion from", "Vorschlag mit Buttons Senden / Bearbeiten / Ignorieren.": "Suggestion with buttons Send / Edit / Ignore.",
+  "Vorschläge": "Suggestions", "Wann wird für welchen Aufenthaltsmonat gebucht?": "When is which month of stay booked?",
+  "Wartezeit nach Check-out": "Wait after check-out", "Was an die KI geht. Nicht garantiert anonym: Die Gästenachricht ist Freitext, nur bekannte Namen und typische Muster werden ersetzt.": "What goes to the AI. Not guaranteed to be anonymous: the guest message is free text, only known names and typical patterns are replaced.",
+  "Webhook": "Webhook", "Webhook (Echtzeit)": "Webhook (real time)",
+  "Wechsel": "Changeover", "Welche Kategorien in der Übersicht erscheinen. Erledigt/Später gilt für alle Benutzer.": "Which categories appear in the overview. Done/Later applies to all users.",
+  "Weniger anzeigen": "Show less", "Wenn die Buchung keine Abreisezeit hat.": "If the booking has no departure time.",
+  "Wenn die Buchung keine Ankunftszeit hat.": "If the booking has no arrival time.", "Wer hat wann welche Wohnung gereinigt": "Who cleaned which apartment when",
+  "Werkbank öffnen": "Open workbench", "Wert": "Value",
+  "Werte übernommen – mit „Speichern“ übernehmen": "Values applied – confirm with \"Save\"", "Wieder offen": "Reopen",
+  "Wiederbelegt": "Re-let", "Wird auf diesem Gerät gespeichert und erscheint unten in der Werkbank": "Saved on this device and shown at the bottom of the workbench",
+  "Wird ignoriert, wenn „Daten abrufen seit“ gesetzt ist.": "Ignored if \"Fetch data since\" is set.", "Wirkt nur, wenn die KI erlaubt ist.": "Only applies if AI is allowed.",
+  "Wohnungskürzel": "Apartment codes", "Zahlung über das Portal": "Payment via the portal",
+  "Zahlungserinnerung": "Payment reminder", "Zeit": "Time",
+  "Zeit von der ersten Gastnachricht bis zur nächsten Nachricht an den Gast (auch automatische)": "Time from the first guest message to the next message to the guest (including automatic ones)", "Zeit Ø": "Time avg.",
+  "Zeiten gebucht, Rest": "Times booked, rest", "Zeitraum oder Unterkunft geändert – Vorher → Nachher mit Nächten.": "Period or apartment changed – before → after with nights.",
+  "Zeitstempel-Sensor; nur soweit der Recorder ihn noch kennt (ältere Buchungen: Check-in − Stunden unten).": "Timestamp sensor; only as far as the recorder still knows it (older bookings: check-in − hours below).", "Ziel des Buttons „Bearbeiten“ im Push.": "Target of the \"Edit\" button in the push.",
+  "Zieljahr": "Target year", "Ziffern": "Digits",
+  "Zufall je Buchung": "Random per booking", "Zufallscode je Buchung (automatisch bei neuer Buchung) oder statischer Code je Wohnung. Antwortvorschläge enthalten nur {{ turcode }} – der Code wird erst beim Senden eingesetzt und geht nie an die KI.": "Random code per booking (automatically for new bookings) or a static code per apartment. Reply suggestions only contain {{ turcode }} – the code is inserted only when sending and never goes to the AI.",
+  "Zugang": "Access", "Zugewiesen": "Assigned",
+  "Zuletzt": "Last", "Zurückgesetzt, aber": "Reset, but",
+  "Zusammenfassung des Tages zur festen Uhrzeit.": "Summary of the day at a fixed time.", "Zustände, die die KI bei Antworten kennen darf (z. B. Heizung, Tür).": "States the AI may know when replying (e.g. heating, door).",
+  "Zusätzlicher Abgleich neben dem Webhook.": "Additional sync besides the webhook.", "Zuweisen": "Assign",
+  "Zwei Saisons mit gleichem Startmonat": "Two seasons with the same start month", "Zählen als Direktvermarktung (Direkt vs. Portale).": "Count as direct marketing (direct vs. portals).",
+  "Zähler misst auch Warmwasser": "Meter also measures hot water", "abgehakt von": "ticked off by",
+  "ai_task-Entität, die Vorschläge erzeugt.": "ai_task entity that generates the suggestions.", "als Wasser je Nacht übernehmen": "apply as water per night",
+  "als konstanten Wert übernehmen": "apply as constant value", "auf Vorjahresniveau": "at previous year's level",
+  "bis dahin gebucht": "booked by then", "der Nächte": "of nights",
+  "der Zeile": "of the row", "der dort gebuchten": "of those booked there",
+  "einstellbar unter Einstellungen → Reinigung & Zugang": "adjustable under Settings → Cleaning & access", "erfasst seit": "recorded since",
+  "erledigt von": "done by", "feste Monatswerte": "fixed monthly values",
+  "freie Nächte im Zeitraum": "free nights in the period", "für": "for",
+  "gebucht im": "booked in", "gebucht im Aufenthaltsjahr": "booked in the year of stay",
+  "gebucht im Vorjahr": "booked in the previous year", "gebucht wird": "is booked",
+  "geschätzt": "estimated", "geschätzt mit Ø-Monatspreis (Smoobu liefert Tagespreise nicht rückwirkend; ab jetzt speichert die Integration sie täglich)": "estimated with avg. monthly price (Smoobu does not provide daily prices retroactively; the integration now stores them daily)",
+  "gewählter Zeitraum": "selected period", "ggü. Buchungsstand am": "vs. bookings on hand on",
+  "gilt, wenn für die Person kein eigener Lohn hinterlegt ist": "applies if no own wage is set for the person", "gleicher Monat": "same month",
+  "h nach Check-out": "h after check-out", "h vor Check-in": "h before check-in",
+  "ist abgereist": "has left", "je Aufenthalt (Standard) – Zeit und Stundenlöhne im Reiter „Reinigung & Zugang“.": "per stay (default) – time and hourly wages in the \"Cleaning & access\" tab.",
+  "je Gästenacht inkl. Leerstand (12 Monate)": "per guest night incl. vacancy (12 months)", "je Kalenderwoche": "per calendar week",
+  "je Monat": "per month", "kein Handy für Pushes hinterlegt (Einstellungen → Reinigung & Zugang)": "no phone set for pushes (Settings → Cleaning & access)",
+  "keine Daten": "no data", "keine verfügbar": "none available",
+  "mindestens 4 Monate vorher": "at least 4 months before", "nach oben": "up",
+  "nach unten": "down", "nicht gefunden": "not found",
+  "nicht zugewiesen": "not assigned", "noch keine Umsätze": "no revenue yet",
+  "noch keine erfasst": "none recorded yet", "noch nicht abgeschlossen": "not yet complete",
+  "noch nicht abgeschlossen – Buchungsstand heute": "not yet complete – bookings on hand today", "nur abgeschlossene Monate": "completed months only",
+  "ohne Zuweisung": "unassigned", "optional – sonst Netzstrompreis oben": "optional – otherwise grid electricity price above",
+  "optional – sonst fester Preis": "optional – otherwise fixed price", "prüfen": "check",
+  "reist ab": "departs", "reist heute ab": "departs today",
+  "statisch": "static", "stündlich gemessen": "measured hourly",
+  "unplausibel (> 40 %) – ignoriert": "implausible (> 40 %) – ignored", "von allem, was im": "of everything that in",
+  "vor allem für": "mainly for", "weniger als 5 Buchungen": "fewer than 5 bookings",
+  "werden im selben oder im Vormonat gebucht": "are booked in the same or the previous month", "wird schon für": "is already booked for",
+  "zu kurz": "too short", "Übernommen – mit „Speichern“ übernehmen": "Applied – confirm with \"Save\"",
+  "Übernommen, aber": "Applied, but", "– kein Push –": "– no push –",
+  "– keine –": "– none –", "– niemand –": "– nobody –",
+  "Aus = keinerlei KI-Aufruf, keine Daten an KI-Anbieter.": "Off = no AI call at all, no data to AI providers.",
+  "Diese Preisänderung rückgängig machen? Die vorherigen Tagespreise werden in Smoobu wieder gesetzt.": "Undo this price change? The previous daily prices are set in Smoobu again.",
+  "Kanal-Matrix: Netto je Nacht × Anteil Nächte, Blase = Buchungen": "Channel matrix: net per night × share of nights, bubble = bookings",
+  "Leer = automatisch": "Empty = automatic",
+  "Neuen Türcode erzeugen? Der alte gilt dann nicht mehr (auch im Schloss).": "Create a new door code? The old one will no longer be valid (also in the lock).",
+  "Spalte = Abstand Buchungsmonat → Aufenthaltsmonat": "Column = distance booking month → month of stay",
+  "Spalte = Aufenthaltsmonat": "Column = month of stay",
+  "Spanne = 10.–90. Perzentil der Nachbuchung (Endstand − Stand am gleichen Tag) der Vorjahre, kein Konfidenzintervall.": "Range = 10th–90th percentile of late bookings (final value − value on the same day) of previous years, not a confidence interval.",
+  "Sperrt die Oberfläche, nicht die HA-API: Home Assistant kennt keine Rechte je Benutzer und Gerät. Die Smoobu-Daten prüft weiterhin der Server. Automatisch = Seite Reinigung für reine Reinigungsrollen, sonst die Übersicht.": "Locks the UI, not the HA API: Home Assistant has no permissions per user and device. The server still checks the Smoobu data. Automatic = cleaning page for cleaning-only roles, otherwise the overview.",
+  "Strompreis je Monat = Netzanteil × Netzpreis + Rest × Wert des PV-Stroms (entgangene Einspeisevergütung).": "Electricity price per month = grid share × grid price + rest × value of PV power (lost feed-in tariff).",
+  "Tage in Smoobu ändern? Smoobu überträgt den Basispreis mit den Aufschlägen an alle Portale.": "Change days in Smoobu? Smoobu transfers the base price with the markups to all portals.",
+  "Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.": "Variable costs = costs that only arise from a stay. Contribution margin = net − variable costs. Fixed costs (property tax, insurance, internet) do not belong here.",
+  "Verläufe: kräftige Linie = letzte 12 Monate bzw. dieses Jahr, blasse Linie = Vorjahr.": "Trends: bold line = last 12 months or this year, pale line = previous year.",
+  "Wie im Smoobu-Preistool: Kanalpreis = Basispreis + Aufschlag. Grundlage für Preisuntergrenzen und Empfehlungen.": "As in the Smoobu price tool: channel price = base price + markup. Basis for price floors and recommendations.",
+  "Zahlen oben = Kalenderwoche": "Numbers on top = calendar week",
+  "Zeile = Buchungsmonat (100 %)": "Row = booking month (100 %)",
+  "aller": "of all",
+  "anzeigen": "show",
+  "ausgeblendet": "hidden",
+  "ausgewertet": "analysed",
+  "belegt": "occupied",
+  "blass = weniger als 5 Buchungen": "pale = fewer than 5 bookings",
+  "der": "of",
+  "des": "of",
+  "fest": "fixed",
+  "gefunden": "found",
+  "heute": "today",
+  "im": "in",
+  "kursiv": "italic",
+  "ohne": "without",
+  "ok": "ok",
+  "optional": "optional",
+  "senken": "lower",
+  "und": "and",
+  "verteilt": "distributed",
+  "voraus": "ahead",
+  "vorher": "before",
+  "Ø Reinigungszeit": "Avg. cleaning time",
+  "Ø-Monatspreis, kein gespeicherter Tagespreis": "Avg. monthly price, no stored daily price",
 };
 let LANG = "de";
 const t = (s) => (LANG === "de" ? s : EN[s] || s);
@@ -2870,47 +3156,50 @@ class SmoobuBookingDialog extends HTMLElement {
       <button class="x" data-act="close" aria-label="close">×</button></div>${inner}</div></div>`;
     this.bind();
   }
-  // v1.19.0: Türcode – Code, Gültigkeit, Status; Kopieren und Neu erzeugen (Recht „Belegung ändern“)
+  // v1.19.0: Türcode – Code, Gültigkeit, Status; Kopieren und Neu erzeugen (Recht „Kalender ändern“)
   doorHtml() {
+    // v1.19.0b12 (Review): eigener Abschnitt „Zugang“ statt Zeile unter „Aufenthalt“
     const x = this.door;
     if (!x?.aktiv || !x.code) return "";
     const c = x.code;
     const st = { geplant: ["", "geplant"], gesetzt: ["good", "im Schloss"], aktiv: ["good", "aktiv"], abgelaufen: ["", "abgelaufen"],
       geloescht: ["bad", "gelöscht"], fehler: ["bad", "Fehler"] }[c.status] || ["", c.status];
     const f = (v) => `${fdate(v)} ${String(v).slice(11, 16)}`;
-    return `<div class="row" style="margin-top:8px;align-items:center;flex-wrap:wrap">
-      <span>🔑 ${t("Türcode")} <b style="font-family:monospace;font-size:1.1em;letter-spacing:.08em">${esc(c.code)}</b>
-        · ${f(c.von)} – ${f(c.bis)}</span><span class="badge ${st[0]}" title="${esc(c.fehler || "")}">${t(st[1])}${c.slot ? ` · ${t("Platz")} ${c.slot}` : ""}</span>
-      <button class="lnk" data-act="dcopy">${t("Kopieren")}</button>
-      ${x.statisch ? `<span class="badge" title="${esc(t("Fester Code der Wohnung, änderbar in den Einstellungen"))}">${t("statisch")}</span>`
-        : x.darf_erneuern ? `<button class="lnk" data-act="drenew">${t("Neu erzeugen")}</button>` : ""}</div>`;
+    return `<div><h3>🔑 ${t("Zugang")}</h3>
+      <div class="row" style="align-items:center;flex-wrap:wrap;gap:8px">
+        <b style="font-family:monospace;font-size:1.25em;letter-spacing:.08em">${esc(c.code)}</b>
+        <span class="badge ${st[0]}" title="${esc(c.fehler || "")}">${t(st[1])}${c.slot ? ` · ${t("Platz")} ${c.slot}` : ""}</span>
+        ${x.statisch ? `<span class="badge" title="${esc(t("Fester Code der Wohnung, änderbar in den Einstellungen"))}">${t("statisch")}</span>` : ""}</div>
+      <div class="sub" style="margin:6px 0">${t("Gültig")} ${f(c.von)} – ${f(c.bis)}</div>
+      <div class="row"><button class="btn flat" data-act="dcopy">${t("Kopieren")}</button>
+        ${!x.statisch && x.darf_erneuern ? `<button class="btn flat" data-act="drenew">${t("Neu erzeugen")}</button>` : ""}</div></div>`;
   }
   // v1.19.0: Reinigung nach diesem Aufenthalt – Person, Status und gebuchte Dauer (Standard laut Einstellungen).
   // Korrektur 21.11.2026 (Wunsch Betreiber): hier dieselben Aktionen wie auf dem Reinigungsboard –
   // zuweisen (Recht „Reinigung zuweisen“), übernehmen/abgeben, erledigt/wieder offen und Dauer (Recht „Reinigung“).
   cleanHtml() {
+    // v1.19.0b12 (Review): eigener Abschnitt „Reinigung“, Bedienung wie auf dem Board (Dauer speichert beim Ändern)
     const c = this.clean, x = c?.item;
     if (!x) return "";
     const me = c.ich, done = x.status === "erledigt";
     const mine = !x.zugewiesen || x.zugewiesen === me;
     const edit = c.darf_zuweisen || (c.darf_uebernehmen && mine);
     const users = c.benutzer || [];
-    // Person: Auswahl für Zuweisende (auch nachträglich), sonst Anzeige
     const who = c.darf_zuweisen && !done
       ? `<select data-k="cassign" title="${t("Zuweisen")}"><option value="">${t("– niemand –")}</option>${users.map((u) =>
         `<option value="${esc(u.id)}" ${x.zugewiesen === u.id ? "selected" : ""}>${esc(u.name)}${u.handy ? "" : " ⚠"}</option>`).join("")}</select>`
       : `<span class="badge ${x.zugewiesen === me ? "good" : x.zugewiesen ? "" : "warn"}">👤 ${x.zugewiesen ? esc(x.zugewiesen === me ? t("Du") : x.zugewiesen_name || "?") : t("nicht zugewiesen")}</span>`;
     const acts = [];
     if (!done && c.darf_uebernehmen && !x.zugewiesen) acts.push(`<button class="btn flat" data-act="cl-uebernehmen">${t("Übernehmen")}</button>`);
-    if (!done && x.zugewiesen === me) acts.push(`<button class="lnk" data-act="cl-abgeben">${t("Abgeben")}</button>`);
-    if (edit) acts.push(done ? `<button class="lnk" data-act="cl-offen">↺ ${t("Wieder offen")}</button>`
+    if (!done && x.zugewiesen === me) acts.push(`<button class="btn flat" data-act="cl-abgeben">${t("Abgeben")}</button>`);
+    if (edit) acts.push(done ? `<button class="btn flat" data-act="cl-offen">↺ ${t("Wieder offen")}</button>`
       : `<button class="btn" data-act="cl-erledigt">✓ ${t("Erledigt")}</button>`);
-    const doneTxt = done ? ` · ✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""}` : "";
-    return `<div class="row" style="margin-top:8px;align-items:center;flex-wrap:wrap;gap:8px">
-      <span>🧹 ${t("Reinigung")} ${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}${doneTxt}</span>${who}
-      ${edit ? `<label>${t("Dauer")} <input type="number" data-k="cmin" min="1" max="600" step="5" value="${x.minuten ?? ""}" placeholder="${c.standard_minuten || 60}" style="width:72px"> min</label>
-        <button class="btn flat" data-act="cmin">${t("Speichern")}</button>` : `<span class="sub">${num(x.minuten || c.standard_minuten || 60)} min</span>`}
-      ${acts.join("")}</div>`;
+    const dur = edit ? `<label class="dur" title="${t("Reinigungszeit (leer = Standard)")}"><input type="number" data-k="cmin" min="1" max="600" step="5"
+        value="${x.minuten ?? ""}" placeholder="${c.standard_minuten || 60}" style="width:72px"> min</label>`
+      : `<span class="sub">${num(x.minuten || c.standard_minuten || 60)} min</span>`;
+    return `<div><h3>🧹 ${t("Reinigung")}</h3>
+      <div class="sub" style="margin-bottom:8px">${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}${done ? ` · ✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""}` : ""}</div>
+      <div class="row" style="align-items:center;flex-wrap:wrap;gap:8px">${who}${dur}${acts.join("")}</div></div>`;
   }
   // Reinigung aus den Buchungsdetails ändern (gleiche Websocket-Aktion wie das Reinigungsboard)
   async cleanSet(aktion, extra = {}) {
@@ -2954,7 +3243,8 @@ class SmoobuBookingDialog extends HTMLElement {
         ${!b.blockiert ? `<div class="row" style="margin-top:8px">
           <label>${t("Ankunftszeit")} <input type="time" data-k="ci" value="${esc((b.check_in || "").slice(0, 5))}"></label>
           <label>${t("Abreisezeit")} <input type="time" data-k="co" value="${esc((b.check_out || "").slice(0, 5))}"></label>
-          <button class="btn flat" data-act="times">${t("Speichern")}</button></div>` : ""}${this.doorHtml()}${this.cleanHtml()}${this.moveHtml(b)}</div>
+          <button class="btn flat" data-act="times">${t("Speichern")}</button></div>
+          ${!b.check_in || !b.check_out ? `<div class="sub">${t("Leer = Standard")}: ${t("Ankunft")} ${esc(uhr(this.apt?.check_in || "16:00"))}, ${t("Abreise")} ${esc(uhr(this.apt?.check_out || "11:00"))}</div>` : ""}` : ""}${this.moveHtml(b)}</div>
         ${!b.blockiert ? `<div><h3>${t("Gast")}</h3>${kv([
           ["Gast", esc(b.gast)],
           // v1.18.0: frühere Aufenthalte; Klick öffnet die letzte Buchung (ggf. andere Wohnung des Kontos)
@@ -2965,7 +3255,7 @@ class SmoobuBookingDialog extends HTMLElement {
           b.telefon && ["Telefon", `<a href="tel:${esc(b.telefon)}">${esc(b.telefon)}</a>`],
           b.sprache && ["Sprache", esc(b.sprache)],
           raw.address && (raw.address.street || raw.address.city) && ["Adresse", esc([raw.address.street, raw.address.postalCode, raw.address.location || raw.address.city, raw.address.country].filter(Boolean).join(", "))],
-        ])}</div>
+        ])}</div>${this.doorHtml()}${this.cleanHtml()}
         <div><h3>${t("Preis")}</h3>${positions}${kv([
           ["Brutto", `<b>${money(b.brutto, cur, 2)}</b>${b.naechte ? ` · ${money(b.brutto_pro_nacht, cur, 2)}/${t("Nacht")}` : ""}`],
           ["Provision", `${money(b.provision, cur, 2)}${b.provision_quelle === "konfiguration" ? " (geschätzt)" : ""}`],
@@ -3101,6 +3391,8 @@ class SmoobuBookingDialog extends HTMLElement {
     r.querySelector("[data-noreply]")?.addEventListener("click", () => this.noReply(true));
     // Reinigung zuweisen direkt in den Buchungsdetails
     r.querySelector('[data-k="cassign"]')?.addEventListener("change", (e) => this.cleanSet("zuweisen", { benutzer_id: e.target.value || null }));
+    // v1.19.0b12: Reinigungszeit speichert beim Ändern (wie auf dem Reinigungsboard)
+    r.querySelector('[data-k="cmin"]')?.addEventListener("change", (e) => this.cleanSet("dauer", { minuten: e.target.value === "" ? null : Number(e.target.value) }));
     // v1.18.0: Umbuchen – Datum/Unterkunft geändert → altes Prüfergebnis gilt nicht mehr; Preis nur merken
     r.querySelectorAll("[data-mv]").forEach((el) => el.addEventListener("change", () => {
       if (!this.move) return;
@@ -4049,7 +4341,7 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
             const free = (h.naechte || []).map((x) => x.datum);
             if (h.aufschlag_prozent && free.length) extra += `<div class="row" style="margin-top:5px">${applyBtn(`+${h.aufschlag_prozent} % ${t("auf die freien Nächte")} …`, {
               title: h.titel, grund: h.text, vorgabe: { tage: free, prozent: h.aufschlag_prozent, label: `Last-Minute +${h.aufschlag_prozent} %` } }, false)}</div>`;
-            extra += `<div class="ks" style="white-space:normal">${t("Fenster")}: ${num(h.tage_fenster)} ${t("Tage")} · ${t("max. Rabatt")} ${num(h.rabatt_max)} % · ${t("einstellbar unter Einstellungen → Kosten & Preise")}${st.buchungen ? ` · n = ${num(st.buchungen)}` : ""}</div>`;
+            extra += `<div class="ks" style="white-space:normal">${t("Fenster")}: ${num(h.tage_fenster)} ${t("Tage")} · ${t("max. Rabatt")} ${num(h.rabatt_max)} % · ${t("einstellbar unter Einstellungen → Reinigung & Zugang")}${st.buchungen ? ` · n = ${num(st.buchungen)}` : ""}</div>`;
           }
           if (h.typ === "einzelnacht" && h.mindestaufenthalt) extra += `<div class="row" style="margin-top:5px">${applyBtn(`Mindestaufenthalt ${h.mindestaufenthalt} setzen …`, {
             title: h.titel, grund: h.text, vorgabe: { von: d.today, bis: iso(addDays(D(d.today), 29)), mindestaufenthalt: h.mindestaufenthalt, label: `Mindestaufenthalt ${h.mindestaufenthalt}` } }, false)}</div>`;
@@ -4448,7 +4740,7 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
         [t("Reinigungen"), num(m.anzahl), m.seit ? `${t("erfasst seit")} ${fdate(m.seit)}` : t("noch keine erfasst"),
           t("Abgehakte Reinigungen im Reinigungsboard mit Abreise im Zeitraum")],
         [t("Kosten"), money(m.kosten || 0, d.apt.currency), `${num((m.minuten_summe || 0) / 60, 1)} h · ${num(m.minuten_gebucht || 0)} ${t("Zeiten gebucht, Rest")} ${num(m.minuten || 60)} min`,
-          t("Gebuchte Reinigungszeit (sonst Standard) × Stundenlohn der Person (Einstellungen → Kosten & Preise)")],
+          t("Gebuchte Reinigungszeit (sonst Standard) × Stundenlohn der Person (Einstellungen → Reinigung & Zugang)")],
         [t("Gästewechsel"), num(m.wechsel), m.anzahl ? pct((m.wechsel / m.anzahl) * 100, 0) : "", t("Abreise und Anreise am selben Tag – enges Zeitfenster")],
         [t("Mit Hund"), num(m.hund), m.anzahl ? pct((m.hund / m.anzahl) * 100, 0) : "", t("Abreisende Gäste mit Hund – meist mehr Aufwand")],
         [t("Nicht abgehakt"), num(m.nicht_abgehakt), m.nicht_abgehakt_ohne_zuweisung ? `${num(m.nicht_abgehakt_ohne_zuweisung)} ${t("ohne Zuweisung")}` : "",
@@ -5777,7 +6069,9 @@ class SmoobuHeaderCard extends SmoobuCard {
 // ===========================================================================
 const SET_TABS = [
   ["benachrichtigungen", "Benachrichtigungen"], ["assistent", "KI-Assistent"],
-  ["provisionen", "Provisionen & Kanäle"], ["kosten", "Kosten & Preise"], ["rechte", "Benutzer & Rechte"], ["allgemein", "Allgemein & Abruf"],
+  ["provisionen", "Provisionen & Kanäle"], ["kosten", "Kosten & Preise"],
+  // v1.19.0b12 (Review 21.11.2026): alles zur Reinigung und die Türcodes an einer Stelle (vorher auf 4 Reiter verteilt)
+  ["reinigung", "Reinigung & Zugang"], ["rechte", "Benutzer & Rechte"], ["allgemein", "Allgemein & Abruf"],
 ];
 const PUSH_INFO = {
   buchung: ["Neue Buchung", "Sobald eine neue Buchung eingeht (keine Sperrzeiten)."],
@@ -5796,9 +6090,9 @@ const SET_FIELD_TAB = (key) => {
   if (key.startsWith("notify_") || key === "assist_briefing_time") return "benachrichtigungen";
   if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key) || key.startsWith("ai_")) return "assistent";
   if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels"].includes(key)) return "provisionen";
-  if (key.startsWith("cost_") || key.startsWith("lastminute_") || ["channel_markups", "genius_discount", "genius_share", "cleaning_wages"].includes(key)) return "kosten";
+  if (key.startsWith("cleaning_") || key.startsWith("door_") || ["cost_cleaning", "cost_cleaning_minutes"].includes(key)) return "reinigung";
+  if (key.startsWith("cost_") || key.startsWith("lastminute_") || ["channel_markups", "genius_discount", "genius_share"].includes(key)) return "kosten";
   if (["user_roles", "default_role", "settings_users", "role_rights", "custom_roles", "focus_roles"].includes(key)) return "rechte";
-  if (key.startsWith("cleaning_")) return "benachrichtigungen";
   return "allgemein";
 };
 const SET_ERR = {
@@ -5985,7 +6279,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Warten in der Ruhezeit", waits.length ? waits.map((k) => `<span class="chip" aria-pressed="true">${esc(t((PUSH_INFO[k] || [k])[0]))}</span>`).join(" ") : `<span class="muted">${t("keine – alle kommen sofort")}</span>`,
           "Einstellbar je Push-Art („Hält Ruhezeit ein“). Dringende Vorschläge und Bestätigungen kommen immer sofort.")}</div></div>`;
     const none = meta.handys.length ? "" : `<div class="note">${t("Kein Handy mit HA-App gefunden (notify.mobile_app_…).")}</div>`;
-    return none + groups + (d.module_reinigung !== false ? this.cleaningPush(meta) : "") + quiet;
+    return none + groups + quiet;
   }
   // v1.19.0: Reinigungsboard – Push an die zugewiesene Person (bei Zuweisung + Vorabend), Handy je HA-Benutzer
   cleaningPush(meta) {
@@ -6269,16 +6563,10 @@ class SmoobuSettingsCard extends SmoobuCard {
     // v1.19.0b10: Module – Kosten-Teil nur mit Modul Kosten, Aufschläge/Genius/Last-Minute nur mit Modul Preise,
     // Stundenlöhne nur mit Modul Reinigung (Entwurf, damit das Umschalten sofort wirkt)
     const ko = d.module_kosten !== false, pr = d.module_preise !== false, rn = d.module_reinigung !== false;
-    const costHtml = !ko ? `<div class="note">${t("Modul „Kosten & Deckungsbeitrag“ ist aus (Reiter Allgemein & Abruf → Module).")}</div>` : `<div class="note">${t("Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.")}</div>
+    const costHtml = !ko ? `<div class="note">${t("Modul „Kosten“ ist aus (Reiter Allgemein & Abruf → Module).")}</div>` : `<div class="note">${t("Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.")}</div>
       ${this.billsBlock(meta)}
-      <div class="grp" data-neu="reinigungslohn"><div class="gh"><div class="grow"><b>${t("Je Aufenthalt")}${neuBadge("opt-reinigungslohn")}</b></div></div><div class="gb">
-        ${this.fld("Reinigungszeit (Standard)", this.numIn("cost_cleaning_minutes", 0, 600, 5, "min"), "", "cost_cleaning_minutes")}
-        ${this.fld("Stundenlohn Reinigung (Standard)", this.numIn("cost_cleaning", 0, 1000, 0.5, "€/h"),
-          `${t("Reinigung je Aufenthalt")} = ${num((Number(d.cost_cleaning_minutes) || 0) / 60 * (Number(d.cost_cleaning) || 0), 2)} € · ${t("gilt, wenn für die Person kein eigener Lohn hinterlegt ist")}`, "cost_cleaning")}
-        ${(rn ? meta.reinigungskraefte || [] : []).map((u, i, all) => this.fld(`${t("Stundenlohn")} · ${u.name}`,
-          `<input type="number" data-wage="${esc(u.id)}" min="0" max="500" step="0.5" value="${esc(d.cleaning_wages?.[u.id] ?? "")}" placeholder="${esc(num(Number(d.cost_cleaning) || 0, 2))}"><span class="unit">€/h</span>`,
-          i === all.length - 1 ? "Leer = Standard. Gilt für Reinigungen, die die Person laut Reinigungsboard erledigt hat oder die ihr zugewiesen sind." : "",
-          i === all.length - 1 ? "cleaning_wages" : "")).join("")}
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Je Aufenthalt")}</b>
+        <span class="sub">${t("Reinigung")}: ${num((Number(d.cost_cleaning_minutes) || 0) / 60 * (Number(d.cost_cleaning) || 0), 2)} € ${t("je Aufenthalt (Standard) – Zeit und Stundenlöhne im Reiter „Reinigung & Zugang“.")}</span></div></div><div class="gb">
         ${this.fld("Wäsche", this.numIn("cost_laundry", 0, 1000, 0.5, "€"), "", "cost_laundry")}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Heizung & Warmwasser")}</b>
         <span class="sub">${t("Jahreskosten aus der Nebenkostenabrechnung. Verteilung nach Gradtagszahlen, skaliert auf die Gästenächte des Abrechnungsjahres.")}</span></div></div><div class="gb">
@@ -6346,7 +6634,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const rows = m.rechte.map((x) => `<tr><td>${esc(t(x.name))}</td>${roles.map((r) => {
       const implied = x.id === "belegung_sehen" && r.rechte.includes("gaeste");
       if (!edit || r.fest) return `<td class="n">${has(r, x.id) ? "✓" : "–"}</td>`;
-      // „Gästedaten sehen“ schließt „Belegung sehen“ ein → Häkchen gesetzt, aber nicht abwählbar
+      // „Gästedaten sehen“ schließt „Kalender sehen“ ein → Häkchen gesetzt, aber nicht abwählbar
       if (implied) return `<td class="n"><input type="checkbox" checked disabled title="${t("Enthalten in „Gästedaten und Buchungen sehen“")}"></td>`;
       return `<td class="n"><input type="checkbox" data-rr="${esc(r.id)}" data-rv="${esc(x.id)}" ${has(r, x.id) ? "checked" : ""} aria-label="${esc(t(x.name))} – ${esc(t(r.name))}"></td>`;
     }).join("")}</tr>`).join("");
@@ -6488,6 +6776,24 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${rows}${dl("sm-schloesser", meta.schloesser)}${dl("sm-skripte", meta.skripte)}
         <div class="note">${t("Entitäten „Türcode aktueller Gast“ / „Türcode nächster Gast“ je Wohnung: den Zustand sieht jeder HA-Benutzer, der sie sehen kann – nicht auf Gäste-Dashboards zeigen.")}</div></div></div>`;
   }
+  // v1.19.0b12: Reiter „Reinigung & Zugang“ – Reinigungskosten (Standardzeit, Stundenlöhne), Pushes an die
+  // Reinigungskräfte und Türcodes. Reinigungskosten bleiben auch ohne Modul Reinigung sichtbar (Deckungsbeitrag).
+  tabCleaning(meta) {
+    const d = this._draft;
+    const rn = d.module_reinigung !== false;
+    const wages = (rn ? meta.reinigungskraefte || [] : []).map((u, i, all) => this.fld(`${t("Stundenlohn")} · ${u.name}`,
+      `<input type="number" data-wage="${esc(u.id)}" min="0" max="500" step="0.5" value="${esc(d.cleaning_wages?.[u.id] ?? "")}" placeholder="${esc(num(Number(d.cost_cleaning) || 0, 2))}"><span class="unit">€/h</span>`,
+      i === all.length - 1 ? "Leer = Standard. Gilt für Reinigungen, die die Person laut Reinigungsboard erledigt hat oder die ihr zugewiesen sind." : "",
+      i === all.length - 1 ? "cleaning_wages" : "")).join("");
+    const cost = `<div class="grp" data-neu="reinigungslohn"><div class="gh"><div class="grow"><b>${t("Reinigungskosten")}${neuBadge("opt-reinigungslohn")}</b>
+        <span class="sub">${t("Kosten je Aufenthalt = Reinigungszeit × Stundenlohn der Person (sonst Standard). Fließt in den Deckungsbeitrag.")}</span></div></div><div class="gb">
+        ${this.fld("Reinigungszeit (Standard)", this.numIn("cost_cleaning_minutes", 0, 600, 5, "min"), rn ? "Je Reinigung im Board oder in den Buchungsdetails änderbar." : "", "cost_cleaning_minutes")}
+        ${this.fld("Stundenlohn (Standard)", this.numIn("cost_cleaning", 0, 1000, 0.5, "€/h"),
+          `${t("Reinigung je Aufenthalt")} = ${num((Number(d.cost_cleaning_minutes) || 0) / 60 * (Number(d.cost_cleaning) || 0), 2)} € · ${t("gilt, wenn für die Person kein eigener Lohn hinterlegt ist")}`, "cost_cleaning")}
+        ${wages}</div></div>`;
+    const off = rn ? "" : `<div class="note">${t("Modul „Reinigung“ ist aus (Reiter Allgemein & Abruf → Module): kein Reinigungsboard, keine Pushes; Kosten nach Standard.")}</div>`;
+    return `${off}${cost}${rn ? this.cleaningPush(meta) : ""}${this.doorBlock(meta)}`;
+  }
   tabGeneral(meta) {
     const d = this._draft;
     const codes = meta.wohnungen.map((w) => this.fld(w.name, `<input type="text" data-code="${esc(w.id)}" maxlength="4" style="width:90px"
@@ -6501,9 +6807,9 @@ class SmoobuSettingsCard extends SmoobuCard {
     const mods = `<div class="grp" data-neu="module"><div class="gh"><div class="grow"><b>${t("Module")}${neuBadge("opt-module")}</b>
         <span class="sub">${t("Ausgeschaltete Module verschwinden aus Dashboard, Einstellungen und Pushes. Gespeicherte Daten bleiben erhalten.")}</span></div></div>
       <div class="gb">${this.fld("Reinigung", this.sw("module_reinigung", "Reinigung"), "Reinigungsboard, Reinigung in den Buchungsdetails, Reinigungs-Pushes und -Aufgaben, Statistik-Modul. Aus: Reinigungskosten nach Standardlohn.", "module_reinigung")}
-        ${this.fld("Kosten & Deckungsbeitrag", this.sw("module_kosten", "Kosten & Deckungsbeitrag"), "Variable Kosten, Deckungsbeitrag in Finanzen und Statistik, Zählermessung, Nebenkosten-Upload. Aus: nur Umsatz und Provisionen.", "module_kosten")}
-        ${this.fld("Preise & Empfehlungen", this.sw("module_preise", "Preise & Empfehlungen"), "Bewertung & Empfehlung, Preis- und Last-Minute-Aufgaben, Aufschläge, Genius und Last-Minute-Einstellungen. Preise im Kalender setzen bleibt möglich.", "module_preise")}</div></div>`;
-    return `${mods}${board}${this.doorBlock(meta)}<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
+        ${this.fld("Kosten", this.sw("module_kosten", "Kosten"), "Variable Kosten, Deckungsbeitrag in Finanzen und Statistik, Zählermessung, Nebenkosten-Upload. Aus: nur Umsatz und Provisionen.", "module_kosten")}
+        ${this.fld("Preise", this.sw("module_preise", "Preise"), "Bewertung & Empfehlung, Preis- und Last-Minute-Aufgaben, Aufschläge, Genius und Last-Minute-Einstellungen. Preise im Kalender setzen bleibt möglich.", "module_preise")}</div></div>`;
+    return `${mods}${board}<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
         ${this.fld("Webhook (Echtzeit)", this.sw("use_webhook", "Webhook"), "Smoobu meldet Änderungen sofort über Nabu Casa.")}
         ${this.fld("Abfrageintervall", this.numIn("scan_interval", 1, 120, 1, "min"), "Zusätzlicher Abgleich neben dem Webhook.", "scan_interval")}
         ${this.fld("Tage Rückblick", this.numIn("days_back", 0, 365, 1, "Tage"), "", "days_back")}
@@ -6530,7 +6836,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const tabs = SET_TABS.filter(([k]) => k !== "kosten" || !hideCost).map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
     const konten = res.konten.length > 1 ? `<select data-entry>${res.konten.map((k) => `<option value="${esc(k.entry_id)}" ${k.entry_id === res.entry_id ? "selected" : ""}>${esc(k.title)}</option>`).join("")}</select>` : "";
     const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "kosten" && !hideCost ? this.tabCost(meta)
-      : tab === "rechte" ? this.tabRights(meta)
+      : tab === "rechte" ? this.tabRights(meta) : tab === "reinigung" ? this.tabCleaning(meta)
       : tab === "allgemein" || tab === "kosten" ? this.tabGeneral(meta) : this.tabPush(meta);
     const n = this.dirty ? Object.keys(this.changes()).length : 0;
     const status = this._state.saving ? t("Speichere … die Integration lädt danach neu.")
@@ -6918,7 +7224,7 @@ class SmoobuCleaningCard extends SmoobuCard {
       html += row(x);
     }
     const noPhone = r.darf_zuweisen && users.some((u) => !u.handy)
-      ? `<div class="sub" style="margin-top:10px">⚠ = ${t("kein Handy für Pushes hinterlegt (Einstellungen → Benachrichtigungen → Reinigung)")}</div>` : "";
+      ? `<div class="sub" style="margin-top:10px">⚠ = ${t("kein Handy für Pushes hinterlegt (Einstellungen → Reinigung & Zugang)")}</div>` : "";
     return `<div class="head"><h2>🧹 ${esc(t(this._config.title || "Reinigung"))}${neuBadge("neu-reinigung")}</h2>
         ${mine ? `<span class="badge good">${t("Für dich")}: ${num(mine)}</span>` : ""}
         ${free ? `<span class="badge warn">${t("Nicht zugewiesen")}: ${num(free)}</span>` : ""}</div>

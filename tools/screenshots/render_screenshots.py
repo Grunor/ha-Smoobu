@@ -230,7 +230,7 @@ def _shots(base: str, token: str, set_options) -> list[str]:
                                " return r && r.querySelector('[data-neu=saisons]'); }", timeout=20000)
 
         # v1.19.0: Türcodes in den Einstellungen (Allgemein) – ein Schloss als Beispiel (Z-Wave JS, Entität erfunden)
-        page.evaluate("([t, c, w]) => showCard(t, c, w)", [card_settings, {"tab": "allgemein"}, 1180])
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", [card_settings, {"tab": "reinigung"}, 1180])
         page.wait_for_function("() => { const r = document.querySelector('smoobu-settings-card')?.shadowRoot;"
                                " return r && r.querySelector('[data-neu=tuercode]'); }", timeout=20000)
         page.evaluate("""() => { const c = document.querySelector('smoobu-settings-card'); const d = c._draft;

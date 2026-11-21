@@ -8,6 +8,20 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b12 – 2026-11-21
+
+### Geändert / Changed
+- **Neuer Einstellungs-Reiter „Reinigung & Zugang“:** Reinigungszeit und Stundenlöhne (vorher „Kosten & Preise“), Pushes an Reinigungskräfte (vorher „Benachrichtigungen“) und Türcodes (vorher „Allgemein & Abruf“) an einer Stelle. „Kosten & Preise“ zeigt die Reinigung nur noch als Summe je Aufenthalt.
+- **Buchungsdetails:** eigene Abschnitte „Zugang“ (Türcode) und „Reinigung“ statt Zeilen unter „Aufenthalt“; die Reinigungszeit speichert beim Ändern wie auf dem Reinigungsboard. Hinweis auf die Standardzeiten, wenn Ankunft/Abreise leer sind.
+- **Einheitliche Begriffe:** Rechte „Kalender sehen“ / „Kalender ändern“ (wie die Seite „Kalender“), Module kurz „Reinigung“, „Kosten“, „Preise“. Gespeicherte Rechte bleiben gültig.
+- **Englisch:** rund 530 fehlende englische Texte der Karten ergänzt (u. a. alles aus 1.19).
+- README-Bilder neu erzeugt.
+- **New settings tab "Cleaning & access":** cleaning time and hourly wages (previously "Costs & prices"), pushes to cleaners (previously "Notifications") and door codes (previously "General & polling") in one place.
+- **Booking details:** own sections "Access" (door code) and "Cleaning"; cleaning time saves on change like on the cleaning board. Hint on default times if arrival/departure are empty.
+- **Consistent terms:** permissions "View calendar" / "Change calendar", modules "Cleaning", "Costs", "Prices". Stored permissions stay valid.
+- **English:** about 530 missing English card texts added (incl. everything from 1.19).
+- README images regenerated.
+
 ## 1.19.0b11 – 2026-11-21
 
 ### Geändert / Changed

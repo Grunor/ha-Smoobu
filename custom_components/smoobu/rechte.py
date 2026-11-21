@@ -10,7 +10,7 @@ von Rechten. Ab v1.19.0 (Wunsch Betreiber 20.11.2026) sind die Bündel einstellb
   löscht sie wieder. IDs beginnen mit „eigen_“, damit sie nie mit Standardrollen kollidieren.
 - Abhängigkeiten (DEPENDS, z. B. „Preise ändern“ ohne „Finanzen sehen“) sind bewusst nur
   Hinweise in der Karte (Entscheidung Betreiber 20.11.2026: Warnhinweis statt Automatik).
-- „Gästedaten sehen“ schließt „Belegung sehen“ immer ein (wer Namen und Kontakt sieht, sieht
+- „Gästedaten sehen“ schließt „Kalender sehen“ immer ein (wer Namen und Kontakt sieht, sieht
   auch die Belegung) – sonst entstünden Rollen, die Buchungen, aber keinen Kalender sehen.
 
 Regeln:
@@ -46,12 +46,12 @@ from .const import (
 RIGHTS: dict[str, str] = {
     # v1.19.0 (Wunsch Betreiber 20.11.2026, Rolle „Reinigung“): Übersicht und Kalender mit Zeitraum,
     # Check-in/-out, Personen und Hund – vom Gast nur der Vorname, ohne Kontakt, Notizen und Preise
-    "belegung_sehen": "Belegung sehen (nur Vorname des Gastes)",
+    "belegung_sehen": "Kalender sehen (nur Vorname des Gastes)",
     "gaeste": "Gästedaten und Buchungen sehen",
     "finanzen": "Finanzen, Statistik und Preise sehen",
     "nachrichten": "Nachrichten lesen",
     "antworten": "Antworten und KI-Vorschläge",
-    "belegung": "Belegung ändern (sperren, Zeiten, Storno)",
+    "belegung": "Kalender ändern (sperren, Zeiten, Storno)",
     # v1.19.0: Reinigungsboard – offene Reinigungen sehen, sich eintragen, eigene abhaken
     "reinigung": "Reinigung übernehmen und abhaken",
     # v1.19.0: Reinigungen anderen Benutzern zuweisen (Reinigungsboard)
@@ -65,7 +65,7 @@ _ALL = frozenset(RIGHTS)
 ROLES: dict[str, tuple[str, frozenset[str]]] = {
     "verwalter": ("Verwalter", _ALL),
     # Standard ab v1.19.0b5 = Konfiguration des Betreibers (21.11.2026): Betrieb ohne „Preise ändern“,
-    # Mitarbeiter ohne „Belegung ändern“, dafür mit „Reinigung zuweisen“
+    # Mitarbeiter ohne „Kalender ändern“, dafür mit „Reinigung zuweisen“
     "betrieb": ("Betrieb", _ALL - {"einstellungen", "preise"}),
     "mitarbeiter": ("Mitarbeiter", frozenset({"belegung_sehen", "gaeste", "nachrichten", "antworten", "reinigung", "reinigung_zuweisen"})),
     # v1.19.0: sehr einfache Rolle für Reinigungskräfte (Belegung, Check-in/-out, Reinigung abhaken)

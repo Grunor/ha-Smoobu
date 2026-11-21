@@ -163,7 +163,7 @@ class CleaningBoard:
                     "minuten": s.get("minuten"),
                     "status": s.get("status", "offen"), "erledigt_von": s.get("erledigt_von"), "erledigt_um": s.get("erledigt_um")}
             # Korrektur 21.11.2026 (Wunsch Betreiber): voller Gastname für alle mit „Gästedaten sehen“
-            # (alle Rollen außer „Reinigung“), sonst nur der Vorname; ohne „Belegung sehen“ gar kein Name.
+            # (alle Rollen außer „Reinigung“), sonst nur der Vorname; ohne „Kalender sehen“ gar kein Name.
             full = "gaeste" in rights
             item["name_voll"] = full
             if item["naechste"]:
