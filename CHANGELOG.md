@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+### Korrigiert / Fixed
+- „Zuweisen →“ bei „Reinigung nicht zugewiesen“ leitete auf die erste Dashboard-Ansicht um, wenn die Ansicht `smoobu-reinigung` fehlte – jetzt Hinweis, wie die Seite angelegt wird.
+- "Assign →" on "Cleaning not assigned" redirected to the first dashboard view when the `smoobu-reinigung` view was missing – now shows how to add the page.
+
 ## 1.19.0b2 – 2026-11-21
 
 ### Neu / New

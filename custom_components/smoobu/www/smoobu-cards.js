@@ -1652,9 +1652,16 @@ class SmoobuOverviewCard extends SmoobuCard {
       history.pushState(null, "", path.startsWith("/") ? path : `/${parts[0] || "lovelace"}/${path}`);
       window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
     }));
-    // v1.19.0: Aufgabe „Reinigung nicht zugewiesen“ → Seite Reinigung
+    // v1.19.0: Aufgabe „Reinigung nicht zugewiesen“ → Seite Reinigung.
+    // Korrektur 21.11.2026: Fehlt die Ansicht im Dashboard, leitete HA auf die erste Ansicht um (z. B. Host-Seite) →
+    // stattdessen Hinweis, wie die Seite angelegt wird.
     root.querySelectorAll("[data-goclean]").forEach((el) => el.addEventListener("click", (e) => {
       e.stopPropagation();
+      const known = viewPathsOf(this);
+      if (known && !known.has("smoobu-reinigung")) {
+        toast(t("Seite „Reinigung“ fehlt in diesem Dashboard – Ansicht mit Pfad smoobu-reinigung und der Karte custom:smoobu-cleaning-card anlegen (Vorlage: docs/dashboard-vorlage.yaml)."));
+        return;
+      }
       const parts = location.pathname.split("/").filter(Boolean);
       history.pushState(null, "", `/${parts[0] || "lovelace"}/smoobu-reinigung`);
       window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
@@ -4546,6 +4553,17 @@ const MODULE_PRESETS = [
   { title: "Buchungswert", measure: "buchungswert", dimension: "monat", split: "", view: "kennzahl",
     tip: "Ø Buchungswert brutto als große Zahl" },
 ];
+// Pfade der Ansichten des Dashboards, in dem `node` steckt (über hui-root/hui-view); null = unbekannt.
+// v1.19.0 (Korrektur 21.11.2026): auch für Sprung-Buttons genutzt, damit ein fehlender Reiter nicht auf die Startansicht umleitet.
+function viewPathsOf(node) {
+  let n = node;
+  for (let i = 0; i < 80 && n; i++) {
+    n = n.parentNode || n.host;
+    const views = n?.lovelace?.config?.views;
+    if (Array.isArray(views)) return new Set(views.map((v, j) => String(v.path ?? j)));
+  }
+  return null;
+}
 const draftKey = (dr) => JSON.stringify([dr.measure, dr.dimension, dr.split || "", dr.view]);
 // Baukasten-Modul: Kennzahl × Gruppierung (× Aufteilung) in der gewählten Darstellung
 const CUSTOM_MODULE = {
@@ -5637,15 +5655,7 @@ class SmoobuHeaderCard extends SmoobuCard {
     return `/${parts[0] || "lovelace"}/${path}`;
   }
   // Pfade der Ansichten des aktuellen Dashboards (aus hui-root/hui-view); null = unbekannt (dann alle Reiter zeigen)
-  viewPaths() {
-    let n = this;
-    for (let i = 0; i < 80 && n; i++) {
-      n = n.parentNode || n.host;
-      const views = n?.lovelace?.config?.views;
-      if (Array.isArray(views)) return new Set(views.map((v, j) => String(v.path ?? j)));
-    }
-    return null;
-  }
+  viewPaths() { return viewPathsOf(this); }
   body({ info, open }) {
     const here = location.pathname.split("/").filter(Boolean).pop();
     const known = this.viewPaths();
