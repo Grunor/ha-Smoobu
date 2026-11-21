@@ -2,7 +2,7 @@
 
 # Smoobu für Home Assistant / Smoobu for Home Assistant
 
-> 🗺️ **Roadmap:** geplante Funktionen in [ROADMAP.md](ROADMAP.md) / planned features in [ROADMAP.md](ROADMAP.md)
+> 🗺️ **Roadmap:** geplante Funktionen im [Roadmap-Board](https://github.com/users/Grunor/projects/1) und in [ROADMAP.md](ROADMAP.md) / planned features on the [roadmap board](https://github.com/users/Grunor/projects/1) and in [ROADMAP.md](ROADMAP.md)
 
 [![Release](https://img.shields.io/github/v/release/Grunor/ha-Smoobu)](https://github.com/Grunor/ha-Smoobu/releases)
 [![Validate](https://github.com/Grunor/ha-Smoobu/actions/workflows/validate.yml/badge.svg)](https://github.com/Grunor/ha-Smoobu/actions/workflows/validate.yml)

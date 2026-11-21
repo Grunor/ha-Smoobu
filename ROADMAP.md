@@ -6,6 +6,8 @@ Planned features of the Smoobu integration. Each feature has its own issue with 
 
 Aufwand / effort: **S** klein / small · **M** mittel / medium · **L** groß / large
 
+📋 **Board:** [Smoobu Roadmap (GitHub Project)](https://github.com/users/Grunor/projects/1) – Spalten Später / Als Nächstes / In Arbeit / Erledigt · columns Later / Next / In progress / Done
+
 Alle Roadmap-Issues / all roadmap issues: [Label `roadmap`](https://github.com/Grunor/ha-Smoobu/issues?q=label%3Aroadmap)
 
 ## Als Nächstes / Next
