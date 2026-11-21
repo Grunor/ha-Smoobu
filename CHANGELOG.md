@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b10 – 2026-11-21
+
+### Neu / New
+- **Module abschaltbar** (Einstellungen → Allgemein & Abruf → Module, Standard alle an): **Reinigung** (Reinigungsboard, Reinigung in den Buchungsdetails, Pushes, Aufgaben, Statistik-Modul; aus = Reinigungskosten nach Standardlohn), **Kosten & Deckungsbeitrag** (variable Kosten, Deckungsbeitrag in Finanzen/Statistik, Zählermessung ohne Recorder-Abfragen, Nebenkosten-Upload) und **Preise & Empfehlungen** (Bewertung & Empfehlung, Preis-/Last-Minute-Aufgaben, Aufschläge, Genius, Last-Minute). Ausgeschaltet verschwinden Seiten, Blöcke, Pushes und Aufgaben; gespeicherte Daten bleiben. Sind Kosten und Preise aus, entfällt der Reiter „Kosten & Preise“.
+- **Switchable modules** (Settings → General & polling → Modules, all on by default): **Cleaning**, **Costs & contribution margin** and **Prices & recommendations**. When off, pages, blocks, pushes and tasks disappear; stored data is kept. With costs and prices off, the "Costs & prices" tab is hidden.
+
 ## 1.19.0b9 – 2026-11-21
 
 ### Geändert / Changed

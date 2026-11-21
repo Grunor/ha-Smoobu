@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.0b9";
+const SMOOBU_CARDS_VERSION = "1.19.0b10";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -508,6 +508,16 @@ function can(right, aptId) {
   const apt = aptId === ALL ? allApartment(info) : info.wohnungen.find((w) => w.apartment_id === aptId) || info.wohnungen[0];
   return rightsOf(apt).has(right);
 }
+// v1.19.0b10: abschaltbare Module (Einstellungen → Allgemein → Module). An, solange ein Konto es an hat
+// oder noch keine Info geladen ist (Backend prüft ohnehin).
+function modOn(name) {
+  const ws = window.__smoobuStore?.info?.wohnungen;
+  return !ws || !ws.length || ws.some((w) => w.module?.[name] !== false);
+}
+// Statistik-Module → Modul, zu dem sie gehören
+const STATS_MODULE = { reinigung: "reinigung", deckung: "kosten", empfehlung: "preise" };
+// Aufgaben-Kategorien → Modul (gleiche Zuordnung wie websocket_api.TASK_MODULES)
+const TASK_MODULE = { reinigung: "reinigung", preise: "preise", lastminute: "preise" };
 const pageRight = (path) => Object.entries(PAGE_RIGHT).find(([k]) => String(path).includes(k))?.[1] || "belegung_sehen";
 const pageAllowed = (path, rights) => [pageRight(path)].flat().some((r) => rights.has(r));
 function allApartment(info) {
@@ -3686,7 +3696,9 @@ function statsLayout() {
     saveLayout({ ...l, order, hidden, custom, defaults: 2 });
   }
   // defaults mitgeben, sonst blendet ein späteres saveLayout() die bewusst eingeblendete Tabelle wieder aus
-  return { order, hidden, custom, defaults: 2 };
+  // v1.19.0b10: Module ausgeschalteter Bereiche nicht anzeigen (Reihenfolge bleibt gespeichert)
+  const modOk = (id) => !STATS_MODULE[id] || modOn(STATS_MODULE[id]);
+  return { order: order.filter(modOk), hidden, custom, defaults: 2 };
 }
 // v1.18.0 (Rückmeldung Betreiber 20.11.2026: Ehrentafel nach Update wieder verschoben): Anordnung + eigene Module
 // liegen jetzt serverseitig im HA-Benutzerprofil (frontend/user_data, je HA-Benutzer). Grund: localStorage gehört nur
@@ -4910,7 +4922,7 @@ class SmoobuStatsCard extends SmoobuCard {
     // Modul 3: Saison-Matrix Monate × Jahre (nur Werkbank)
     const layout = statsLayout();
     // v1.18.0: „Bewertung & Empfehlung“ auch in „Einfach“ (am Handy die wichtigste Handlungsanweisung)
-    const visible = simple ? (layout.hidden.includes("empfehlung") ? [] : ["empfehlung"]) : layout.order.filter((id) => !layout.hidden.includes(id));
+    const visible = simple ? (layout.hidden.includes("empfehlung") || !modOn("preise") ? [] : ["empfehlung"]) : layout.order.filter((id) => !layout.hidden.includes(id));
     let matrix = null;
     if (visible.includes("saison")) {
       const since = Math.max(Number(this._config.matrix_since) || firstYear, ty - 10);
@@ -5590,7 +5602,7 @@ const DEFAULT_PAGES = [
   // dorthin – so bleiben bestehende Dashboards anderer Nutzer ohne Anpassung funktionsfähig
   { name: "Übersicht", path: "smoobu" }, { name: "Kalender", path: "smoobu-kalender", legacy: "smoobu-belegung" },
   // v1.19.0: Reinigungsboard – nur sichtbar, wenn das Dashboard eine Ansicht „smoobu-reinigung“ hat
-  { name: "Reinigung", path: "smoobu-reinigung", optional: true },
+  { name: "Reinigung", path: "smoobu-reinigung", optional: true, module: "reinigung" },
   { name: "Buchungen", path: "smoobu-buchungen" }, { name: "Finanzen", path: "smoobu-finanzen" },
   // Statistik-Werkbank (Teilschritt 2): optional = Reiter erscheint nur, wenn das Dashboard eine Ansicht
   // mit diesem Pfad hat (die Seite selbst kommt in Teilschritt 5) – so entsteht vorher kein toter Link
@@ -5688,7 +5700,7 @@ class SmoobuHeaderCard extends SmoobuCard {
     const rights = rightsOf(allApartment(info));
     // Alte Pfade auflösen (z. B. smoobu-belegung → smoobu-kalender, v1.18.0b8), nur wenn das Dashboard
     // die neue Ansicht nicht kennt, die alte aber schon
-    const pages = (this._config.pages || []).map((p) => (p.legacy && known && !known.has(p.path) && known.has(p.legacy) ? { ...p, path: p.legacy } : p)).filter((p) => (!p.optional || !known || known.has(p.path))
+    const pages = (this._config.pages || []).map((p) => (p.legacy && known && !known.has(p.path) && known.has(p.legacy) ? { ...p, path: p.legacy } : p)).filter((p) => !p.module || modOn(p.module)).filter((p) => (!p.optional || !known || known.has(p.path))
       && (p.path === "smoobu" ? rights.has("belegung_sehen") : pageAllowed(p.path, rights)));
     const home = this._config.home?.path && !window.__smoobuFocus ? `<a class="home" data-href="${esc(this.href(this._config.home.path))}" title="${esc(t("Zurück zu"))} ${esc(this._config.home.name || "")}">← ${esc(t(this._config.home.name || "Zurück"))}</a><span class="hsep"></span>` : "";
     const tabs = home + pages.map((p) => `<a class="${p.path === here ? "on" : ""}" data-href="${esc(this.href(p.path))}">${p.icon && ICON_SVG[p.icon] ? `${ICON_SVG[p.icon]}<span class="lbl">${esc(t(p.name))}</span>` : esc(t(p.name))}${p.badge === "nachrichten" && open ? `<i>${open}</i>` : ""}</a>`).join("");
@@ -5785,7 +5797,7 @@ const SET_FIELD_TAB = (key) => {
   if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key) || key.startsWith("ai_")) return "assistent";
   if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels"].includes(key)) return "provisionen";
   if (key.startsWith("cost_") || key.startsWith("lastminute_") || ["channel_markups", "genius_discount", "genius_share", "cleaning_wages"].includes(key)) return "kosten";
-  if (["user_roles", "default_role", "settings_users", "role_rights", "custom_roles"].includes(key)) return "rechte";
+  if (["user_roles", "default_role", "settings_users", "role_rights", "custom_roles", "focus_roles"].includes(key)) return "rechte";
   if (key.startsWith("cleaning_")) return "benachrichtigungen";
   return "allgemein";
 };
@@ -5973,7 +5985,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Warten in der Ruhezeit", waits.length ? waits.map((k) => `<span class="chip" aria-pressed="true">${esc(t((PUSH_INFO[k] || [k])[0]))}</span>`).join(" ") : `<span class="muted">${t("keine – alle kommen sofort")}</span>`,
           "Einstellbar je Push-Art („Hält Ruhezeit ein“). Dringende Vorschläge und Bestätigungen kommen immer sofort.")}</div></div>`;
     const none = meta.handys.length ? "" : `<div class="note">${t("Kein Handy mit HA-App gefunden (notify.mobile_app_…).")}</div>`;
-    return none + groups + this.cleaningPush(meta) + quiet;
+    return none + groups + (d.module_reinigung !== false ? this.cleaningPush(meta) : "") + quiet;
   }
   // v1.19.0: Reinigungsboard – Push an die zugewiesene Person (bei Zuweisung + Vorabend), Handy je HA-Benutzer
   cleaningPush(meta) {
@@ -6254,13 +6266,16 @@ class SmoobuSettingsCard extends SmoobuCard {
     const days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     const wJan = HEAT_PROMILLE[0] / 31;
     const dist = MONTHS_SHORT.map((m, i) => `${t(m)} ${num((HEAT_PROMILLE[i] / days[i]) / wJan * 100, 0)} %`).join(" · ");
-    return `<div class="note">${t("Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.")}</div>
+    // v1.19.0b10: Module – Kosten-Teil nur mit Modul Kosten, Aufschläge/Genius/Last-Minute nur mit Modul Preise,
+    // Stundenlöhne nur mit Modul Reinigung (Entwurf, damit das Umschalten sofort wirkt)
+    const ko = d.module_kosten !== false, pr = d.module_preise !== false, rn = d.module_reinigung !== false;
+    const costHtml = !ko ? `<div class="note">${t("Modul „Kosten & Deckungsbeitrag“ ist aus (Reiter Allgemein & Abruf → Module).")}</div>` : `<div class="note">${t("Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.")}</div>
       ${this.billsBlock(meta)}
       <div class="grp" data-neu="reinigungslohn"><div class="gh"><div class="grow"><b>${t("Je Aufenthalt")}${neuBadge("opt-reinigungslohn")}</b></div></div><div class="gb">
         ${this.fld("Reinigungszeit (Standard)", this.numIn("cost_cleaning_minutes", 0, 600, 5, "min"), "", "cost_cleaning_minutes")}
         ${this.fld("Stundenlohn Reinigung (Standard)", this.numIn("cost_cleaning", 0, 1000, 0.5, "€/h"),
           `${t("Reinigung je Aufenthalt")} = ${num((Number(d.cost_cleaning_minutes) || 0) / 60 * (Number(d.cost_cleaning) || 0), 2)} € · ${t("gilt, wenn für die Person kein eigener Lohn hinterlegt ist")}`, "cost_cleaning")}
-        ${(meta.reinigungskraefte || []).map((u, i, all) => this.fld(`${t("Stundenlohn")} · ${u.name}`,
+        ${(rn ? meta.reinigungskraefte || [] : []).map((u, i, all) => this.fld(`${t("Stundenlohn")} · ${u.name}`,
           `<input type="number" data-wage="${esc(u.id)}" min="0" max="500" step="0.5" value="${esc(d.cleaning_wages?.[u.id] ?? "")}" placeholder="${esc(num(Number(d.cost_cleaning) || 0, 2))}"><span class="unit">€/h</span>`,
           i === all.length - 1 ? "Leer = Standard. Gilt für Reinigungen, die die Person laut Reinigungsboard erledigt hat oder die ihr zugewiesen sind." : "",
           i === all.length - 1 ? "cleaning_wages" : "")).join("")}
@@ -6278,7 +6293,8 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Netzstrompreis", this.numIn("cost_grid_price", 0, 200, 0.01, "ct/kWh"), "", "cost_grid_price")}
         ${this.fld("Wert PV-Strom", this.numIn("cost_pv_value", 0, 200, 0.01, "ct/kWh"), "", "cost_pv_value")}
         ${this.fld("Netzanteil je Monat", `<div class="chips">${months}</div>`, "Netzbezug ÷ Hausverbrauch, z. B. aus dem Energie-Dashboard.", "cost_grid_share")}</div></div>
-      ${this.powerBlock(meta)}${this.meterBlock(meta, "wasser")}${this.meterBlock(meta, "heizung")}${this.measureBlock(meta)}
+      ${this.powerBlock(meta)}${this.meterBlock(meta, "wasser")}${this.meterBlock(meta, "heizung")}${this.measureBlock(meta)}`;
+    const priceHtml = !pr ? "" : `
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Aufschläge je Kanal")}</b>
         <span class="sub">${t("Wie im Smoobu-Preistool: Kanalpreis = Basispreis + Aufschlag. Grundlage für Preisuntergrenzen und Empfehlungen.")}</span></div></div>
       <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Aufschlag")}</th><th></th></tr></thead><tbody>${mk}</tbody></table></div>
@@ -6298,6 +6314,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         <span class="sub">${t("Standard: kein Rabatt. Nur Lücken zwischen zwei Gästen oder Nächte in schwach gebuchten Monaten bekommen einen Vorschlag – nie unter der Untergrenze.")}</span></div></div><div class="gb">
         ${this.fld("Last-Minute-Fenster", this.numIn("lastminute_days", 1, 14, 1, "Tage"), "So viele Tage vor Anreise gilt eine freie Nacht als Last-Minute.", "lastminute_days")}
         ${this.fld("Höchster Rabatt", this.numIn("lastminute_max_discount", 0, 30, 1, "%"), "", "lastminute_max_discount")}</div></div>`;
+    return costHtml + priceHtml;
   }
   // v1.18.0: Benutzerrollen – nur Admins vergeben Rollen; alle sehen die Übersicht Rolle × Recht
   // v1.19.0 (Wunsch Betreiber 20.11.2026): Rollenkonfigurator – Admins setzen die Rechte je Rolle per Häkchen,
@@ -6477,8 +6494,16 @@ class SmoobuSettingsCard extends SmoobuCard {
       value="${esc(d.apartment_codes[w.id] || "")}" placeholder="${esc(w.auto)}">`, `${t("Leer = automatisch")} (${w.auto})`, `apartment_codes.${w.id}`)).join("");
     const board = `<div class="grp"><div class="gh"><div class="grow"><b>${t("Aufgaben-Board „Wartet auf dich“")}</b>
         <span class="sub">${t("Welche Kategorien in der Übersicht erscheinen. Erledigt/Später gilt für alle Benutzer.")}</span></div></div>
-      <div class="gb">${this.pick("task_categories", TASK_CATS.map(([k]) => k), (k) => t(Object.fromEntries(TASK_CATS)[k] || k))}${this.err("task_categories")}</div></div>`;
-    return `${board}${this.doorBlock(meta)}<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
+      <div class="gb">${this.pick("task_categories", TASK_CATS.map(([k]) => k).filter((k) => !TASK_MODULE[k] || d[`module_${TASK_MODULE[k]}`] !== false),
+        (k) => t(Object.fromEntries(TASK_CATS)[k] || k))}${this.err("task_categories")}</div></div>`;
+    // v1.19.0b10 (Wunsch Betreiber 21.11.2026): Module abschaltbar – aus = Seiten, Blöcke, Pushes und Aufgaben weg,
+    // Hintergrund-Abläufe stoppen, gespeicherte Daten bleiben. KI-Assistent und Türcodes haben eigene Schalter.
+    const mods = `<div class="grp" data-neu="module"><div class="gh"><div class="grow"><b>${t("Module")}${neuBadge("opt-module")}</b>
+        <span class="sub">${t("Ausgeschaltete Module verschwinden aus Dashboard, Einstellungen und Pushes. Gespeicherte Daten bleiben erhalten.")}</span></div></div>
+      <div class="gb">${this.fld("Reinigung", this.sw("module_reinigung", "Reinigung"), "Reinigungsboard, Reinigung in den Buchungsdetails, Reinigungs-Pushes und -Aufgaben, Statistik-Modul. Aus: Reinigungskosten nach Standardlohn.", "module_reinigung")}
+        ${this.fld("Kosten & Deckungsbeitrag", this.sw("module_kosten", "Kosten & Deckungsbeitrag"), "Variable Kosten, Deckungsbeitrag in Finanzen und Statistik, Zählermessung, Nebenkosten-Upload. Aus: nur Umsatz und Provisionen.", "module_kosten")}
+        ${this.fld("Preise & Empfehlungen", this.sw("module_preise", "Preise & Empfehlungen"), "Bewertung & Empfehlung, Preis- und Last-Minute-Aufgaben, Aufschläge, Genius und Last-Minute-Einstellungen. Preise im Kalender setzen bleibt möglich.", "module_preise")}</div></div>`;
+    return `${mods}${board}${this.doorBlock(meta)}<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
         ${this.fld("Webhook (Echtzeit)", this.sw("use_webhook", "Webhook"), "Smoobu meldet Änderungen sofort über Nabu Casa.")}
         ${this.fld("Abfrageintervall", this.numIn("scan_interval", 1, 120, 1, "min"), "Zusätzlicher Abgleich neben dem Webhook.", "scan_interval")}
         ${this.fld("Tage Rückblick", this.numIn("days_back", 0, 365, 1, "Tage"), "", "days_back")}
@@ -6500,11 +6525,13 @@ class SmoobuSettingsCard extends SmoobuCard {
     const { meta } = res;
     const tab = this._state.tab;
     const errTabs = new Set(Object.keys(this._state.errors).map((k) => SET_FIELD_TAB(k.split(".")[0])));
-    const tabs = SET_TABS.map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
+    // v1.19.0b10: Reiter „Kosten & Preise“ nur, solange eines der beiden Module an ist
+    const hideCost = this._draft.module_kosten === false && this._draft.module_preise === false;
+    const tabs = SET_TABS.filter(([k]) => k !== "kosten" || !hideCost).map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
     const konten = res.konten.length > 1 ? `<select data-entry>${res.konten.map((k) => `<option value="${esc(k.entry_id)}" ${k.entry_id === res.entry_id ? "selected" : ""}>${esc(k.title)}</option>`).join("")}</select>` : "";
-    const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "kosten" ? this.tabCost(meta)
+    const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "kosten" && !hideCost ? this.tabCost(meta)
       : tab === "rechte" ? this.tabRights(meta)
-      : tab === "allgemein" ? this.tabGeneral(meta) : this.tabPush(meta);
+      : tab === "allgemein" || tab === "kosten" ? this.tabGeneral(meta) : this.tabPush(meta);
     const n = this.dirty ? Object.keys(this.changes()).length : 0;
     const status = this._state.saving ? t("Speichere … die Integration lädt danach neu.")
       : n ? `${n} ${t(n === 1 ? "ungespeicherte Änderung" : "ungespeicherte Änderungen")}` : t("Alles gespeichert.");

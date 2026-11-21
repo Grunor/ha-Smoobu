@@ -216,6 +216,18 @@ def _shots(base: str, token: str, set_options) -> list[str]:
         page.wait_for_timeout(500)
         page.locator(card_settings).locator('[data-neu="saisons"]').screenshot(path=str(OUT / "einstellungen_saisons.png"))
         done.append("einstellungen_saisons.png")
+        # v1.19.0b10: Module (abschaltbar) und Fokus-Modus
+        page.locator(card_settings).locator('[data-neu="module"]').screenshot(path=str(OUT / "einstellungen_module.png"))
+        done.append("einstellungen_module.png")
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", [card_settings, {"tab": "rechte"}, 1180])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-settings-card')?.shadowRoot;"
+                               " return r && r.querySelector('[data-neu=fokus]'); }", timeout=20000)
+        page.wait_for_timeout(400)
+        page.locator(card_settings).locator('[data-neu="fokus"]').screenshot(path=str(OUT / "einstellungen_fokus.png"))
+        done.append("einstellungen_fokus.png")
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", [card_settings, {"tab": "allgemein"}, 1180])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-settings-card')?.shadowRoot;"
+                               " return r && r.querySelector('[data-neu=saisons]'); }", timeout=20000)
 
         # v1.19.0: Türcodes in den Einstellungen (Allgemein) – ein Schloss als Beispiel (Z-Wave JS, Entität erfunden)
         page.evaluate("([t, c, w]) => showCard(t, c, w)", [card_settings, {"tab": "allgemein"}, 1180])

@@ -164,6 +164,11 @@ FOCUS_PAGES = ("smoobu", "smoobu-kalender", "smoobu-reinigung", "smoobu-buchunge
 _CLEANING_ONLY = frozenset({"belegung_sehen", "reinigung", "reinigung_zuweisen"})
 
 
+def module_on(options: Any, name: str) -> bool:
+    """Modul an? Option `module_<name>` (Standard an). Module: reinigung, kosten, preise (const.MODULES)."""
+    return bool((options or {}).get(f"module_{name}", True))
+
+
 def focus_roles(options: Any) -> dict[str, str]:
     """{Rolle: Startseite} der Fokus-Rollen (gespeichert oder Standard); unbekannte Rollen fallen weg."""
     o = options or {}
@@ -191,7 +196,8 @@ def focus_of(user: Any, options: Any) -> dict[str, Any] | None:
     start = cfg[role]
     if not start:
         have = rights_of(user, options)
-        start = f"{dash}/smoobu-reinigung" if have <= _CLEANING_ONLY and have & {"reinigung", "reinigung_zuweisen"} else f"{dash}/smoobu"
+        start = (f"{dash}/smoobu-reinigung" if module_on(options, "reinigung") and have <= _CLEANING_ONLY
+                 and have & {"reinigung", "reinigung_zuweisen"} else f"{dash}/smoobu")
     sdash = "/" + start.strip("/").split("/")[0]
     # erlaubt: alle Smoobu-Seiten im Dashboard der Startseite (Präfix „…/smoobu“ deckt smoobu-* ab) + Startseite
     return {"start": start, "erlaubt": sorted({f"{sdash}/smoobu", start}), "rolle": role}

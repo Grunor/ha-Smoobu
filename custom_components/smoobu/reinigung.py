@@ -296,8 +296,8 @@ class CleaningBoard:
         return " · ".join(p for p in parts if p)
 
     async def _push(self, user_id: str, item: dict[str, Any], why: str) -> None:
-        if not self.opts.get(CONF_CLEANING_NOTIFY, True):
-            return
+        if not self.opts.get(CONF_CLEANING_NOTIFY, True) or not rechte.module_on(self.opts, "reinigung"):
+            return  # v1.19.0b10: auch bei ausgeschaltetem Modul keine Pushes
         phone = self._phone(user_id)
         notifier = getattr(self.c, "notifier", None)
         if not phone or notifier is None:

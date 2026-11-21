@@ -149,3 +149,32 @@ async def test_fokus_modus(hass, setup, hass_ws_client, hass_read_only_access_to
     adm = await hass_ws_client(hass)
     await adm.send_json({"id": 1, "type": "smoobu/focus"})
     assert (await adm.receive_json())["result"] == {"aktiv": False}
+
+
+async def test_module_abschaltbar(hass, setup, hass_ws_client):  # noqa: F811
+    """v1.19.0b10: Module Reinigung, Kosten, Preise abschaltbar (Standard an)."""
+    from custom_components.smoobu import settings
+
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    assert all(settings.current(entry)[f"module_{m}"] for m in ("reinigung", "kosten", "preise"))
+    vals, err = settings.validate(hass, entry, {"module_reinigung": False, "module_kosten": False, "module_preise": False}, None)
+    assert not err
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "module_reinigung": False, "module_kosten": False,
+                                                          "module_preise": False, "task_categories": ["nachrichten", "reinigung", "preise", "lastminute", "luecken"]})
+    await hass.async_block_till_done()
+    ws = await hass_ws_client(hass)
+    await ws.send_json({"id": 1, "type": "smoobu/info"})
+    info = (await ws.receive_json())["result"]
+    assert info["wohnungen"][0]["module"] == {"reinigung": False, "kosten": False, "preise": False}
+    await ws.send_json({"id": 2, "type": "smoobu/cleaning/get"})
+    assert (await ws.receive_json())["error"]["code"] == "module_off"
+    await ws.send_json({"id": 3, "type": "smoobu/tasks/get"})
+    assert [k for k in (await ws.receive_json())["result"]["kategorien"] if k != "einrichtung"] == ["nachrichten", "luecken"]
+    await ws.send_json({"id": 4, "type": "smoobu/stats", "mode": "meta"})
+    ids = {k["id"] for k in (await ws.receive_json())["result"]["kennzahlen"]}
+    assert "db" not in ids and "netto" in ids
+    await ws.send_json({"id": 5, "type": "smoobu/nebenkosten/list", "entry_id": entry.entry_id})
+    assert (await ws.receive_json())["success"] is False
+    # Fokus-Startseite ohne Modul Reinigung: Übersicht
+    u = SimpleNamespace(id="u", is_admin=False)
+    assert rechte.focus_of(u, {**entry.options, "user_roles": {"u": "reinigung"}})["start"].endswith("/smoobu")

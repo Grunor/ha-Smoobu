@@ -54,6 +54,7 @@ from .const import (
 from .analytics import build_records, is_cancelled
 from . import energie
 from .const import CONF_CLEANING_WAGES
+from .rechte import module_on as rechte_module_on
 from .deckungsbeitrag import apply as db_apply
 from .deckungsbeitrag import build_table as db_build_table
 from .deckungsbeitrag import config_from_options as cost_config_from_options
@@ -81,6 +82,11 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class _SkipMeasure(Exception):
+    """Messung bewusst übersprungen (Modul Kosten aus)."""
+
 
 # Wohnungsdetails ändern sich selten → nur alle 24 h neu laden.
 APARTMENT_REFRESH = timedelta(hours=24)
@@ -272,6 +278,8 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         """Reinigung je Buchung = Standardzeit × Stundenlohn der Person, die (laut Board) gereinigt hat bzw.
         zugewiesen ist. Ohne Board-Eintrag oder ohne eigenen Lohn: Standard-Stundenlohn (kein Eintrag nötig)."""
         board = getattr(self, "cleaning", None)
+        if not rechte_module_on(self.config_entry.options, "reinigung"):
+            return {}  # v1.19.0b10: Modul Reinigung aus → Standard-Reinigungskosten je Aufenthalt
         wages = {str(k): float(v) for k, v in (self.config_entry.options.get(CONF_CLEANING_WAGES) or {}).items() if v not in (None, "")}  # 0 €/h erlaubt
         if board is None:
             return {}
@@ -371,8 +379,12 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         # Fehler der Messung sind nie fatal: dann gelten die konstanten Werte.
         energy: dict[int, dict[str, Any]] = {}
         try:
+            if not rechte_module_on(self.config_entry.options, "kosten"):
+                raise _SkipMeasure  # v1.19.0b10: Modul Kosten aus → keine Recorder-Abfragen
             energy = await energie.measure_all(self.hass, self._energy, dict(self.config_entry.options), records,
                                            cost_cfg, self.default_checkin, self.default_checkout)
+        except _SkipMeasure:
+            pass
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Smoobu: Stromkosten aus Messwerten nicht berechnet: %s", err)
         # v1.19.0: Reinigungskosten je Buchung nach Stundenlohn der Person aus dem Reinigungsboard

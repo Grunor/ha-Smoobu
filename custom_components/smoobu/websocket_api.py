@@ -69,7 +69,10 @@ from .reinigung import ACTIONS as CLEANING_ACTIONS, CleaningError
 from .stats import DIMENSIONS, MEASURES, gaps as stats_gaps, pace as stats_pace, query as stats_query
 from .stats import ranking as stats_ranking, service as stats_service, storno as stats_storno
 from .empfehlung import recommend as stats_recommend
-from .const import CONF_TASK_CATEGORIES, DEFAULT_TASK_CATEGORIES, DOMAIN, TASK_CATEGORIES, TASK_RIGHTS
+from .const import CONF_TASK_CATEGORIES, DEFAULT_TASK_CATEGORIES, DOMAIN, MODULES, TASK_CATEGORIES, TASK_RIGHTS
+
+# v1.19.0b10: Aufgaben-Kategorien, die zu einem abschaltbaren Modul gehören
+TASK_MODULES = {"reinigung": "reinigung", "preise": "preise", "lastminute": "preise"}
 from .coordinator import SmoobuCoordinator
 from .models import strip_html
 from . import settings as smoobu_settings
@@ -247,6 +250,8 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
                     "aktualisiert": c.data.last_update.isoformat() if c.data and c.data.last_update else None,
                     # v1.18.0: Rolle und Rechte des angemeldeten Benutzers (Karten blenden danach aus)
                     "zugriff": rechte.describe(connection.user, c.config_entry.options),
+                    # v1.19.0b10: abschaltbare Module (Karten blenden Seiten/Blöcke aus)
+                    "module": {m: rechte.module_on(c.config_entry.options, m) for m in MODULES},
                 }
             )
     # v1.17.0: eigene Kürzel aus den Optionen, sonst automatisch (eindeutig über alle Konten)
@@ -336,7 +341,10 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
 async def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if msg["mode"] == "meta":
         connection.send_result(msg["id"], {
-            "kennzahlen": [{"id": k, "art": v[0], "name": v[1], "einheit": v[2]} for k, v in MEASURES.items()],
+            "kennzahlen": [{"id": k, "art": v[0], "name": v[1], "einheit": v[2]} for k, v in MEASURES.items()
+                           # v1.19.0b10: ohne Modul Kosten keine Deckungsbeitrags-Kennzahlen
+                           if k not in ("var_kosten", "db", "db_pro_nacht", "db_revpar")
+                           or any(rechte.module_on(c.config_entry.options, "kosten") for c in _coordinators(hass))],
             "dimensionen": list(DIMENSIONS),
         })
         return
@@ -968,6 +976,8 @@ async def ws_tasks_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
         if "reinigung" not in own and int(opts.get("task_categories_rev", 0)) < 3:
             own.insert(1 if own and own[0] == "nachrichten" else 0, "reinigung")
         for cat in own:
+            if cat in TASK_MODULES and not rechte.module_on(opts, TASK_MODULES[cat]):
+                continue  # v1.19.0b10: Modul aus → keine Aufgaben dieser Kategorie
             if cat not in cats:
                 cats.append(cat)
     connection.send_result(msg["id"], {"zustand": state, "kategorien": cats})
@@ -1096,6 +1106,9 @@ def _cleaning_guard(connection, msg, coords, *rights: str) -> bool:
         if c.cleaning is None:
             connection.send_error(msg["id"], "not_loaded", "Reinigungsboard nicht geladen")
             return False
+        if not rechte.module_on(c.config_entry.options, "reinigung"):  # v1.19.0b10
+            connection.send_error(msg["id"], "module_off", "Modul Reinigung ist ausgeschaltet")
+            return False
     return True
 
 
@@ -1206,6 +1219,8 @@ def _bills(hass: HomeAssistant, entry_id: str, user: Any):
     c = getattr(entry, "runtime_data", None) if entry and entry.domain == DOMAIN else None
     if c is None or getattr(c, "bills", None) is None or not rechte.allowed(user, entry.options, "einstellungen") or user is None:
         return None
+    if not rechte.module_on(entry.options, "kosten"):  # v1.19.0b10: Modul Kosten aus
+        return None
     return c.bills
 
 
@@ -1295,6 +1310,9 @@ def ws_energy_vacancy(hass: HomeAssistant, connection: websocket_api.ActiveConne
         connection.send_error(msg["id"], "not_found", str(err))
         return
     if not _guard(connection, msg, [c for c, _ in pairs], "finanzen"):
+        return
+    if not any(rechte.module_on(c.config_entry.options, "kosten") for c, _ in pairs):  # v1.19.0b10
+        connection.send_error(msg["id"], "module_off", "Modul Kosten ist ausgeschaltet")
         return
     out: dict[str, dict[str, Any]] = {}
     modes = set()

@@ -75,6 +75,7 @@ from .reinigung import (
     DEFAULT_CLEANING_REMIND_TIME,
 )
 from .const import (
+    MODULES,
     CONF_TASK_CATEGORIES,
     DEFAULT_TASK_CATEGORIES,
     TASK_CATEGORIES,
@@ -255,6 +256,8 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
                            if r["art"] == "standard" and rid not in rechte.LOCKED_ROLES},
         CONF_CUSTOM_ROLES: {rid: {"name": r["name"], "rechte": sorted(r["rechte"])}
                             for rid, r in rechte.roles(o).items() if r["art"] == "eigen"},
+        # Module (v1.19.0b10): abschaltbar, Standard an
+        **{f"module_{m}": rechte.module_on(o, m) for m in MODULES},
         # Fokus-Modus (v1.19.0b7): {Rolle: Startseite} – Rollen, die in HA nur Smoobu sehen
         CONF_FOCUS_ROLES: rechte.focus_roles(o),
         # Reinigungsboard (v1.19.0): Pushes, Vorabend-Erinnerung, Handy je HA-Benutzer
@@ -417,7 +420,8 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
         # v1.18.0: Rollen × Rechte und eigene Rolle (Anzeige im Reiter „Benutzer & Rechte“)
         "rollen": rechte.matrix(entry.options),
         # v1.19.0b7: Fokus-Modus – Dashboard der Smoobu-Seiten und auswählbare Startseiten
-        "fokus": {"dashboard": rechte.focus_dashboard(entry.options), "seiten": list(rechte.FOCUS_PAGES)},
+        "fokus": {"dashboard": rechte.focus_dashboard(entry.options),
+                  "seiten": [p for p in rechte.FOCUS_PAGES if p != "smoobu-reinigung" or rechte.module_on(entry.options, "reinigung")]},
         # v1.19.0: Benutzer mit Recht „reinigung“ (Handy je Person im Reiter Benachrichtigungen)
         "reinigungskraefte": await coordinator.cleaning.cleaners() if coordinator and getattr(coordinator, "cleaning", None) else [],
         "zugriff": rechte.describe(user, entry.options),
@@ -802,6 +806,7 @@ FIELDS: dict[str, Any] = {
     CONF_ROLE_RIGHTS: _role_rights,
     CONF_CUSTOM_ROLES: _custom_roles,
     CONF_FOCUS_ROLES: _focus,
+    **{f"module_{m}": bool for m in MODULES},
     CONF_CLEANING_NOTIFY: bool,
     CONF_CLEANING_REMIND_TIME: _hhmm,
     CONF_CLEANING_PHONES: _phones,
