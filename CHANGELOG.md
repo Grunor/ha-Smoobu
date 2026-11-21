@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b11 – 2026-11-21
+
+### Geändert / Changed
+- **Schnelleres Laden der Karten:** Die Kartendatei wird komprimiert ausgeliefert (gzip, ca. 170 statt 570 KB; wird beim Start einmalig erzeugt) und darf im Browser zwischengespeichert werden (Adresse enthält die Version, nach Updates lädt die neue Datei trotzdem). Spürbar vor allem am Handy und über Nabu Casa.
+- **Faster card loading:** the card file is served compressed (gzip, about 170 instead of 570 KB; created once at startup) and may be cached by the browser (the URL contains the version, so updates still load the new file). Noticeable mainly on phones and via Nabu Casa.
+
 ## 1.19.0b10 – 2026-11-21
 
 ### Neu / New

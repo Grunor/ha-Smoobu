@@ -3,3 +3,5 @@ __pycache__/
 .pytest_cache/
 venv/
 *.whl
+custom_components/smoobu/www/*.gz
+custom_components/smoobu/www/*.tmp
