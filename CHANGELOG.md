@@ -8,6 +8,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b1 – 2026-11-21
+
+> Beta / Pre-release
+
 **Deutsch**
 - **Rollenkonfigurator** (Einstellungen → Benutzer & Rechte, nur Admins): Rechte je Rolle per Häkchen einstellbar, „↺ Standard“ je Rolle, **eigene Rollen** anlegen, umbenennen, löschen (max. 10). „Kein Zugriff“ bleibt fest. Gespeichert werden nur Abweichungen vom Standard (neue Optionen `role_rights`, `custom_roles`). Kombinationen wie „Preise ändern“ ohne „Finanzen sehen“ sind erlaubt, die Karte zeigt dazu einen Hinweis. Gelöschte eigene Rolle → betroffene Benutzer bekommen die Standardrolle; ist sie selbst Standardrolle, wird das Speichern abgelehnt
 - Neue Rechte **„Belegung sehen (nur Vorname des Gastes)“**, **„Reinigung übernehmen und abhaken“**, **„Reinigung zuweisen“**. „Gästedaten und Buchungen sehen“ schließt „Belegung sehen“ ein. Übersicht und Kalender brauchen jetzt nur noch „Belegung sehen“; ohne „Gästedaten“ liefert das Backend vom Gast nur den Vornamen (keine Kontaktdaten, Notizen, Smoobu-Rohdaten; Suche nur im Vornamen)
