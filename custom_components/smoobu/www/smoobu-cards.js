@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.0b2";
+const SMOOBU_CARDS_VERSION = "1.19.0b3";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -2875,16 +2875,42 @@ class SmoobuBookingDialog extends HTMLElement {
       ${x.statisch ? `<span class="badge" title="${esc(t("Fester Code der Wohnung, änderbar in den Einstellungen"))}">${t("statisch")}</span>`
         : x.darf_erneuern ? `<button class="lnk" data-act="drenew">${t("Neu erzeugen")}</button>` : ""}</div>`;
   }
-  // v1.19.0: Reinigung nach diesem Aufenthalt – Person, Status und gebuchte Dauer (Standard laut Einstellungen)
+  // v1.19.0: Reinigung nach diesem Aufenthalt – Person, Status und gebuchte Dauer (Standard laut Einstellungen).
+  // Korrektur 21.11.2026 (Wunsch Betreiber): hier dieselben Aktionen wie auf dem Reinigungsboard –
+  // zuweisen (Recht „Reinigung zuweisen“), übernehmen/abgeben, erledigt/wieder offen und Dauer (Recht „Reinigung“).
   cleanHtml() {
     const c = this.clean, x = c?.item;
     if (!x) return "";
-    const mine = !x.zugewiesen || x.zugewiesen === c.ich;
+    const me = c.ich, done = x.status === "erledigt";
+    const mine = !x.zugewiesen || x.zugewiesen === me;
     const edit = c.darf_zuweisen || (c.darf_uebernehmen && mine);
-    return `<div class="row" style="margin-top:8px;align-items:center;flex-wrap:wrap">
-      <span>🧹 ${t("Reinigung")} ${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)} · ${x.zugewiesen ? esc(x.zugewiesen_name || "?") : t("nicht zugewiesen")}${x.status === "erledigt" ? ` · ✓ ${t("erledigt")}` : ""}</span>
+    const users = c.benutzer || [];
+    // Person: Auswahl für Zuweisende (auch nachträglich), sonst Anzeige
+    const who = c.darf_zuweisen && !done
+      ? `<select data-k="cassign" title="${t("Zuweisen")}"><option value="">${t("– niemand –")}</option>${users.map((u) =>
+        `<option value="${esc(u.id)}" ${x.zugewiesen === u.id ? "selected" : ""}>${esc(u.name)}${u.handy ? "" : " ⚠"}</option>`).join("")}</select>`
+      : `<span class="badge ${x.zugewiesen === me ? "good" : x.zugewiesen ? "" : "warn"}">👤 ${x.zugewiesen ? esc(x.zugewiesen === me ? t("Du") : x.zugewiesen_name || "?") : t("nicht zugewiesen")}</span>`;
+    const acts = [];
+    if (!done && c.darf_uebernehmen && !x.zugewiesen) acts.push(`<button class="btn flat" data-act="cl-uebernehmen">${t("Übernehmen")}</button>`);
+    if (!done && x.zugewiesen === me) acts.push(`<button class="lnk" data-act="cl-abgeben">${t("Abgeben")}</button>`);
+    if (edit) acts.push(done ? `<button class="lnk" data-act="cl-offen">↺ ${t("Wieder offen")}</button>`
+      : `<button class="btn" data-act="cl-erledigt">✓ ${t("Erledigt")}</button>`);
+    const doneTxt = done ? ` · ✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""}` : "";
+    return `<div class="row" style="margin-top:8px;align-items:center;flex-wrap:wrap;gap:8px">
+      <span>🧹 ${t("Reinigung")} ${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}${doneTxt}</span>${who}
       ${edit ? `<label>${t("Dauer")} <input type="number" data-k="cmin" min="1" max="600" step="5" value="${x.minuten ?? ""}" placeholder="${c.standard_minuten || 60}" style="width:72px"> min</label>
-        <button class="btn flat" data-act="cmin">${t("Speichern")}</button>` : `<span class="sub">${num(x.minuten || c.standard_minuten || 60)} min</span>`}</div>`;
+        <button class="btn flat" data-act="cmin">${t("Speichern")}</button>` : `<span class="sub">${num(x.minuten || c.standard_minuten || 60)} min</span>`}
+      ${acts.join("")}</div>`;
+  }
+  // Reinigung aus den Buchungsdetails ändern (gleiche Websocket-Aktion wie das Reinigungsboard)
+  async cleanSet(aktion, extra = {}) {
+    const x = this.clean?.item;
+    if (!x) return;
+    try {
+      await this.store.ws("smoobu/cleaning/set", { entry_id: x.entry_id, key: x.key, aktion, ...extra }, { cache: false });
+      toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : aktion === "zuweisen" ? t("Zugewiesen") : aktion === "dauer" ? t("Reinigungszeit gespeichert") : t("Gespeichert"));
+      this.load();
+    } catch (e) { toast(`${t("Fehler")}: ${t(e?.message || String(e))}`); }
   }
   content(d) {
     const b = d.buchung || {};
@@ -3063,6 +3089,8 @@ class SmoobuBookingDialog extends HTMLElement {
     // Entwurf mitschreiben, damit er beim Neuzeichnen (z. B. nach „Keine Antwort nötig“) nicht verloren geht
     r.querySelector('[data-k="msg"]')?.addEventListener("input", (e) => { this.draft = e.target.value; });
     r.querySelector("[data-noreply]")?.addEventListener("click", () => this.noReply(true));
+    // Reinigung zuweisen direkt in den Buchungsdetails
+    r.querySelector('[data-k="cassign"]')?.addEventListener("change", (e) => this.cleanSet("zuweisen", { benutzer_id: e.target.value || null }));
     // v1.18.0: Umbuchen – Datum/Unterkunft geändert → altes Prüfergebnis gilt nicht mehr; Preis nur merken
     r.querySelectorAll("[data-mv]").forEach((el) => el.addEventListener("change", () => {
       if (!this.move) return;
@@ -3115,13 +3143,10 @@ class SmoobuBookingDialog extends HTMLElement {
       return;
     }
     if (a === "cmin") { // v1.19.0: Reinigungszeit dieser Buchung (nur in HA, nicht in Smoobu)
-      const x = this.clean?.item, val = this.shadowRoot.querySelector('[data-k="cmin"]')?.value;
-      try {
-        await this.store.ws("smoobu/cleaning/set", { entry_id: x.entry_id, key: x.key, aktion: "dauer", minuten: val === "" ? null : Number(val) }, { cache: false });
-        toast(t("Reinigungszeit gespeichert")); this.load();
-      } catch (e) { toast(`${t("Fehler")}: ${e?.message || e}`); }
-      return;
+      const val = this.shadowRoot.querySelector('[data-k="cmin"]')?.value;
+      return this.cleanSet("dauer", { minuten: val === "" ? null : Number(val) });
     }
+    if (a.startsWith("cl-")) return this.cleanSet(a.slice(3)); // übernehmen, abgeben, erledigt, offen
     const v = (k) => this.shadowRoot.querySelector(`[data-k="${k}"]`)?.value;
     const id = this.rid;
     // v1.17.0: Zahlungsstatus – markPayment fragt nach, schreibt und meldet selbst

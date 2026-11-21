@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b3 – 2026-11-21
+
+### Neu / New
+- **Reinigung in den Buchungsdetails bearbeiten:** dieselben Aktionen wie auf dem Reinigungsboard – zuweisen (Recht „Reinigung zuweisen“), übernehmen/abgeben, erledigt/wieder offen und Reinigungszeit (Recht „Reinigung“). Gilt für Reinigungen im Zeitraum des Boards (7 Tage zurück bis 60 Tage voraus).
+- **Edit the cleaning in the booking details:** the same actions as on the cleaning board – assign ("Assign cleaning" right), take over/hand back, done/reopen and cleaning time ("Cleaning" right). Applies to cleanings within the board's range (7 days back to 60 days ahead).
+
 ### Korrigiert / Fixed
 - „Zuweisen →“ bei „Reinigung nicht zugewiesen“ leitete auf die erste Dashboard-Ansicht um, wenn die Ansicht `smoobu-reinigung` fehlte – jetzt Hinweis, wie die Seite angelegt wird.
 - "Assign →" on "Cleaning not assigned" redirected to the first dashboard view when the `smoobu-reinigung` view was missing – now shows how to add the page.
