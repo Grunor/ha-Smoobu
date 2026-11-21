@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.0b3";
+const SMOOBU_CARDS_VERSION = "1.19.0b4";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -6062,16 +6062,33 @@ class SmoobuSettingsCard extends SmoobuCard {
   // Zähler-Entitäten. Gemessen: Verbrauch je Buchung ab Vorheizstart bis Check-out aus der stündlichen HA-Statistik,
   // Leerstand separat (Fixkosten) oder anteilig, Preis fest oder aus einer Entität; Strom zusätzlich mit Netzanteil
   // stündlich aus dem Energie-Dashboard. Gemeinsame Einstellungen (Vorheizen, Leerstand) in einem eigenen Block.
+  // Korrektur 21.11.2026 (Wunsch Betreiber): Entitäten per Dropdown mit vorgefilterten Vorschlägen wählen.
+  // Grund: eine <datalist> zeigt auf iOS nur drei Treffer über der Tastatur. Das Textfeld bleibt für
+  // „Andere Entität…“ und für Werte, die nicht in der Vorschlagsliste stehen (versteckt, wenn ein Vorschlag passt).
+  entPick(attr, list, value, placeholder, width = 320) {
+    const items = list || [];
+    const hit = !value || items.some((e) => e.entity_id === value);
+    const opt = (e) => `<option value="${esc(e.entity_id)}" ${e.entity_id === value ? "selected" : ""}>${esc(e.name)}${e.unit ? ` (${esc(e.unit)})` : ""} · ${esc(e.entity_id)}</option>`;
+    return `<span class="entpick" style="display:inline-flex;flex-direction:column;gap:6px;max-width:100%">
+      <select class="entsel" style="width:${width}px;max-width:100%"><option value="" ${value ? "" : "selected"}>${t(items.length ? "– keine –" : "– keine Vorschläge –")}</option>
+        ${(() => { // passende Entitäten (Wohnung/Zweck) zuerst als eigene Gruppe
+          const top = items.filter((e) => e.passend), rest = items.filter((e) => !e.passend);
+          return top.length ? `<optgroup label="${t("Vorschläge")}">${top.map(opt).join("")}</optgroup><optgroup label="${t("Alle")} (${rest.length})">${rest.map(opt).join("")}</optgroup>`
+            : items.map(opt).join("");
+        })()}<option value="__x" ${hit ? "" : "selected"}>${t("Andere Entität…")}</option></select>
+      <input ${attr} value="${esc(value || "")}" placeholder="${esc(placeholder)}" autocomplete="off" spellcheck="false"
+        style="width:${width}px;max-width:100%;${hit ? "display:none" : ""}"></span>`;
+  }
   meterInputs(kind, meta) {
     const d = this._draft;
     const key = { strom: "cost_power_entities", wasser: "cost_water_entities", heizung: "cost_heat_entities" }[kind];
-    const list = { strom: "sm-zaehler", wasser: "sm-zwasser", heizung: "sm-zheizung" }[kind];
+    const list = { strom: meta.energie_zaehler, wasser: meta.zaehler_wasser, heizung: meta.zaehler_heizung }[kind];
     const label = { strom: "Stromzähler", wasser: "Wasserzähler", heizung: "Heizungszähler" }[kind];
     const hint = { strom: "Gesamtzähler der Wohnung (Energie, kWh oder Wh) – wie im Energie-Dashboard.",
       wasser: "Volumen (m³ oder L), Frischwasser der Wohnung.", heizung: "Wärmemengenzähler (kWh) oder Gas/Öl (m³, L) der Wohnung." }[kind];
     const apts = meta.wohnungen || [];
     return apts.map((a) => this.fld(`${t(label)}${apts.length > 1 ? ` · ${a.name}` : ""}`,
-      `<input list="${list}" data-ment="${key}|${esc(a.id)}" value="${esc(d[key]?.[a.id] || "")}" placeholder="sensor.…" style="width:320px">`,
+      this.entPick(`data-ment="${key}|${esc(a.id)}"`, list, d[key]?.[a.id] || "", "sensor.…"),
       apts.length === 1 ? hint : "", key)).join("");
   }
   srcSeg(key) {
@@ -6089,7 +6106,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const on = d.cost_power_source === "zaehler";
     const apts = meta.wohnungen || [];
     const body = !on ? "" : `${this.meterInputs("strom", meta)}
-        ${this.fld("Strompreis aus Entität", `<input list="sm-preise" data-ent="cost_price_entity" value="${esc(d.cost_price_entity || "")}" placeholder="${t("optional – sonst Netzstrompreis oben")}" style="width:320px">`,
+        ${this.fld("Strompreis aus Entität", this.entPick('data-ent="cost_price_entity"', meta.energie_preise, d.cost_price_entity || "", t("optional – sonst Netzstrompreis oben")),
           "Verlauf aus dem Recorder; davor gilt der Netzstrompreis oben. Einheit €/kWh oder ct/kWh.", "cost_price_entity")}
         ${this.fld("Netzanteil stündlich messen", this.sw("cost_grid_share_auto", "Netzanteil stündlich messen"),
           "Netzbezug ÷ Hausverbrauch je Stunde aus dem Energie-Dashboard. Aus: feste Monatswerte oben.", "cost_grid_share_auto")}
@@ -6110,7 +6127,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const body = !on ? "" : `${this.meterInputs(kind, meta)}
         ${this.fld(kind === "wasser" ? "Preis Frisch- + Abwasser" : "Preis je Einheit des Zählers", this.numIn(price, 0, 100, 0.0001, unit),
           kind === "wasser" ? "Summe aus Frisch- und Abwasser je m³ (laut Abrechnung des Versorgers)." : "z. B. €/kWh Wärme, €/m³ Gas oder €/L Heizöl – passend zur Einheit des Zählers.", price)}
-        ${this.fld("Preis aus Entität", `<input list="sm-epreise" data-ent="${pent}" value="${esc(d[pent] || "")}" placeholder="${t("optional – sonst fester Preis")}" style="width:320px">`,
+        ${this.fld("Preis aus Entität", this.entPick(`data-ent="${pent}"`, meta.preise_einheit, d[pent] || "", t("optional – sonst fester Preis")),
           "Verlauf aus dem Recorder; davor gilt der feste Preis.", pent)}
         ${kind === "heizung" ? this.fld("Zähler misst auch Warmwasser", this.sw("cost_heat_incl_hot_water", "Zähler misst auch Warmwasser"),
           "An: die geschätzten Warmwasserkosten entfallen bei gemessenen Buchungen.", "cost_heat_incl_hot_water") : ""}
@@ -6129,7 +6146,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Messung (alle Zähler)")}</b>
         <span class="sub">${t("Ab wann eine Buchung zählt und wohin der Verbrauch ohne Gast geht.")}</span></div></div><div class="gb">
       ${apts.map((a) => this.fld(`${t("Vorheizstart")}${apts.length > 1 ? ` · ${a.name}` : ""}`,
-        `<input list="sm-stempel" data-preh="${esc(a.id)}" value="${esc(d.cost_preheat_entities?.[a.id] || "")}" placeholder="${t("optional")}" style="width:320px">`,
+        this.entPick(`data-preh="${esc(a.id)}"`, meta.energie_zeitstempel, d.cost_preheat_entities?.[a.id] || "", t("optional")),
         "Zeitstempel-Sensor; nur soweit der Recorder ihn noch kennt (ältere Buchungen: Check-in − Stunden unten).", "cost_preheat_entities")).join("")}
       ${this.fld("Vorheizen vor Check-in", this.numIn("cost_preheat_hours", 0, 24, 0.5, "h"), "Ab hier zählt der Verbrauch zur Buchung, wenn kein Vorheizstart bekannt ist.", "cost_preheat_hours")}
       ${this.fld("Verbrauch im Leerstand", `<div class="seg" role="group">${[["separat", "Separat (Fixkosten)"], ["anteilig", "Anteilig auf Buchungen"]]
@@ -6395,8 +6412,9 @@ class SmoobuSettingsCard extends SmoobuCard {
     const locks = d.door_locks || {};
     const rows = (meta.wohnungen || []).map((w) => {
       const l = locks[w.id] || { typ: "kein" };
-      const ent = l.typ === "kein" ? "" : `<input list="${l.typ === "skript" ? "sm-skripte" : l.typ === "z2m" ? "" : "sm-schloesser"}" data-lock="${esc(w.id)}|entitaet"
-          value="${esc(l.entitaet || "")}" placeholder="${l.typ === "skript" ? "script.…" : l.typ === "z2m" ? t("Gerätename in Zigbee2MQTT") : "lock.…"}" style="width:240px">
+      const ent = l.typ === "kein" ? "" : `${l.typ === "z2m"
+          ? `<input data-lock="${esc(w.id)}|entitaet" value="${esc(l.entitaet || "")}" placeholder="${t("Gerätename in Zigbee2MQTT")}" style="width:240px">`
+          : this.entPick(`data-lock="${esc(w.id)}|entitaet"`, l.typ === "skript" ? meta.skripte : meta.schloesser, l.entitaet || "", l.typ === "skript" ? "script.…" : "lock.…", 240)}
         <span class="unit">${t("Code-Platz")}</span><input type="number" data-lock="${esc(w.id)}|slot_von" min="1" max="250" value="${esc(l.slot_von ?? 10)}" style="width:64px">
         <span class="unit">–</span><input type="number" data-lock="${esc(w.id)}|slot_bis" min="1" max="250" value="${esc(l.slot_bis ?? 19)}" style="width:64px">`;
       // v1.19.0b2: Code-Modus je Wohnung – Zufall je Buchung oder statischer Code (z. B. Schlüsseltresor)
@@ -6620,6 +6638,13 @@ class SmoobuSettingsCard extends SmoobuCard {
       d[key] = m; this.refreshFoot();
     }));
     mapIn("data-preh", "cost_preheat_entities");
+    // Dropdown-Vorschläge → zugehöriges Textfeld setzen (löst dessen Listener aus); „Andere…“ zeigt das Feld
+    root.querySelectorAll("select.entsel").forEach((sel) => sel.addEventListener("change", () => {
+      const inp = sel.nextElementSibling;
+      if (sel.value === "__x") { inp.style.display = ""; inp.focus(); return; }
+      inp.style.display = "none"; inp.value = sel.value;
+      inp.dispatchEvent(new Event("input"));
+    }));
     root.querySelectorAll("[data-ent]").forEach((inp) => inp.addEventListener("input", () => { d[inp.dataset.ent] = inp.value.trim() || null; this.refreshFoot(); }));
     root.querySelectorAll("[data-pavg]").forEach((b) => b.addEventListener("click", () => {
       const [key, val] = b.dataset.pavg.split("|"); d[key] = Number(val); toast(t("Übernommen – mit „Speichern“ übernehmen")); redraw();

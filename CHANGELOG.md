@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b4 – 2026-11-21
+
+### Neu / New
+- **Entitäten per Dropdown wählen** (Strom-/Wasser-/Heizungszähler, Preis-Entitäten, Vorheizstart, Schloss/Skript): Auswahlliste mit vorgefilterten Vorschlägen – passend zur Ferienwohnung (Name, Kürzel, Bereich, „FeWo“) bzw. zum Zweck (z. B. „Vorheiz“, „Strompreis“) oben unter „Vorschläge“, alle übrigen darunter; „Andere Entität…“ für freie Eingabe. Preis-Vorschläge nur noch mit Währung (kein CO₂ je kWh).
+- **Pick entities from a dropdown** (power/water/heat meters, price entities, preheat start, lock/script): list with pre-filtered suggestions – matching the holiday apartment (name, code, area, "FeWo") or the purpose (e.g. "preheat", "electricity price") on top under "Suggestions", all others below; "Other entity…" for free input. Price suggestions only with a currency (no CO₂ per kWh).
+
 ## 1.19.0b3 – 2026-11-21
 
 ### Neu / New

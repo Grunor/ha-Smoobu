@@ -157,3 +157,21 @@ async def test_statischer_code(hass, setup, aioclient_mock, hass_ws_client):  # 
     await doors.async_sync()
     r1, r2 = doors.for_booking(1), doors.for_booking(2)
     assert r1["art"] == r2["art"] == "zufall" and r1["code"] != r2["code"] and len(r1["code"]) == 6
+
+
+async def test_entitaeten_vorschlaege(hass, setup):  # noqa: F811
+    """Korrektur 21.11.2026: Dropdown-Vorschläge vorgefiltert – passende zuerst, Preise nur mit Währung."""
+    from custom_components.smoobu.settings import energy_meta
+
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    tot = {"device_class": "energy", "state_class": "total_increasing", "unit_of_measurement": "kWh"}
+    hass.states.async_set("sensor.strom_ferienwohnung", "10", {**tot, "friendly_name": "Strom Ferienwohnung"})
+    hass.states.async_set("sensor.hausverbrauch", "10", {**tot, "friendly_name": "Hausverbrauch"})
+    hass.states.async_set("sensor.co2", "300", {"unit_of_measurement": "gCO2eq/kWh"})
+    hass.states.async_set("input_number.strompreis", "0.3", {"unit_of_measurement": "€/kWh", "friendly_name": "Strompreis"})
+    hass.states.async_set("sensor.fewo_vorheizstart", "2026-11-21T10:00:00+00:00", {"device_class": "timestamp"})
+    m = energy_meta(hass, entry.runtime_data)
+    assert m["energie_zaehler"][0]["entity_id"] == "sensor.strom_ferienwohnung" and m["energie_zaehler"][0]["passend"]
+    assert not next(e for e in m["energie_zaehler"] if e["entity_id"] == "sensor.hausverbrauch")["passend"]
+    assert [e["entity_id"] for e in m["energie_preise"]] == ["input_number.strompreis"] and m["energie_preise"][0]["passend"]
+    assert m["energie_zeitstempel"][0]["entity_id"] == "sensor.fewo_vorheizstart" and m["energie_zeitstempel"][0]["passend"]

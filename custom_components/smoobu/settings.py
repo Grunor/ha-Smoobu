@@ -429,15 +429,46 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
 
 
 def energy_meta(hass: HomeAssistant, coordinator: Any) -> dict[str, Any]:
-    """Entitäten-Vorschläge (Energiezähler, Preise, Zeitstempel) und Messung je Wohnung (letzte 13 Monate)."""
-    def item(st):
-        return {"entity_id": st.entity_id, "name": st.attributes.get("friendly_name") or st.entity_id,
-                "unit": st.attributes.get("unit_of_measurement")}
+    """Entitäten-Vorschläge (Energiezähler, Preise, Zeitstempel) und Messung je Wohnung (letzte 13 Monate).
+
+    Korrektur 21.11.2026 (Wunsch Betreiber, Dropdown statt Datalist): jede Auswahl wird vorgefiltert –
+    `passend: True` markiert Entitäten, deren ID, Name oder Bereich zur Ferienwohnung passt (Wohnungsname,
+    Kürzel, „fewo“/„ferienwohnung“) bzw. zum Zweck (z. B. „vorheiz“, „strompreis“). Die Karte zeigt diese
+    zuerst als Gruppe „Vorschläge“, den Rest darunter.
+    """
+    from homeassistant.helpers import area_registry as ar, entity_registry as er
+
+    ents, areas = er.async_get(hass), ar.async_get(hass)
+    apts = coordinator.data.apartments if coordinator and coordinator.data else {}
+    words = {"fewo", "ferienwohnung", "ferienhaus", "apartment"}
+    for apt_id, apt in (apts or {}).items():
+        name = str(getattr(apt, "name", None) or (apt.get("name") if isinstance(apt, dict) else "") or "")
+        # zu allgemeine Wörter („Haus“ träfe z. B. jeden Hausverbrauch) nicht als Treffer werten
+        words |= {w for w in re.split(r"[^0-9a-zäöüß]+", name.casefold()) if len(w) >= 4} - {"haus", "house", "wohnung", "home", "zimmer"}
+    words |= {str(c).casefold() for c in (coordinator.config_entry.options.get("apartment_codes") or {}).values() if len(str(c)) >= 3} if coordinator else set()
+
+    def area_name(entity_id: str) -> str:
+        entry = ents.async_get(entity_id)
+        area_id = entry.area_id if entry else None
+        if not area_id and entry and entry.device_id:
+            from homeassistant.helpers import device_registry as dr
+
+            dev = dr.async_get(hass).async_get(entry.device_id)
+            area_id = dev.area_id if dev else None
+        area = areas.async_get_area(area_id) if area_id else None
+        return area.name if area else ""
+
+    def item(st, extra: tuple[str, ...] = ()):
+        name = st.attributes.get("friendly_name") or st.entity_id
+        hay = f"{st.entity_id} {name} {area_name(st.entity_id)}".casefold()
+        return {"entity_id": st.entity_id, "name": name, "unit": st.attributes.get("unit_of_measurement"),
+                "passend": any(w in hay for w in words) or any(w in hay for w in extra)}
     states = hass.states.async_all(["sensor", "input_number", "number"])
     meters = [item(st) for st in states if st.domain == "sensor" and st.attributes.get("device_class") == "energy"
               and st.attributes.get("state_class") in ("total", "total_increasing")]
-    prices = [item(st) for st in states if "/kwh" in str(st.attributes.get("unit_of_measurement") or "").casefold()]
-    stamps = [item(st) for st in states if st.domain == "sensor" and st.attributes.get("device_class") == "timestamp"]
+    prices = [item(st, ("strompreis", "electricity_price", "arbeitspreis")) for st in states
+              if "/kwh" in (u := str(st.attributes.get("unit_of_measurement") or "").casefold()) and any(c in u for c in ("€", "eur", "ct"))]
+    stamps = [item(st, ("vorheiz", "preheat")) for st in states if st.domain == "sensor" and st.attributes.get("device_class") == "timestamp"]
     data = coordinator.data if coordinator else None
     today = date.today()
     def summary(res: dict[str, Any]) -> dict[str, Any]:
@@ -458,7 +489,7 @@ def energy_meta(hass: HomeAssistant, coordinator: Any) -> dict[str, Any]:
                and st.attributes.get("state_class") in ("total", "total_increasing")]
     unit_prices = [item(st) for st in states if "/" in str(st.attributes.get("unit_of_measurement") or "")
                    and any(u in str(st.attributes.get("unit_of_measurement")).casefold() for u in ("€", "eur", "ct"))]
-    key = lambda x: x["name"].casefold()  # noqa: E731
+    key = lambda x: (not x["passend"], x["name"].casefold())  # noqa: E731  passende zuerst
     locks = [item(s) for s in hass.states.async_all("lock")]
     scripts = [item(s) for s in hass.states.async_all("script")]
     return {"schloesser": sorted(locks, key=key), "skripte": sorted(scripts, key=key),
