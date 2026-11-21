@@ -8,6 +8,8 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+- Roadmap: `ROADMAP.md` mit geplanten Funktionen (je ein Issue mit Label `roadmap`) / roadmap file with planned features (one issue each, label `roadmap`)
+
 ## 1.19.0 – 2026-11-21
 
 **Deutsch**
