@@ -32,6 +32,21 @@ Alle Roadmap-Issues / all roadmap issues: [Label `roadmap`](https://github.com/G
 | [#13](https://github.com/Grunor/ha-Smoobu/issues/13) | Jahresbericht für die Steuer / Annual tax report | Auswertung | S |
 | [#14](https://github.com/Grunor/ha-Smoobu/issues/14) | Nachhaltigkeitsbericht / Sustainability report | Auswertung | S |
 
+## Ideen – Haus und Buchung verbinden / Ideas – connecting house and booking
+
+Was diese Integration einzigartig macht: Buchungsdaten aus Smoobu treffen auf echte Sensordaten aus Home Assistant. Diese Ideen sind noch nicht eingeplant (Label `idee`).
+
+What makes this integration unique: booking data from Smoobu meets real sensor data from Home Assistant. These ideas are not scheduled yet (label `idee`).
+
+| Issue | Funktion / Feature | Bereich / Area | Aufwand / Effort |
+|---|---|---|---|
+| [#15](https://github.com/Grunor/ha-Smoobu/issues/15) | „Gast ist wirklich weg“ – Reinigung früher / "Guest has really left" – earlier cleaning | Betrieb | S |
+| [#16](https://github.com/Grunor/ha-Smoobu/issues/16) | Automatisches Übergabeprotokoll beim Check-out / Automatic handover report at check-out | Betrieb | M |
+| [#17](https://github.com/Grunor/ha-Smoobu/issues/17) | Was kostet welcher Gast wirklich? – datenbasierte Gebühren / What does each guest really cost? – data-based fees | Auswertung | M |
+| [#18](https://github.com/Grunor/ha-Smoobu/issues/18) | Das Haus erinnert sich an Stammgäste / The house remembers returning guests | Gäste | M |
+| [#19](https://github.com/Grunor/ha-Smoobu/issues/19) | Vorheizen zum günstigsten Zeitpunkt / Pre-heating at the cheapest time | Betrieb | M |
+| [#20](https://github.com/Grunor/ha-Smoobu/issues/20) | Wartung automatisch in Belegungslücken / Maintenance automatically in occupancy gaps | Betrieb | S |
+
 ## Schon umgesetzt / Already done
 
 Siehe / see [CHANGELOG.md](CHANGELOG.md) – zuletzt 1.19.0: Reinigungsboard, Rollen & Rechte, Fokus-Modus, Türcodes, Zählermessung, Nebenkosten per KI, abschaltbare Module.
