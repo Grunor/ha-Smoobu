@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.1b1";
+const SMOOBU_CARDS_VERSION = "1.19.1b2";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -491,7 +491,7 @@ const EN = {
   "Wenn die Buchung keine Ankunftszeit hat.": "If the booking has no arrival time.", "Wer hat wann welche Wohnung gereinigt": "Who cleaned which apartment when",
   "Werkbank öffnen": "Open workbench", "Wert": "Value",
   "Werte übernommen – mit „Speichern“ übernehmen": "Values applied – confirm with \"Save\"", "Wieder offen": "Reopen", "Nachtragen": "Record", "Wer hat gereinigt?": "Who cleaned?", "vergangen, nicht erfasst": "past, not recorded",
-  "gereinigt von": "cleaned by", "nachgetragen": "recorded later", "Reinigung nachgetragen": "Cleaning recorded",
+  "gereinigt von": "cleaned by", "nachgetragen": "recorded later", "Reinigung nachgetragen": "Cleaning recorded", "Unbekannt": "Unknown",
   "Wiederbelegt": "Re-let", "Wird auf diesem Gerät gespeichert und erscheint unten in der Werkbank": "Saved on this device and shown at the bottom of the workbench",
   "Wird ignoriert, wenn „Daten abrufen seit“ gesetzt ist.": "Ignored if \"Fetch data since\" is set.", "Wirkt nur, wenn die KI erlaubt ist.": "Only applies if AI is allowed.",
   "Wohnungskürzel": "Apartment codes", "Zahlung über das Portal": "Payment via the portal",
@@ -3192,7 +3192,8 @@ class SmoobuBookingDialog extends HTMLElement {
         <div class="sub" style="margin-bottom:8px">${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)} · ${t("vergangen, nicht erfasst")}</div>
         <div class="row" style="align-items:center;flex-wrap:wrap;gap:8px">
           <select data-k="cnach" title="${t("Wer hat gereinigt?")}"><option value="">${t("Wer hat gereinigt?")}</option>${users.map((u) =>
-            `<option value="${esc(u.id)}" ${x.zugewiesen === u.id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}</select>
+            `<option value="${esc(u.id)}" ${x.zugewiesen === u.id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}
+            <option value="unbekannt">${t("Unbekannt")}</option></select>
           <label class="dur" title="${t("Reinigungszeit (leer = Standard)")}"><input type="number" data-k="cnmin" min="1" max="600" step="5"
             value="${x.minuten ?? ""}" placeholder="${c.standard_minuten || 60}" style="width:72px"> min</label>
           <button class="btn" data-act="cnach">✓ ${t("Nachtragen")}</button></div></div>`;

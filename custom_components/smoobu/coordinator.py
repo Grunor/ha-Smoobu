@@ -55,6 +55,7 @@ from .analytics import build_records, is_cancelled
 from . import energie
 from .const import CONF_CLEANING_WAGES
 from .rechte import module_on as rechte_module_on
+from .reinigung import UNKNOWN as CLEAN_UNKNOWN, wage_of as clean_wage_of
 from .deckungsbeitrag import apply as db_apply
 from .deckungsbeitrag import build_table as db_build_table
 from .deckungsbeitrag import config_from_options as cost_config_from_options
@@ -290,8 +291,9 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
                 s = state.get(f"{r['id']}:{r['abreise']}") or {}
                 who = s.get("gereinigt_von") or s.get("zugewiesen")
                 # v1.19.0: gebuchte Dauer je Reinigung (sonst Standardzeit) × Lohn der Person (sonst Standardlohn)
-                if who in wages or s.get("minuten"):
-                    out[r["id"]] = wages.get(who, cfg.cleaning_wage) * float(s.get("minuten") or cfg.cleaning_minutes) / 60
+                # v1.19.1b2: „Unbekannt“ (nachgetragene Altfälle) ohne eigenen Lohn = 0 €/h
+                if who in wages or who == CLEAN_UNKNOWN or s.get("minuten"):
+                    out[r["id"]] = clean_wage_of(wages, who, cfg.cleaning_wage) * float(s.get("minuten") or cfg.cleaning_minutes) / 60
         return out
 
     async def _async_update_data(self) -> SmoobuData:

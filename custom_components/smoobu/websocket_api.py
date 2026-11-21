@@ -194,6 +194,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_booking_move)
     websocket_api.async_register_command(hass, ws_cleaning_get)
     websocket_api.async_register_command(hass, ws_cleaning_set)
+    websocket_api.async_register_command(hass, ws_cleaning_bulk)
     websocket_api.async_register_command(hass, ws_cleaning_stats)
     websocket_api.async_register_command(hass, ws_energy_vacancy)
     websocket_api.async_register_command(hass, ws_focus)
@@ -1177,6 +1178,33 @@ async def ws_cleaning_set(hass: HomeAssistant, connection: websocket_api.ActiveC
                               err.code)
         return
     connection.send_result(msg["id"], {"zustand": state})
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "smoobu/cleaning/bulk", vol.Required("entry_id"): str,
+     vol.Required("benutzer_id"): vol.All(str, vol.Length(max=64)), vol.Required("bis"): str,
+     vol.Optional("von"): str, vol.Optional("ersetzen"): vol.Any(None, vol.All(str, vol.Length(max=64)))}
+)
+@websocket_api.async_response
+async def ws_cleaning_bulk(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """v1.19.1b2: alle offenen vergangenen Reinigungen bis „bis“ (ab „von“) gesammelt nachtragen (ohne Push).
+
+    „ersetzen“: bereits erledigte dieser Person mit umschreiben. Person auch „unbekannt“."""
+    try:
+        c = next(cc for cc, _ in _targets(hass, {"entry_id": msg["entry_id"], "apartment_id": ALL}))
+        bis = _date(msg["bis"]).isoformat()
+        von = _date(msg["von"]).isoformat() if msg.get("von") else None
+    except (vol.Invalid, StopIteration, ValueError):
+        connection.send_error(msg["id"], "not_found", "Konto oder Datum ungültig")
+        return
+    if not _cleaning_guard(connection, msg, [c], "reinigung_zuweisen"):
+        return
+    try:
+        res = await c.cleaning.async_bulk(connection.user, msg["benutzer_id"], bis, von, msg.get("ersetzen"))
+    except CleaningError as err:
+        connection.send_error(msg["id"], "unauthorized" if err.code == "unauthorized" else err.code, err.code)
+        return
+    connection.send_result(msg["id"], res)
 
 
 @websocket_api.websocket_command(

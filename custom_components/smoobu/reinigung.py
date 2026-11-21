@@ -20,8 +20,14 @@ Reinigung = Dauer × Stundenlohn der Person (Deckungsbeitrag der Buchung und Sta
 
 Schlüssel einer Reinigung: `<buchungs_id>:<abreise>` – verschiebt sich die Abreise, entsteht eine
 neue Reinigung (alte Zuweisung passt dann nicht mehr sicher zum Tag). Gespeichert im Store
-`smoobu_reinigung_<entry_id>`. Offene Einträge fallen nach 60 Tagen weg, erledigte bleiben 3 Jahre
-für die Statistik (Wunsch Betreiber 20.11.2026: wer hat wann welche Wohnung gereinigt). Beim
+`smoobu_reinigung_<entry_id>`. Offene Einträge fallen nach 60 Tagen weg, erledigte bleiben dauerhaft
+für die Statistik (Wunsch Betreiber 20.11.2026: wer hat wann welche Wohnung gereinigt; v1.19.1b2:
+ohne Ablauf statt 3 Jahre, damit nachgetragene Reinigungen ab 2020 erhalten bleiben).
+
+Nachtragen (v1.19.1): vergangene Reinigungen nachträglich erfassen, einzeln (Aktion „nachtragen“) oder
+gesammelt (`async_bulk`: alle offenen bis zu einem Datum). Als Person geht auch „Unbekannt“
+(`UNKNOWN`) – für Altfälle, bei denen niemand mehr weiß, wer gereinigt hat. Stundenlohn für
+„Unbekannt“: Eintrag `unbekannt` in `cleaning_wages`, sonst 0 €/h (Wunsch Betreiber 21.11.2026). Beim
 Erledigen wird ein Schnappschuss der Reinigung gespeichert (Tag, Wohnung, Gästewechsel, Hund,
 Personen, Nächte, Check-out), damit die Statistik auch nach Änderungen/Stornos stimmt.
 Die Statistik beginnt mit dem Update auf v1.19.0 – frühere Reinigungen kennt die Integration nicht.
@@ -47,7 +53,9 @@ DEFAULT_CLEANING_REMIND_TIME = "18:00"
 DAYS_BACK = 7      # erledigte/vergessene der letzten Woche bleiben sichtbar
 DAYS_AHEAD = 60
 KEEP_DAYS = 60          # offene/zugewiesene Einträge
-KEEP_DONE_DAYS = 3 * 366  # erledigte (Statistik)
+WIDE_BACK = 40 * 366    # „ohne Zeitfenster“ zurück (Nachtragen, Buchungsdetails) – Historie reicht bis 2020
+UNKNOWN = "unbekannt"   # v1.19.1b2: Pseudo-Person „Unbekannt“ (nur Nachtragen, nie zuweisbar)
+UNKNOWN_NAME = "Unbekannt"
 ACTIONS = ("uebernehmen", "abgeben", "zuweisen", "erledigt", "offen", "dauer", "nachtragen")
 # v1.19.1: Diese Aktionen gehen (nur mit „Reinigung zuweisen“) auch für Abreisen außerhalb des Board-Fensters
 # (älter als DAYS_BACK) – zum Nachtragen vergangener Reinigungen und zum Korrigieren nachgetragener.
@@ -144,10 +152,9 @@ class CleaningBoard:
             self.state = dict(await self.store.async_load() or {})
             today = dt_util.now().date()
             cutoff = (today - timedelta(days=KEEP_DAYS)).isoformat()
-            cutoff_done = (today - timedelta(days=KEEP_DONE_DAYS)).isoformat()
             for key, v in list(self.state.items()):
-                day = key.split(":")[-1]
-                if day < (cutoff_done if v.get("status") == "erledigt" else cutoff):
+                # v1.19.1b2: erledigte bleiben dauerhaft (Statistik); nur offene/zugewiesene laufen ab
+                if v.get("status") != "erledigt" and key.split(":")[-1] < cutoff:
                     self.state.pop(key, None)
         return self.state
 
@@ -163,7 +170,7 @@ class CleaningBoard:
         records = [r for r in self.c.records_all() if (apartments is None or r["wohnung_id"] in apartments)]
         names = await self._user_names()
         out = []
-        window = {"days_back": KEEP_DONE_DAYS, "days_ahead": 2 * 366} if booking_id is not None else {}
+        window = {"days_back": WIDE_BACK, "days_ahead": 2 * 366} if booking_id is not None else {}
         for item in build(records, opts, dt_util.now().date(), **window):
             if booking_id is not None and item["buchung_id"] != booking_id:
                 continue
@@ -200,7 +207,7 @@ class CleaningBoard:
         default = float(o.get("cost_cleaning", 17.0))
         return stats(state, pending, start, end, set(apartments) if apartments is not None else None,
                      await self._user_names(), codes, today.isoformat(),
-                     wage=lambda uid: wages.get(uid or "", default), minutes=float(o.get("cost_cleaning_minutes", 60)))
+                     wage=lambda uid: wage_of(wages, uid, default), minutes=float(o.get("cost_cleaning_minutes", 60)))
 
     async def _user_names(self) -> dict[str, str]:
         return {u.id: (u.name or u.id) for u in await self.hass.auth.async_get_users() if not u.system_generated}
@@ -228,7 +235,7 @@ class CleaningBoard:
         item = next((x for x in build(self.c.records_all(), opts, today) if x["key"] == key), None)
         if item is None and can_assign and action in PAST_ACTIONS:
             # v1.19.1: ältere Abreise (außerhalb des Board-Fensters) – nur Zuweisende, nur Nachtragen/Korrigieren
-            item = next((x for x in build(self.c.records_all(), opts, today, days_back=KEEP_DONE_DAYS, days_ahead=0)
+            item = next((x for x in build(self.c.records_all(), opts, today, days_back=WIDE_BACK, days_ahead=0)
                          if x["key"] == key), None)
         if item is None:
             raise CleaningError("not_found")
@@ -262,17 +269,21 @@ class CleaningBoard:
                 raise CleaningError("unauthorized")
             if item["datum"] > today.isoformat():
                 raise CleaningError("not_past")
-            tu = await self.hass.auth.async_get_user(target) if target else None
-            if tu is None or not rechte.allowed(tu, opts, "reinigung"):
-                raise CleaningError("invalid_user")
+            if target == UNKNOWN:
+                who_name = UNKNOWN_NAME
+            else:
+                tu = await self.hass.auth.async_get_user(target) if target else None
+                if tu is None or not rechte.allowed(tu, opts, "reinigung"):
+                    raise CleaningError("invalid_user")
+                who_name = tu.name or target
             if minutes is not None:
                 if not 1 <= int(minutes) <= MAX_MINUTES:
                     raise CleaningError("invalid_minutes")
                 cur["minuten"] = int(minutes)
             cur.update({
-                "zugewiesen": target, "status": "erledigt", "erledigt_von": getattr(user, "name", None),
+                "zugewiesen": None if target == UNKNOWN else target, "status": "erledigt", "erledigt_von": getattr(user, "name", None),
                 "erledigt_von_id": me, "erledigt_um": None, "gereinigt_von": target,
-                "gereinigt_name": tu.name or target, "nachgetragen": dt_util.now().isoformat(timespec="minutes"),
+                "gereinigt_name": who_name, "nachgetragen": dt_util.now().isoformat(timespec="minutes"),
                 "snapshot": {k: item[k] for k in ("datum", "wohnung_id", "check_out", "wechsel", "hund", "personen", "naechte")},
             })
         elif action == "dauer":  # tatsächliche Reinigungszeit buchen (leer = Standard)
@@ -313,6 +324,51 @@ class CleaningBoard:
                 await self._push(before, item, "entfernt")
         self.c.async_update_listeners()  # Karten laden neu (Datenabo)
         return cur
+
+    async def async_bulk(self, user: Any, target: str, until: str, since: str | None = None,
+                         replace: str | None = None) -> dict[str, int]:
+        """v1.19.1b2: alle vergangenen, nicht erledigten Reinigungen mit Abreise in [since, until] nachtragen.
+
+        `replace` (optional): zusätzlich bereits erledigte, die von dieser Person gereinigt wurden, auf
+        `target` umschreiben (Korrektur einer früheren Sammelaktion). Ohne Push, ein Speichern am Ende.
+        Rechte und Person wie bei der Einzelaktion „nachtragen“."""
+        opts = self.opts
+        if "reinigung_zuweisen" not in rechte.rights_of(user, opts):
+            raise CleaningError("unauthorized")
+        today = dt_util.now().date().isoformat()
+        until = min(until, today)
+        if target == UNKNOWN:
+            who_name = UNKNOWN_NAME
+        else:
+            tu = await self.hass.auth.async_get_user(target) if target else None
+            if tu is None or not rechte.allowed(tu, opts, "reinigung"):
+                raise CleaningError("invalid_user")
+            who_name = tu.name or target
+        state = await self._load()
+        now = dt_util.now().isoformat(timespec="minutes")
+        me = getattr(user, "id", None)
+        done = replaced = 0
+        for item in build(self.c.records_all(), opts, dt_util.now().date(), days_back=WIDE_BACK, days_ahead=0):
+            if item["datum"] > until or (since and item["datum"] < since):
+                continue
+            cur = dict(state.get(item["key"], {}))
+            if cur.get("status") == "erledigt":
+                if not replace or cur.get("gereinigt_von") != replace:
+                    continue
+                replaced += 1
+            else:
+                done += 1
+            cur.update({
+                "zugewiesen": None if target == UNKNOWN else target, "status": "erledigt",
+                "erledigt_von": getattr(user, "name", None), "erledigt_von_id": me, "erledigt_um": None,
+                "gereinigt_von": target, "gereinigt_name": who_name, "nachgetragen": now, "geaendert": now,
+                "snapshot": {k: item[k] for k in ("datum", "wohnung_id", "check_out", "wechsel", "hund", "personen", "naechte")},
+            })
+            state[item["key"]] = cur
+        if done or replaced:
+            await self.store.async_save(state)
+            self.c.async_update_listeners()
+        return {"nachgetragen": done, "ersetzt": replaced}
 
     # --- Pushes ----------------------------------------------------------
     def _phone(self, user_id: str) -> str | None:
@@ -363,6 +419,13 @@ class CleaningBoard:
 
 
 _DOW = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+def wage_of(wages: dict[str, float], uid: str | None, default: float) -> float:
+    """Stundenlohn einer Person; „Unbekannt“ ohne eigenen Eintrag = 0 €/h (v1.19.1b2)."""
+    if uid == UNKNOWN:
+        return wages.get(UNKNOWN, 0.0)
+    return wages.get(uid or "", default)
 
 
 def _delay_minutes(snap: dict[str, Any], done: str | None) -> int | None:

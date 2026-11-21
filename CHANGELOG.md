@@ -10,6 +10,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 - Roadmap: `ROADMAP.md` mit geplanten Funktionen (je ein Issue mit Label `roadmap`) / roadmap file with planned features (one issue each, label `roadmap`) und öffentliches [Roadmap-Board](https://github.com/users/Grunor/projects/1) / and public roadmap board
 
+## 1.19.1b2
+
+- Reinigung nachtragen mit Person „Unbekannt“ – für Altfälle, bei denen niemand mehr weiß, wer gereinigt hat; Stundenlohn 0 €/h (eigener Wert über `cleaning_wages` → `unbekannt` möglich) / record cleanings with person "Unknown" for old stays; wage 0 €/h (own value via `cleaning_wages` → `unbekannt`)
+- Sammel-Nachtragen: `smoobu/cleaning/bulk` hakt alle offenen vergangenen Reinigungen bis zu einem Datum (optional ab einem Datum) ohne Push ab; `ersetzen` schreibt bereits nachgetragene einer Person um / bulk recording: `smoobu/cleaning/bulk` marks all open past cleanings up to a date as done without push; `ersetzen` reassigns ones already recorded for a person
+- Erledigte Reinigungen bleiben dauerhaft gespeichert (vorher 3 Jahre), damit die Statistik auch für nachgetragene Jahre ab 2020 stimmt / completed cleanings are kept permanently (previously 3 years)
+
 ## 1.19.1b1
 
 **Reinigung nachtragen.** Vergangene Reinigungen lassen sich jetzt nachträglich erfassen – auch Monate zurück, z. B. für die Zeit vor v1.19.0 oder wenn im Urlaub jemand anderes gereinigt hat.

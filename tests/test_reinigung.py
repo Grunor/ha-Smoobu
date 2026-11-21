@@ -237,3 +237,37 @@ async def test_reinigung_nachtragen(hass, setup, hass_ws_client, hass_read_only_
             res = await _call(admin, 11, type="smoobu/cleaning/set", entry_id=eid, key=f["key"], aktion="nachtragen",
                               benutzer_id=hass_read_only_user.id)
             assert res["error"]["code"] == "not_past"
+
+
+async def test_reinigung_sammeln_unbekannt(hass, setup, hass_ws_client, hass_read_only_user, freezer):  # noqa: F811
+    """v1.19.1b2: Sammel-Nachtragen als „Unbekannt“ (0 €/h), Ersetzen einer Person, erledigte bleiben dauerhaft."""
+    from custom_components.smoobu.reinigung import UNKNOWN, wage_of
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "user_roles": {hass_read_only_user.id: "reinigung"}})
+    await hass.async_block_till_done()
+    eid = entry.entry_id
+    admin = await hass_ws_client(hass)
+    freezer.move_to("2030-12-15T11:00:00+00:00")  # > 3 Jahre nach den Testabreisen
+    # Erste Abreise einzeln der Reinigungskraft, dann Sammelaktion für den Rest als „Unbekannt“
+    r = await _call(admin, 1, type="smoobu/cleaning/set", entry_id=eid, key="1:2026-11-16", aktion="nachtragen",
+                    benutzer_id=hass_read_only_user.id)
+    assert r["success"]
+    r = (await _call(admin, 2, type="smoobu/cleaning/bulk", entry_id=eid, benutzer_id=UNKNOWN, bis="2030-12-31"))["result"]
+    assert r["nachgetragen"] >= 1 and r["ersetzt"] == 0
+    one = (await _call(admin, 3, type="smoobu/cleaning/get", reservation_id=2))["result"]["reinigungen"][0]
+    assert one["status"] == "erledigt" and one["gereinigt_name"] == "Unbekannt" and one["zugewiesen"] is None
+    # Ersetzen: die Reinigungskraft-Einträge ebenfalls auf „Unbekannt“
+    r = (await _call(admin, 4, type="smoobu/cleaning/bulk", entry_id=eid, benutzer_id=UNKNOWN, bis="2030-12-31",
+                     ersetzen=hass_read_only_user.id))["result"]
+    assert r == {"nachgetragen": 0, "ersetzt": 1}
+    # Statistik: nur „Unbekannt“, Kosten 0 €
+    st = (await _call(admin, 5, type="smoobu/cleaning/stats", start="2026-01-01", end="2027-01-01"))["result"]
+    assert [p["person"] for p in st["personen"]] == ["Unbekannt"] and st["kosten"] == 0.0
+    # Erledigte laufen nicht mehr ab (Store neu laden)
+    board = entry.runtime_data.cleaning
+    board.state = None
+    assert any(v.get("status") == "erledigt" for v in (await board._load()).values())
+    # Lohn: „Unbekannt“ 0 €/h, sofern nicht eigens eingetragen
+    assert wage_of({}, UNKNOWN, 17.0) == 0.0 and wage_of({UNKNOWN: 12.0}, UNKNOWN, 17.0) == 12.0 and wage_of({}, "x", 17.0) == 17.0
+    # Ungültige Person, Reinigungsrecht reicht nicht
+    assert (await _call(admin, 6, type="smoobu/cleaning/bulk", entry_id=eid, benutzer_id="nix", bis="2030-12-31"))["error"]["code"] == "invalid_user"
