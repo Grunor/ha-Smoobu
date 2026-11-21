@@ -502,6 +502,8 @@ def energy_meta(hass: HomeAssistant, coordinator: Any) -> dict[str, Any]:
         return {
             "entitaet": res.get("entitaet"), "von": res.get("von"), "bis": res.get("bis"), "fehler": res.get("fehler"),
             "netzanteil_gemessen": res.get("netzanteil_gemessen"), "preis_entitaet": res.get("preis_entitaet"),
+            # v1.19.1b5: Quelle des Netzanteils (sensor/energie_dashboard/monatswerte/jahreswert) und Sensor
+            "netzanteil_modus": res.get("netzanteil_modus"), "netzanteil_entitaet": res.get("netzanteil_entitaet"),
             "leerstand_modus": res.get("leerstand_modus"), "einheit": res.get("einheit") or "kWh",
             "monate": [{"monat": k, **v} for k, v in months],
             "buchungen_gemessen": len(res.get("buchungen", {})),

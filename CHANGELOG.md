@@ -8,6 +8,7 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+- Einstellungen → Stromkosten, Messergebnis: zeigt jetzt die Quelle des Netzanteils und den Sensor („Netzanteil aus sensor.…“); in 1.19.1b5 fehlten diese Angaben in der Karte / settings → power costs, measured result: now shows the grid share source and sensor (missing in the card in 1.19.1b5)
 - Roadmap: `ROADMAP.md` mit geplanten Funktionen (je ein Issue mit Label `roadmap`) / roadmap file with planned features (one issue each, label `roadmap`) und öffentliches [Roadmap-Board](https://github.com/users/Grunor/projects/1) / and public roadmap board
 
 ## 1.19.1b5
