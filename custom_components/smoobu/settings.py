@@ -65,6 +65,8 @@ from .tuercode import (
     DEFAULT_BEFORE_H,
     DEFAULT_DIGITS,
     LOCK_TYPES,
+    MODES,
+    STATIC_RE,
 )
 from .reinigung import (
     CONF_CLEANING_NOTIFY,
@@ -657,16 +659,24 @@ def _wages(value: Any) -> dict[str, float]:
 
 
 def _locks(value: Any) -> dict[str, dict[str, Any]]:
-    """{Wohnungs-ID: {typ, entitaet, slot_von, slot_bis}} – Schloss-Adapter für Türcodes (v1.19.0)."""
+    """{Wohnungs-ID: {typ, entitaet, slot_von, slot_bis, modus, code}} – Schloss-Adapter und Code-Modus
+    für Türcodes (v1.19.0; Modus „statisch“ z. B. für einen Schlüsseltresor ab v1.19.0b2)."""
     if not isinstance(value, dict):
         raise vol.Invalid("invalid_list")
     out = {}
     for apt, cfg in value.items():
-        if not isinstance(cfg, dict) or cfg.get("typ", "kein") not in LOCK_TYPES:
+        if not isinstance(cfg, dict) or cfg.get("typ", "kein") not in LOCK_TYPES or cfg.get("modus", "zufall") not in MODES:
             raise vol.Invalid("invalid_lock")
         typ = cfg.get("typ", "kein")
+        # Modus: „zufall“ wird nicht gespeichert (Standard); „statisch“ braucht einen gültigen Code
+        mode = {}
+        if cfg.get("modus") == "statisch":
+            code = str(cfg.get("code") or "").strip()
+            if not STATIC_RE.fullmatch(code):
+                raise vol.Invalid("invalid_static_code")
+            mode = {"modus": "statisch", "code": code}
         if typ == "kein":
-            out[str(apt)] = {"typ": "kein"}
+            out[str(apt)] = {"typ": "kein", **mode}
             continue
         ent = str(cfg.get("entitaet") or "").strip()
         pattern = {"skript": r"script\.[a-z0-9_]+", "z2m": r"[^\s#+]{1,120}"}.get(typ, r"lock\.[a-z0-9_]+")
@@ -678,7 +688,7 @@ def _locks(value: Any) -> dict[str, dict[str, Any]]:
             raise vol.Invalid("invalid_lock_slot") from err
         if not 1 <= lo <= hi <= 250:
             raise vol.Invalid("invalid_lock_slot")
-        out[str(apt)] = {"typ": typ, "entitaet": ent, "slot_von": lo, "slot_bis": hi}
+        out[str(apt)] = {"typ": typ, "entitaet": ent, "slot_von": lo, "slot_bis": hi, **mode}
     return out
 
 

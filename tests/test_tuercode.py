@@ -113,3 +113,47 @@ async def test_storno_und_ablauf(hass, setup, aioclient_mock, freezer):  # noqa:
     freezer.move_to(datetime.fromisoformat(doors.for_booking(1)["bis"]) + __import__("datetime").timedelta(minutes=1))
     await doors.async_sync()
     assert doors.for_booking(1)["status"] == "abgelaufen" and sets[-1].data["variables"]["aktion"] == "loeschen"
+
+
+async def test_statischer_code(hass, setup, aioclient_mock, hass_ws_client):  # noqa: F811
+    """v1.19.0b2: statischer Code je Wohnung (Schlüsseltresor) – alle Buchungen gleich, kein „Neu erzeugen“,
+    Änderung tauscht den Code bei laufenden/kommenden Buchungen, Wechsel zurück → Zufall."""
+    from custom_components.smoobu import settings
+
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    aioclient_mock.put(f"{BASE}/api/reservations/1", json={})
+    aioclient_mock.put(f"{BASE}/api/reservations/2", json={})
+    # Prüfung in den Einstellungen
+    _vals, err = settings.validate(hass, entry, {"door_locks": {"123": {"typ": "kein", "modus": "statisch", "code": "12"}}}, None)
+    assert err["door_locks"] == "invalid_static_code"
+    vals, err = settings.validate(hass, entry, {"door_locks": {"123": {"typ": "kein", "modus": "statisch", "code": " 4711 "}}}, None)
+    assert not err and vals["door_locks"]["123"] == {"typ": "kein", "modus": "statisch", "code": "4711"}
+    vals, _ = settings.validate(hass, entry, {"door_locks": {"123": {"typ": "kein", "modus": "zufall", "code": "4711"}}}, None)
+    assert vals["door_locks"]["123"] == {"typ": "kein"}
+
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "door_code_enabled": True,
+                                                          "door_locks": {"123": {"typ": "kein", "modus": "statisch", "code": "4711"}}})
+    await hass.async_block_till_done()
+    doors = entry.runtime_data.doorcodes
+    await doors.async_sync()
+    c1, c2 = doors.for_booking(1), doors.for_booking(2)
+    assert c1["code"] == c2["code"] == "4711" and c1["art"] == "statisch" and c1["status"] == "aktiv"
+    puts = [r for r in aioclient_mock.mock_calls if r[0] == "PUT"]
+    assert any("Türcode: 4711 (gültig" in r[2].decode() for r in puts)
+    assert "4711" in doors.known_codes()
+    ws = await hass_ws_client(hass)
+    assert (await _call(ws, 1, type="smoobu/doorcode/renew", reservation_id=1))["error"]["code"] == "static_code"
+    assert (await _call(ws, 2, type="smoobu/doorcode/get", reservation_id=1))["result"]["statisch"] is True
+    # Code geändert → beide Buchungen bekommen den neuen
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "door_locks": {"123": {"typ": "kein", "modus": "statisch", "code": "A2B9"}}})
+    await hass.async_block_till_done()
+    doors = entry.runtime_data.doorcodes
+    await doors.async_sync()
+    assert doors.for_booking(1)["code"] == doors.for_booking(2)["code"] == "A2B9" and doors.for_booking(1)["status"] == "aktiv"
+    # zurück auf Zufall → eigene Zufallscodes
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "door_locks": {"123": {"typ": "kein"}}})
+    await hass.async_block_till_done()
+    doors = entry.runtime_data.doorcodes
+    await doors.async_sync()
+    r1, r2 = doors.for_booking(1), doors.for_booking(2)
+    assert r1["art"] == r2["art"] == "zufall" and r1["code"] != r2["code"] and len(r1["code"]) == 6

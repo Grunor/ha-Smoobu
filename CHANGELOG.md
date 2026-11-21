@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b2 – 2026-11-21
+
+### Neu / New
+- **Statischer Türcode je Wohnung** (Einstellungen → Allgemein & Abruf → Türcodes → „Code“): Modus „Zufall je Buchung“ (Standard) oder „Statisch“ mit festem Code (4–12 Ziffern/Buchstaben), z. B. für einen Schlüsseltresor. Jede Buchung bekommt diesen Code – in der Smoobu-Notiz, in den Buchungsdetails (Kennzeichen „statisch“, kein „Neu erzeugen“), in den Türcode-Entitäten (Attribut `art`) und über den Platzhalter `{{ turcode }}`. Wird der Code geändert oder der Modus gewechselt, bekommen alle laufenden und kommenden Buchungen den neuen Code (Notiz ersetzt, ein eingestelltes Schloss neu programmiert). Statische Codes werden wie alle Türcodes vor jeder KI-Anfrage durch den Platzhalter ersetzt.
+- **Static door code per apartment** (Settings → General & polling → Door codes → "Code"): mode "random per booking" (default) or "static" with a fixed code (4–12 digits/letters), e.g. for a key safe. Every booking gets this code – in the Smoobu note, in the booking details (marked "static", no "renew"), in the door code entities (attribute `art`) and via the `{{ turcode }}` placeholder. Changing the code or the mode updates all current and upcoming bookings (note replaced, a configured lock reprogrammed). Static codes are replaced by the placeholder before every AI request like all door codes.
+
 ## 1.19.0b1 – 2026-11-21
 
 > Beta / Pre-release

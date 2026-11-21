@@ -11,6 +11,14 @@ Entscheidungen Betreiber (21.11.2026):
   Zigbee2MQTT oder eigenes Skript. Gesetzt wird der Code kurz vor Gültigkeitsbeginn in einen freien
   Code-Platz des eingestellten Bereichs, gelöscht nach Gültigkeitsende bzw. bei Storno.
 
+Statischer Code (ab v1.19.0b2, Wunsch Betreiber 21.11.2026, z. B. Schlüsseltresor):
+- Modus je Wohnung in `door_locks[<Wohnung>]`: „modus“ = „zufall“ (Standard) oder „statisch“ mit „code“
+  (4–12 Ziffern/Buchstaben). Jede Buchung bekommt dann diesen Code – gleiche Ausgabe wie beim
+  Zufallscode (Smoobu-Notiz, Entität, Platzhalter {{ turcode }}), aber kein „Neu erzeugen“.
+- Wird der statische Code geändert oder der Modus gewechselt, bekommen alle noch nicht abgelaufenen
+  Buchungen den neuen Code (Notiz wird ersetzt, ein Schloss neu programmiert). Keine Wechsel-Erinnerung
+  (Entscheidung Betreiber).
+
 Sicherheit:
 - Zufall aus `secrets` (kryptografisch). Abgelehnt werden triviale Codes (alle Ziffern gleich, auf-/
   absteigende Folgen, kurze Muster wie 1212/123123) und Codes, die eine andere Buchung derselben
@@ -52,6 +60,8 @@ DEFAULT_DIGITS = 6
 DEFAULT_BEFORE_H = 2.0
 DEFAULT_AFTER_H = 1.0
 LOCK_TYPES = ("kein", "matter", "zwave_js", "zha", "z2m", "skript")
+MODES = ("zufall", "statisch")
+STATIC_RE = re.compile(r"[0-9A-Za-z]{4,12}")
 PLACEHOLDER_RE = re.compile(r"\{\{\s*t(?:ü|ue|u)rcode\s*\}\}", re.IGNORECASE)
 NOTE_RE = re.compile(r"^T(?:ü|ue)rcode:.*$\n?", re.MULTILINE)
 SET_LEAD = timedelta(minutes=10)   # so lange vor Gültigkeitsbeginn ins Schloss schreiben
@@ -237,13 +247,22 @@ class DoorCodes:
                     continue
                 if end < now:
                     continue  # vergangen: keinen Code mehr erzeugen
+                static = self.static_code(r["wohnung_id"])
                 if it is None:
-                    code = new_code(digits, self._taken(r["wohnung_id"], start, end))
+                    code = static or new_code(digits, self._taken(r["wohnung_id"], start, end))
                     it = self.codes[bid] = {"buchung_id": r["id"], "wohnung_id": r["wohnung_id"], "code": code,
+                                            "art": "statisch" if static else "zufall",
                                             "von": start.isoformat(), "bis": end.isoformat(), "status": "geplant",
                                             "erstellt": now.isoformat(timespec="seconds"), "slot": None, "fehler": None}
-                    self.recent.setdefault(str(r["wohnung_id"]), []).append(code)
-                    self.recent[str(r["wohnung_id"])] = self.recent[str(r["wohnung_id"])][-RECENT:]
+                    if not static:  # statische Codes nicht in die Zufalls-Historie
+                        self.recent.setdefault(str(r["wohnung_id"]), []).append(code)
+                        self.recent[str(r["wohnung_id"])] = self.recent[str(r["wohnung_id"])][-RECENT:]
+                    changed = True
+                elif it.get("status") not in ("geloescht", "abgelaufen") and (
+                        (static and it["code"] != static) or (not static and it.get("art") == "statisch")):
+                    # Statischer Code geändert bzw. Modus gewechselt → Code tauschen (Schloss neu, Notiz unten)
+                    await self._swap(it, static or new_code(digits, self._taken(r["wohnung_id"], start, end, skip=bid)),
+                                     "statisch" if static else "zufall")
                     changed = True
                 elif (it["von"], it["bis"]) != (start.isoformat(), end.isoformat()) and it.get("status") != "geloescht":
                     it.update({"von": start.isoformat(), "bis": end.isoformat()})
@@ -273,19 +292,41 @@ class DoorCodes:
                 await self._save()
                 self.c.async_update_listeners()
 
+    async def _swap(self, it: dict[str, Any], code: str, art: str) -> None:
+        """Code einer laufenden/künftigen Buchung tauschen: alten aus dem Schloss, neuer wird im
+        nächsten Schritt von async_sync gesetzt (Status zurück auf „geplant“)."""
+        await self._clear_lock(it)
+        it.update({"code": code, "art": art, "status": "geplant", "slot": None, "fehler": None})
+
+    def static_code(self, apt: Any) -> str | None:
+        """Statischer Code der Wohnung (Modus „statisch“), sonst None."""
+        cfg = self._lock_cfg(apt)
+        code = str(cfg.get("code") or "")
+        return code if cfg.get("modus") == "statisch" and STATIC_RE.fullmatch(code) else None
+
+    def known_codes(self) -> set[str]:
+        """Alle Codes, die nie an die KI dürfen: je Buchung plus statische aus den Optionen."""
+        out = {it["code"] for it in self.codes.values() if it.get("code")}
+        for cfg in (self.opts.get(CONF_DOOR_LOCKS) or {}).values():
+            if isinstance(cfg, dict) and cfg.get("modus") == "statisch" and cfg.get("code"):
+                out.add(str(cfg["code"]))
+        return out
+
     async def renew(self, booking_id: int) -> dict[str, Any]:
         """Neuen Code für eine Buchung (alten im Schloss löschen, neuen setzen falls schon aktiv)."""
         async with self._lock:
             r = next((x for x in self.c.records_all() if x["id"] == booking_id and not x.get("blockiert")), None)
             if r is None:
                 raise ValueError("not_found")
+            if self.static_code(r["wohnung_id"]):
+                raise ValueError("statisch")  # statischer Code: in den Einstellungen ändern
             start, end = self._window(r)
             old = self.codes.get(str(booking_id))
             if old:
                 await self._clear_lock(old)
             code = new_code(int(self.opts.get(CONF_DOOR_CODE_DIGITS, DEFAULT_DIGITS)),
                             self._taken(r["wohnung_id"], start, end, skip=str(booking_id)) | ({old["code"]} if old else set()))
-            it = self.codes[str(booking_id)] = {"buchung_id": booking_id, "wohnung_id": r["wohnung_id"], "code": code,
+            it = self.codes[str(booking_id)] = {"buchung_id": booking_id, "wohnung_id": r["wohnung_id"], "code": code, "art": "zufall",
                                                 "von": start.isoformat(), "bis": end.isoformat(), "status": "geplant",
                                                 "erstellt": dt_util.now().isoformat(timespec="seconds"), "slot": None, "fehler": None}
             self.recent.setdefault(str(r["wohnung_id"]), []).append(code)

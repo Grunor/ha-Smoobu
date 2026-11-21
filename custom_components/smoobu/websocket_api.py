@@ -1328,6 +1328,7 @@ def ws_doorcode_get(hass: HomeAssistant, connection: websocket_api.ActiveConnect
     lock = doors._lock_cfg(_apt) if doors else {"typ": "kein"}  # noqa: SLF001
     connection.send_result(msg["id"], {"aktiv": bool(doors and doors.enabled), "code": doors.for_booking(msg["reservation_id"]) if doors else None,
                                        "schloss": lock.get("typ", "kein"),
+                                       "statisch": bool(doors and doors.static_code(_apt)),
                                        "darf_erneuern": rechte.allowed(connection.user, c.config_entry.options, "belegung")})
 
 
@@ -1348,4 +1349,5 @@ async def ws_doorcode_renew(hass: HomeAssistant, connection: websocket_api.Activ
     try:
         connection.send_result(msg["id"], {"code": await doors.renew(msg["reservation_id"])})
     except ValueError as err:
-        connection.send_error(msg["id"], "not_found", str(err))
+        # v1.19.0b2: statischer Code (Schlüsseltresor) wird nur in den Einstellungen geändert
+        connection.send_error(msg["id"], "static_code" if str(err) == "statisch" else "not_found", str(err))

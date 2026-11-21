@@ -550,10 +550,9 @@ GÄSTENACHRICHT: {guest or '(keine – Nachricht aus Anlass oben schreiben)'}
         # Genau diesen Text zeigt die Vorschau „Was geht an die KI“ (nur im Speicher)
         # v1.19.0: Türcodes nie an die KI (z. B. über Status-Entitäten oder eingefügte Texte) → Platzhalter
         doors = getattr(self.c, "doorcodes", None)
-        if doors:
-            for it in doors.codes.values():
-                if it.get("code"):
-                    instructions = re.sub(rf"(?<!\d){re.escape(it['code'])}(?!\d)", "{{ turcode }}", instructions)
+        if doors:  # v1.19.0b2: auch statische Codes (Schlüsseltresor) aus den Optionen
+            for code in doors.known_codes():
+                instructions = re.sub(rf"(?<![0-9A-Za-z]){re.escape(code)}(?![0-9A-Za-z])", "{{ turcode }}", instructions)
         self.last_prompt = {
             "zeit": dt_util.now().isoformat(), "aufgabe": task, "ki": entity,
             "stufe": privacy.level(self.opts), "text": instructions,
@@ -728,7 +727,7 @@ GÄSTENACHRICHT: {guest or '(keine – Nachricht aus Anlass oben schreiben)'}
         code = doors.code_for_send(rid) if doors else None
         await self.c.client.send_message(rid, fill_door_code(text, code) if doors else text)
         if code:
-            text = re.sub(rf"(?<!\d){re.escape(code)}(?!\d)", "{{ turcode }}", text)
+            text = re.sub(rf"(?<![0-9A-Za-z]){re.escape(code)}(?![0-9A-Za-z])", "{{ turcode }}", text)
         sug = self.data["vorschlaege"].get(str(rid))
         guest = sug.get("gastnachricht") if sug else None
         if sug and sug["status"] == "offen":

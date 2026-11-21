@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.0b1";
+const SMOOBU_CARDS_VERSION = "1.19.0b2";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -2865,7 +2865,8 @@ class SmoobuBookingDialog extends HTMLElement {
       <span>🔑 ${t("Türcode")} <b style="font-family:monospace;font-size:1.1em;letter-spacing:.08em">${esc(c.code)}</b>
         · ${f(c.von)} – ${f(c.bis)}</span><span class="badge ${st[0]}" title="${esc(c.fehler || "")}">${t(st[1])}${c.slot ? ` · ${t("Platz")} ${c.slot}` : ""}</span>
       <button class="lnk" data-act="dcopy">${t("Kopieren")}</button>
-      ${x.darf_erneuern ? `<button class="lnk" data-act="drenew">${t("Neu erzeugen")}</button>` : ""}</div>`;
+      ${x.statisch ? `<span class="badge" title="${esc(t("Fester Code der Wohnung, änderbar in den Einstellungen"))}">${t("statisch")}</span>`
+        : x.darf_erneuern ? `<button class="lnk" data-act="drenew">${t("Neu erzeugen")}</button>` : ""}</div>`;
   }
   // v1.19.0: Reinigung nach diesem Aufenthalt – Person, Status und gebuchte Dauer (Standard laut Einstellungen)
   cleanHtml() {
@@ -5762,7 +5763,7 @@ const SET_ERR = {
   // v1.19.0: Rollenkonfigurator
   invalid_right: "Unbekanntes Recht", invalid_role_name: "Name 1–30 Zeichen", duplicate_role_name: "Rollenname schon vergeben",
   invalid_role_count: "Höchstens 10 eigene Rollen", invalid_lock: "Unbekannter Schloss-Typ", invalid_lock_entity: "Schloss-Entität bzw. Skript prüfen",
-  invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“",
+  invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", invalid_static_code: "Statischer Code: 4–12 Ziffern/Buchstaben", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“",
   meter_entity_required: "Bitte einen Zähler wählen oder „Konstant“", price_required: "Bitte Preis oder Preis-Entität angeben", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
   // v1.18.0: Saisons
   invalid_season_count: "2 bis 6 Saisons", invalid_season: "Ungültige Saison", invalid_season_name: "Jede Saison braucht einen Namen",
@@ -6363,7 +6364,16 @@ class SmoobuSettingsCard extends SmoobuCard {
           value="${esc(l.entitaet || "")}" placeholder="${l.typ === "skript" ? "script.…" : l.typ === "z2m" ? t("Gerätename in Zigbee2MQTT") : "lock.…"}" style="width:240px">
         <span class="unit">${t("Code-Platz")}</span><input type="number" data-lock="${esc(w.id)}|slot_von" min="1" max="250" value="${esc(l.slot_von ?? 10)}" style="width:64px">
         <span class="unit">–</span><input type="number" data-lock="${esc(w.id)}|slot_bis" min="1" max="250" value="${esc(l.slot_bis ?? 19)}" style="width:64px">`;
-      return this.fld(`${t("Schloss")}${(meta.wohnungen || []).length > 1 ? ` · ${w.name}` : ""}`,
+      // v1.19.0b2: Code-Modus je Wohnung – Zufall je Buchung oder statischer Code (z. B. Schlüsseltresor)
+      const multi = (meta.wohnungen || []).length > 1;
+      const stat = l.modus === "statisch";
+      const mode = this.fld(`${t("Code")}${multi ? ` · ${w.name}` : ""}`,
+        `<select data-lock="${esc(w.id)}|modus"><option value="zufall" ${stat ? "" : "selected"}>${t("Zufall je Buchung")}</option>
+          <option value="statisch" ${stat ? "selected" : ""}>${t("Statisch (z. B. Schlüsseltresor)")}</option></select>
+        ${stat ? `<input type="text" data-lock="${esc(w.id)}|code" value="${esc(l.code || "")}" maxlength="12" autocomplete="off"
+          spellcheck="false" placeholder="${t("Tresorcode")}" style="width:140px;font-family:monospace">` : ""}`,
+        stat ? "4–12 Ziffern/Buchstaben. Jede Buchung bekommt diesen Code; ändern hier tauscht ihn bei allen noch kommenden Buchungen (Notiz, Schloss)." : "", "door_locks");
+      return mode + this.fld(`${t("Schloss")}${multi ? ` · ${w.name}` : ""}`,
         `<select data-lock="${esc(w.id)}|typ">${types.map(([k, lab]) => `<option value="${k}" ${l.typ === k ? "selected" : ""}>${t(lab)}</option>`).join("")}</select>${ent}`,
         l.typ === "skript" ? "Skript bekommt aktion (setzen/loeschen), code, slot, gueltig_von, gueltig_bis, buchung_id, wohnung_id."
           : l.typ === "matter" ? "Ab HA 2026.4 (matter.set_lock_credential); nicht jedes Matter-Schloss unterstützt PINs."
@@ -6371,7 +6381,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     }).join("");
     const dl = (id, list) => `<datalist id="${id}">${(list || []).map((e) => `<option value="${esc(e.entity_id)}">${esc(e.name)}</option>`).join("")}</datalist>`;
     return `<div class="grp ${on ? "" : "off"}" data-neu="tuercode"><div class="gh"><div class="grow"><b>${t("Türcodes")}${neuBadge("opt-tuercode")}</b>
-        <span class="sub">${t("Zufallscode je Buchung (automatisch bei neuer Buchung). Antwortvorschläge enthalten nur {{ turcode }} – der Code wird erst beim Senden eingesetzt und geht nie an die KI.")}</span></div>
+        <span class="sub">${t("Zufallscode je Buchung (automatisch bei neuer Buchung) oder statischer Code je Wohnung. Antwortvorschläge enthalten nur {{ turcode }} – der Code wird erst beim Senden eingesetzt und geht nie an die KI.")}</span></div>
         ${this.sw("door_code_enabled", "Türcodes")}</div>
       <div class="gb">${this.fld("Stellen", this.numIn("door_code_digits", 4, 10, 1, "Ziffern"), "Keine trivialen Codes (1234, 1111, 1212 …), keine Doppelten bei überschneidender Gültigkeit.", "door_code_digits")}
         ${this.fld("Gültig ab", this.numIn("door_code_before_h", 0, 48, 0.5, "h vor Check-in"), "", "door_code_before_h")}
@@ -6527,7 +6537,8 @@ class SmoobuSettingsCard extends SmoobuCard {
       cur[field] = field.startsWith("slot") ? (el.value === "" ? "" : Number(el.value)) : el.value;
       if (field === "typ" && el.value !== "kein") { cur.slot_von = cur.slot_von ?? 10; cur.slot_bis = cur.slot_bis ?? 19; }
       locks[apt] = cur; d.door_locks = locks;
-      field === "typ" ? redraw() : this.refreshFoot();
+      if (field === "modus" && el.value === "zufall") delete cur.code;
+      field === "typ" || field === "modus" ? redraw() : this.refreshFoot();
     }));
     // v1.19.0: Stundenlohn je Reinigungskraft (leer = Standard)
     root.querySelectorAll("[data-wage]").forEach((inp) => inp.addEventListener("input", () => {

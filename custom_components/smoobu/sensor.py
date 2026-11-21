@@ -1106,4 +1106,4 @@ class SmoobuDoorCodeSensor(SmoobuEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         it = self._item() or {}
         return {"gueltig_von": it.get("von"), "gueltig_bis": it.get("bis"), "status": it.get("status"),
-                "buchung_id": it.get("buchung_id"), "code_platz": it.get("slot")}
+                "buchung_id": it.get("buchung_id"), "code_platz": it.get("slot"), "art": it.get("art", "zufall")}
