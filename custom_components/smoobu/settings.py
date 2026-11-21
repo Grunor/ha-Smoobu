@@ -73,6 +73,7 @@ from .reinigung import (
     CONF_CLEANING_PHONES,
     CONF_CLEANING_REMIND_TIME,
     CONF_CLEANING_KEEP_YEARS,
+    CONF_CLEANING_MINUTES_BY_USER,
     DEFAULT_CLEANING_KEEP_YEARS,
     DEFAULT_CLEANING_REMIND_TIME,
 )
@@ -271,7 +272,9 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         # Kosten & Preise (v1.18.0)
         CONF_COST_CLEANING: float(o.get(CONF_COST_CLEANING, DEFAULT_COST_CLEANING)),  # ab v1.19.0: €/h
         CONF_COST_CLEANING_MINUTES: float(o.get(CONF_COST_CLEANING_MINUTES, DEFAULT_COST_CLEANING_MINUTES)),
-        CONF_CLEANING_WAGES: {str(k): float(v) for k, v in (o.get(CONF_CLEANING_WAGES) or {}).items() if v not in (None, "")},  # 0 €/h bleibt sichtbar
+        CONF_CLEANING_WAGES: {str(k): float(v) for k, v in (o.get(CONF_CLEANING_WAGES) or {}).items() if v not in (None, "")},
+        # v1.19.1b4: Standard-Reinigungszeit je Person (Minuten)
+        CONF_CLEANING_MINUTES_BY_USER: {str(k): float(v) for k, v in (o.get(CONF_CLEANING_MINUTES_BY_USER) or {}).items() if v not in (None, "")},  # 0 €/h bleibt sichtbar
         CONF_COST_LAUNDRY: float(o.get(CONF_COST_LAUNDRY, DEFAULT_COST_LAUNDRY)),
         CONF_COST_HEATING_YEAR: float(o.get(CONF_COST_HEATING_YEAR, DEFAULT_COST_HEATING_YEAR)),
         CONF_COST_HOT_WATER_YEAR: float(o.get(CONF_COST_HOT_WATER_YEAR, DEFAULT_COST_HOT_WATER_YEAR)),
@@ -718,6 +721,24 @@ def _wages(value: Any) -> dict[str, float]:
     return out
 
 
+def _user_minutes(value: Any) -> dict[str, float]:
+    """v1.19.1b4: {HA-Benutzer-ID: Minuten 1–600}; leer = allgemeine Standard-Reinigungszeit."""
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    out = {}
+    for uid, mins in value.items():
+        if mins in (None, ""):
+            continue
+        try:
+            m = float(mins)
+        except (TypeError, ValueError) as err:
+            raise vol.Invalid("invalid_number") from err
+        if not 1 <= m <= 600:
+            raise vol.Invalid("invalid_number")
+        out[str(uid)] = round(m)
+    return out
+
+
 def _locks(value: Any) -> dict[str, dict[str, Any]]:
     """{Wohnungs-ID: {typ, entitaet, slot_von, slot_bis, modus, code}} – Schloss-Adapter und Code-Modus
     für Türcodes (v1.19.0; Modus „statisch“ z. B. für einen Schlüsseltresor ab v1.19.0b2)."""
@@ -818,6 +839,7 @@ FIELDS: dict[str, Any] = {
     CONF_COST_CLEANING: _num(0, 1000),
     CONF_COST_CLEANING_MINUTES: _num(0, 600),
     CONF_CLEANING_WAGES: _wages,
+    CONF_CLEANING_MINUTES_BY_USER: _user_minutes,
     CONF_COST_LAUNDRY: _num(0, 1000),
     CONF_COST_HEATING_YEAR: _num(0, 100000),
     CONF_COST_HOT_WATER_YEAR: _num(0, 100000),

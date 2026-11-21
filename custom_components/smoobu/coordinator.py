@@ -55,7 +55,7 @@ from .analytics import build_records, is_cancelled
 from . import energie
 from .const import CONF_CLEANING_WAGES
 from .rechte import module_on as rechte_module_on
-from .reinigung import UNKNOWN as CLEAN_UNKNOWN, wage_of as clean_wage_of
+from .reinigung import UNKNOWN as CLEAN_UNKNOWN, wage_of as clean_wage_of, minutes_by_user as clean_minutes_by_user
 from .deckungsbeitrag import apply as db_apply
 from .deckungsbeitrag import build_table as db_build_table
 from .deckungsbeitrag import config_from_options as cost_config_from_options
@@ -285,6 +285,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         if board is None:
             return {}
         state = await board._load()  # noqa: SLF001
+        mins_by_user = clean_minutes_by_user(self.config_entry.options)
         out: dict[Any, float] = {}
         for items in records.values():
             for r in items:
@@ -292,8 +293,10 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
                 who = s.get("gereinigt_von") or s.get("zugewiesen")
                 # v1.19.0: gebuchte Dauer je Reinigung (sonst Standardzeit) × Lohn der Person (sonst Standardlohn)
                 # v1.19.1b2: „Unbekannt“ (nachgetragene Altfälle) ohne eigenen Lohn = 0 €/h
-                if who in wages or who == CLEAN_UNKNOWN or s.get("minuten"):
-                    out[r["id"]] = clean_wage_of(wages, who, cfg.cleaning_wage) * float(s.get("minuten") or cfg.cleaning_minutes) / 60
+                # v1.19.1b4: Dauer = gebucht > Standardzeit der Person > allgemeiner Standard
+                if who in wages or who == CLEAN_UNKNOWN or who in mins_by_user or s.get("minuten"):
+                    mins = s.get("minuten") or mins_by_user.get(who or "") or cfg.cleaning_minutes
+                    out[r["id"]] = clean_wage_of(wages, who, cfg.cleaning_wage) * float(mins) / 60
         return out
 
     async def _async_update_data(self) -> SmoobuData:

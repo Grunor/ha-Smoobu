@@ -62,6 +62,7 @@ UNKNOWN = "unbekannt"   # v1.19.1b2: Pseudo-Person „Unbekannt“ (nur Nachtrag
 UNKNOWN_NAME = "Unbekannt"
 CONF_CLEANING_KEEP_YEARS = "cleaning_keep_years"  # v1.19.1b3: Person nach N Jahren anonymisieren
 DEFAULT_CLEANING_KEEP_YEARS = 10
+CONF_CLEANING_MINUTES_BY_USER = "cleaning_minutes_by_user"  # v1.19.1b4: {HA-Benutzer-ID: Standard-Minuten}
 _PERSON_KEYS = ("erledigt_von", "erledigt_von_id")
 ACTIONS = ("uebernehmen", "abgeben", "zuweisen", "erledigt", "offen", "dauer", "nachtragen")
 # v1.19.1: Diese Aktionen gehen (nur mit „Reinigung zuweisen“) auch für Abreisen außerhalb des Board-Fensters
@@ -199,6 +200,7 @@ class CleaningBoard:
         rights = rechte.rights_of(user, opts)
         records = [r for r in self.c.records_all() if (apartments is None or r["wohnung_id"] in apartments)]
         names = await self._user_names()
+        by_user = minutes_by_user(opts)
         out = []
         window = {"days_back": WIDE_BACK, "days_ahead": 2 * 366} if booking_id is not None else {}
         for item in build(records, opts, dt_util.now().date(), **window):
@@ -207,6 +209,8 @@ class CleaningBoard:
             s = state.get(item["key"], {})
             item = {**item, "zugewiesen": s.get("zugewiesen"), "zugewiesen_name": names.get(s.get("zugewiesen")),
                     "minuten": s.get("minuten"),
+                    # v1.19.1b4: Standardzeit der zugewiesenen/reinigenden Person (None = allgemeiner Standard)
+                    "standard_minuten_person": by_user.get(s.get("gereinigt_von") or s.get("zugewiesen") or ""),
                     "status": s.get("status", "offen"), "erledigt_von": s.get("erledigt_von"), "erledigt_um": s.get("erledigt_um"),
                     # v1.19.1: nachgetragen (Zeitpunkt des Nachtragens) + wer gereinigt hat
                     "nachgetragen": s.get("nachgetragen"), "gereinigt_name": names.get(s.get("gereinigt_von")) or s.get("gereinigt_name")}
@@ -237,7 +241,8 @@ class CleaningBoard:
         default = float(o.get("cost_cleaning", 17.0))
         return stats(state, pending, start, end, set(apartments) if apartments is not None else None,
                      await self._user_names(), codes, today.isoformat(),
-                     wage=lambda uid: wage_of(wages, uid, default), minutes=float(o.get("cost_cleaning_minutes", 60)))
+                     wage=lambda uid: wage_of(wages, uid, default), minutes=float(o.get("cost_cleaning_minutes", 60)),
+                     minutes_for=lambda uid, std=minutes_by_user(o): std.get(uid or ""))
 
     async def _user_names(self) -> dict[str, str]:
         return {u.id: (u.name or u.id) for u in await self.hass.auth.async_get_users() if not u.system_generated}
@@ -453,6 +458,16 @@ class CleaningBoard:
 _DOW = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
 
+def minutes_by_user(opts: dict[str, Any]) -> dict[str, float]:
+    """v1.19.1b4: eigene Standard-Reinigungszeit je Person (Minuten); leer = allgemeiner Standard."""
+    return {str(k): float(v) for k, v in (opts.get(CONF_CLEANING_MINUTES_BY_USER) or {}).items() if v not in (None, "")}
+
+
+def minutes_of(by_user: dict[str, float], uid: str | None, default: float) -> float:
+    """Standardzeit der Person (falls eingetragen), sonst allgemeiner Standard."""
+    return by_user.get(uid or "", default)
+
+
 def wage_of(wages: dict[str, float], uid: str | None, default: float) -> float:
     """Stundenlohn einer Person; „Unbekannt“ ohne eigenen Eintrag = 0 €/h (v1.19.1b2)."""
     if uid == UNKNOWN:
@@ -473,7 +488,8 @@ def _delay_minutes(snap: dict[str, Any], done: str | None) -> int | None:
 
 def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start: str, end: str,
           apartments: set[Any] | None, names: dict[str, str], codes: dict[Any, str], today: str,
-          wage: Callable[[str | None], float] | None = None, minutes: float = 60.0) -> dict[str, Any]:
+          wage: Callable[[str | None], float] | None = None, minutes: float = 60.0,
+          minutes_for: Callable[[str | None], float | None] | None = None) -> dict[str, Any]:
     """Auswertung „Wer hat wann welche Wohnung gereinigt“ für [start, end).
 
     `pending` = aktuelle Reinigungen mit Zuweisung/Status (für vergangene, nicht abgehakte).
@@ -489,13 +505,15 @@ def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start
         if apartments is not None and snap["wohnung_id"] not in apartments:
             continue
         who = v.get("gereinigt_von")
+        # v1.19.1b4: gebuchte Dauer > Standardzeit der Person > allgemeiner Standard
+        mins = v.get("minuten") or (minutes_for(who) if minutes_for else None) or minutes
         done.append({**snap, "key": key, "person_id": who,
                      "person": names.get(who) or v.get("gereinigt_name") or v.get("erledigt_von") or "?",
                      "erledigt_um": v.get("erledigt_um"), "abgehakt_von": v.get("erledigt_von"),
                      "nachgetragen": v.get("nachgetragen"),  # v1.19.1
                      "verzug_min": _delay_minutes(snap, v.get("erledigt_um")),
-                     "minuten": v.get("minuten") or minutes, "minuten_gebucht": v.get("minuten") is not None,
-                     "kosten": round((wage(who) if wage else 0.0) * (v.get("minuten") or minutes) / 60, 2),
+                     "minuten": mins, "minuten_gebucht": v.get("minuten") is not None,
+                     "kosten": round((wage(who) if wage else 0.0) * mins / 60, 2),
                      "kuerzel": codes.get(snap["wohnung_id"], "")})
     done.sort(key=lambda x: (x["datum"], x["key"]), reverse=True)
     people: dict[str, dict[str, Any]] = {}

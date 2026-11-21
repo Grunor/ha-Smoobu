@@ -300,3 +300,35 @@ async def test_reinigung_anonymisieren(hass, setup, hass_ws_client, hass_read_on
     assert v["gereinigt_von"] == "unbekannt" and v["gereinigt_name"] == "Unbekannt" and v["erledigt_von"] is None
     assert v["anonymisiert"] and v["status"] == "erledigt" and v["snapshot"]["datum"] == "2026-11-16"
     assert board._anonymize(board.state) == 0  # nur einmal
+
+
+async def test_reinigungszeit_je_person(hass, setup, hass_ws_client, hass_read_only_user, freezer):  # noqa: F811
+    """v1.19.1b4: Standard-Reinigungszeit je Person – gebucht > Person > allgemein (Kosten, Statistik, Board)."""
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    uid = hass_read_only_user.id
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "user_roles": {uid: "reinigung"},
+                                                          "cleaning_wages": {uid: 20.0}, "cost_cleaning_minutes": 45,
+                                                          "cleaning_minutes_by_user": {uid: 90}})
+    await hass.async_block_till_done()
+    eid = entry.entry_id
+    admin = await hass_ws_client(hass)
+    keys = [x["key"] for x in (await _call(admin, 1, type="smoobu/cleaning/get"))["result"]["reinigungen"]]
+    assert (await _call(admin, 2, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="zuweisen", benutzer_id=uid))["success"]
+    item = (await _call(admin, 3, type="smoobu/cleaning/get"))["result"]["reinigungen"][0]
+    assert item["standard_minuten_person"] == 90
+    c = entry.runtime_data
+    await c.async_refresh()
+    assert {r["id"]: r for r in c.records_all()}[1]["reinigung_kosten"] == 30.0  # 90 min × 20 €/h
+    assert (await _call(admin, 4, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="erledigt"))["success"]
+    st = (await _call(admin, 5, type="smoobu/cleaning/stats", start="2026-11-01", end="2026-12-01"))["result"]
+    assert st["liste"][0]["minuten"] == 90 and st["kosten"] == 30.0
+    # gebuchte Dauer hat Vorrang
+    assert (await _call(admin, 6, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="dauer", minuten=60))["success"]
+    st = (await _call(admin, 7, type="smoobu/cleaning/stats", start="2026-11-01", end="2026-12-01"))["result"]
+    assert st["liste"][0]["minuten"] == 60 and st["kosten"] == 20.0
+    # Einstellungen: Grenzen
+    from custom_components.smoobu import settings as _settings
+    _v, err = _settings.validate(hass, entry, {"cleaning_minutes_by_user": {uid: 0}}, None)
+    assert err.get("cleaning_minutes_by_user")
+    vals, err = _settings.validate(hass, entry, {"cleaning_minutes_by_user": {uid: 75, "x": ""}}, None)
+    assert not err and vals["cleaning_minutes_by_user"] == {uid: 75}

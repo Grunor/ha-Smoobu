@@ -10,6 +10,10 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 - Roadmap: `ROADMAP.md` mit geplanten Funktionen (je ein Issue mit Label `roadmap`) / roadmap file with planned features (one issue each, label `roadmap`) und öffentliches [Roadmap-Board](https://github.com/users/Grunor/projects/1) / and public roadmap board
 
+## 1.19.1b4
+
+- Reinigungszeit je Person: in Einstellungen → Reinigung & Zugang neben dem Stundenlohn eine eigene Standardzeit (Minuten) je Reinigungskraft. Reihenfolge: je Reinigung gebuchte Dauer > Zeit der Person > allgemeiner Standard. Gilt für Kosten/Deckungsbeitrag, Statistik und als Vorschlag im Board und in den Buchungsdetails / cleaning time per person next to the hourly wage; order: booked duration > person's time > general default; used for costs, statistics and as placeholder on the board and in booking details
+
 ## 1.19.1b3
 
 - Datenschutz: neue Einstellung **„Person aufbewahren“** (Reinigung & Zugang → Datenschutz, Standard 10 Jahre). Danach wird in erledigten Reinigungen die Person zu „Unbekannt“ und „abgehakt von“ entfernt; Tag, Wohnung, Dauer und Kosten bleiben für die Statistik. Geprüft beim Start und täglich / privacy: new setting **"Keep person for"** (default 10 years); afterwards the person in completed cleanings becomes "Unknown" and "checked off by" is removed; date, property, duration and costs stay

@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.1b3";
+const SMOOBU_CARDS_VERSION = "1.19.1b4";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -491,7 +491,8 @@ const EN = {
   "Wenn die Buchung keine Ankunftszeit hat.": "If the booking has no arrival time.", "Wer hat wann welche Wohnung gereinigt": "Who cleaned which apartment when",
   "Werkbank öffnen": "Open workbench", "Wert": "Value",
   "Werte übernommen – mit „Speichern“ übernehmen": "Values applied – confirm with \"Save\"", "Wieder offen": "Reopen", "Nachtragen": "Record", "Wer hat gereinigt?": "Who cleaned?", "vergangen, nicht erfasst": "past, not recorded",
-  "gereinigt von": "cleaned by", "nachgetragen": "recorded later", "Reinigung nachgetragen": "Cleaning recorded", "Unbekannt": "Unknown", "Person aufbewahren": "Keep person for", "Standard 10 Jahre (steuerliche Aufbewahrungsfrist).": "Default 10 years (tax retention period).",
+  "gereinigt von": "cleaned by", "nachgetragen": "recorded later", "Reinigung nachgetragen": "Cleaning recorded", "Unbekannt": "Unknown", "Reinigungszeit der Person": "Cleaning time of this person", "Stundenlohn / Zeit": "Wage / time",
+  "Stundenlohn und Reinigungszeit je Person; leer = Standard. Gilt für Reinigungen, die die Person laut Reinigungsboard erledigt hat oder die ihr zugewiesen sind. Eine je Reinigung gebuchte Dauer hat Vorrang.": "Hourly wage and cleaning time per person; empty = default. Applies to cleanings the person completed or is assigned to on the cleaning board. A duration booked per cleaning takes precedence.", "Person aufbewahren": "Keep person for", "Standard 10 Jahre (steuerliche Aufbewahrungsfrist).": "Default 10 years (tax retention period).",
   "Erledigte Reinigungen speichern, wer gereinigt hat. Nach Ablauf der Frist wird daraus „Unbekannt“; Tag, Wohnung, Dauer und Kosten bleiben für die Statistik.": "Completed cleanings store who cleaned. After the period this becomes \"Unknown\"; date, property, duration and costs stay for the statistics.",
   "Wiederbelegt": "Re-let", "Wird auf diesem Gerät gespeichert und erscheint unten in der Werkbank": "Saved on this device and shown at the bottom of the workbench",
   "Wird ignoriert, wenn „Daten abrufen seit“ gesetzt ist.": "Ignored if \"Fetch data since\" is set.", "Wirkt nur, wenn die KI erlaubt ist.": "Only applies if AI is allowed.",
@@ -3196,7 +3197,7 @@ class SmoobuBookingDialog extends HTMLElement {
             `<option value="${esc(u.id)}" ${x.zugewiesen === u.id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}
             <option value="unbekannt">${t("Unbekannt")}</option></select>
           <label class="dur" title="${t("Reinigungszeit (leer = Standard)")}"><input type="number" data-k="cnmin" min="1" max="600" step="5"
-            value="${x.minuten ?? ""}" placeholder="${c.standard_minuten || 60}" style="width:72px"> min</label>
+            value="${x.minuten ?? ""}" placeholder="${x.standard_minuten_person || c.standard_minuten || 60}" style="width:72px"> min</label>
           <button class="btn" data-act="cnach">✓ ${t("Nachtragen")}</button></div></div>`;
     }
     const mine = !x.zugewiesen || x.zugewiesen === me;
@@ -3212,8 +3213,8 @@ class SmoobuBookingDialog extends HTMLElement {
     if (edit) acts.push(done ? `<button class="btn flat" data-act="cl-offen">↺ ${t("Wieder offen")}</button>`
       : `<button class="btn" data-act="cl-erledigt">✓ ${t("Erledigt")}</button>`);
     const dur = edit ? `<label class="dur" title="${t("Reinigungszeit (leer = Standard)")}"><input type="number" data-k="cmin" min="1" max="600" step="5"
-        value="${x.minuten ?? ""}" placeholder="${c.standard_minuten || 60}" style="width:72px"> min</label>`
-      : `<span class="sub">${num(x.minuten || c.standard_minuten || 60)} min</span>`;
+        value="${x.minuten ?? ""}" placeholder="${x.standard_minuten_person || c.standard_minuten || 60}" style="width:72px"> min</label>`
+      : `<span class="sub">${num(x.minuten || x.standard_minuten_person || c.standard_minuten || 60)} min</span>`;
     return `<div><h3>🧹 ${t("Reinigung")}</h3>
       <div class="sub" style="margin-bottom:8px">${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}${done ? (x.nachgetragen
         // v1.19.1: nachgetragene Reinigung – wer gereinigt hat + wann nachgetragen
@@ -6807,9 +6808,10 @@ class SmoobuSettingsCard extends SmoobuCard {
   tabCleaning(meta) {
     const d = this._draft;
     const rn = d.module_reinigung !== false;
-    const wages = (rn ? meta.reinigungskraefte || [] : []).map((u, i, all) => this.fld(`${t("Stundenlohn")} · ${u.name}`,
-      `<input type="number" data-wage="${esc(u.id)}" min="0" max="500" step="0.5" value="${esc(d.cleaning_wages?.[u.id] ?? "")}" placeholder="${esc(num(Number(d.cost_cleaning) || 0, 2))}"><span class="unit">€/h</span>`,
-      i === all.length - 1 ? "Leer = Standard. Gilt für Reinigungen, die die Person laut Reinigungsboard erledigt hat oder die ihr zugewiesen sind." : "",
+    const wages = (rn ? meta.reinigungskraefte || [] : []).map((u, i, all) => this.fld(`${t("Stundenlohn / Zeit")} · ${u.name}`,
+      `<input type="number" data-wage="${esc(u.id)}" min="0" max="500" step="0.5" value="${esc(d.cleaning_wages?.[u.id] ?? "")}" placeholder="${esc(num(Number(d.cost_cleaning) || 0, 2))}"><span class="unit">€/h</span>
+       <input type="number" data-umin="${esc(u.id)}" min="1" max="600" step="5" value="${esc(d.cleaning_minutes_by_user?.[u.id] ?? "")}" placeholder="${esc(num(Number(d.cost_cleaning_minutes) || 0))}" title="${t("Reinigungszeit der Person")}" style="margin-left:8px"><span class="unit">min</span>`,
+      i === all.length - 1 ? "Stundenlohn und Reinigungszeit je Person; leer = Standard. Gilt für Reinigungen, die die Person laut Reinigungsboard erledigt hat oder die ihr zugewiesen sind. Eine je Reinigung gebuchte Dauer hat Vorrang." : "",
       i === all.length - 1 ? "cleaning_wages" : "")).join("");
     const cost = `<div class="grp" data-neu="reinigungslohn"><div class="gh"><div class="grow"><b>${t("Reinigungskosten")}${neuBadge("opt-reinigungslohn")}</b>
         <span class="sub">${t("Kosten je Aufenthalt = Reinigungszeit × Stundenlohn der Person (sonst Standard). Fließt in den Deckungsbeitrag.")}</span></div></div><div class="gb">
@@ -6998,6 +7000,12 @@ class SmoobuSettingsCard extends SmoobuCard {
       const w = { ...(d.cleaning_wages || {}) };
       if (inp.value === "") delete w[inp.dataset.wage]; else w[inp.dataset.wage] = Number(inp.value);
       d.cleaning_wages = w; this.refreshFoot();
+    }));
+    // v1.19.1b4: Reinigungszeit je Person (leer = Standard)
+    root.querySelectorAll("[data-umin]").forEach((inp) => inp.addEventListener("input", () => {
+      const m = { ...(d.cleaning_minutes_by_user || {}) };
+      if (inp.value === "") delete m[inp.dataset.umin]; else m[inp.dataset.umin] = Number(inp.value);
+      d.cleaning_minutes_by_user = m; this.refreshFoot();
     }));
     // v1.19.0: Nebenkostenabrechnung (Upload, Auswertung, Vorschlag übernehmen)
     root.querySelector("[data-bill-up]")?.addEventListener("click", () => this.billUpload(root.querySelector("[data-bill-file]")?.files?.[0]));
@@ -7232,7 +7240,7 @@ class SmoobuCleaningCard extends SmoobuCard {
       const mayDone = r.darf_zuweisen || !x.zugewiesen || x.zugewiesen === me;
       // v1.19.0: tatsächliche Reinigungszeit je Reinigung buchen (leer = Standard)
       if (mayDone) acts.push(`<label class="dur" title="${t("Reinigungszeit (leer = Standard)")}"><input type="number" data-cmin="${esc(x.key)}" data-entry="${esc(x.entry_id)}"
-        min="1" max="600" step="5" value="${x.minuten ?? ""}" placeholder="${r.standard_minuten || 60}"><span class="unit">min</span></label>`);
+        min="1" max="600" step="5" value="${x.minuten ?? ""}" placeholder="${x.standard_minuten_person || r.standard_minuten || 60}"><span class="unit">min</span></label>`);
       if (mayDone) acts.push(done
         ? `<button class="lnk" data-cl="offen" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">↺ ${t("Wieder offen")}</button>`
         : `<button class="btn" data-cl="erledigt" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">✓ ${t("Erledigt")}</button>`);
@@ -7240,7 +7248,7 @@ class SmoobuCleaningCard extends SmoobuCard {
           <div class="t">${t("ab")} ${uhr(x.check_out)}${x.kuerzel && this.multi ? codeTag(x.kuerzel) : ""}
             <span class="sub">${t("Abreise")}: ${guest(x.vorname, x.personen, x.hund, x.naechte)}</span></div>
           ${next}
-          ${done ? `<div class="s">✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""} · ${num(x.minuten || r.standard_minuten || 60)} min${x.minuten ? "" : ` (${t("Standard")})`}</div>` : ""}
+          ${done ? `<div class="s">✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""} · ${num(x.minuten || x.standard_minuten_person || r.standard_minuten || 60)} min${x.minuten ? "" : ` (${t("Standard")})`}</div>` : ""}
           ${late && !done ? `<div class="s" style="color:var(--sm-bad)">${t("Noch nicht abgehakt")}</div>` : ""}
         </div><div class="a">${acts.join("")}</div></div>`;
     };
