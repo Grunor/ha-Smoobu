@@ -1119,7 +1119,9 @@ def _apartments_by_coord(pairs) -> dict[Any, list[int]]:
     return out
 
 
-@websocket_api.websocket_command({vol.Required("type"): "smoobu/cleaning/get", **_TARGET})
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/cleaning/get", **_TARGET,
+                                  # v1.19.1: nur die Reinigung nach dieser Buchung, ohne Zeitfenster (Buchungsdetails)
+                                  vol.Optional("reservation_id"): vol.Coerce(int)})
 @websocket_api.async_response
 async def ws_cleaning_get(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Reinigungen (−7 bis +60 Tage) mit Zuweisung/Status; Benutzerliste nur für „reinigung_zuweisen“."""
@@ -1136,7 +1138,7 @@ async def ws_cleaning_get(hass: HomeAssistant, connection: websocket_api.ActiveC
     can_assign = can_take = True
     for c, apts in _apartments_by_coord(pairs).items():
         eid = c.config_entry.entry_id
-        for x in await c.cleaning.items(apts, connection.user):
+        for x in await c.cleaning.items(apts, connection.user, msg.get("reservation_id")):
             items.append({**x, "entry_id": eid, "kuerzel": codes.get((eid, x["wohnung_id"]), "")})
         have = rechte.rights_of(connection.user, c.config_entry.options)
         can_assign &= "reinigung_zuweisen" in have

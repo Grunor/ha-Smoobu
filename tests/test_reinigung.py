@@ -187,3 +187,53 @@ async def test_rolle_reinigung_und_board(hass, setup, hass_ws_client, hass_read_
     assert st["kosten"] == 0.0
     from custom_components.smoobu import settings as _settings
     assert _settings.current(entry)["cleaning_wages"] == {hass_read_only_user.id: 0.0}  # 0 €/h auch in den Einstellungen
+
+
+async def test_reinigung_nachtragen(hass, setup, hass_ws_client, hass_read_only_user, hass_read_only_access_token, freezer):  # noqa: F811
+    """v1.19.1: vergangene Reinigung nachtragen – auch außerhalb des Board-Fensters, ohne Push, nur Zuweisende."""
+    pushes = async_mock_service(hass, "notify", "mobile_app_putz")
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "user_roles": {hass_read_only_user.id: "reinigung"},
+                                                          "cleaning_phones": {hass_read_only_user.id: "notify.mobile_app_putz"}})
+    await hass.async_block_till_done()
+    eid, key = entry.entry_id, "1:2026-11-16"
+    admin = await hass_ws_client(hass)  # vor dem Zeitsprung anmelden (Token läuft sonst ab)
+    cleaner = await hass_ws_client(hass, hass_read_only_access_token)
+    freezer.move_to("2026-12-15T11:00:00+00:00")  # Abreise 16.11. liegt jetzt außerhalb der 7 Tage
+
+    # Board ohne die alte Reinigung, Buchungsdetails (reservation_id) mit ihr
+    assert key not in [x["key"] for x in (await _call(admin, 1, type="smoobu/cleaning/get"))["result"]["reinigungen"]]
+    one = (await _call(admin, 2, type="smoobu/cleaning/get", reservation_id=1))["result"]["reinigungen"]
+    assert [x["key"] for x in one] == [key] and one[0]["status"] == "offen"
+    # Normale Aktionen gehen außerhalb des Fensters nicht; Reinigung darf nicht nachtragen
+    assert (await _call(admin, 3, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="erledigt"))["error"]["code"] == "not_found"
+    res = await _call(cleaner, 4, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="nachtragen", benutzer_id=hass_read_only_user.id)
+    assert res["error"]["code"] == "not_found"
+    # Ungültige Person
+    res = await _call(admin, 5, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="nachtragen", benutzer_id="gibtsnicht")
+    assert res["error"]["code"] == "invalid_user"
+    # Nachtragen: gereinigt von der Reinigungskraft, erledigt, ohne Abhak-Zeitpunkt, ohne Push
+    res = await _call(admin, 6, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="nachtragen",
+                      benutzer_id=hass_read_only_user.id, minuten=120)
+    z = res["result"]["zustand"]
+    assert z["status"] == "erledigt" and z["gereinigt_von"] == hass_read_only_user.id and z["erledigt_um"] is None
+    assert z["nachgetragen"] and z["minuten"] == 120 and z["snapshot"]["datum"] == "2026-11-16"
+    await hass.async_block_till_done()
+    assert pushes == []
+    one = (await _call(admin, 7, type="smoobu/cleaning/get", reservation_id=1))["result"]["reinigungen"][0]
+    assert one["status"] == "erledigt" and one["nachgetragen"] and one["gereinigt_name"]
+    # Statistik zählt sie (Verzug unbekannt), Liste markiert „nachgetragen“
+    st = (await _call(admin, 8, type="smoobu/cleaning/stats", start="2026-11-01", end="2026-12-01"))["result"]
+    assert st["anzahl"] == 1 and st["liste"][0]["nachgetragen"] and st["liste"][0]["verzug_min"] is None
+    assert st["personen"][0]["minuten"] == 120
+    # Korrigieren: wieder offen geht auch außerhalb des Fensters
+    res = await _call(admin, 9, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="offen")
+    assert res["success"] and "nachgetragen" not in res["result"]["zustand"]
+    # Zukünftige Abreise lässt sich nicht nachtragen
+    future = (await _call(admin, 10, type="smoobu/cleaning/get"))["result"]["reinigungen"]
+    if future:
+        f = next((x for x in future if x["datum"] > "2026-12-15"), None)
+        if f:
+            res = await _call(admin, 11, type="smoobu/cleaning/set", entry_id=eid, key=f["key"], aktion="nachtragen",
+                              benutzer_id=hass_read_only_user.id)
+            assert res["error"]["code"] == "not_past"

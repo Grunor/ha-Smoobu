@@ -48,7 +48,10 @@ DAYS_BACK = 7      # erledigte/vergessene der letzten Woche bleiben sichtbar
 DAYS_AHEAD = 60
 KEEP_DAYS = 60          # offene/zugewiesene Einträge
 KEEP_DONE_DAYS = 3 * 366  # erledigte (Statistik)
-ACTIONS = ("uebernehmen", "abgeben", "zuweisen", "erledigt", "offen", "dauer")
+ACTIONS = ("uebernehmen", "abgeben", "zuweisen", "erledigt", "offen", "dauer", "nachtragen")
+# v1.19.1: Diese Aktionen gehen (nur mit „Reinigung zuweisen“) auch für Abreisen außerhalb des Board-Fensters
+# (älter als DAYS_BACK) – zum Nachtragen vergangener Reinigungen und zum Korrigieren nachgetragener.
+PAST_ACTIONS = ("nachtragen", "offen", "dauer")
 MAX_MINUTES = 600
 
 
@@ -149,19 +152,27 @@ class CleaningBoard:
         return self.state
 
     # --- Lesen -----------------------------------------------------------
-    async def items(self, apartments: list[Any] | None, user: Any) -> list[dict[str, Any]]:
-        """Reinigungen mit Zuweisung/Status, gefiltert nach Wohnungen und den Rechten des Benutzers."""
+    async def items(self, apartments: list[Any] | None, user: Any, booking_id: int | None = None) -> list[dict[str, Any]]:
+        """Reinigungen mit Zuweisung/Status, gefiltert nach Wohnungen und den Rechten des Benutzers.
+
+        v1.19.1: mit `booking_id` nur die Reinigung nach dieser Buchung – ohne Zeitfenster, damit die
+        Buchungsdetails auch vergangene Aufenthalte zeigen (Reinigung nachtragen)."""
         state = await self._load()
         opts = self.opts
         rights = rechte.rights_of(user, opts)
-        records = [r for r in self.c.records_all() if apartments is None or r["wohnung_id"] in apartments]
+        records = [r for r in self.c.records_all() if (apartments is None or r["wohnung_id"] in apartments)]
         names = await self._user_names()
         out = []
-        for item in build(records, opts, dt_util.now().date()):
+        window = {"days_back": KEEP_DONE_DAYS, "days_ahead": 2 * 366} if booking_id is not None else {}
+        for item in build(records, opts, dt_util.now().date(), **window):
+            if booking_id is not None and item["buchung_id"] != booking_id:
+                continue
             s = state.get(item["key"], {})
             item = {**item, "zugewiesen": s.get("zugewiesen"), "zugewiesen_name": names.get(s.get("zugewiesen")),
                     "minuten": s.get("minuten"),
-                    "status": s.get("status", "offen"), "erledigt_von": s.get("erledigt_von"), "erledigt_um": s.get("erledigt_um")}
+                    "status": s.get("status", "offen"), "erledigt_von": s.get("erledigt_von"), "erledigt_um": s.get("erledigt_um"),
+                    # v1.19.1: nachgetragen (Zeitpunkt des Nachtragens) + wer gereinigt hat
+                    "nachgetragen": s.get("nachgetragen"), "gereinigt_name": names.get(s.get("gereinigt_von")) or s.get("gereinigt_name")}
             # Korrektur 21.11.2026 (Wunsch Betreiber): voller Gastname für alle mit „Gästedaten sehen“
             # (alle Rollen außer „Reinigung“), sonst nur der Vorname; ohne „Kalender sehen“ gar kein Name.
             full = "gaeste" in rights
@@ -213,7 +224,12 @@ class CleaningBoard:
         can_assign = "reinigung_zuweisen" in rights
         if "reinigung" not in rights and not can_assign:
             raise CleaningError("unauthorized")
-        item = next((x for x in build(self.c.records_all(), opts, dt_util.now().date()) if x["key"] == key), None)
+        today = dt_util.now().date()
+        item = next((x for x in build(self.c.records_all(), opts, today) if x["key"] == key), None)
+        if item is None and can_assign and action in PAST_ACTIONS:
+            # v1.19.1: ältere Abreise (außerhalb des Board-Fensters) – nur Zuweisende, nur Nachtragen/Korrigieren
+            item = next((x for x in build(self.c.records_all(), opts, today, days_back=KEEP_DONE_DAYS, days_ahead=0)
+                         if x["key"] == key), None)
         if item is None:
             raise CleaningError("not_found")
         state = await self._load()
@@ -238,6 +254,27 @@ class CleaningBoard:
                 if tu is None or not tu.is_active or not rechte.allowed(tu, opts, "reinigung"):
                     raise CleaningError("invalid_user")
             cur["zugewiesen"] = target or None
+        elif action == "nachtragen":
+            # v1.19.1: vergangene Reinigung in einem Schritt erfassen – „gereinigt von <Person>“ + erledigt.
+            # Bewusst ohne Push (die Person hat längst gereinigt) und ohne Abhak-Zeitpunkt: erledigt_um bleibt
+            # leer, damit die Auswertung „Ø Minuten bis zum Abhaken“ nicht verfälscht wird.
+            if not can_assign:
+                raise CleaningError("unauthorized")
+            if item["datum"] > today.isoformat():
+                raise CleaningError("not_past")
+            tu = await self.hass.auth.async_get_user(target) if target else None
+            if tu is None or not rechte.allowed(tu, opts, "reinigung"):
+                raise CleaningError("invalid_user")
+            if minutes is not None:
+                if not 1 <= int(minutes) <= MAX_MINUTES:
+                    raise CleaningError("invalid_minutes")
+                cur["minuten"] = int(minutes)
+            cur.update({
+                "zugewiesen": target, "status": "erledigt", "erledigt_von": getattr(user, "name", None),
+                "erledigt_von_id": me, "erledigt_um": None, "gereinigt_von": target,
+                "gereinigt_name": tu.name or target, "nachgetragen": dt_util.now().isoformat(timespec="minutes"),
+                "snapshot": {k: item[k] for k in ("datum", "wohnung_id", "check_out", "wechsel", "hund", "personen", "naechte")},
+            })
         elif action == "dauer":  # tatsächliche Reinigungszeit buchen (leer = Standard)
             if not can_assign and before not in (None, me):
                 raise CleaningError("not_yours")
@@ -262,13 +299,14 @@ class CleaningBoard:
                 cur["gereinigt_name"] = (await self._user_names()).get(who) if who else None
                 cur["snapshot"] = {k: item[k] for k in ("datum", "wohnung_id", "check_out", "wechsel", "hund", "personen", "naechte")}
             else:
-                for k in ("erledigt_von", "erledigt_von_id", "erledigt_um", "gereinigt_von", "gereinigt_name", "snapshot"):
+                for k in ("erledigt_von", "erledigt_von_id", "erledigt_um", "gereinigt_von", "gereinigt_name", "snapshot",
+                          "nachgetragen"):
                     cur.pop(k, None)
         cur["geaendert"] = dt_util.now().isoformat(timespec="seconds")
         state[key] = cur
         await self.store.async_save(state)
         after = cur.get("zugewiesen")
-        if after != before:
+        if after != before and action != "nachtragen":  # v1.19.1: Nachtragen ohne Push
             if after and after != me:  # sich selbst eintragen braucht keinen Push
                 await self._push(after, item, "zugewiesen")
             if before and before != me:
@@ -359,6 +397,7 @@ def stats(state: dict[str, dict[str, Any]], pending: list[dict[str, Any]], start
         done.append({**snap, "key": key, "person_id": who,
                      "person": names.get(who) or v.get("gereinigt_name") or v.get("erledigt_von") or "?",
                      "erledigt_um": v.get("erledigt_um"), "abgehakt_von": v.get("erledigt_von"),
+                     "nachgetragen": v.get("nachgetragen"),  # v1.19.1
                      "verzug_min": _delay_minutes(snap, v.get("erledigt_um")),
                      "minuten": v.get("minuten") or minutes, "minuten_gebucht": v.get("minuten") is not None,
                      "kosten": round((wage(who) if wage else 0.0) * (v.get("minuten") or minutes) / 60, 2),

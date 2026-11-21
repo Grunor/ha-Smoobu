@@ -8,7 +8,17 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
-- Roadmap: `ROADMAP.md` mit geplanten Funktionen (je ein Issue mit Label `roadmap`) / roadmap file with planned features (one issue each, label `roadmap`)
+- Roadmap: `ROADMAP.md` mit geplanten Funktionen (je ein Issue mit Label `roadmap`) / roadmap file with planned features (one issue each, label `roadmap`) und öffentliches [Roadmap-Board](https://github.com/users/Grunor/projects/1) / and public roadmap board
+
+## 1.19.1b1
+
+**Reinigung nachtragen.** Vergangene Reinigungen lassen sich jetzt nachträglich erfassen – auch Monate zurück, z. B. für die Zeit vor v1.19.0 oder wenn im Urlaub jemand anderes gereinigt hat.
+**Record past cleanings.** Past cleanings can now be recorded afterwards – even months back, e.g. for the time before v1.19.0 or when someone else cleaned during your holiday.
+
+- Buchungsdetails: Bei einer vergangenen, noch nicht erfassten Reinigung erscheint im Abschnitt „Reinigung“ die Auswahl „Wer hat gereinigt?“, optional die Dauer und der Knopf „✓ Nachtragen“ (Recht „Reinigung zuweisen“) / booking details: for a past cleaning that was not recorded, the "Cleaning" section shows "Who cleaned?", an optional duration and a "✓ Record" button (right "Assign cleaning")
+- Nachtragen setzt „gereinigt von“ und „erledigt“ in einem Schritt – ohne Push an die Person und ohne Abhak-Zeitpunkt, damit „Ø Minuten bis zum Abhaken“ nicht verfälscht wird; Kosten und Reinigungsstatistik zählen sie normal mit (Liste: „nachgetragen“) / recording sets "cleaned by" and "done" in one step – no push to the person and no check-off time, so "avg. minutes until checked off" stays correct; costs and cleaning statistics include it as usual (list: "recorded later")
+- Nachgetragene Reinigungen lassen sich in den Buchungsdetails wieder öffnen oder in der Dauer korrigieren / recorded cleanings can be reopened or their duration corrected in the booking details
+- Schnittstelle: `smoobu/cleaning/set` mit `aktion: nachtragen`; `smoobu/cleaning/get` mit `reservation_id` liefert die Reinigung einer Buchung ohne Zeitfenster / API: `smoobu/cleaning/set` with `aktion: nachtragen`; `smoobu/cleaning/get` with `reservation_id` returns one booking's cleaning without a time window
 
 ## 1.19.0 – 2026-11-21
 

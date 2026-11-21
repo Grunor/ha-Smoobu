@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.0";
+const SMOOBU_CARDS_VERSION = "1.19.1b1";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -490,7 +490,8 @@ const EN = {
   "Weniger anzeigen": "Show less", "Wenn die Buchung keine Abreisezeit hat.": "If the booking has no departure time.",
   "Wenn die Buchung keine Ankunftszeit hat.": "If the booking has no arrival time.", "Wer hat wann welche Wohnung gereinigt": "Who cleaned which apartment when",
   "Werkbank öffnen": "Open workbench", "Wert": "Value",
-  "Werte übernommen – mit „Speichern“ übernehmen": "Values applied – confirm with \"Save\"", "Wieder offen": "Reopen",
+  "Werte übernommen – mit „Speichern“ übernehmen": "Values applied – confirm with \"Save\"", "Wieder offen": "Reopen", "Nachtragen": "Record", "Wer hat gereinigt?": "Who cleaned?", "vergangen, nicht erfasst": "past, not recorded",
+  "gereinigt von": "cleaned by", "nachgetragen": "recorded later", "Reinigung nachgetragen": "Cleaning recorded",
   "Wiederbelegt": "Re-let", "Wird auf diesem Gerät gespeichert und erscheint unten in der Werkbank": "Saved on this device and shown at the bottom of the workbench",
   "Wird ignoriert, wenn „Daten abrufen seit“ gesetzt ist.": "Ignored if \"Fetch data since\" is set.", "Wirkt nur, wenn die KI erlaubt ist.": "Only applies if AI is allowed.",
   "Wohnungskürzel": "Apartment codes", "Zahlung über das Portal": "Payment via the portal",
@@ -3128,7 +3129,8 @@ class SmoobuBookingDialog extends HTMLElement {
       // v1.19.0: Türcode dieser Buchung (nur mit Recht „Gästedaten“, sonst ohne)
       this.door = await this.store.ws("smoobu/doorcode/get", { ...this.target, reservation_id: this.rid }, { cache: false }).catch(() => null);
       // v1.19.0: Reinigung dieser Buchung (Dauer buchbar) – nur mit Recht „Reinigung“, sonst einfach ohne
-      this.clean = await this.store.ws("smoobu/cleaning/get", this.target, { cache: false })
+      // v1.19.1: nur diese Buchung und ohne Zeitfenster – auch vergangene Aufenthalte (Reinigung nachtragen)
+      this.clean = await this.store.ws("smoobu/cleaning/get", { ...this.target, reservation_id: this.rid }, { cache: false })
         .then((r) => ({ ...r, item: r.reinigungen.find((x) => x.buchung_id === this.rid) || null })).catch(() => null);
       this.apt = info.wohnungen.find((w) => w.apartment_id === (d.buchung?.wohnung_id ?? this.target.apartment_id)) || info.wohnungen[0];
       this.data = d;
@@ -3182,6 +3184,19 @@ class SmoobuBookingDialog extends HTMLElement {
     const c = this.clean, x = c?.item;
     if (!x) return "";
     const me = c.ich, done = x.status === "erledigt";
+    // v1.19.1: vergangene, nicht erledigte Reinigung → nachtragen (wer hat gereinigt, Dauer, ein Klick).
+    // Nur mit „Reinigung zuweisen“; ohne Push an die Person, Abhak-Zeitpunkt bleibt leer.
+    if (!done && c.darf_zuweisen && c.heute && x.datum < c.heute) {
+      const users = c.benutzer || [];
+      return `<div><h3>🧹 ${t("Reinigung")}</h3>
+        <div class="sub" style="margin-bottom:8px">${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)} · ${t("vergangen, nicht erfasst")}</div>
+        <div class="row" style="align-items:center;flex-wrap:wrap;gap:8px">
+          <select data-k="cnach" title="${t("Wer hat gereinigt?")}"><option value="">${t("Wer hat gereinigt?")}</option>${users.map((u) =>
+            `<option value="${esc(u.id)}" ${x.zugewiesen === u.id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}</select>
+          <label class="dur" title="${t("Reinigungszeit (leer = Standard)")}"><input type="number" data-k="cnmin" min="1" max="600" step="5"
+            value="${x.minuten ?? ""}" placeholder="${c.standard_minuten || 60}" style="width:72px"> min</label>
+          <button class="btn" data-act="cnach">✓ ${t("Nachtragen")}</button></div></div>`;
+    }
     const mine = !x.zugewiesen || x.zugewiesen === me;
     const edit = c.darf_zuweisen || (c.darf_uebernehmen && mine);
     const users = c.benutzer || [];
@@ -3198,7 +3213,10 @@ class SmoobuBookingDialog extends HTMLElement {
         value="${x.minuten ?? ""}" placeholder="${c.standard_minuten || 60}" style="width:72px"> min</label>`
       : `<span class="sub">${num(x.minuten || c.standard_minuten || 60)} min</span>`;
     return `<div><h3>🧹 ${t("Reinigung")}</h3>
-      <div class="sub" style="margin-bottom:8px">${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}${done ? ` · ✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""}` : ""}</div>
+      <div class="sub" style="margin-bottom:8px">${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}${done ? (x.nachgetragen
+        // v1.19.1: nachgetragene Reinigung – wer gereinigt hat + wann nachgetragen
+        ? ` · ✓ ${t("gereinigt von")} ${esc(x.gereinigt_name || "?")} · ${t("nachgetragen")} ${fdate(x.nachgetragen)}`
+        : ` · ✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""}`) : ""}</div>
       <div class="row" style="align-items:center;flex-wrap:wrap;gap:8px">${who}${dur}${acts.join("")}</div></div>`;
   }
   // Reinigung aus den Buchungsdetails ändern (gleiche Websocket-Aktion wie das Reinigungsboard)
@@ -3207,7 +3225,7 @@ class SmoobuBookingDialog extends HTMLElement {
     if (!x) return;
     try {
       await this.store.ws("smoobu/cleaning/set", { entry_id: x.entry_id, key: x.key, aktion, ...extra }, { cache: false });
-      toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : aktion === "zuweisen" ? t("Zugewiesen") : aktion === "dauer" ? t("Reinigungszeit gespeichert") : t("Gespeichert"));
+      toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : aktion === "nachtragen" ? `✓ ${t("Reinigung nachgetragen")}` : aktion === "zuweisen" ? t("Zugewiesen") : aktion === "dauer" ? t("Reinigungszeit gespeichert") : t("Gespeichert"));
       this.load();
     } catch (e) { toast(`${t("Fehler")}: ${t(e?.message || String(e))}`); }
   }
@@ -3447,6 +3465,12 @@ class SmoobuBookingDialog extends HTMLElement {
     if (a === "cmin") { // v1.19.0: Reinigungszeit dieser Buchung (nur in HA, nicht in Smoobu)
       const val = this.shadowRoot.querySelector('[data-k="cmin"]')?.value;
       return this.cleanSet("dauer", { minuten: val === "" ? null : Number(val) });
+    }
+    if (a === "cnach") { // v1.19.1: vergangene Reinigung nachtragen
+      const who = this.shadowRoot.querySelector('[data-k="cnach"]')?.value;
+      if (!who) { toast(t("Wer hat gereinigt?")); return; }
+      const val = this.shadowRoot.querySelector('[data-k="cnmin"]')?.value;
+      return this.cleanSet("nachtragen", { benutzer_id: who, ...(val ? { minuten: Number(val) } : {}) });
     }
     if (a.startsWith("cl-")) return this.cleanSet(a.slice(3)); // übernehmen, abgeben, erledigt, offen
     const v = (k) => this.shadowRoot.querySelector(`[data-k="${k}"]`)?.value;
@@ -4766,7 +4790,7 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
           <th>${t("Abgehakt")}</th><th class="n">${t("Zeit")}</th><th class="n">${t("Personen")}</th><th class="n">${t("Nächte")}</th><th></th></tr></thead><tbody>
         ${shown.map((x) => `<tr><td>${fdowLong(x.datum)} ${uhr(x.check_out)}</td>${d.info.wohnungen.length > 1 ? `<td>${codeTag(x.kuerzel)}</td>` : ""}
           <td>${esc(x.person)}${x.abgehakt_von && x.abgehakt_von !== x.person ? ` <span class="sub">(${t("abgehakt von")} ${esc(x.abgehakt_von)})</span>` : ""}</td>
-          <td>${x.erledigt_um ? `${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : "–"}</td>
+          <td>${x.erledigt_um ? `${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : x.nachgetragen ? t("nachgetragen") : "–"}</td>
           <td class="n">${num(x.minuten || 0)} min${x.minuten_gebucht ? "" : " *"}</td><td class="n">${x.personen ?? "–"}</td><td class="n">${x.naechte ?? "–"}</td>
           <td>${x.wechsel ? `<span class="badge warn">🔄 ${t("Wechsel")}</span>` : ""}${x.hund ? " 🐕" : ""}</td></tr>`).join("")}</tbody></table></div>
         <div class="sub">* ${t("Standardzeit (keine Zeit gebucht)")}</div>
