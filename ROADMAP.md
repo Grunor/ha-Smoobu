@@ -34,9 +34,9 @@ Alle Roadmap-Issues / all roadmap issues: [Label `roadmap`](https://github.com/G
 
 ## Ideen – Haus und Buchung verbinden / Ideas – connecting house and booking
 
-Was diese Integration einzigartig macht: Buchungsdaten aus Smoobu treffen auf echte Sensordaten aus Home Assistant. Diese Ideen sind noch nicht eingeplant (Label `idee`).
+Was diese Integration einzigartig macht: Buchungsdaten aus Smoobu treffen auf echte Sensordaten aus Home Assistant. Diese Ideen sind noch nicht eingeplant.
 
-What makes this integration unique: booking data from Smoobu meets real sensor data from Home Assistant. These ideas are not scheduled yet (label `idee`).
+What makes this integration unique: booking data from Smoobu meets real sensor data from Home Assistant. These ideas are not scheduled yet.
 
 | Issue | Funktion / Feature | Bereich / Area | Aufwand / Effort |
 |---|---|---|---|
