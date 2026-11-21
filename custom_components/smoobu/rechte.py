@@ -62,8 +62,10 @@ _ALL = frozenset(RIGHTS)
 # Standardrolle → (Bezeichnung, Standardrechte)
 ROLES: dict[str, tuple[str, frozenset[str]]] = {
     "verwalter": ("Verwalter", _ALL),
-    "betrieb": ("Betrieb", _ALL - {"einstellungen"}),
-    "mitarbeiter": ("Mitarbeiter", frozenset({"belegung_sehen", "gaeste", "nachrichten", "antworten", "belegung", "reinigung"})),
+    # Standard ab v1.19.0b5 = Konfiguration des Betreibers (21.11.2026): Betrieb ohne „Preise ändern“,
+    # Mitarbeiter ohne „Belegung ändern“, dafür mit „Reinigung zuweisen“
+    "betrieb": ("Betrieb", _ALL - {"einstellungen", "preise"}),
+    "mitarbeiter": ("Mitarbeiter", frozenset({"belegung_sehen", "gaeste", "nachrichten", "antworten", "reinigung", "reinigung_zuweisen"})),
     # v1.19.0: sehr einfache Rolle für Reinigungskräfte (Belegung, Check-in/-out, Reinigung abhaken)
     "reinigung": ("Reinigung", frozenset({"belegung_sehen", "reinigung"})),
     "lesen": ("Nur lesen", frozenset({"belegung_sehen", "gaeste", "nachrichten"})),

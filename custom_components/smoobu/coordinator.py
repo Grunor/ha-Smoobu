@@ -272,7 +272,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         """Reinigung je Buchung = Standardzeit × Stundenlohn der Person, die (laut Board) gereinigt hat bzw.
         zugewiesen ist. Ohne Board-Eintrag oder ohne eigenen Lohn: Standard-Stundenlohn (kein Eintrag nötig)."""
         board = getattr(self, "cleaning", None)
-        wages = {str(k): float(v) for k, v in (self.config_entry.options.get(CONF_CLEANING_WAGES) or {}).items() if v}
+        wages = {str(k): float(v) for k, v in (self.config_entry.options.get(CONF_CLEANING_WAGES) or {}).items() if v not in (None, "")}  # 0 €/h erlaubt
         if board is None:
             return {}
         state = await board._load()  # noqa: SLF001

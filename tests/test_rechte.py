@@ -26,7 +26,10 @@ def test_rollen_und_rechte():
     assert rechte.role_of(ma2, opts) == "mitarbeiter"
     assert rechte.role_of(other, opts) == "verwalter"  # Altwert „Einstellungen erlauben für“
     assert rechte.role_of(SimpleNamespace(id="x", is_admin=False), opts) == "betrieb"  # Standardrolle
-    assert rechte.allowed(ma2, opts, "belegung") and not rechte.allowed(ma2, opts, "finanzen")
+    # Standard ab 1.19.0b5: Mitarbeiter ohne „Belegung ändern“, mit „Reinigung zuweisen“; Betrieb ohne „Preise“
+    assert rechte.allowed(ma2, opts, "reinigung_zuweisen") and not rechte.allowed(ma2, opts, "belegung")
+    assert not rechte.allowed(ma2, opts, "finanzen")
+    assert not rechte.allowed(SimpleNamespace(id="x", is_admin=False), opts, "preise")
     assert not rechte.allowed(ma2, opts, "preise")
     assert rechte.allowed(None, opts, "preise")  # Automationen dürfen immer
     stripped = rechte.strip({"id": 1, "brutto": 100, "gast": "Max"}, rechte.ROLES["mitarbeiter"][1])

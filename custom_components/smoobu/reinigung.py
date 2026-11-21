@@ -175,7 +175,7 @@ class CleaningBoard:
             s = state.get(item["key"], {})
             pending.append({**item, "zugewiesen": s.get("zugewiesen"), "status": s.get("status", "offen")})
         o = self.opts
-        wages = {str(k): float(v) for k, v in (o.get("cleaning_wages") or {}).items() if v}
+        wages = {str(k): float(v) for k, v in (o.get("cleaning_wages") or {}).items() if v not in (None, "")}  # 0 €/h erlaubt (z. B. Inhaber)
         default = float(o.get("cost_cleaning", 17.0))
         return stats(state, pending, start, end, set(apartments) if apartments is not None else None,
                      await self._user_names(), codes, today.isoformat(),

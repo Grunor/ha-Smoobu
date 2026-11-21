@@ -8,6 +8,16 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b5 – 2026-11-21
+
+### Geändert / Changed
+- **Standardrechte der Rollen:** „Betrieb“ ohne „Preise ändern“; „Mitarbeiter“ ohne „Belegung ändern“, dafür mit „Reinigung zuweisen“. Angepasste Rollen in den Einstellungen bleiben unverändert.
+- **Default role rights:** "Operations" without "Change prices"; "Staff" without "Change occupancy" but with "Assign cleaning". Roles customised in the settings stay as they are.
+
+### Korrigiert / Fixed
+- Stundenlohn 0 €/h je Reinigungskraft (z. B. Inhaber) wurde ignoriert und durch den Standardlohn ersetzt.
+- An hourly wage of 0 €/h per cleaner (e.g. owner) was ignored and replaced by the default wage.
+
 ## 1.19.0b4 – 2026-11-21
 
 ### Neu / New

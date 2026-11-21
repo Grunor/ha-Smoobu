@@ -173,3 +173,11 @@ async def test_rolle_reinigung_und_board(hass, setup, hass_ws_client, hass_read_
     assert (await _call(cleaner2, 3, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="dauer", minuten=0))["success"] is False
     res = await _call(cleaner2, 4, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="dauer", minuten=None)
     assert "minuten" not in res["result"]["zustand"]
+    # Korrektur 21.11.2026: Stundenlohn 0 €/h (z. B. Inhaber) gilt – nicht der Standardlohn
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "cleaning_wages": {hass_read_only_user.id: 0.0}})
+    await hass.async_block_till_done()
+    c = entry.runtime_data
+    await c.async_refresh()
+    assert {r["id"]: r for r in c.records_all()}[1]["reinigung_kosten"] == 0.0
+    st = (await _call(admin2, 5, type="smoobu/cleaning/stats", start="2026-11-01", end="2026-12-01"))["result"]
+    assert st["kosten"] == 0.0
