@@ -10,6 +10,11 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 - Roadmap: `ROADMAP.md` mit geplanten Funktionen (je ein Issue mit Label `roadmap`) / roadmap file with planned features (one issue each, label `roadmap`) und öffentliches [Roadmap-Board](https://github.com/users/Grunor/projects/1) / and public roadmap board
 
+## 1.19.1b3
+
+- Datenschutz: neue Einstellung **„Person aufbewahren“** (Reinigung & Zugang → Datenschutz, Standard 10 Jahre). Danach wird in erledigten Reinigungen die Person zu „Unbekannt“ und „abgehakt von“ entfernt; Tag, Wohnung, Dauer und Kosten bleiben für die Statistik. Geprüft beim Start und täglich / privacy: new setting **"Keep person for"** (default 10 years); afterwards the person in completed cleanings becomes "Unknown" and "checked off by" is removed; date, property, duration and costs stay
+- README: Datenschutz-Hinweis zu Reinigungsdaten (Beschäftigtendaten, Informationspflicht) und zur Verantwortlichkeit / README: privacy note on cleaning data (staff data, duty to inform) and controller role
+
 ## 1.19.1b2
 
 - Reinigung nachtragen mit Person „Unbekannt“ – für Altfälle, bei denen niemand mehr weiß, wer gereinigt hat; Stundenlohn 0 €/h (eigener Wert über `cleaning_wages` → `unbekannt` möglich) / record cleanings with person "Unknown" for old stays; wage 0 €/h (own value via `cleaning_wages` → `unbekannt`)

@@ -705,6 +705,8 @@ Wird der Webhook in den Optionen abgeschaltet oder die Integration gelöscht, en
 - API-Schlüssel und Secret liegen im Config-Entry von Home Assistant, nicht in YAML-Dateien.
 - Gästedaten (Name, E-Mail, Telefon, Notizen) stehen in Entitäts-Attributen und damit auch in der **Historie** von Home Assistant. Wer das nicht möchte, schließt die betroffenen Entitäten im Recorder aus.
 - Der **Diagnose-Download** schwärzt Zugangsdaten, Webhook-URL und alle Gästedaten.
+- **Reinigungsdaten (Beschäftigte):** Das Reinigungsboard speichert je erledigter Reinigung, **wer** gereinigt hat und wer abgehakt hat, dazu Tag, Wohnung und Dauer – keine Gastnamen. Bei angestellten Reinigungskräften sind das Beschäftigtendaten: Informiert die Personen, dass und wofür (Einsatzplanung, Abrechnung, Kosten je Aufenthalt) das erfasst wird (Art. 13 DSGVO). Nach der Frist **„Person aufbewahren“** (Einstellungen → Reinigung & Zugang → Datenschutz, Standard **10 Jahre** = steuerliche Aufbewahrung) wird die Person automatisch zu **„Unbekannt“**; die Statistik bleibt. Offene, nicht erledigte Einträge verfallen nach 60 Tagen.
+- **Verantwortlich** für die Verarbeitung (DSGVO) bist du als Betreiber der Home-Assistant-Installation. Die Integration speichert alles lokal in Home Assistant; an Dritte gehen Daten nur an Smoobu selbst und – wenn eingeschaltet – an den gewählten KI-Anbieter (siehe Datenschutz-Stufe).
 - Smoobu signiert Webhooks nicht. Die Integration schützt sich deshalb über die geheime, zufällige Webhook-URL und nimmt nur Ereignisse an, deren Smoobu-Benutzer-ID zum eingerichteten Konto passt. Bei abweichender ID wird mit `403` abgelehnt.
 - Die Webhook-URL nicht weitergeben. Bei Verdacht: Webhook in den Optionen aus- und wieder einschalten, dann wird eine neue URL erzeugt.
 
@@ -1434,6 +1436,8 @@ If the webhook is turned off in the options or the integration is deleted, the r
 - API key and secret are stored in the Home Assistant config entry, not in YAML files.
 - Guest data (name, email, phone, notes) is stored in entity attributes and therefore also in the Home Assistant **history**. If you don't want that, exclude the affected entities from the recorder.
 - The **diagnostics download** redacts credentials, the webhook URL and all guest data.
+- **Cleaning data (staff):** for each completed cleaning the cleaning board stores **who** cleaned and who checked it off, plus date, property and duration – no guest names. For employed cleaners this is employee data: tell them that and why it is recorded (scheduling, payroll, cost per stay; Art. 13 GDPR). After the **"Keep person for"** period (Settings → Cleaning & access → Privacy, default **10 years** = tax retention), the person automatically becomes **"Unknown"**; statistics stay. Open, unfinished entries expire after 60 days.
+- You, as operator of the Home Assistant installation, are the **controller** under GDPR. The integration stores everything locally in Home Assistant; data only goes to Smoobu itself and – if enabled – to the chosen AI provider (see privacy level).
 - Smoobu does not sign webhooks. The integration therefore relies on the secret, random webhook URL and only accepts events whose Smoobu user ID matches the configured account. Other IDs are rejected with `403`.
 - Do not share the webhook URL. If in doubt: turn the webhook off and on again in the options, which creates a new URL.
 

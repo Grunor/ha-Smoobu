@@ -271,3 +271,32 @@ async def test_reinigung_sammeln_unbekannt(hass, setup, hass_ws_client, hass_rea
     assert wage_of({}, UNKNOWN, 17.0) == 0.0 and wage_of({UNKNOWN: 12.0}, UNKNOWN, 17.0) == 12.0 and wage_of({}, "x", 17.0) == 17.0
     # Ungültige Person, Reinigungsrecht reicht nicht
     assert (await _call(admin, 6, type="smoobu/cleaning/bulk", entry_id=eid, benutzer_id="nix", bis="2030-12-31"))["error"]["code"] == "invalid_user"
+
+
+async def test_reinigung_anonymisieren(hass, setup, hass_ws_client, hass_read_only_user, freezer):  # noqa: F811
+    """v1.19.1b3: nach cleaning_keep_years wird die Person zu „Unbekannt“; Statistik bleibt."""
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "user_roles": {hass_read_only_user.id: "reinigung"}})
+    await hass.async_block_till_done()
+    eid = entry.entry_id
+    admin = await hass_ws_client(hass)
+    freezer.move_to("2026-12-15T11:00:00+00:00")
+    assert (await _call(admin, 1, type="smoobu/cleaning/set", entry_id=eid, key="1:2026-11-16", aktion="nachtragen",
+                        benutzer_id=hass_read_only_user.id))["success"]
+    # Einstellung: Standard 10, Grenzen 1–30
+    meta = (await _call(admin, 2, type="smoobu/settings/get"))["result"]
+    assert meta["werte"]["cleaning_keep_years"] == 10
+    from custom_components.smoobu import settings as _settings
+    _v, err = _settings.validate(hass, entry, {"cleaning_keep_years": 0}, None)
+    assert err.get("cleaning_keep_years")
+    board = entry.runtime_data.cleaning
+    # 9 Jahre später: noch mit Person; 10 Jahre + 1 Tag: anonymisiert
+    freezer.move_to("2035-12-15T11:00:00+00:00")
+    board.state = None
+    assert (await board._load())["1:2026-11-16"]["gereinigt_von"] == hass_read_only_user.id
+    freezer.move_to("2036-11-17T11:00:00+00:00")
+    await board._remind(None)
+    v = board.state["1:2026-11-16"]
+    assert v["gereinigt_von"] == "unbekannt" and v["gereinigt_name"] == "Unbekannt" and v["erledigt_von"] is None
+    assert v["anonymisiert"] and v["status"] == "erledigt" and v["snapshot"]["datum"] == "2026-11-16"
+    assert board._anonymize(board.state) == 0  # nur einmal

@@ -23,6 +23,10 @@ neue Reinigung (alte Zuweisung passt dann nicht mehr sicher zum Tag). Gespeicher
 `smoobu_reinigung_<entry_id>`. Offene Einträge fallen nach 60 Tagen weg, erledigte bleiben dauerhaft
 für die Statistik (Wunsch Betreiber 20.11.2026: wer hat wann welche Wohnung gereinigt; v1.19.1b2:
 ohne Ablauf statt 3 Jahre, damit nachgetragene Reinigungen ab 2020 erhalten bleiben).
+Datenschutz (v1.19.1b3, Speicherbegrenzung Art. 5 DSGVO): Nach `cleaning_keep_years` Jahren
+(Standard 10, steuerliche Aufbewahrung) wird die Person anonymisiert – „gereinigt von“ wird
+„Unbekannt“, wer abgehakt hat wird entfernt. Tag, Wohnung, Dauer und Kosten bleiben für die Statistik.
+Geprüft beim Laden und täglich mit der Vorabend-Erinnerung.
 
 Nachtragen (v1.19.1): vergangene Reinigungen nachträglich erfassen, einzeln (Aktion „nachtragen“) oder
 gesammelt (`async_bulk`: alle offenen bis zu einem Datum). Als Person geht auch „Unbekannt“
@@ -56,6 +60,9 @@ KEEP_DAYS = 60          # offene/zugewiesene Einträge
 WIDE_BACK = 40 * 366    # „ohne Zeitfenster“ zurück (Nachtragen, Buchungsdetails) – Historie reicht bis 2020
 UNKNOWN = "unbekannt"   # v1.19.1b2: Pseudo-Person „Unbekannt“ (nur Nachtragen, nie zuweisbar)
 UNKNOWN_NAME = "Unbekannt"
+CONF_CLEANING_KEEP_YEARS = "cleaning_keep_years"  # v1.19.1b3: Person nach N Jahren anonymisieren
+DEFAULT_CLEANING_KEEP_YEARS = 10
+_PERSON_KEYS = ("erledigt_von", "erledigt_von_id")
 ACTIONS = ("uebernehmen", "abgeben", "zuweisen", "erledigt", "offen", "dauer", "nachtragen")
 # v1.19.1: Diese Aktionen gehen (nur mit „Reinigung zuweisen“) auch für Abreisen außerhalb des Board-Fensters
 # (älter als DAYS_BACK) – zum Nachtragen vergangener Reinigungen und zum Korrigieren nachgetragener.
@@ -156,7 +163,30 @@ class CleaningBoard:
                 # v1.19.1b2: erledigte bleiben dauerhaft (Statistik); nur offene/zugewiesene laufen ab
                 if v.get("status") != "erledigt" and key.split(":")[-1] < cutoff:
                     self.state.pop(key, None)
+            if self._anonymize(self.state):
+                await self.store.async_save(self.state)
         return self.state
+
+    def _anonymize(self, state: dict[str, dict[str, Any]]) -> int:
+        """v1.19.1b3: erledigte Reinigungen älter als die Aufbewahrungsfrist → Person „Unbekannt“.
+
+        Ändert `state` direkt, liefert die Anzahl geänderter Einträge (Speichern macht der Aufrufer)."""
+        years = int(self.opts.get(CONF_CLEANING_KEEP_YEARS, DEFAULT_CLEANING_KEEP_YEARS) or DEFAULT_CLEANING_KEEP_YEARS)
+        today = dt_util.now().date()
+        try:
+            limit = today.replace(year=today.year - years).isoformat()
+        except ValueError:  # 29.02.
+            limit = (today - timedelta(days=1)).replace(year=today.year - years).isoformat()
+        n = 0
+        for key, v in state.items():
+            if v.get("status") != "erledigt" or key.split(":")[-1] >= limit:
+                continue
+            if v.get("gereinigt_von") == UNKNOWN and v.get("zugewiesen") is None and not any(v.get(k) for k in _PERSON_KEYS):
+                continue
+            v.update({"gereinigt_von": UNKNOWN, "gereinigt_name": UNKNOWN_NAME, "zugewiesen": None,
+                      "erledigt_von": None, "erledigt_von_id": None, "anonymisiert": True})
+            n += 1
+        return n
 
     # --- Lesen -----------------------------------------------------------
     async def items(self, apartments: list[Any] | None, user: Any, booking_id: int | None = None) -> list[dict[str, Any]]:
@@ -411,6 +441,8 @@ class CleaningBoard:
     async def _remind(self, _now: datetime | None) -> None:
         """Vorabend: zugewiesene, offene Reinigungen von morgen an die jeweilige Person."""
         state = await self._load()
+        if self._anonymize(state):  # v1.19.1b3: täglich Aufbewahrungsfrist prüfen
+            await self.store.async_save(state)
         tomorrow = (dt_util.now().date() + timedelta(days=1)).isoformat()
         for item in build(self.c.records_all(), self.opts, dt_util.now().date(), 0, 2):
             s = state.get(item["key"], {})

@@ -72,6 +72,8 @@ from .reinigung import (
     CONF_CLEANING_NOTIFY,
     CONF_CLEANING_PHONES,
     CONF_CLEANING_REMIND_TIME,
+    CONF_CLEANING_KEEP_YEARS,
+    DEFAULT_CLEANING_KEEP_YEARS,
     DEFAULT_CLEANING_REMIND_TIME,
 )
 from .const import (
@@ -264,6 +266,8 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_CLEANING_NOTIFY: bool(o.get(CONF_CLEANING_NOTIFY, True)),
         CONF_CLEANING_REMIND_TIME: str(o.get(CONF_CLEANING_REMIND_TIME, DEFAULT_CLEANING_REMIND_TIME))[:5],
         CONF_CLEANING_PHONES: {str(k): str(v) for k, v in (o.get(CONF_CLEANING_PHONES) or {}).items() if v},
+        # v1.19.1b3: Datenschutz – Person in erledigten Reinigungen nach N Jahren anonymisieren
+        CONF_CLEANING_KEEP_YEARS: int(o.get(CONF_CLEANING_KEEP_YEARS, DEFAULT_CLEANING_KEEP_YEARS)),
         # Kosten & Preise (v1.18.0)
         CONF_COST_CLEANING: float(o.get(CONF_COST_CLEANING, DEFAULT_COST_CLEANING)),  # ab v1.19.0: €/h
         CONF_COST_CLEANING_MINUTES: float(o.get(CONF_COST_CLEANING_MINUTES, DEFAULT_COST_CLEANING_MINUTES)),
@@ -810,6 +814,7 @@ FIELDS: dict[str, Any] = {
     CONF_CLEANING_NOTIFY: bool,
     CONF_CLEANING_REMIND_TIME: _hhmm,
     CONF_CLEANING_PHONES: _phones,
+    CONF_CLEANING_KEEP_YEARS: _int(1, 30),
     CONF_COST_CLEANING: _num(0, 1000),
     CONF_COST_CLEANING_MINUTES: _num(0, 600),
     CONF_CLEANING_WAGES: _wages,

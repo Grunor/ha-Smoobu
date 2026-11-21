@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.1b2";
+const SMOOBU_CARDS_VERSION = "1.19.1b3";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -491,7 +491,8 @@ const EN = {
   "Wenn die Buchung keine Ankunftszeit hat.": "If the booking has no arrival time.", "Wer hat wann welche Wohnung gereinigt": "Who cleaned which apartment when",
   "Werkbank öffnen": "Open workbench", "Wert": "Value",
   "Werte übernommen – mit „Speichern“ übernehmen": "Values applied – confirm with \"Save\"", "Wieder offen": "Reopen", "Nachtragen": "Record", "Wer hat gereinigt?": "Who cleaned?", "vergangen, nicht erfasst": "past, not recorded",
-  "gereinigt von": "cleaned by", "nachgetragen": "recorded later", "Reinigung nachgetragen": "Cleaning recorded", "Unbekannt": "Unknown",
+  "gereinigt von": "cleaned by", "nachgetragen": "recorded later", "Reinigung nachgetragen": "Cleaning recorded", "Unbekannt": "Unknown", "Person aufbewahren": "Keep person for", "Standard 10 Jahre (steuerliche Aufbewahrungsfrist).": "Default 10 years (tax retention period).",
+  "Erledigte Reinigungen speichern, wer gereinigt hat. Nach Ablauf der Frist wird daraus „Unbekannt“; Tag, Wohnung, Dauer und Kosten bleiben für die Statistik.": "Completed cleanings store who cleaned. After the period this becomes \"Unknown\"; date, property, duration and costs stay for the statistics.",
   "Wiederbelegt": "Re-let", "Wird auf diesem Gerät gespeichert und erscheint unten in der Werkbank": "Saved on this device and shown at the bottom of the workbench",
   "Wird ignoriert, wenn „Daten abrufen seit“ gesetzt ist.": "Ignored if \"Fetch data since\" is set.", "Wirkt nur, wenn die KI erlaubt ist.": "Only applies if AI is allowed.",
   "Wohnungskürzel": "Apartment codes", "Zahlung über das Portal": "Payment via the portal",
@@ -6817,7 +6818,11 @@ class SmoobuSettingsCard extends SmoobuCard {
           `${t("Reinigung je Aufenthalt")} = ${num((Number(d.cost_cleaning_minutes) || 0) / 60 * (Number(d.cost_cleaning) || 0), 2)} € · ${t("gilt, wenn für die Person kein eigener Lohn hinterlegt ist")}`, "cost_cleaning")}
         ${wages}</div></div>`;
     const off = rn ? "" : `<div class="note">${t("Modul „Reinigung“ ist aus (Reiter Allgemein & Abruf → Module): kein Reinigungsboard, keine Pushes; Kosten nach Standard.")}</div>`;
-    return `${off}${cost}${rn ? this.cleaningPush(meta) : ""}${this.doorBlock(meta)}`;
+    // v1.19.1b3: Datenschutz – Person in erledigten Reinigungen nach N Jahren anonymisieren (Statistik bleibt)
+    const keep = rn ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Datenschutz")}</b>
+        <span class="sub">${t("Erledigte Reinigungen speichern, wer gereinigt hat. Nach Ablauf der Frist wird daraus „Unbekannt“; Tag, Wohnung, Dauer und Kosten bleiben für die Statistik.")}</span></div></div><div class="gb">
+        ${this.fld("Person aufbewahren", this.numIn("cleaning_keep_years", 1, 30, 1, "Jahre"), "Standard 10 Jahre (steuerliche Aufbewahrungsfrist).", "cleaning_keep_years")}</div></div>` : "";
+    return `${off}${cost}${keep}${rn ? this.cleaningPush(meta) : ""}${this.doorBlock(meta)}`;
   }
   tabGeneral(meta) {
     const d = this._draft;
