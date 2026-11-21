@@ -85,6 +85,7 @@ def build(records: list[dict[str, Any]], opts: dict[str, Any], today: date,
             "datum": r["abreise"],
             "check_out": _time(r.get("check_out"), opts.get("default_checkout", "11:00")),
             "vorname": r.get("vorname"),
+            "gast": r.get("gast"),  # voller Name – nur für Benutzer mit Recht „gaeste“ (siehe items)
             "personen": r.get("personen"),
             "hund": bool(r.get("hund")),
             "naechte": r.get("naechte"),
@@ -95,6 +96,7 @@ def build(records: list[dict[str, Any]], opts: dict[str, Any], today: date,
                 "sperre": bool(nxt.get("blockiert")),
                 "check_in": None if nxt.get("blockiert") else _time(nxt.get("check_in"), opts.get("default_checkin", "16:00")),
                 "vorname": None if nxt.get("blockiert") else nxt.get("vorname"),
+                "gast": None if nxt.get("blockiert") else nxt.get("gast"),
                 "personen": None if nxt.get("blockiert") else nxt.get("personen"),
                 "hund": bool(nxt.get("hund")),
                 "naechte": nxt.get("naechte"),
@@ -160,10 +162,18 @@ class CleaningBoard:
             item = {**item, "zugewiesen": s.get("zugewiesen"), "zugewiesen_name": names.get(s.get("zugewiesen")),
                     "minuten": s.get("minuten"),
                     "status": s.get("status", "offen"), "erledigt_von": s.get("erledigt_von"), "erledigt_um": s.get("erledigt_um")}
-            if "belegung_sehen" not in rights:  # Recht „Reinigung“ ohne Belegung: auch keine Vornamen
-                item["vorname"] = None
-                if item["naechste"]:
-                    item["naechste"] = {**item["naechste"], "vorname": None}
+            # Korrektur 21.11.2026 (Wunsch Betreiber): voller Gastname für alle mit „Gästedaten sehen“
+            # (alle Rollen außer „Reinigung“), sonst nur der Vorname; ohne „Belegung sehen“ gar kein Name.
+            full = "gaeste" in rights
+            item["name_voll"] = full
+            if item["naechste"]:
+                item["naechste"] = dict(item["naechste"])
+            for part in (item, item["naechste"]):
+                if not part:
+                    continue
+                full_name = part.pop("gast", None)
+                name = (full_name or part.get("vorname")) if full else part.get("vorname")
+                part["vorname"] = name if "belegung_sehen" in rights else None
             out.append(item)
         return out
 

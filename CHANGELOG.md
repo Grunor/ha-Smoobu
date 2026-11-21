@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b9 – 2026-11-21
+
+### Geändert / Changed
+- **Reinigungsboard:** Wer „Gästedaten sehen“ darf (alle Standardrollen außer „Reinigung“), sieht den vollen Gastnamen; die Rolle „Reinigung“ weiterhin nur den Vornamen.
+- **Cleaning board:** users with "View guest data" (all default roles except "Cleaning") see the full guest name; the "Cleaning" role still only sees the first name.
+
 ## 1.19.0b8 – 2026-11-21
 
 ### Neu / New

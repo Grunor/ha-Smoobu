@@ -115,6 +115,10 @@ async def test_rolle_reinigung_und_board(hass, setup, hass_ws_client, hass_read_
     res = await _call(cleaner, 7, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="zuweisen", benutzer_id="x")
     assert res["error"]["code"] == "unauthorized"
     # Admin weist zu → Push an das Handy der Reinigungskraft
+    # Korrektur 21.11.2026: alle außer Rolle Reinigung sehen den vollen Namen
+    full = (await _call(admin, 7, type="smoobu/cleaning/get"))["result"]["reinigungen"][0]
+    assert full["vorname"] != "Anna" and full["vorname"].startswith("Anna ") and full["name_voll"]
+    assert not r["reinigungen"][0]["name_voll"] and "gast" not in r["reinigungen"][0]
     users = (await _call(admin, 8, type="smoobu/cleaning/get"))["result"]["benutzer"]
     assert hass_read_only_user.id in {u["id"] for u in users}
     res = await _call(admin, 9, type="smoobu/cleaning/set", entry_id=eid, key=keys[0], aktion="zuweisen", benutzer_id=hass_read_only_user.id)

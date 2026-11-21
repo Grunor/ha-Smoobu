@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.19.0b8";
+const SMOOBU_CARDS_VERSION = "1.19.0b9";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -6899,7 +6899,7 @@ class SmoobuCleaningCard extends SmoobuCard {
         .map(([k, l]) => `<button data-cf="${k}" aria-pressed="${filter === k}">${t(l)}</button>`).join("")}</div>
       ${html || `<div class="done" style="margin-top:14px">✓ ${t(filter === "erledigt" ? "Noch keine erledigten Reinigungen." : "Keine Reinigungen.")}</div>`}
       ${noPhone}
-      <div class="sub" style="margin-top:10px">${t("Nächste")} ${this._config.days} ${t("Tage")} · ${t("Vom Gast nur der Vorname")}</div>`;
+      <div class="sub" style="margin-top:10px">${t("Nächste")} ${this._config.days} ${t("Tage")}${list.some((x) => !x.name_voll) ? ` · ${t("Vom Gast nur der Vorname")}` : ""}</div>`;
   }
   bind(root) {
     root.querySelectorAll("[data-cf]").forEach((b) => b.addEventListener("click", () => this.setState({ filter: b.dataset.cf })));
