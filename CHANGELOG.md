@@ -8,6 +8,53 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0 – 2026-11-21
+
+**Deutsch**
+- Stabiler Release mit allen Änderungen der Betas 1.19.0b1–1.19.0b12 (Einzelheiten in den Abschnitten unten). Die wichtigsten Neuerungen:
+  - **Reinigung:** Reinigungsboard (neue Seite `smoobu-reinigung`, Karte `custom:smoobu-cleaning-card`) mit Zuweisen, Übernehmen, Abhaken und gebuchter Reinigungszeit; Pushes an die Reinigungskraft (bei Zuweisung und am Vorabend); Reinigung auch in den Buchungsdetails; Statistik-Modul „Reinigung“ (wer hat wann welche Wohnung gereinigt); Kosten = Zeit × Stundenlohn je Person
+  - **Rollen & Rechte:** Rechte je Rolle einstellbar, eigene Rollen, neue Rolle **„Reinigung“** (nur Vorname des Gastes), neue Rechte „Kalender sehen“, „Reinigung übernehmen und abhaken“, „Reinigung zuweisen“
+  - **Fokus-Modus je Rolle:** Benutzer der Rolle sehen in Home Assistant nur Smoobu – ohne Seitenleiste und Menüs, andere Seiten leiten auf die Startseite um (zentral eingestellt, Standard für „Reinigung“)
+  - **Neue HA-Benutzer werden gemeldet** (HA-Meldung + Push), damit Rechte nicht vergessen werden
+  - **Türcodes:** Zufallscode je Buchung oder statischer Code je Wohnung (z. B. Schlüsseltresor), Gültigkeit, Smoobu-Notiz, Entitäten, Schloss-Adapter (Matter, Z-Wave JS, ZHA, Zigbee2MQTT, eigenes Skript); der Code geht nie an die KI
+  - **Strom, Wasser, Heizung** konstant oder gemessen aus Zählern (je Buchung ab Vorheizstart, Leerstand separat oder anteilig); **Nebenkostenabrechnung** hochladen und von der KI auswerten lassen
+  - **Module abschaltbar:** Reinigung, Kosten, Preise
+  - **Einstellungen neu sortiert:** neuer Reiter „Reinigung & Zugang“, Entitäten per Dropdown mit vorgefilterten Vorschlägen
+  - **Schnelleres Laden** (Kartendatei komprimiert und zwischenspeicherbar), rund 530 englische Texte ergänzt
+- **Hinweise beim Umstieg von 1.18.0**
+  - **Standardrechte geändert:** „Betrieb“ ohne „Preise ändern“; „Mitarbeiter“ ohne „Kalender ändern“, dafür mit „Reinigung zuweisen“. Wer diese Rollen nutzt, bitte unter Einstellungen → Benutzer & Rechte prüfen (in der Rolle angepasste Rechte bleiben unverändert)
+  - Für das Reinigungsboard eine Ansicht mit Pfad `smoobu-reinigung` und der Karte `custom:smoobu-cleaning-card` anlegen (siehe `docs/dashboard-vorlage.yaml`); der Reiter erscheint dann automatisch
+  - Die Option „Reinigung je Aufenthalt“ ist jetzt der **Standard-Stundenlohn** (bei 60 min bleibt der Betrag gleich)
+  - Türcodes sind standardmäßig aus; Strom/Wasser/Heizung bleiben „Konstant“, bis ein Zähler gewählt wird
+  - Beim ersten Start werden vorhandene HA-Benutzer still übernommen – gemeldet werden nur neue
+
+![Reinigungsboard](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/reinigung.png)
+![Buchungsdetails mit Zugang und Reinigung](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/buchungsdetails.png)
+![Rollen und Rechte](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_rollen.png)
+![Fokus-Modus](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_fokus.png)
+![Module](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_module.png)
+![Türcodes](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_tuercode.png)
+![Stromkosten aus Zähler](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_strom.png)
+![Statistik Reinigung](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_reinigung.png)
+
+**English**
+- Stable release with all changes of betas 1.19.0b1–1.19.0b12 (details in the sections below). Main changes:
+  - **Cleaning:** cleaning board (new page `smoobu-reinigung`, card `custom:smoobu-cleaning-card`) to assign, take over and tick off cleanings with booked cleaning time; pushes to the cleaner (on assignment and the evening before); cleaning also in the booking details; statistics module "Cleaning" (who cleaned which property when); costs = time × hourly wage per person
+  - **Roles & permissions:** permissions per role configurable, custom roles, new role **"Cleaning"** (guest first name only), new permissions "View calendar", "Take over and tick off cleaning", "Assign cleaning"
+  - **Focus mode per role:** users of the role only see Smoobu in Home Assistant – no sidebar and menus, other pages redirect to the start page (configured centrally, default for "Cleaning")
+  - **New HA users are reported** (HA notification + push) so permissions are not forgotten
+  - **Door codes:** random code per booking or a static code per property (e.g. key safe), validity, Smoobu note, entities, lock adapters (Matter, Z-Wave JS, ZHA, Zigbee2MQTT, own script); the code never goes to the AI
+  - **Electricity, water, heating** constant or measured from meters (per booking from pre-heating start, vacancy separate or distributed); **upload the utility bill** and let the AI read it
+  - **Switchable modules:** cleaning, costs, prices
+  - **Settings reorganised:** new tab "Cleaning & access", entities via dropdown with pre-filtered suggestions
+  - **Faster loading** (card file compressed and cacheable), about 530 English texts added
+- **Notes when upgrading from 1.18.0**
+  - **Default permissions changed:** "Operations" without "Change prices"; "Staff" without "Change calendar" but with "Assign cleaning". If you use these roles, please check under Settings → Users & permissions (permissions customised in a role stay as they are)
+  - For the cleaning board create a view with path `smoobu-reinigung` and the card `custom:smoobu-cleaning-card` (see `docs/dashboard-vorlage.yaml`); the tab then appears automatically
+  - The option "cleaning per stay" is now the **standard hourly wage** (at 60 min the amount stays the same)
+  - Door codes are off by default; electricity/water/heating stay "Constant" until a meter is chosen
+  - On the first start existing HA users are taken over silently – only new ones are reported
+
 ## 1.19.0b12 – 2026-11-21
 
 ### Geändert / Changed

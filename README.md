@@ -88,7 +88,7 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 
 ### Screenshots
 
-Alle Bilder zeigen eine **erfundene Demo-Ferienwohnung**. Die Bilder stammen aus der echten Integration (Stand 1.18.0), aber mit Demodaten (`tools/screenshots/`). Echte Gäste- oder Umsatzdaten kommen darin nicht vor.
+Alle Bilder zeigen eine **erfundene Demo-Ferienwohnung**. Die Bilder stammen aus der echten Integration (Stand 1.19.0), aber mit Demodaten (`tools/screenshots/`). Echte Gäste- oder Umsatzdaten kommen darin nicht vor.
 
 **Übersicht, hell und dunkel:** Status heute in einem Satz, aktueller und nächster Gast, Belegung der nächsten 6 Wochen mit Preisen, Kennzahlen mit 12-Monats-Verlauf, nächste Anreisen, freie Zeiträume und das Aufgaben-Board „Wartet auf dich“ mit Reitern und Zählern (Antworten, Zahlungen als erhalten markieren, Preise übernehmen, Lücken anpassen, Einrichtung)
 ![Übersicht hell](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_hell.png)
@@ -257,7 +257,7 @@ Schritt **Benachrichtigungen** (ab 1.17.0) – je Push-Art an/aus und eigene Emp
 
 Schritt **Wohnungskürzel** (ab 1.17.0): eigenes Kürzel je Wohnung (bis 4 Zeichen, Buchstaben/Ziffern, eindeutig über alle Konten); leer = automatisch. Gilt für Dashboard und Pushes.
 
-**Nur in der Einstellungs-Karte** (`custom:smoobu-settings-card`, ab 1.18.0): **Kosten & Preise** (variable Kosten je Aufenthalt und Nacht, ab 1.19.0 **Strom, Wasser und Heizung konstant oder aus Zähler**, **Reinigung = Zeit × Stundenlohn je Reinigungskraft** und **Nebenkostenabrechnung per KI**, Aufschläge je Kanal, Genius, Last-Minute), **Benutzer & Rechte** (Rollen, nur Admins), **Saisons** (2–6 Saisons mit Namen und Startmonat, automatische Erkennung aus den bisherigen Jahren) und die Kategorien des Aufgaben-Boards. Neue Optionen nach einem Update erscheinen in der Übersicht unter **„Wartet auf dich“ → Einrichtung** mit Link zur Stelle.
+**Nur in der Einstellungs-Karte** (`custom:smoobu-settings-card`, ab 1.18.0): **Kosten & Preise** (variable Kosten je Aufenthalt und Nacht, ab 1.19.0 **Strom, Wasser und Heizung konstant oder aus Zähler**, **Nebenkostenabrechnung per KI**, Aufschläge je Kanal, Genius, Last-Minute), **Reinigung & Zugang** (ab 1.19.0: Reinigung = Zeit × Stundenlohn je Reinigungskraft, Pushes an Reinigungskräfte, Türcodes), **Benutzer & Rechte** (Rollen, nur Admins), **Saisons** (2–6 Saisons mit Namen und Startmonat, automatische Erkennung aus den bisherigen Jahren) und die Kategorien des Aufgaben-Boards. Neue Optionen nach einem Update erscheinen in der Übersicht unter **„Wartet auf dich“ → Einrichtung** mit Link zur Stelle.
 
 Nach dem Speichern wird die Integration automatisch neu geladen.
 
@@ -835,7 +835,7 @@ This integration handles the signing and exposes all data natively in Home Assis
 
 ### Screenshots
 
-All images show a **fictional demo apartment**. They come from the real integration (version 1.18.0), but with demo data (`tools/screenshots/`). No real guest or revenue data appears in them. The screenshots show the German interface; the cards follow the Home Assistant language.
+All images show a **fictional demo apartment**. They come from the real integration (version 1.19.0), but with demo data (`tools/screenshots/`). No real guest or revenue data appears in them. The screenshots show the German interface; the cards follow the Home Assistant language.
 
 **Overview, light and dark:** today's status in one sentence, current and next guest, occupancy of the next 6 weeks with prices, KPIs with 12-month trend, upcoming arrivals, free periods and the task board "Waiting for you" with tabs and counters (reply, mark payments as received, apply prices, adjust gaps, setup)
 ![Overview light](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/seite_uebersicht_hell.png)
