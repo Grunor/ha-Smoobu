@@ -868,6 +868,10 @@ async def async_setup_entry(
         SmoobuForecastSensor(coordinator, apt_id, _currency(coordinator, apt_id))
         for apt_id in coordinator.data.apartments
     ]
+    # v1.19.0: Türcode des aktuellen und des nächsten Gastes je Wohnung (nur wenn Türcodes aktiv)
+    if getattr(coordinator, "doorcodes", None) and coordinator.doorcodes.enabled:
+        entities += [SmoobuDoorCodeSensor(coordinator, apt_id, which)
+                     for apt_id in coordinator.data.apartments for which in ("aktuell", "naechster")]
     async_add_entities(entities)
     # Kanal-Sensoren: einer je Kanal, neue Kanäle kommen zur Laufzeit dazu
     entry.async_on_unload(
@@ -1074,3 +1078,32 @@ class SmoobuLastMessageSensor(SmoobuEntity, RestoreSensor):
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         return dict(self._msg) or None
+
+
+class SmoobuDoorCodeSensor(SmoobuEntity, SensorEntity):
+    """v1.19.0: Türcode des aktuellen bzw. nächsten Gastes (Zustand = Code, Attribute = Gültigkeit).
+
+    Hinweis: Den Zustand sieht jeder HA-Benutzer, der diese Entität sehen kann (z. B. auf einem
+    Dashboard). Für Gäste-Tablets daher nicht anzeigen.
+    """
+
+    _attr_icon = "mdi:form-textbox-password"
+
+    def __init__(self, coordinator: C, apartment_id: int, which: str) -> None:
+        super().__init__(coordinator, apartment_id, "turcode_aktueller_gast" if which == "aktuell" else "turcode_nachster_gast")
+        self._which = which
+
+    def _item(self) -> dict[str, Any] | None:
+        doors = getattr(self.coordinator, "doorcodes", None)
+        return doors.current_next(self.apartment_id)[self._which] if doors else None
+
+    @property
+    def native_value(self) -> str | None:
+        it = self._item()
+        return it["code"] if it else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        it = self._item() or {}
+        return {"gueltig_von": it.get("von"), "gueltig_bis": it.get("bis"), "status": it.get("status"),
+                "buchung_id": it.get("buchung_id"), "code_platz": it.get("slot")}

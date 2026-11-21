@@ -21,6 +21,11 @@ from typing import Any
 
 NEWS: list[dict[str, Any]] = [
     # --- neue Einstellungen (Einrichtung) ------------------------------------------------------------
+    {"id": "opt-tuercode", "version": "1.19.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "allgemein", "sel": '[data-neu="tuercode"]',
+     "titel": "Türcodes einrichten", "titel_en": "Set up door codes",
+     "text": "Zufallscode je Buchung mit Gültigkeit, in der Smoobu-Notiz, als Entität und optional direkt im Türschloss (Matter, Z-Wave, Zigbee oder eigenes Skript).",
+     "text_en": "Random code per booking with validity, in the Smoobu note, as an entity and optionally written to the door lock (Matter, Z-Wave, Zigbee or own script)."},
     {"id": "opt-rollen", "version": "1.19.0", "art": "einstellung", "recht": "einstellungen",
      "seite": "smoobu-einstellungen", "tab": "rechte", "sel": '[data-neu="rollen"]',
      "titel": "Rollen und Rechte prüfen", "titel_en": "Check roles and permissions",

@@ -217,6 +217,15 @@ def _shots(base: str, token: str, set_options) -> list[str]:
         page.locator(card_settings).locator('[data-neu="saisons"]').screenshot(path=str(OUT / "einstellungen_saisons.png"))
         done.append("einstellungen_saisons.png")
 
+        # v1.19.0: Türcodes in den Einstellungen (Allgemein) – ein Schloss als Beispiel (Z-Wave JS, Entität erfunden)
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", [card_settings, {"tab": "allgemein"}, 1180])
+        page.wait_for_function("() => { const r = document.querySelector('smoobu-settings-card')?.shadowRoot;"
+                               " return r && r.querySelector('[data-neu=tuercode]'); }", timeout=20000)
+        page.evaluate("""() => { const c = document.querySelector('smoobu-settings-card'); const d = c._draft;
+            d.door_locks = { [c._data.meta.wohnungen[0].id]: { typ: 'zwave_js', entitaet: 'lock.ferienwohnung_haustuer', slot_von: 10, slot_bis: 19 } }; c.render(); }""")
+        page.wait_for_timeout(400)
+        page.locator(card_settings).locator('[data-neu="tuercode"]').screenshot(path=str(OUT / "einstellungen_tuercode.png"))
+        done.append("einstellungen_tuercode.png")
         # v1.19.0: Rollen-Matrix (Rollenkonfigurator), Reinigungsboard und Statistik-Modul „Reinigung“
         page.evaluate("([t, c, w]) => showCard(t, c, w)", [card_settings, {"tab": "rechte"}, 1180])
         page.wait_for_function("() => { const r = document.querySelector('smoobu-settings-card')?.shadowRoot;"
@@ -383,7 +392,8 @@ async def test_render_screenshots(socket_enabled, hass: HomeAssistant, aiohttp_c
     jonas = await hass.auth.async_create_user("Jonas")
     roles = {"user_roles": {petra.id: "reinigung", jonas.id: "eigen_haus"},
              "custom_roles": {"eigen_haus": {"name": "Hausmeister", "rechte": ["belegung_sehen", "belegung", "reinigung"]}},
-             "cleaning_phones": {petra.id: "notify.mobile_app_demo"}, "cleaning_wages": {petra.id: 18.0}}
+             "cleaning_phones": {petra.id: "notify.mobile_app_demo"}, "cleaning_wages": {petra.id: 18.0},
+             "door_code_enabled": True}
     with patch("custom_components.smoobu.SmoobuClient", lambda *a, **k: demo):
         entry = MockConfigEntry(domain=DOMAIN, unique_id="1000", title="Demo",
                                 data={"api_key": "demo", "api_secret": "demo", "user_id": 1000},

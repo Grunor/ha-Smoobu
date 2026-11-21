@@ -693,6 +693,12 @@
       },
       "assistent": {
         "name": "Assistent offene Vorschläge"
+      },
+      "turcode_aktueller_gast": {
+        "name": "Türcode aktueller Gast"
+      },
+      "turcode_nachster_gast": {
+        "name": "Türcode nächster Gast"
       }
     },
     "select": {

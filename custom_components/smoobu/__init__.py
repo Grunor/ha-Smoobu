@@ -94,6 +94,7 @@ from .assistant import SmoobuAssistant
 from .notifications import SmoobuNotifier
 from .reinigung import CleaningBoard
 from .nebenkosten import UtilityBills
+from .tuercode import DoorCodes, fill as fill_door_code
 from .websocket_api import NebenkostenUploadView
 from .coordinator import SmoobuCoordinator
 from .frontend import async_register_frontend
@@ -140,6 +141,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> bo
     coordinator.cleaning = CleaningBoard(hass, coordinator)
     await coordinator.cleaning.async_setup()
     coordinator.bills = UtilityBills(hass, coordinator)  # v1.19.0: Nebenkostenabrechnungen (KI-Auswertung)
+    # v1.19.0: Türcodes (vor den Plattformen, damit die Sensoren beim Start schon Codes kennen)
+    coordinator.doorcodes = DoorCodes(hass, coordinator)
+    await coordinator.doorcodes.async_setup()
     coordinator.assistant = SmoobuAssistant(hass, coordinator)
     await coordinator.assistant.async_setup()
 
@@ -173,6 +177,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> b
         await entry.runtime_data.notifier.async_unload()
     if getattr(entry, "runtime_data", None) and getattr(entry.runtime_data, "cleaning", None):
         await entry.runtime_data.cleaning.async_unload()
+    if getattr(entry, "runtime_data", None) and getattr(entry.runtime_data, "doorcodes", None):
+        await entry.runtime_data.doorcodes.async_unload()
     if webhook_id := entry.data.get(CONF_WEBHOOK_ID):
         webhook.async_unregister(hass, webhook_id)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
@@ -468,9 +474,12 @@ def _register_services(hass: HomeAssistant) -> None:
                 # Über den Assistenten: Antwort wird als Lernbeispiel gespeichert
                 await coordinator.assistant.send(call.data[ATTR_RESERVATION_ID], call.data[ATTR_MESSAGE])
                 return
+            text = call.data[ATTR_MESSAGE]
+            if to_guest and coordinator.doorcodes:  # v1.19.0: Platzhalter {{ turcode }} lokal ersetzen
+                text = fill_door_code(text, coordinator.doorcodes.code_for_send(call.data[ATTR_RESERVATION_ID]))
             await coordinator.client.send_message(
                 call.data[ATTR_RESERVATION_ID],
-                call.data[ATTR_MESSAGE],
+                text,
                 subject=call.data.get(ATTR_SUBJECT),
                 to_host=call.data.get(ATTR_RECIPIENT, "guest") == "host",
                 internal=call.data.get(ATTR_INTERNAL, False),

@@ -54,6 +54,18 @@ from .energie import (
     DEFAULT_COST_PREHEAT_HOURS,
     POWER_SOURCES,
 )
+from .tuercode import (
+    CONF_DOOR_CODE_AFTER,
+    CONF_DOOR_CODE_BEFORE,
+    CONF_DOOR_CODE_DIGITS,
+    CONF_DOOR_CODE_ENABLED,
+    CONF_DOOR_CODE_NOTE,
+    CONF_DOOR_LOCKS,
+    DEFAULT_AFTER_H,
+    DEFAULT_BEFORE_H,
+    DEFAULT_DIGITS,
+    LOCK_TYPES,
+)
 from .reinigung import (
     CONF_CLEANING_NOTIFY,
     CONF_CLEANING_PHONES,
@@ -265,6 +277,13 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_COST_PREHEAT_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_PREHEAT_ENTITIES) or {}).items() if v},
         CONF_COST_PREHEAT_HOURS: float(o.get(CONF_COST_PREHEAT_HOURS, DEFAULT_COST_PREHEAT_HOURS)),
         CONF_COST_VACANCY_MODE: str(o.get(CONF_COST_VACANCY_MODE, DEFAULT_COST_VACANCY_MODE)),
+        # v1.19.0: Türcodes (tuercode.py)
+        CONF_DOOR_CODE_ENABLED: bool(o.get(CONF_DOOR_CODE_ENABLED, False)),
+        CONF_DOOR_CODE_DIGITS: int(o.get(CONF_DOOR_CODE_DIGITS, DEFAULT_DIGITS)),
+        CONF_DOOR_CODE_BEFORE: float(o.get(CONF_DOOR_CODE_BEFORE, DEFAULT_BEFORE_H)),
+        CONF_DOOR_CODE_AFTER: float(o.get(CONF_DOOR_CODE_AFTER, DEFAULT_AFTER_H)),
+        CONF_DOOR_CODE_NOTE: bool(o.get(CONF_DOOR_CODE_NOTE, True)),
+        CONF_DOOR_LOCKS: {str(k): dict(v) for k, v in (o.get(CONF_DOOR_LOCKS) or {}).items()},
         # v1.19.0: Wasser und Heizung ebenfalls konstant (Standard) oder aus Zähler
         CONF_COST_WATER_SOURCE: str(o.get(CONF_COST_WATER_SOURCE, "konstant")),
         CONF_COST_WATER_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_WATER_ENTITIES) or {}).items() if v},
@@ -438,7 +457,10 @@ def energy_meta(hass: HomeAssistant, coordinator: Any) -> dict[str, Any]:
     unit_prices = [item(st) for st in states if "/" in str(st.attributes.get("unit_of_measurement") or "")
                    and any(u in str(st.attributes.get("unit_of_measurement")).casefold() for u in ("€", "eur", "ct"))]
     key = lambda x: x["name"].casefold()  # noqa: E731
-    return {"energie_zaehler": sorted(meters, key=key), "energie_preise": sorted(prices, key=key),
+    locks = [item(s) for s in hass.states.async_all("lock")]
+    scripts = [item(s) for s in hass.states.async_all("script")]
+    return {"schloesser": sorted(locks, key=key), "skripte": sorted(scripts, key=key),
+            "energie_zaehler": sorted(meters, key=key), "energie_preise": sorted(prices, key=key),
             "energie_zeitstempel": sorted(stamps, key=key), "energie_messung": measured["strom"],
             "messung_wasser": measured["wasser"], "messung_heizung": measured["heizung"],
             # Wasser: Volumen-Zähler; Heizung: Wärme-/Energiezähler oder Gas/Öl (Volumen)
@@ -634,6 +656,32 @@ def _wages(value: Any) -> dict[str, float]:
     return out
 
 
+def _locks(value: Any) -> dict[str, dict[str, Any]]:
+    """{Wohnungs-ID: {typ, entitaet, slot_von, slot_bis}} – Schloss-Adapter für Türcodes (v1.19.0)."""
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    out = {}
+    for apt, cfg in value.items():
+        if not isinstance(cfg, dict) or cfg.get("typ", "kein") not in LOCK_TYPES:
+            raise vol.Invalid("invalid_lock")
+        typ = cfg.get("typ", "kein")
+        if typ == "kein":
+            out[str(apt)] = {"typ": "kein"}
+            continue
+        ent = str(cfg.get("entitaet") or "").strip()
+        pattern = {"skript": r"script\.[a-z0-9_]+", "z2m": r"[^\s#+]{1,120}"}.get(typ, r"lock\.[a-z0-9_]+")
+        if not re.fullmatch(pattern, ent):
+            raise vol.Invalid("invalid_lock_entity")
+        try:
+            lo, hi = int(cfg.get("slot_von") or 1), int(cfg.get("slot_bis") or cfg.get("slot_von") or 1)
+        except (TypeError, ValueError) as err:
+            raise vol.Invalid("invalid_lock_slot") from err
+        if not 1 <= lo <= hi <= 250:
+            raise vol.Invalid("invalid_lock_slot")
+        out[str(apt)] = {"typ": typ, "entitaet": ent, "slot_von": lo, "slot_bis": hi}
+    return out
+
+
 def _phones(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         raise vol.Invalid("invalid_list")
@@ -713,6 +761,12 @@ FIELDS: dict[str, Any] = {
     CONF_COST_PREHEAT_ENTITIES: _entity_map,
     CONF_COST_PREHEAT_HOURS: _num(0, 24),
     CONF_COST_VACANCY_MODE: vol.In(VACANCY_MODES),
+    CONF_DOOR_CODE_ENABLED: bool,
+    CONF_DOOR_CODE_DIGITS: _int(4, 10),
+    CONF_DOOR_CODE_BEFORE: _num(0, 48),
+    CONF_DOOR_CODE_AFTER: _num(0, 48),
+    CONF_DOOR_CODE_NOTE: bool,
+    CONF_DOOR_LOCKS: _locks,
     CONF_COST_WATER_SOURCE: vol.In(POWER_SOURCES),
     CONF_COST_WATER_ENTITIES: _entity_map,
     CONF_COST_WATER_PRICE: _num(0, 100),

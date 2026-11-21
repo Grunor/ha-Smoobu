@@ -2822,6 +2822,8 @@ class SmoobuBookingDialog extends HTMLElement {
         // Antwortstatus + Assistent sind optional: schlägt einer fehl, bleibt der Dialog ohne diese Teile nutzbar
         this.store.ws("smoobu/message_status", { ...this.target, reservation_ids: [this.rid] }, { cache: false }).catch(() => null),
         this.store.ws("smoobu/assistant/state", this.target, { cache: false }).catch(() => null)]);
+      // v1.19.0: Türcode dieser Buchung (nur mit Recht „Gästedaten“, sonst ohne)
+      this.door = await this.store.ws("smoobu/doorcode/get", { ...this.target, reservation_id: this.rid }, { cache: false }).catch(() => null);
       // v1.19.0: Reinigung dieser Buchung (Dauer buchbar) – nur mit Recht „Reinigung“, sonst einfach ohne
       this.clean = await this.store.ws("smoobu/cleaning/get", this.target, { cache: false })
         .then((r) => ({ ...r, item: r.reinigungen.find((x) => x.buchung_id === this.rid) || null })).catch(() => null);
@@ -2850,6 +2852,20 @@ class SmoobuBookingDialog extends HTMLElement {
       <div class="top"><h2>${d?.buchung ? (d.buchung.blockiert ? `🔒 ${t("Sperrzeit")}` : esc(d.buchung.gast)) + (d.buchung.hund ? " 🐕" : "") + code : t("Details")}</h2>
       <button class="x" data-act="close" aria-label="close">×</button></div>${inner}</div></div>`;
     this.bind();
+  }
+  // v1.19.0: Türcode – Code, Gültigkeit, Status; Kopieren und Neu erzeugen (Recht „Belegung ändern“)
+  doorHtml() {
+    const x = this.door;
+    if (!x?.aktiv || !x.code) return "";
+    const c = x.code;
+    const st = { geplant: ["", "geplant"], gesetzt: ["good", "im Schloss"], aktiv: ["good", "aktiv"], abgelaufen: ["", "abgelaufen"],
+      geloescht: ["bad", "gelöscht"], fehler: ["bad", "Fehler"] }[c.status] || ["", c.status];
+    const f = (v) => `${fdate(v)} ${String(v).slice(11, 16)}`;
+    return `<div class="row" style="margin-top:8px;align-items:center;flex-wrap:wrap">
+      <span>🔑 ${t("Türcode")} <b style="font-family:monospace;font-size:1.1em;letter-spacing:.08em">${esc(c.code)}</b>
+        · ${f(c.von)} – ${f(c.bis)}</span><span class="badge ${st[0]}" title="${esc(c.fehler || "")}">${t(st[1])}${c.slot ? ` · ${t("Platz")} ${c.slot}` : ""}</span>
+      <button class="lnk" data-act="dcopy">${t("Kopieren")}</button>
+      ${x.darf_erneuern ? `<button class="lnk" data-act="drenew">${t("Neu erzeugen")}</button>` : ""}</div>`;
   }
   // v1.19.0: Reinigung nach diesem Aufenthalt – Person, Status und gebuchte Dauer (Standard laut Einstellungen)
   cleanHtml() {
@@ -2894,7 +2910,7 @@ class SmoobuBookingDialog extends HTMLElement {
         ${!b.blockiert ? `<div class="row" style="margin-top:8px">
           <label>${t("Ankunftszeit")} <input type="time" data-k="ci" value="${esc((b.check_in || "").slice(0, 5))}"></label>
           <label>${t("Abreisezeit")} <input type="time" data-k="co" value="${esc((b.check_out || "").slice(0, 5))}"></label>
-          <button class="btn flat" data-act="times">${t("Speichern")}</button></div>` : ""}${this.cleanHtml()}${this.moveHtml(b)}</div>
+          <button class="btn flat" data-act="times">${t("Speichern")}</button></div>` : ""}${this.doorHtml()}${this.cleanHtml()}${this.moveHtml(b)}</div>
         ${!b.blockiert ? `<div><h3>${t("Gast")}</h3>${kv([
           ["Gast", esc(b.gast)],
           // v1.18.0: frühere Aufenthalte; Klick öffnet die letzte Buchung (ggf. andere Wohnung des Kontos)
@@ -3083,6 +3099,13 @@ class SmoobuBookingDialog extends HTMLElement {
     if (a === "close") return this.remove();
     if (a === "ai") return this.aiSuggest();
     if (["move", "mvcancel", "mvcheck", "mvdo"].includes(a)) return this.moveAct(a); // v1.18.0: Umbuchen
+    if (a === "dcopy") { try { await navigator.clipboard.writeText(this.door.code.code); toast(t("Kopiert")); } catch (e) { toast(this.door.code.code); } return; }
+    if (a === "drenew") {
+      if (!(await confirmDialog(t("Neuen Türcode erzeugen? Der alte gilt dann nicht mehr (auch im Schloss).")))) return;
+      try { await this.store.ws("smoobu/doorcode/renew", { ...this.target, reservation_id: this.rid }, { cache: false }); toast(t("Neuer Türcode erzeugt")); this.load(); }
+      catch (e) { toast(`${t("Fehler")}: ${e?.message || e}`); }
+      return;
+    }
     if (a === "cmin") { // v1.19.0: Reinigungszeit dieser Buchung (nur in HA, nicht in Smoobu)
       const x = this.clean?.item, val = this.shadowRoot.querySelector('[data-k="cmin"]')?.value;
       try {
@@ -5738,7 +5761,8 @@ const SET_ERR = {
   invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_role: "Unbekannte Rolle",
   // v1.19.0: Rollenkonfigurator
   invalid_right: "Unbekanntes Recht", invalid_role_name: "Name 1–30 Zeichen", duplicate_role_name: "Rollenname schon vergeben",
-  invalid_role_count: "Höchstens 10 eigene Rollen", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“",
+  invalid_role_count: "Höchstens 10 eigene Rollen", invalid_lock: "Unbekannter Schloss-Typ", invalid_lock_entity: "Schloss-Entität bzw. Skript prüfen",
+  invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“",
   meter_entity_required: "Bitte einen Zähler wählen oder „Konstant“", price_required: "Bitte Preis oder Preis-Entität angeben", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
   // v1.18.0: Saisons
   invalid_season_count: "2 bis 6 Saisons", invalid_season: "Ungültige Saison", invalid_season_name: "Jede Saison braucht einen Namen",
@@ -6325,6 +6349,37 @@ class SmoobuSettingsCard extends SmoobuCard {
           <button class="btn flat sm" data-sdef>${t("Standard (Jahreszeiten)")}</button></div>${this.err("saisons")}
         <div class="kl" style="margin-top:14px">${t("Automatische Erkennung")}</div>${auto}</div></div>`;
   }
+  // v1.19.0 (Wunsch Betreiber 21.11.2026): Türcodes – Zufallscode je Buchung, Stellenzahl, Gültigkeit, Smoobu-Notiz,
+  // Schloss-Adapter je Wohnung (kein Schloss, Matter, Z-Wave JS, ZHA, Zigbee2MQTT, eigenes Skript).
+  doorBlock(meta) {
+    const d = this._draft;
+    const on = d.door_code_enabled;
+    const types = [["kein", "Kein Schloss (nur Code)"], ["matter", "Matter"], ["zwave_js", "Z-Wave JS"], ["zha", "ZHA (Zigbee)"],
+      ["z2m", "Zigbee2MQTT"], ["skript", "Eigenes Skript"]];
+    const locks = d.door_locks || {};
+    const rows = (meta.wohnungen || []).map((w) => {
+      const l = locks[w.id] || { typ: "kein" };
+      const ent = l.typ === "kein" ? "" : `<input list="${l.typ === "skript" ? "sm-skripte" : l.typ === "z2m" ? "" : "sm-schloesser"}" data-lock="${esc(w.id)}|entitaet"
+          value="${esc(l.entitaet || "")}" placeholder="${l.typ === "skript" ? "script.…" : l.typ === "z2m" ? t("Gerätename in Zigbee2MQTT") : "lock.…"}" style="width:240px">
+        <span class="unit">${t("Code-Platz")}</span><input type="number" data-lock="${esc(w.id)}|slot_von" min="1" max="250" value="${esc(l.slot_von ?? 10)}" style="width:64px">
+        <span class="unit">–</span><input type="number" data-lock="${esc(w.id)}|slot_bis" min="1" max="250" value="${esc(l.slot_bis ?? 19)}" style="width:64px">`;
+      return this.fld(`${t("Schloss")}${(meta.wohnungen || []).length > 1 ? ` · ${w.name}` : ""}`,
+        `<select data-lock="${esc(w.id)}|typ">${types.map(([k, lab]) => `<option value="${k}" ${l.typ === k ? "selected" : ""}>${t(lab)}</option>`).join("")}</select>${ent}`,
+        l.typ === "skript" ? "Skript bekommt aktion (setzen/loeschen), code, slot, gueltig_von, gueltig_bis, buchung_id, wohnung_id."
+          : l.typ === "matter" ? "Ab HA 2026.4 (matter.set_lock_credential); nicht jedes Matter-Schloss unterstützt PINs."
+          : l.typ === "kein" ? "Code steht in Smoobu-Notiz, Buchungsdetails und Entität – z. B. für eine Schlüsselbox." : "", "door_locks");
+    }).join("");
+    const dl = (id, list) => `<datalist id="${id}">${(list || []).map((e) => `<option value="${esc(e.entity_id)}">${esc(e.name)}</option>`).join("")}</datalist>`;
+    return `<div class="grp ${on ? "" : "off"}" data-neu="tuercode"><div class="gh"><div class="grow"><b>${t("Türcodes")}${neuBadge("opt-tuercode")}</b>
+        <span class="sub">${t("Zufallscode je Buchung (automatisch bei neuer Buchung). Antwortvorschläge enthalten nur {{ turcode }} – der Code wird erst beim Senden eingesetzt und geht nie an die KI.")}</span></div>
+        ${this.sw("door_code_enabled", "Türcodes")}</div>
+      <div class="gb">${this.fld("Stellen", this.numIn("door_code_digits", 4, 10, 1, "Ziffern"), "Keine trivialen Codes (1234, 1111, 1212 …), keine Doppelten bei überschneidender Gültigkeit.", "door_code_digits")}
+        ${this.fld("Gültig ab", this.numIn("door_code_before_h", 0, 48, 0.5, "h vor Check-in"), "", "door_code_before_h")}
+        ${this.fld("Gültig bis", this.numIn("door_code_after_h", 0, 48, 0.5, "h nach Check-out"), "", "door_code_after_h")}
+        ${this.fld("In Smoobu-Notiz schreiben", this.sw("door_code_note", "In Smoobu-Notiz schreiben"), "Eigene Zeile „Türcode: … (gültig …)“; der Rest der Notiz bleibt.", "door_code_note")}
+        ${rows}${dl("sm-schloesser", meta.schloesser)}${dl("sm-skripte", meta.skripte)}
+        <div class="note">${t("Entitäten „Türcode aktueller Gast“ / „Türcode nächster Gast“ je Wohnung: den Zustand sieht jeder HA-Benutzer, der sie sehen kann – nicht auf Gäste-Dashboards zeigen.")}</div></div></div>`;
+  }
   tabGeneral(meta) {
     const d = this._draft;
     const codes = meta.wohnungen.map((w) => this.fld(w.name, `<input type="text" data-code="${esc(w.id)}" maxlength="4" style="width:90px"
@@ -6332,7 +6387,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const board = `<div class="grp"><div class="gh"><div class="grow"><b>${t("Aufgaben-Board „Wartet auf dich“")}</b>
         <span class="sub">${t("Welche Kategorien in der Übersicht erscheinen. Erledigt/Später gilt für alle Benutzer.")}</span></div></div>
       <div class="gb">${this.pick("task_categories", TASK_CATS.map(([k]) => k), (k) => t(Object.fromEntries(TASK_CATS)[k] || k))}${this.err("task_categories")}</div></div>`;
-    return `${board}<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
+    return `${board}${this.doorBlock(meta)}<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
         ${this.fld("Webhook (Echtzeit)", this.sw("use_webhook", "Webhook"), "Smoobu meldet Änderungen sofort über Nabu Casa.")}
         ${this.fld("Abfrageintervall", this.numIn("scan_interval", 1, 120, 1, "min"), "Zusätzlicher Abgleich neben dem Webhook.", "scan_interval")}
         ${this.fld("Tage Rückblick", this.numIn("days_back", 0, 365, 1, "Tage"), "", "days_back")}
@@ -6463,6 +6518,16 @@ class SmoobuSettingsCard extends SmoobuCard {
       const c = { ...d.custom_roles }; delete c[rid]; d.custom_roles = c;
       d.user_roles = Object.fromEntries(Object.entries(d.user_roles || {}).filter(([, r]) => r !== rid));
       redraw();
+    }));
+    // v1.19.0: Schloss je Wohnung (Typ wechselt → neu zeichnen, Texte nur Fußzeile)
+    root.querySelectorAll("[data-lock]").forEach((el) => el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
+      const [apt, field] = el.dataset.lock.split("|");
+      const locks = { ...(d.door_locks || {}) };
+      const cur = { typ: "kein", ...(locks[apt] || {}) };
+      cur[field] = field.startsWith("slot") ? (el.value === "" ? "" : Number(el.value)) : el.value;
+      if (field === "typ" && el.value !== "kein") { cur.slot_von = cur.slot_von ?? 10; cur.slot_bis = cur.slot_bis ?? 19; }
+      locks[apt] = cur; d.door_locks = locks;
+      field === "typ" ? redraw() : this.refreshFoot();
     }));
     // v1.19.0: Stundenlohn je Reinigungskraft (leer = Standard)
     root.querySelectorAll("[data-wage]").forEach((inp) => inp.addEventListener("input", () => {

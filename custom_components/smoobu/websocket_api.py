@@ -193,6 +193,8 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_cleaning_set)
     websocket_api.async_register_command(hass, ws_cleaning_stats)
     websocket_api.async_register_command(hass, ws_energy_vacancy)
+    websocket_api.async_register_command(hass, ws_doorcode_get)
+    websocket_api.async_register_command(hass, ws_doorcode_renew)
     websocket_api.async_register_command(hass, ws_bills_list)
     websocket_api.async_register_command(hass, ws_bills_analyse)
     websocket_api.async_register_command(hass, ws_bills_delete)
@@ -1306,3 +1308,44 @@ def ws_energy_vacancy(hass: HomeAssistant, connection: websocket_api.ActiveConne
     connection.send_result(msg["id"], {"gemessen": bool(out), "arten": out, "kosten": total,
                                        "kwh": (out.get("strom") or {}).get("menge", 0.0),
                                        "modus": "anteilig" if modes == {"anteilig"} else "separat"})
+
+
+# ---------------------------------------------------------------------------
+# Türcodes (v1.19.0) – Logik in tuercode.py
+# ---------------------------------------------------------------------------
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/doorcode/get", **_TARGET, vol.Required("reservation_id"): vol.Coerce(int)})
+@callback
+def ws_doorcode_get(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Türcode einer Buchung (Recht „gaeste“); `aktiv` = Türcodes in den Optionen eingeschaltet."""
+    try:
+        c, _apt = _resolve(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c], "gaeste"):
+        return
+    doors = getattr(c, "doorcodes", None)
+    lock = doors._lock_cfg(_apt) if doors else {"typ": "kein"}  # noqa: SLF001
+    connection.send_result(msg["id"], {"aktiv": bool(doors and doors.enabled), "code": doors.for_booking(msg["reservation_id"]) if doors else None,
+                                       "schloss": lock.get("typ", "kein"),
+                                       "darf_erneuern": rechte.allowed(connection.user, c.config_entry.options, "belegung")})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/doorcode/renew", **_TARGET, vol.Required("reservation_id"): vol.Coerce(int)})
+@websocket_api.async_response
+async def ws_doorcode_renew(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    try:
+        c, _apt = _resolve(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c], "belegung"):
+        return
+    doors = getattr(c, "doorcodes", None)
+    if not doors or not doors.enabled:
+        connection.send_error(msg["id"], "disabled", "Türcodes sind in den Einstellungen aus")
+        return
+    try:
+        connection.send_result(msg["id"], {"code": await doors.renew(msg["reservation_id"])})
+    except ValueError as err:
+        connection.send_error(msg["id"], "not_found", str(err))

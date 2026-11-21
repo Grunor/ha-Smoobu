@@ -71,6 +71,7 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 - 📈 **Statistik-Werkbank:** Bewertung & Empfehlung (Preise per Button übernehmen und rückgängig machen), **Deckungsbeitrag** mit Brücke, Buchungstempo mit Prognose, Saison-Matrix mit Abweichung zum Ø, Wochentage, Kanäle, Buchungsfenster und -zeitpunkt, verlorene Nächte, Stornos, Gäste, Ehrentafel, Service, **Reinigung** (wer hat wann welche Wohnung gereinigt); **eigene Module** mit Vorlagen, Vorschau und Bearbeiten; Anordnung im HA-Benutzerprofil
 - 🌦️ **Saisons** frei einstellbar (Name + Startmonat) mit **automatischer Erkennung** aus den bisherigen Jahren
 - 💬 **Posteingang:** offene Gastnachrichten, „Keine Antwort nötig“, KI-Vorschlag
+- 🔑 **Türcodes:** Zufallscode je Buchung (Stellen einstellbar, keine trivialen Codes), Gültigkeit Check-in − 2 h bis Check-out + 1 h (einstellbar), in der Smoobu-Notiz, in den Buchungsdetails, als Entität und optional direkt im Schloss (Matter, Z-Wave JS, ZHA, Zigbee2MQTT oder eigenes Skript); in Antworten als Platzhalter `{{ turcode }}`, der erst beim Senden lokal ersetzt wird
 - 🧹 **Reinigungsboard:** Reinigung je Abreise mit Check-out, nächster Anreise und Gästewechsel; **zuweisen**, selbst übernehmen und abhaken, Push an die zugewiesene Person (bei Zuweisung und am Vorabend)
 - ⚙️ **Einstellungen im Dashboard** mit **Rollenkonfigurator** (Rechte je Rolle per Häkchen, eigene Rollen, Rolle **Reinigung** – sieht vom Gast nur den Vornamen); neue Optionen erscheinen unter „Wartet auf dich“ → Einrichtung, Neuerungen unter **„✨ Neu“** in der Kopfzeile
 - 🎨 Hell/Dunkel/System, mehrere Wohnungen mit Gesamtansicht, Handy-Ansicht
@@ -106,6 +107,9 @@ Alle Bilder zeigen eine **erfundene Demo-Ferienwohnung**. Die Bilder stammen aus
 
 **Statistik „Reinigung“:** wer hat wann welche Wohnung gereinigt – je Person (Anteil, Gästewechsel, Hunde, Gäste Ø, Nächte, Zeit bis zum Abhaken), je Monat, je Wohnung und als Liste
 ![Statistik Reinigung](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_reinigung.png)
+
+**Türcodes (ab 1.19.0):** Stellen, Gültigkeit, Smoobu-Notiz und Schloss je Wohnung
+![Türcodes](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_tuercode.png)
 
 **Stromkosten (ab 1.19.0):** konstant wie bisher oder gemessen aus dem Stromzähler der Wohnung – Vorheizstart bis Check-out, Leerstand separat oder anteilig, Netzanteil stündlich aus dem Energie-Dashboard
 ![Stromkosten](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_strom.png)
@@ -272,6 +276,7 @@ Je Smoobu-Wohnung entsteht ein Gerät **„Smoobu &lt;Wohnungsname&gt;“**, zus
 | Kalender | `calendar.smoobu_ferienwohnung_belegung` | Alle Buchungen. Titel = Gastname, mit 🐕 bei Hund (blockierte Zeiträume: „Blockiert“). Beginn = Anreise + Check-in-Zeit, Ende = Abreise + Check-out-Zeit. |
 | Belegt | `binary_sensor.smoobu_ferienwohnung_belegt` | An von der Check-in-Zeit bis zur Freigabe (Abreisezeit bzw. Standard-Check-out + Wartezeit) |
 | Anreise heute | `binary_sensor.smoobu_ferienwohnung_anreise_heute` | Heute reist ein Gast an |
+| Türcode aktueller / nächster Gast (ab 1.19.0, nur mit Türcodes an) | `sensor.smoobu_ferienwohnung_turcode_aktueller_gast`, `…_turcode_nachster_gast` | Code als Zustand; Attribute `gueltig_von`, `gueltig_bis`, `status`, `buchung_id`, `code_platz`. **Den Zustand sieht jeder HA-Benutzer, der die Entität sehen kann – nicht auf Gäste-Dashboards zeigen.** |
 | Anreise morgen | `binary_sensor.smoobu_ferienwohnung_anreise_morgen` | Morgen reist ein Gast an (Attribute wie „Anreise heute“, u. a. `hund`) |
 | Abreise heute | `binary_sensor.smoobu_ferienwohnung_abreise_heute` | Heute reist ein Gast ab |
 | Gästewechsel heute | `binary_sensor.smoobu_ferienwohnung_gastewechsel_heute` | Abreise und Anreise am selben Tag |
@@ -813,6 +818,7 @@ This integration handles the signing and exposes all data natively in Home Assis
 - 📈 **Statistics workbench:** rating & recommendation (apply prices with one click and undo), **contribution margin** with bridge, booking pace with forecast, season matrix with deviation from the average, weekdays, channels, booking window and timing, lost nights, cancellations, guests, hall of fame, service, **cleaning** (who cleaned which property when); **custom modules** with templates, preview and editing; arrangement stored in the HA user profile
 - 🌦️ **Seasons** freely adjustable (name + start month) with **automatic detection** from past years
 - 💬 **Inbox:** open guest messages, "No reply needed", AI suggestion
+- 🔑 **Door codes:** random code per booking (digits configurable, no trivial codes), valid from check-in − 2 h to check-out + 1 h (configurable), in the Smoobu note, in the booking details, as an entity and optionally written to the lock (Matter, Z-Wave JS, ZHA, Zigbee2MQTT or own script); in replies as placeholder `{{ turcode }}`, replaced locally only when sending
 - 🧹 **Cleaning board:** one cleaning per departure with check-out, next arrival and same-day changeover; **assign**, take over and tick off, push to the assigned person (on assignment and the evening before)
 - ⚙️ **Settings in the dashboard** with a **role configurator** (permissions per role via checkboxes, custom roles, role **Cleaning** – sees only the guest's first name); new options appear under "Waiting for you" → Setup, changes under **"✨ New"** in the header
 - 🎨 Light/dark/system, several properties with a combined view, mobile view
@@ -848,6 +854,9 @@ All images show a **fictional demo apartment**. They come from the real integrat
 
 **Statistics "Cleaning":** who cleaned which property when – per person (share, changeovers, dogs, average guests, nights, time to tick off), per month, per property and as a list
 ![Statistics cleaning](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/statistik_reinigung.png)
+
+**Door codes (from 1.19.0):** digits, validity, Smoobu note and lock per property
+![Door codes](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_tuercode.png)
 
 **Electricity costs (from 1.19.0):** constant as before or measured from the property's meter – pre-heating start to check-out, vacancy separately or distributed, grid share hourly from the energy dashboard
 ![Electricity costs](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_strom.png)

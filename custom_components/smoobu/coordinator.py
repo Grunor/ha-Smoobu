@@ -143,6 +143,7 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         # KI-Assistent (assistant.py), gesetzt in __init__.async_setup_entry
         self.assistant: Any = None
         self._energy = energie.EnergyData(hass)  # v1.19.0: Stundenwerte der Zähler (im Speicher)
+        self.doorcodes: Any = None  # v1.19.0: Türcodes (tuercode.DoorCodes)
         self.bills: Any = None  # v1.19.0: Nebenkostenabrechnungen (nebenkosten.UtilityBills)
         self.cleaning: Any = None  # v1.19.0: Reinigungsboard (reinigung.CleaningBoard)
         self.notifier: Any = None  # v1.17.0: Benachrichtigungen (notifications.SmoobuNotifier)

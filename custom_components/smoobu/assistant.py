@@ -68,6 +68,7 @@ from .const import (
     ai_allowed,
 )
 from . import privacy
+from .tuercode import fill as fill_door_code
 from .models import free_gaps, strip_html
 from .notifications import opt_enabled, opt_recipients
 
@@ -491,6 +492,11 @@ class SmoobuAssistant:
         # Mit relativen Daten auch „heute“ ohne Kalenderdatum, sonst ließe sich das Datum zurückrechnen
         heute = today.strftime("%A, %H:%M") if p[privacy.CONF_AI_DATES_RELATIVE] else today.strftime("%A, %d.%m.%Y %H:%M")
         guest = self.protect(guest_text, rec, p=p) if guest_text else ""
+        # v1.19.0: Türcode nur als Platzhalter (wird beim Senden lokal ersetzt, geht nie an die KI)
+        doors = getattr(self.c, "doorcodes", None)
+        door_rule = ("\n9. Fragt der Gast nach Türcode, Zugangscode oder wie er in die Wohnung kommt, schreibe genau {{ turcode }} "
+                     "an die Stelle des Codes (wird vor dem Senden ersetzt). Erfinde nie einen Code."
+                     if doors and doors.enabled else "")
         return f"""ROLLE: Du schreibst Nachrichtenentwürfe für die Gastgeber einer Ferienwohnung. Die Gastgeber prüfen jeden Entwurf vor dem Senden.
 AUFGABE: {OCCASIONS.get(occasion, OCCASIONS['antwort'])}.
 REGELN (strikt):
@@ -501,7 +507,7 @@ REGELN (strikt):
 5. Schreibe in der Sprache der Gästenachricht (sonst Buchungssprache), Anrede wie in den BEISPIELEN, herzlich und kurz, Gruß wie in den BEISPIELEN.
 6. Orientiere dich im Ton an den BEISPIELEN, kopiere aber keine Fakten daraus, die nicht zu dieser Buchung passen (z. B. Daten).
 7. Bei Problemen in der Wohnung (Heizung, Wasser, Strom, Schlüssel, Sicherheit) setze dringend = true und gib den Gastgebern im 'hinweis' konkret an, was laut STATUS los sein könnte.
-8. Platzhalter {privacy.PH_FIRST}, {privacy.PH_LAST}, {privacy.PH_NAME}, {privacy.PH_ARRIVAL}, {privacy.PH_DEPARTURE} stehen für echte Werte dieser Buchung: übernimm sie unverändert, wo du Name oder Datum schreiben würdest (sie werden vor dem Senden ersetzt). Geschwärzte Angaben wie [ADRESSE], [E-MAIL], [TELEFON] nie erraten oder ausschreiben.
+8. Platzhalter {privacy.PH_FIRST}, {privacy.PH_LAST}, {privacy.PH_NAME}, {privacy.PH_ARRIVAL}, {privacy.PH_DEPARTURE} stehen für echte Werte dieser Buchung: übernimm sie unverändert, wo du Name oder Datum schreiben würdest (sie werden vor dem Senden ersetzt). Geschwärzte Angaben wie [ADRESSE], [E-MAIL], [TELEFON] nie erraten oder ausschreiben.{door_rule}
 HEUTE: {heute}
 WISSEN:
 {self._knowledge_text(guest_text or occasion)}
@@ -542,6 +548,12 @@ GÄSTENACHRICHT: {guest or '(keine – Nachricht aus Anlass oben schreiben)'}
         self._require_ai()
         entity = self.opts.get(CONF_AI_ENTITY)
         # Genau diesen Text zeigt die Vorschau „Was geht an die KI“ (nur im Speicher)
+        # v1.19.0: Türcodes nie an die KI (z. B. über Status-Entitäten oder eingefügte Texte) → Platzhalter
+        doors = getattr(self.c, "doorcodes", None)
+        if doors:
+            for it in doors.codes.values():
+                if it.get("code"):
+                    instructions = re.sub(rf"(?<!\d){re.escape(it['code'])}(?!\d)", "{{ turcode }}", instructions)
         self.last_prompt = {
             "zeit": dt_util.now().isoformat(), "aufgabe": task, "ki": entity,
             "stufe": privacy.level(self.opts), "text": instructions,
@@ -711,7 +723,12 @@ GÄSTENACHRICHT: {guest or '(keine – Nachricht aus Anlass oben schreiben)'}
 
     # --- Senden / Push-Aktionen -------------------------------------------------
     async def send(self, rid: int, text: str, source: str = "gesendet") -> None:
-        await self.c.client.send_message(rid, text)
+        # v1.19.0: Türcode erst hier lokal einsetzen; gelernt wird mit Platzhalter (Code geht nie an die KI)
+        doors = getattr(self.c, "doorcodes", None)
+        code = doors.code_for_send(rid) if doors else None
+        await self.c.client.send_message(rid, fill_door_code(text, code) if doors else text)
+        if code:
+            text = re.sub(rf"(?<!\d){re.escape(code)}(?!\d)", "{{ turcode }}", text)
         sug = self.data["vorschlaege"].get(str(rid))
         guest = sug.get("gastnachricht") if sug else None
         if sug and sug["status"] == "offen":
