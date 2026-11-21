@@ -181,3 +181,5 @@ async def test_rolle_reinigung_und_board(hass, setup, hass_ws_client, hass_read_
     assert {r["id"]: r for r in c.records_all()}[1]["reinigung_kosten"] == 0.0
     st = (await _call(admin2, 5, type="smoobu/cleaning/stats", start="2026-11-01", end="2026-12-01"))["result"]
     assert st["kosten"] == 0.0
+    from custom_components.smoobu import settings as _settings
+    assert _settings.current(entry)["cleaning_wages"] == {hass_read_only_user.id: 0.0}  # 0 €/h auch in den Einstellungen

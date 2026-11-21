@@ -8,6 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.19.0b6 – 2026-11-21
+
+### Korrigiert / Fixed
+- Stundenlohn 0 €/h wurde in den Einstellungen als leer angezeigt (und beim nächsten Speichern entfernt).
+- An hourly wage of 0 €/h was shown as empty in the settings (and removed on the next save).
+
 ## 1.19.0b5 – 2026-11-21
 
 ### Geändert / Changed

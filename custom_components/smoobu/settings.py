@@ -261,7 +261,7 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         # Kosten & Preise (v1.18.0)
         CONF_COST_CLEANING: float(o.get(CONF_COST_CLEANING, DEFAULT_COST_CLEANING)),  # ab v1.19.0: €/h
         CONF_COST_CLEANING_MINUTES: float(o.get(CONF_COST_CLEANING_MINUTES, DEFAULT_COST_CLEANING_MINUTES)),
-        CONF_CLEANING_WAGES: {str(k): float(v) for k, v in (o.get(CONF_CLEANING_WAGES) or {}).items() if v},
+        CONF_CLEANING_WAGES: {str(k): float(v) for k, v in (o.get(CONF_CLEANING_WAGES) or {}).items() if v not in (None, "")},  # 0 €/h bleibt sichtbar
         CONF_COST_LAUNDRY: float(o.get(CONF_COST_LAUNDRY, DEFAULT_COST_LAUNDRY)),
         CONF_COST_HEATING_YEAR: float(o.get(CONF_COST_HEATING_YEAR, DEFAULT_COST_HEATING_YEAR)),
         CONF_COST_HOT_WATER_YEAR: float(o.get(CONF_COST_HOT_WATER_YEAR, DEFAULT_COST_HOT_WATER_YEAR)),
