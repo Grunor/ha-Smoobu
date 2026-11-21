@@ -125,6 +125,19 @@ async def test_settings_kosten(hass, setup, hass_ws_client):  # noqa: F811
     o = setup.options
     assert o["cost_cleaning"] == 19.5 and o["cost_grid_share"] == [60.0] * 12
     assert o["channel_markups"] == {"Airbnb": 30.0, "Expedia": 20.0}
+    # v1.19.1b5: Netzanteil-Quelle – Sensor braucht je gemessener Wohnung einen Netzbezug-Sensor
+    assert werte["cost_grid_share_mode"] == "energie_dashboard" and werte["cost_grid_share_year"] == 40.0
+    res = (await _call(ws, 4, type="smoobu/settings/set", changes={
+        "cost_power_source": "zaehler", "cost_power_entities": {"1": "sensor.fewo_strom"}, "cost_grid_share_mode": "sensor"}))["result"]
+    assert res["fehler"] == {"cost_grid_share_entities": "grid_share_entity_required"}
+    res = (await _call(ws, 5, type="smoobu/settings/set", changes={"cost_grid_share_mode": "jahreswert", "cost_grid_share_year": 101}))["result"]
+    assert res["fehler"] == {"cost_grid_share_year": "invalid_number"}
+    res = (await _call(ws, 6, type="smoobu/settings/set", changes={
+        "cost_power_source": "zaehler", "cost_power_entities": {"1": "sensor.fewo_strom"}, "cost_grid_share_mode": "sensor",
+        "cost_grid_share_entities": {"1": "sensor.fewo_strom_energie_netz"}}))["result"]
+    await hass.async_block_till_done()
+    assert res["ok"] is True and setup.options["cost_grid_share_entities"] == {"1": "sensor.fewo_strom_energie_netz"}
+    assert (await _call(ws, 7, type="smoobu/settings/get"))["result"]["werte"]["cost_grid_share_mode"] == "sensor"
 
 
 def test_provision_herkunft():

@@ -34,6 +34,7 @@ from .api import SmoobuAuthError, SmoobuClient, SmoobuError
 from .channel_catalog import channel_choices, configured_channels
 from .codes import all_codes, clean_code
 from .deckungsbeitrag import parse_grid_share, parse_markups
+from .energie import CONF_COST_GRID_SHARE_MODE, CONF_COST_GRID_SHARE_YEAR, DEFAULT_COST_GRID_SHARE_YEAR, GRID_SHARE_MODES, grid_share_mode
 from .notifications import opt_enabled, opt_quiet, opt_recipients
 from . import privacy
 from .const import (
@@ -428,6 +429,9 @@ class SmoobuOptionsFlow(OptionsFlow):
                         CONF_GENIUS_DISCOUNT, CONF_GENIUS_SHARE, CONF_LASTMINUTE_MAX_DISCOUNT):
                 data[key] = float(user_input[key])
             data[CONF_COST_REF_YEAR] = int(user_input[CONF_COST_REF_YEAR])
+            # v1.19.1b5: Netzanteil-Quelle + Jahreswert (Sensor je Wohnung: Einstellungen im Dashboard)
+            data[CONF_COST_GRID_SHARE_MODE] = user_input.get(CONF_COST_GRID_SHARE_MODE, grid_share_mode(opts))
+            data[CONF_COST_GRID_SHARE_YEAR] = float(user_input.get(CONF_COST_GRID_SHARE_YEAR, DEFAULT_COST_GRID_SHARE_YEAR))
             data[CONF_LASTMINUTE_DAYS] = int(user_input[CONF_LASTMINUTE_DAYS])
             try:
                 data[CONF_COST_GRID_SHARE] = parse_grid_share(user_input.get(CONF_COST_GRID_SHARE))
@@ -466,7 +470,11 @@ class SmoobuOptionsFlow(OptionsFlow):
         markups = opts.get(CONF_CHANNEL_MARKUPS, DEFAULT_CHANNEL_MARKUPS)
         schema = vol.Schema({
             **dict(fields),
+            vol.Required(CONF_COST_GRID_SHARE_MODE, default=grid_share_mode(opts)): SelectSelector(SelectSelectorConfig(
+                options=list(GRID_SHARE_MODES), translation_key="grid_share_mode", mode=SelectSelectorMode.DROPDOWN)),
             vol.Required(CONF_COST_GRID_SHARE, default=", ".join(f"{float(x):g}" for x in share)): TextSelector(),
+            vol.Required(CONF_COST_GRID_SHARE_YEAR, default=opts.get(CONF_COST_GRID_SHARE_YEAR, DEFAULT_COST_GRID_SHARE_YEAR)):
+                NumberSelector(NumberSelectorConfig(min=0, max=100, step=1, unit_of_measurement="%", mode=NumberSelectorMode.BOX)),
             vol.Optional(CONF_CHANNEL_MARKUPS, default="; ".join(f"{k}={float(v):g}" for k, v in markups.items())):
                 TextSelector(),
         })

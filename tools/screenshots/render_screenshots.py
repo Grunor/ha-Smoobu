@@ -265,6 +265,13 @@ def _shots(base: str, token: str, set_options) -> list[str]:
         page.wait_for_timeout(500)
         page.locator(card_settings).locator('[data-neu="strom"]').screenshot(path=str(OUT / "einstellungen_strom.png"))
         done.append("einstellungen_strom.png")
+        # v1.19.1b5: Netzanteil aus Sensor der Wohnung (Auswahl + Sensor je Wohnung, Monatswerte als Rückfall)
+        page.evaluate("""() => { const c = document.querySelector('smoobu-settings-card'); const apt = c._data.meta.wohnungen[0].id;
+            c._draft.cost_grid_share_mode = 'sensor'; c._draft.cost_grid_share_entities = { [apt]: 'sensor.ferienwohnung_strom_energie_netz' };
+            c.render(); }""")
+        page.wait_for_timeout(400)
+        page.locator(card_settings).locator('[data-neu="netzanteil"]').screenshot(path=str(OUT / "einstellungen_netzanteil.png"))
+        done.append("einstellungen_netzanteil.png")
         # v1.19.0: Nebenkostenabrechnung – Auswertung als Demowert (keine KI in der Screenshot-Umgebung)
         page.evaluate("""() => { const c = document.querySelector('smoobu-settings-card'); const d = c._draft;
             d.ai_enabled = true; d.ai_entity = 'ai_task.demo_ki';

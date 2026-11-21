@@ -82,6 +82,11 @@ def config_from_options(options: Any) -> CostConfig:
     share = list(o.get(CONF_COST_GRID_SHARE) or DEFAULT_COST_GRID_SHARE)
     if len(share) != 12:
         share = list(DEFAULT_COST_GRID_SHARE)
+    # v1.19.1b5: Modus „jahreswert“ = ein Netzanteil für alle Monate (statisch über das Jahr)
+    from .energie import CONF_COST_GRID_SHARE_YEAR, DEFAULT_COST_GRID_SHARE_YEAR, grid_share_mode
+
+    if grid_share_mode(o) == "jahreswert":
+        share = [float(o.get(CONF_COST_GRID_SHARE_YEAR, DEFAULT_COST_GRID_SHARE_YEAR))] * 12
     return CostConfig(
         # v1.19.0 (Wunsch Betreiber 20.11.2026): Reinigung = Zeit × Stundenlohn. Die alte Option „€ je Aufenthalt“
         # ist jetzt der Standard-Stundenlohn – bei Standardzeit 60 min bleibt der Betrag gleich (17 € = 17 €/h × 1 h).

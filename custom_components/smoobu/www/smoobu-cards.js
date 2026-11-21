@@ -408,7 +408,15 @@ const EN = {
   "Nachrichten werden im Hintergrund gedrosselt nachgeladen (einmalig ab 2020, danach stündlich neue)": "Messages are loaded throttled in the background (once from 2020, then new ones hourly)", "Nacht von … auf …, je Kalenderwoche": "Night from … to …, per calendar week",
   "Name 1–30 Zeichen": "Name 1–30 characters", "Nebenkostenabrechnung auswerten (KI)": "Analyse utility bill (AI)",
   "Netto und Provision/Gebühren (schraffiert) je Kanal": "Net and commission/fees (hatched) per channel", "Netto-RevPAR": "Net RevPAR",
-  "Netzanteil": "Grid share", "Netzanteil stündlich messen": "Measure grid share hourly",
+  "Netzanteil": "Grid share", "Netzanteil stündlich messen": "Measure grid share hourly", "Energie-Dashboard": "Energy dashboard", "Monatswerte": "Monthly values", "Jahreswert": "Annual value",
+  "Monatswerte (Rückfall)": "Monthly values (fallback)", "Netzanteil im Jahr": "Grid share for the year", "Netzbezug-Sensor": "Grid import sensor",
+  "Gelten vor dem ersten Messwert und für künftige Buchungen.": "Used before the first measured value and for future bookings.",
+  "Wirkt nur bei Stromkosten „Aus Zähler“ – bei „Konstant“ gelten die Monatswerte.": "Only applies with power costs “From meter” – with “Constant” the monthly values apply.",
+  "Netzbezug-Sensor der Wohnung (kWh) ÷ Stromzähler, je Stunde – z. B. ein Sensor, der den Verbrauch der Wohnung zeitgleich nach Autarkie auf Netz und PV aufteilt.": "Grid import sensor of the apartment (kWh) ÷ power meter, per hour – e.g. a sensor that splits the apartment's consumption into grid and PV by self-sufficiency at the same time.",
+  "Netzbezug ÷ Hausverbrauch je Stunde aus dem Energie-Dashboard (ganzes Haus).": "Grid import ÷ house consumption per hour from the energy dashboard (whole house).",
+  "12 feste Werte: Netzbezug ÷ Hausverbrauch je Monat.": "12 fixed values: grid import ÷ house consumption per month.",
+  "Ein fester Wert für alle Monate des Jahres.": "One fixed value for all months of the year.",
+  "Energie-Sensor (kWh) mit dem Netzanteil des Verbrauchs dieser Wohnung.": "Energy sensor (kWh) with the grid part of this apartment's consumption.",
   "Netzbezug ÷ Hausverbrauch je Stunde aus dem Energie-Dashboard. Aus: feste Monatswerte oben.": "Grid import ÷ house consumption per hour from the energy dashboard. Off: fixed monthly values above.", "Netzbezug ÷ Hausverbrauch, z. B. aus dem Energie-Dashboard.": "Grid import ÷ house consumption, e.g. from the energy dashboard.",
   "Neu auswerten": "Analyse again", "Neu erzeugen": "Renew",
   "Neue Buchung": "New booking", "Neue Nachricht eines Gastes. Mit KI-Vorschlag kommt stattdessen der Vorschlag.": "New guest message. With an AI suggestion, the suggestion is sent instead.",
@@ -6131,7 +6139,7 @@ const SET_ERR = {
   // v1.19.0: Rollenkonfigurator
   invalid_right: "Unbekanntes Recht", invalid_role_name: "Name 1–30 Zeichen", duplicate_role_name: "Rollenname schon vergeben",
   invalid_role_count: "Höchstens 10 eigene Rollen", invalid_lock: "Unbekannter Schloss-Typ", invalid_lock_entity: "Schloss-Entität bzw. Skript prüfen",
-  invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", invalid_static_code: "Statischer Code: 4–12 Ziffern/Buchstaben", invalid_focus_path: "Startseite: Pfad wie /dashboard/ansicht", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“",
+  invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", invalid_static_code: "Statischer Code: 4–12 Ziffern/Buchstaben", invalid_focus_path: "Startseite: Pfad wie /dashboard/ansicht", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“", grid_share_entity_required: "Bitte je Wohnung einen Netzbezug-Sensor wählen oder einen anderen Netzanteil",
   meter_entity_required: "Bitte einen Zähler wählen oder „Konstant“", price_required: "Bitte Preis oder Preis-Entität angeben", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
   // v1.18.0: Saisons
   invalid_season_count: "2 bis 6 Saisons", invalid_season: "Ungültige Saison", invalid_season_name: "Jede Saison braucht einen Namen",
@@ -6424,6 +6432,31 @@ class SmoobuSettingsCard extends SmoobuCard {
       this.entPick(`data-ment="${key}|${esc(a.id)}"`, list, d[key]?.[a.id] || "", "sensor.…"),
       apts.length === 1 ? hint : "", key)).join("");
   }
+  // v1.19.1b5: Netzanteil – Sensor je Wohnung, Energie-Dashboard, 12 Monatswerte oder ein Jahreswert
+  gridShareBlock(meta, months) {
+    const d = this._draft;
+    const mode = d.cost_grid_share_mode || "energie_dashboard";
+    const measured = d.cost_power_source === "zaehler";
+    const seg = `<div class="seg" role="group">${[["sensor", "Sensor"], ["energie_dashboard", "Energie-Dashboard"], ["monatswerte", "Monatswerte"], ["jahreswert", "Jahreswert"]]
+      .map(([k, l]) => `<button data-msrc="cost_grid_share_mode" data-v="${k}" aria-pressed="${mode === k}">${t(l)}</button>`).join("")}</div>`;
+    const hint = {
+      sensor: "Netzbezug-Sensor der Wohnung (kWh) ÷ Stromzähler, je Stunde – z. B. ein Sensor, der den Verbrauch der Wohnung zeitgleich nach Autarkie auf Netz und PV aufteilt.",
+      energie_dashboard: "Netzbezug ÷ Hausverbrauch je Stunde aus dem Energie-Dashboard (ganzes Haus).",
+      monatswerte: "12 feste Werte: Netzbezug ÷ Hausverbrauch je Monat.",
+      jahreswert: "Ein fester Wert für alle Monate des Jahres.",
+    }[mode];
+    const apts = meta.wohnungen || [];
+    const needMeter = (mode === "sensor" || mode === "energie_dashboard") && !measured
+      ? `<div class="note">${t("Wirkt nur bei Stromkosten „Aus Zähler“ – bei „Konstant“ gelten die Monatswerte.")}</div>` : "";
+    const sensors = mode !== "sensor" ? "" : apts.map((a) => this.fld(`${t("Netzbezug-Sensor")}${apts.length > 1 ? ` · ${a.name}` : ""}`,
+      this.entPick(`data-ment="cost_grid_share_entities|${esc(a.id)}"`, meta.energie_zaehler, d.cost_grid_share_entities?.[a.id] || "", "sensor.…"),
+      apts.length === 1 ? "Energie-Sensor (kWh) mit dem Netzanteil des Verbrauchs dieser Wohnung." : "", "cost_grid_share_entities")).join("");
+    const fixed = mode === "jahreswert"
+      ? this.fld("Netzanteil im Jahr", this.numIn("cost_grid_share_year", 0, 100, 1, "%"), "", "cost_grid_share_year")
+      : this.fld(mode === "monatswerte" ? "Netzanteil je Monat" : "Monatswerte (Rückfall)", `<div class="chips">${months}</div>`,
+          mode === "monatswerte" ? "" : "Gelten vor dem ersten Messwert und für künftige Buchungen.", "cost_grid_share");
+    return `<div data-neu="netzanteil">${this.fld("Netzanteil", `${seg}${neuBadge("opt-netzanteil")}`, hint, "cost_grid_share_mode")}${needMeter}${sensors}${fixed}</div>`;
+  }
   srcSeg(key) {
     const d = this._draft;
     return `<div class="seg" role="group">${[["konstant", "Konstant"], ["zaehler", "Aus Zähler (gemessen)"]]
@@ -6441,8 +6474,6 @@ class SmoobuSettingsCard extends SmoobuCard {
     const body = !on ? "" : `${this.meterInputs("strom", meta)}
         ${this.fld("Strompreis aus Entität", this.entPick('data-ent="cost_price_entity"', meta.energie_preise, d.cost_price_entity || "", t("optional – sonst Netzstrompreis oben")),
           "Verlauf aus dem Recorder; davor gilt der Netzstrompreis oben. Einheit €/kWh oder ct/kWh.", "cost_price_entity")}
-        ${this.fld("Netzanteil stündlich messen", this.sw("cost_grid_share_auto", "Netzanteil stündlich messen"),
-          "Netzbezug ÷ Hausverbrauch je Stunde aus dem Energie-Dashboard. Aus: feste Monatswerte oben.", "cost_grid_share_auto")}
         ${apts.map((a) => this.powerResult(meta, a, apts.length > 1, "strom")).join("")}`;
     return `<div class="grp" data-neu="strom"><div class="gh"><div class="grow"><b>${t("Stromkosten")}${neuBadge("opt-strom")}</b>
         <span class="sub">${on ? t("Je Buchung gemessen: Vorheizstart bis Check-out. Ohne Messwert (vor Zählerstart, künftige Buchungen) gelten die konstanten Werte oben.")
@@ -6569,7 +6600,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const sugg = !avg ? "" : power ? `<button class="lnk" data-pavg="cost_power_kwh|${avg}">${t("als konstanten Wert übernehmen")}</button>`
       : kind === "wasser" && d.cost_water_price ? `<button class="lnk" data-pavg="cost_water_night|${Math.round(avg * d.cost_water_price * 100) / 100}">${t("als Wasser je Nacht übernehmen")} (${money(avg * d.cost_water_price, "EUR", 2)})</button>` : "";
     return `<div class="kl" style="margin-top:10px">${t("Gemessen")}${named ? ` · ${esc(a.name)}` : ""}: ${num(m.buchungen_gemessen)} ${t("Buchungen")}
-        ${power ? `· ${t("Netzanteil")} ${m.netzanteil_gemessen ? t("stündlich gemessen") : t("feste Monatswerte")} ` : ""}· ${t("Preis")} ${m.preis_entitaet ? esc(m.preis_entitaet) : t("fest")}</div>
+        ${power ? `· ${t("Netzanteil")} ${m.netzanteil_gemessen ? (m.netzanteil_entitaet ? `${t("aus")} ${esc(m.netzanteil_entitaet)}` : t("stündlich gemessen")) : (m.netzanteil_modus === "jahreswert" ? t("Jahreswert") : t("feste Monatswerte"))} ` : ""}· ${t("Preis")} ${m.preis_entitaet ? esc(m.preis_entitaet) : t("fest")}</div>
       <div class="scroll"><table><thead><tr><th>${t("Monat")}</th><th class="n">${esc(u)}</th><th class="n">${t("Aufenthalte")}</th><th class="n">${t("Leerstand")}</th>
         ${power ? `<th class="n">${t("Netzanteil")}</th>` : ""}<th class="n">${t("Kosten")}</th><th class="n">${t("Nächte")}</th><th>${t("Leerstand")}</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="sub">* ${t("Monat unvollständig")}${avg ? ` · Ø ${num(avg, dg)} ${esc(u)} ${t("je Gästenacht inkl. Leerstand (12 Monate)")} ${sugg}` : ""}</div>`;
@@ -6607,7 +6638,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Strom", this.numIn("cost_power_kwh", 0, 200, 0.1, "kWh"), "", "cost_power_kwh")}
         ${this.fld("Netzstrompreis", this.numIn("cost_grid_price", 0, 200, 0.01, "ct/kWh"), "", "cost_grid_price")}
         ${this.fld("Wert PV-Strom", this.numIn("cost_pv_value", 0, 200, 0.01, "ct/kWh"), "", "cost_pv_value")}
-        ${this.fld("Netzanteil je Monat", `<div class="chips">${months}</div>`, "Netzbezug ÷ Hausverbrauch, z. B. aus dem Energie-Dashboard.", "cost_grid_share")}</div></div>
+        ${this.gridShareBlock(meta, months)}</div></div>
       ${this.powerBlock(meta)}${this.meterBlock(meta, "wasser")}${this.meterBlock(meta, "heizung")}${this.measureBlock(meta)}`;
     const priceHtml = !pr ? "" : `
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Aufschläge je Kanal")}</b>

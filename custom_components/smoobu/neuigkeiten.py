@@ -21,6 +21,11 @@ from typing import Any
 
 NEWS: list[dict[str, Any]] = [
     # --- neue Einstellungen (Einrichtung) ------------------------------------------------------------
+    {"id": "opt-netzanteil", "version": "1.19.1", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "kosten", "sel": '[data-neu="netzanteil"]',
+     "titel": "Netzanteil der Stromkosten wählen", "titel_en": "Choose the grid share of power costs",
+     "text": "Neu: Netzanteil aus einem Netzbezug-Sensor der Wohnung, aus dem Energie-Dashboard, aus festen Monatswerten oder als ein Jahreswert für das ganze Jahr.",
+     "text_en": "New: grid share from a grid import sensor of the property, from the energy dashboard, from fixed monthly values or as one value for the whole year."},
     {"id": "opt-tuercode", "version": "1.19.0", "art": "einstellung", "recht": "einstellungen",
      "seite": "smoobu-einstellungen", "tab": "reinigung", "sel": '[data-neu="tuercode"]',
      "titel": "Türcodes einrichten", "titel_en": "Set up door codes",

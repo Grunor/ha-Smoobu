@@ -5,7 +5,8 @@ import pytest
 from homeassistant.util import dt as dt_util
 
 from custom_components.smoobu import deckungsbeitrag as db
-from custom_components.smoobu.energie import Prices, allocate, average_kwh_per_night, hour_shares, price_ct
+from custom_components.smoobu.energie import (Prices, allocate, average_kwh_per_night, grid_share_mode, hour_shares, price_ct,
+                                              sensor_shares)
 
 TZ = "Europe/Berlin"
 
@@ -127,6 +128,18 @@ async def test_messung_aus_recorder(recorder_mock, hass):
     assert res[1]["buchungen"][7]["kosten"] == 14.4
     # Modus konstant → keine Messung
     assert await measure(hass, data, {**opts, "cost_power_source": "konstant"}, recs, cfg, time(16), time(11)) == {}
+    # v1.19.1b5: Netzanteil aus Sensor der Wohnung (0,25 kWh Netz je 1 kWh Verbrauch) statt Energie-Dashboard
+    series("sensor.fewo_netz", "kWh", 0.25)
+    await async_wait_recording_done(hass)
+    sens = {**opts, "cost_grid_share_mode": "sensor", "cost_grid_share_entities": {"1": "sensor.fewo_netz"}}
+    res = await measure(hass, data, sens, recs, cfg, time(16), time(11))
+    assert res[1]["netzanteil_modus"] == "sensor" and res[1]["netzanteil_entitaet"] == "sensor.fewo_netz"
+    assert res[1]["monate"]["2026-11"]["netzanteil_prozent"] == 25.0
+    # 23 kWh × (25 % × 30 ct + 75 % × 10 ct = 15 ct) = 3,45 €
+    assert res[1]["buchungen"][7]["kosten"] == 3.45
+    # Jahreswert: kein Messwert → fester Anteil aus cfg (hier 100 % → 30 ct)
+    res = await measure(hass, data, {**opts, "cost_grid_share_mode": "jahreswert"}, recs, cfg, time(16), time(11))
+    assert res[1]["netzanteil_gemessen"] is False and res[1]["buchungen"][7]["kosten"] == 6.9
 
 
 def test_apply_wasser_und_heizung_gemessen():
@@ -182,3 +195,26 @@ def test_reinigung_je_person():
     # Altwert „€ je Aufenthalt“ = Standard-Stundenlohn bei 60 min → gleicher Betrag
     assert db.config_from_options({"cost_cleaning": 17.0}).cleaning == 17.0
     assert db.config_from_options({"cost_cleaning": 20.0, "cost_cleaning_minutes": 90}).cleaning == 30.0
+
+
+def test_sensor_shares_mit_luecken():
+    """v1.19.1b5: Netzanteil aus Netz-Sensor ÷ Stromzähler; Lücken im Sensor (importierte Monats-/Tageszeilen) gemittelt."""
+    h = 3600
+    total = {i * h: 1.0 for i in range(10)}            # Zähler: 1 kWh je Stunde
+    grid = {0: 0.0, 4 * h: 2.0, 5 * h: 0.5, 6 * h: 3.0}  # Anker, Lücke 1–4, Stunde 5, 6 ohne Zählerwerte > Zähler
+    s = sensor_shares(grid, total)
+    assert all(s[i * h] == 0.5 for i in range(1, 5))     # 2 kWh Netz über 4 Stunden à 1 kWh
+    assert s[5 * h] == 0.5 and s[6 * h] == 1.0            # auf 100 % begrenzt
+    assert s[0] == 0.0 and 7 * h not in s                 # nach der letzten Sensorzeile: Rückfallwert
+    assert sensor_shares({3 * h: 1.0}, {}) == {}          # ohne Verbrauch kein Anteil
+
+
+def test_netzanteil_modus_und_jahreswert():
+    """Alter Schalter wird übernommen; Jahreswert gilt für alle Monate (auch bei Strom „konstant“)."""
+    assert grid_share_mode({}) == "energie_dashboard"
+    assert grid_share_mode({"cost_grid_share_auto": False}) == "monatswerte"
+    assert grid_share_mode({"cost_grid_share_auto": False, "cost_grid_share_mode": "sensor"}) == "sensor"
+    assert grid_share_mode({"cost_grid_share_mode": "quatsch", "cost_grid_share_auto": True}) == "energie_dashboard"
+    cfg = db.config_from_options({"cost_grid_share_mode": "jahreswert", "cost_grid_share_year": 35})
+    assert cfg.grid_share == tuple([35.0] * 12)
+    assert db.config_from_options({"cost_grid_share_mode": "monatswerte"}).grid_share[0] == 72.0

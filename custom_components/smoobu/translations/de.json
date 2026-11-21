@@ -105,7 +105,9 @@
           "genius_discount": "Booking.com Genius-Rabatt",
           "genius_share": "Anteil Genius-Buchungen",
           "lastminute_days": "Last-Minute-Fenster",
-          "lastminute_max_discount": "Höchster Last-Minute-Rabatt"
+          "lastminute_max_discount": "Höchster Last-Minute-Rabatt",
+          "cost_grid_share_mode": "Netzanteil – Quelle",
+          "cost_grid_share_year": "Netzanteil im Jahr (alle Monate)"
         },
         "data_description": {
           "cost_heating_year": "Aus der Nebenkostenabrechnung (nur der Anteil der Ferienwohnung).",
@@ -115,7 +117,8 @@
           "channel_markups": "Format: Kanal=Prozent; Kanal=Prozent (z. B. Airbnb=33; Booking.com=45; HomeToGo=10).",
           "genius_share": "Ohne Kenntnis 100 % lassen (vorsichtige Annahme).",
           "lastminute_days": "So viele Tage vor Anreise gilt eine freie Nacht als Last-Minute (1–14).",
-          "lastminute_max_discount": "Nur für Lücken zwischen zwei Gästen oder schwach gebuchte Monate, nie unter der Untergrenze."
+          "lastminute_max_discount": "Nur für Lücken zwischen zwei Gästen oder schwach gebuchte Monate, nie unter der Untergrenze.",
+          "cost_grid_share_mode": "Sensor = Netzbezug-Sensor je Wohnung (Auswahl in den Einstellungen im Dashboard); Energie-Dashboard = ganzes Haus je Stunde; Monatswerte = 12 Werte unten; Jahreswert = ein Wert für das ganze Jahr. Sensor und Energie-Dashboard wirken nur bei Stromkosten „Aus Zähler“."
         }
       },
       "assistent": {
@@ -748,6 +751,14 @@
         "streng": "Streng",
         "maximal": "Maximal",
         "individuell": "Individuell"
+      }
+    },
+    "grid_share_mode": {
+      "options": {
+        "sensor": "Sensor (je Wohnung)",
+        "energie_dashboard": "Energie-Dashboard (ganzes Haus)",
+        "monatswerte": "Feste Monatswerte",
+        "jahreswert": "Jahreswert (statisch)"
       }
     }
   },

@@ -113,7 +113,7 @@ Alle Bilder zeigen eine **erfundene Demo-Ferienwohnung**. Die Bilder stammen aus
 **Türcodes (ab 1.19.0):** Stellen, Gültigkeit, Smoobu-Notiz und Schloss je Wohnung
 ![Türcodes](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_tuercode.png)
 
-**Stromkosten (ab 1.19.0):** konstant wie bisher oder gemessen aus dem Stromzähler der Wohnung – Vorheizstart bis Check-out, Leerstand separat oder anteilig, Netzanteil stündlich aus dem Energie-Dashboard
+**Stromkosten (ab 1.19.0):** konstant wie bisher oder gemessen aus dem Stromzähler der Wohnung – Vorheizstart bis Check-out, Leerstand separat oder anteilig, Netzanteil stündlich aus dem Energie-Dashboard. **Netzanteil (ab 1.19.1b5)** wahlweise aus einem Netzbezug-Sensor der Wohnung (z. B. ein Sensor, der den Wohnungsverbrauch zeitgleich nach Autarkie auf Netz/PV aufteilt; Lücken wie importierte Monatswerte werden gemittelt), stündlich aus dem Energie-Dashboard (ganzes Haus), aus 12 festen Monatswerten oder als ein Jahreswert
 ![Stromkosten](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_strom.png)
 
 **Nebenkostenabrechnung (ab 1.19.0):** PDF hochladen, die KI liest die Werte, Vorschlag mit Herleitung, Fundstelle und Prüfung – übernommen erst nach Bestätigung
@@ -862,7 +862,7 @@ All images show a **fictional demo apartment**. They come from the real integrat
 **Door codes (from 1.19.0):** digits, validity, Smoobu note and lock per property
 ![Door codes](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_tuercode.png)
 
-**Electricity costs (from 1.19.0):** constant as before or measured from the property's meter – pre-heating start to check-out, vacancy separately or distributed, grid share hourly from the energy dashboard
+**Electricity costs (from 1.19.0):** constant as before or measured from the property's meter – pre-heating start to check-out, vacancy separately or distributed, grid share hourly from the energy dashboard. **Grid share (from 1.19.1b5)** either from a grid import sensor of the property (e.g. a sensor that splits the property's consumption into grid/PV by self-sufficiency at the same time; gaps such as imported monthly values are averaged), hourly from the energy dashboard (whole house), from 12 fixed monthly values or as one annual value
 ![Electricity costs](https://raw.githubusercontent.com/Grunor/ha-Smoobu/main/docs/screenshots/einstellungen_strom.png)
 
 **Utility bill (from 1.19.0):** upload a PDF, the AI reads the values, suggestion with derivation, source location and checks – applied only after confirmation

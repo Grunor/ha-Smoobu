@@ -105,7 +105,9 @@
           "genius_discount": "Booking.com Genius discount",
           "genius_share": "Share of Genius bookings",
           "lastminute_days": "Last-minute window",
-          "lastminute_max_discount": "Maximum last-minute discount"
+          "lastminute_max_discount": "Maximum last-minute discount",
+          "cost_grid_share_mode": "Grid share – source",
+          "cost_grid_share_year": "Grid share for the year (all months)"
         },
         "data_description": {
           "cost_heating_year": "From the utility bill (holiday flat share only).",
@@ -115,7 +117,8 @@
           "channel_markups": "Format: channel=percent; channel=percent (e.g. Airbnb=33; Booking.com=45; HomeToGo=10).",
           "genius_share": "Leave at 100 % if unknown (cautious assumption).",
           "lastminute_days": "A free night this many days before arrival counts as last minute (1–14).",
-          "lastminute_max_discount": "Only for gaps between two guests or weakly booked months, never below the floor."
+          "lastminute_max_discount": "Only for gaps between two guests or weakly booked months, never below the floor.",
+          "cost_grid_share_mode": "Sensor = grid import sensor per apartment (chosen in the settings on the dashboard); Energy dashboard = whole house per hour; Monthly values = 12 values below; Annual value = one value for the whole year. Sensor and energy dashboard only apply with power costs “From meter”."
         }
       },
       "assistent": {
@@ -748,6 +751,14 @@
         "streng": "Strict",
         "maximal": "Maximum",
         "individuell": "Custom"
+      }
+    },
+    "grid_share_mode": {
+      "options": {
+        "sensor": "Sensor (per apartment)",
+        "energie_dashboard": "Energy dashboard (whole house)",
+        "monatswerte": "Fixed monthly values",
+        "jahreswert": "Annual value (static)"
       }
     }
   },

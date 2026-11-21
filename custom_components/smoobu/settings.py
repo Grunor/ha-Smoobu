@@ -33,6 +33,12 @@ from . import rechte
 from . import energie
 from .energie import (
     CONF_COST_GRID_SHARE_AUTO,
+    CONF_COST_GRID_SHARE_ENTITIES,
+    CONF_COST_GRID_SHARE_MODE,
+    CONF_COST_GRID_SHARE_YEAR,
+    DEFAULT_COST_GRID_SHARE_YEAR,
+    GRID_SHARE_MODES,
+    grid_share_mode,
     CONF_COST_POWER_ENTITIES,
     CONF_COST_POWER_SOURCE,
     CONF_COST_PREHEAT_ENTITIES,
@@ -289,6 +295,10 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_COST_POWER_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_POWER_ENTITIES) or {}).items() if v},
         CONF_COST_PRICE_ENTITY: o.get(CONF_COST_PRICE_ENTITY) or None,
         CONF_COST_GRID_SHARE_AUTO: bool(o.get(CONF_COST_GRID_SHARE_AUTO, True)),
+        # v1.19.1b5: Netzanteil aus Sensor / Energie-Dashboard / Monatswerten / Jahreswert (alter Schalter wird übernommen)
+        CONF_COST_GRID_SHARE_MODE: grid_share_mode(o),
+        CONF_COST_GRID_SHARE_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_GRID_SHARE_ENTITIES) or {}).items() if v},
+        CONF_COST_GRID_SHARE_YEAR: float(o.get(CONF_COST_GRID_SHARE_YEAR, DEFAULT_COST_GRID_SHARE_YEAR)),
         CONF_COST_PREHEAT_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_PREHEAT_ENTITIES) or {}).items() if v},
         CONF_COST_PREHEAT_HOURS: float(o.get(CONF_COST_PREHEAT_HOURS, DEFAULT_COST_PREHEAT_HOURS)),
         CONF_COST_VACANCY_MODE: str(o.get(CONF_COST_VACANCY_MODE, DEFAULT_COST_VACANCY_MODE)),
@@ -853,6 +863,9 @@ FIELDS: dict[str, Any] = {
     CONF_COST_POWER_ENTITIES: _entity_map,
     CONF_COST_PRICE_ENTITY: vol.Any(None, "", vol.Match(r"^(sensor|input_number|number)\.[a-z0-9_]+$")),
     CONF_COST_GRID_SHARE_AUTO: bool,
+    CONF_COST_GRID_SHARE_MODE: vol.In(GRID_SHARE_MODES),
+    CONF_COST_GRID_SHARE_ENTITIES: _entity_map,
+    CONF_COST_GRID_SHARE_YEAR: _num(0, 100),
     CONF_COST_PREHEAT_ENTITIES: _entity_map,
     CONF_COST_PREHEAT_HOURS: _num(0, 24),
     CONF_COST_VACANCY_MODE: vol.In(VACANCY_MODES),
@@ -924,6 +937,11 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
     # v1.19.0: Modus „zaehler“ braucht mindestens einen Zähler
     if values[CONF_COST_POWER_SOURCE] == "zaehler" and not values[CONF_COST_POWER_ENTITIES] and CONF_COST_POWER_ENTITIES not in errors:
         errors[CONF_COST_POWER_ENTITIES] = "power_entity_required"
+    # v1.19.1b5: Netzanteil aus Sensor braucht je gemessener Wohnung einen Netz-Sensor
+    if (values[CONF_COST_GRID_SHARE_MODE] == "sensor" and values[CONF_COST_POWER_SOURCE] == "zaehler"
+            and CONF_COST_GRID_SHARE_ENTITIES not in errors
+            and any(apt not in values[CONF_COST_GRID_SHARE_ENTITIES] for apt in values[CONF_COST_POWER_ENTITIES])):
+        errors[CONF_COST_GRID_SHARE_ENTITIES] = "grid_share_entity_required"
     # Wasser/Heizung aus Zähler: Zähler und ein Preis (fest oder Entität) nötig
     for src, ents, price, pent in ((CONF_COST_WATER_SOURCE, CONF_COST_WATER_ENTITIES, CONF_COST_WATER_PRICE, CONF_COST_WATER_PRICE_ENTITY),
                                    (CONF_COST_HEAT_SOURCE, CONF_COST_HEAT_ENTITIES, CONF_COST_HEAT_PRICE, CONF_COST_HEAT_PRICE_ENTITY)):

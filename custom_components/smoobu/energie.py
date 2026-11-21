@@ -5,8 +5,16 @@ Zwei Wege, umschaltbar in den Einstellungen (Option `cost_power_source`):
   Netzpreis, PV-Wert und 12 festen Monatswerten für den Netzanteil (deckungsbeitrag.py).
 - „zaehler“: echter Verbrauch je Buchung aus der stündlichen HA-Langzeitstatistik eines
   Energiezählers je Wohnung (Option `cost_power_entities`), optional mit Strompreis-Entität
-  (`cost_price_entity`) und stündlich gemessenem Netzanteil aus dem Energie-Dashboard
-  (`cost_grid_share_auto`).
+  (`cost_price_entity`).
+
+Netzanteil (v1.19.1b5, Option `cost_grid_share_mode`):
+- „sensor“: Netzbezug-Sensor je Wohnung (`cost_grid_share_entities`, kWh) ÷ Stromzähler der Wohnung,
+  je Stunde (über Lücken im Sensor gemittelt) – z. B. ein Sensor, der den Wohnungsverbrauch
+  zeitgleich nach Haus-Autarkie auf Netz/PV aufteilt. Nur mit Strom „zaehler“.
+- „energie_dashboard“: Netzbezug ÷ Hausverbrauch je Stunde (ganzes Haus). Nur mit Strom „zaehler“.
+- „monatswerte“: 12 feste Werte (`cost_grid_share`).
+- „jahreswert“: ein Wert für alle Monate (`cost_grid_share_year`), wirkt auch bei Strom „konstant“.
+Ohne Messwert (vor Messbeginn, künftige Buchungen) gelten immer die festen Werte.
 
 Messlogik „zaehler“ (Entscheidungen Betreiber 20.11.2026):
 - Eine Buchung beginnt mit dem Vorheizen: gemessener Vorheizstart aus einer optionalen
@@ -44,7 +52,14 @@ _LOGGER = logging.getLogger(__name__)
 CONF_COST_POWER_SOURCE = "cost_power_source"       # "konstant" | "zaehler"
 CONF_COST_POWER_ENTITIES = "cost_power_entities"   # {Wohnungs-ID: sensor.… (Energie, kWh/Wh)}
 CONF_COST_PRICE_ENTITY = "cost_price_entity"       # input_number/number/sensor (€/kWh oder ct/kWh)
-CONF_COST_GRID_SHARE_AUTO = "cost_grid_share_auto"  # Netzanteil stündlich aus dem Energie-Dashboard
+CONF_COST_GRID_SHARE_AUTO = "cost_grid_share_auto"  # bis v1.19.1b4: Netzanteil stündlich aus dem Energie-Dashboard (an/aus)
+# v1.19.1b5 (Wunsch Betreiber 21.11.2026): Netzanteil wahlweise aus einem Sensor, dem Energie-Dashboard,
+# 12 festen Monatswerten oder einem Jahreswert. Ersetzt den Schalter `cost_grid_share_auto` (wird übernommen).
+CONF_COST_GRID_SHARE_MODE = "cost_grid_share_mode"          # siehe GRID_SHARE_MODES
+CONF_COST_GRID_SHARE_ENTITIES = "cost_grid_share_entities"  # {Wohnungs-ID: sensor.… (Netzbezug der Wohnung, kWh)}
+CONF_COST_GRID_SHARE_YEAR = "cost_grid_share_year"          # % Netzanteil, gleich für alle Monate
+GRID_SHARE_MODES = ("sensor", "energie_dashboard", "monatswerte", "jahreswert")
+DEFAULT_COST_GRID_SHARE_YEAR = 40.0
 CONF_COST_PREHEAT_ENTITIES = "cost_preheat_entities"  # {Wohnungs-ID: sensor.… (Zeitstempel Vorheizstart)}
 CONF_COST_PREHEAT_HOURS = "cost_preheat_hours"     # Stunden vor Check-in, wenn kein Vorheizstart bekannt
 CONF_COST_VACANCY_MODE = "cost_vacancy_mode"       # Leerstand-Strom: "separat" (Fixkosten) | "anteilig" (auf Buchungen)
@@ -76,6 +91,35 @@ HOUR = 3600
 # ---------------------------------------------------------------------------
 # Reine Rechenlogik
 # ---------------------------------------------------------------------------
+def grid_share_mode(options: Any) -> str:
+    """Netzanteil-Quelle aus den Optionen. Ohne neue Option gilt der alte Schalter (an = Energie-Dashboard)."""
+    o = options or {}
+    mode = o.get(CONF_COST_GRID_SHARE_MODE)
+    if mode in GRID_SHARE_MODES:
+        return mode
+    return "energie_dashboard" if o.get(CONF_COST_GRID_SHARE_AUTO, True) else "monatswerte"
+
+
+def sensor_shares(grid: dict[int, float], total: dict[int, float]) -> dict[int, float]:
+    """Netzanteil (0–1) je Stunde aus einem Netzbezug-Sensor der Wohnung und ihrem Stromzähler.
+
+    grid/total: {Stundenbeginn: kWh-Änderung} aus der Langzeitstatistik. Hat der Netz-Sensor eine
+    Lücke (z. B. importierte Monats- oder Tageszeilen), gilt für alle Stunden seit der vorigen Zeile
+    das Verhältnis über die ganze Lücke: Zeile ÷ Summe des Stromzählers in diesen Stunden. Stunden
+    vor der ersten Zeile und ohne Verbrauch fehlen (→ Rückfallwert).
+    """
+    out: dict[int, float] = {}
+    prev: int | None = None
+    for ts in sorted(grid):
+        hours = range(ts, ts + HOUR, HOUR) if prev is None else range(prev + HOUR, ts + HOUR, HOUR)
+        used = sum(max(total.get(h, 0.0) or 0.0, 0.0) for h in hours)
+        if used > 0.001:
+            share = min(max((grid[ts] or 0.0) / used, 0.0), 1.0)
+            for h in hours:
+                out[h] = share
+        prev = ts
+    return out
+
 def price_ct(value: Any, unit: str | None) -> float | None:
     """Strompreis in ct/kWh aus Zustand + Einheit (None = unbrauchbar)."""
     try:
@@ -426,11 +470,15 @@ async def measure(hass: HomeAssistant, data: EnergyData, options: dict[str, Any]
     if not meters:
         return {}
     since = datetime(2000, 1, 1, tzinfo=dt_util.UTC)
-    sources = await data.energy_sources() if options.get(CONF_COST_GRID_SHARE_AUTO, True) else {}
+    # v1.19.1b5: Netzanteil je nach Modus – Sensor je Wohnung, Energie-Dashboard (ganzes Haus) oder fest
+    # (Monats-/Jahreswerte stecken bereits in cfg.grid_share, siehe deckungsbeitrag.config_from_options)
+    mode = grid_share_mode(options)
+    sources = await data.energy_sources() if mode == "energie_dashboard" else {}
     share_ids = [i for v in sources.values() for i in v]
-    await data.load(list(meters.values()) + share_ids, since)
-    shares = hour_shares(data.hourly, sources.get("grid_from", []), sources.get("grid_to", []),
-                         sources.get("solar", []), sources.get("bat_from", []), sources.get("bat_to", [])) if sources.get("grid_from") else {}
+    grid_ents = {int(k): v for k, v in (options.get(CONF_COST_GRID_SHARE_ENTITIES) or {}).items() if v} if mode == "sensor" else {}
+    await data.load(list(meters.values()) + share_ids + [e for a, e in grid_ents.items() if a in meters], since)
+    house = hour_shares(data.hourly, sources.get("grid_from", []), sources.get("grid_to", []),
+                        sources.get("solar", []), sources.get("bat_from", []), sources.get("bat_to", [])) if sources.get("grid_from") else {}
     points: list[tuple[int, float]] = []
     if pe := options.get(CONF_COST_PRICE_ENTITY):
         for ts, val, attrs in await data.states(pe, since):
@@ -438,16 +486,21 @@ async def measure(hass: HomeAssistant, data: EnergyData, options: dict[str, Any]
             if ct is not None and 0 < ct < 500:
                 points.append((ts, ct))
         points.sort()
-    prices = Prices(cfg.grid_price, cfg.pv_value, tuple(cfg.grid_share), shares, points)
     hours = float(options.get(CONF_COST_PREHEAT_HOURS, DEFAULT_COST_PREHEAT_HOURS))
     out: dict[int, dict[str, Any]] = {}
     for apt, ent in meters.items():
+        grid_ent = grid_ents.get(apt)
+        shares = sensor_shares(data.hourly.get(grid_ent, {}), data.hourly.get(ent, {})) if grid_ent else house
+        prices = Prices(cfg.grid_price, cfg.pv_value, tuple(cfg.grid_share), shares, points)
         preheat = await _preheat(data, options, apt, records_by_apt[apt], checkin)
         res = allocate(records_by_apt[apt], data.hourly.get(ent, {}), prices, checkin, checkout, hours, preheat,
                        options.get(CONF_COST_VACANCY_MODE, DEFAULT_COST_VACANCY_MODE) == "anteilig")
         res["leerstand_modus"] = options.get(CONF_COST_VACANCY_MODE, DEFAULT_COST_VACANCY_MODE)
         res["entitaet"] = ent
         res["netzanteil_gemessen"] = bool(shares)
+        res["netzanteil_modus"] = mode
+        res["netzanteil_entitaet"] = grid_ent
+        res["netzanteil_ab"] = min(shares) if shares else None  # erste Stunde mit Messwert (davor Rückfallwert)
         res["preis_entitaet"] = options.get(CONF_COST_PRICE_ENTITY) if points else None
         res["fehler"] = data.error
         res["einheit"] = "kWh"
