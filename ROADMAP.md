@@ -17,6 +17,7 @@ Alle Roadmap-Issues / all roadmap issues: [Label `roadmap`](https://github.com/G
 | [#1](https://github.com/Grunor/ha-Smoobu/issues/1) | Digitale Gästemappe per Link / Digital guest guide via link | Gäste | M |
 | [#4](https://github.com/Grunor/ha-Smoobu/issues/4) | Haus-Automatik je Buchungsphase / Home automation per booking phase | Betrieb | M |
 | [#5](https://github.com/Grunor/ha-Smoobu/issues/5) | Reinigungs-App mit Checkliste und Fotos / Cleaning app with checklist and photos | Betrieb | M |
+| [#21](https://github.com/Grunor/ha-Smoobu/issues/21) | Türcode je Reinigungskraft / Door code per cleaner | Betrieb | M |
 
 ## Später / Later
 
