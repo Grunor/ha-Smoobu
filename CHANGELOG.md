@@ -8,9 +8,12 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+- Roadmap: `ROADMAP.md` mit geplanten Funktionen (je ein Issue mit Label `roadmap`) / roadmap file with planned features (one issue each, label `roadmap`) und öffentliches [Roadmap-Board](https://github.com/users/Grunor/projects/1) / and public roadmap board
+
+## 1.19.1b6
+
 - Einstellungen neu geordnet: **Aufschläge je Kanal, Booking.com Genius und Last-Minute** liegen jetzt im Reiter **„Preise & Kanäle“** (vorher „Provisionen & Kanäle“) bei Provisionen, Direktkanälen und Portal-Zahlung; der Reiter **„Kosten“** (vorher „Kosten & Preise“) enthält nur noch die Kosten und ist nur mit Modul Kosten sichtbar. Werte und Berechnung unverändert / settings reorganised: **channel markups, Booking.com Genius and last-minute** moved to the tab **"Prices & channels"** (formerly "Commissions & channels"); the tab **"Costs"** (formerly "Costs & prices") only holds costs and is only shown with the costs module. Values and calculation unchanged
 - Einstellungen → Stromkosten, Messergebnis: zeigt jetzt die Quelle des Netzanteils und den Sensor („Netzanteil aus sensor.…“); in 1.19.1b5 fehlten diese Angaben in der Karte / settings → power costs, measured result: now shows the grid share source and sensor (missing in the card in 1.19.1b5)
-- Roadmap: `ROADMAP.md` mit geplanten Funktionen (je ein Issue mit Label `roadmap`) / roadmap file with planned features (one issue each, label `roadmap`) und öffentliches [Roadmap-Board](https://github.com/users/Grunor/projects/1) / and public roadmap board
 
 ## 1.19.1b5
 
