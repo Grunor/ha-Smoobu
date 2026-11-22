@@ -66,7 +66,7 @@ const EN = {
   "Letzte KI-Anfrage": "Last AI request", "Probelauf nächste Buchung": "Dry run next booking", "Was geht an die KI?": "What goes to the AI?",
   "Eigene Namen": "Own names", "Nachrichten aus dem Verlauf": "Messages from the history",
   "Einstellungen": "Settings", "Benachrichtigungen": "Notifications", "KI-Assistent": "AI assistant",
-  "Provisionen & Kanäle": "Commissions & channels", "Allgemein & Abruf": "General & polling", "Speichern": "Save",
+  "Provisionen & Kanäle": "Commissions & channels", "Preise & Kanäle": "Prices & channels", "Allgemein & Abruf": "General & polling", "Speichern": "Save",
   // v1.18.0: Ruhezeit je Push-Art
   "Hält Ruhezeit ein": "Respects quiet hours", "Wird in der Ruhezeit gesammelt und zum Ende zugestellt.": "Held during quiet hours and delivered when they end.",
   "Kommt auch in der Ruhezeit sofort.": "Arrives immediately, even during quiet hours.", "Ruhezeit ist aus – wirkt erst, wenn sie eingeschaltet ist.": "Quiet hours are off – takes effect once they are on.",
@@ -321,7 +321,7 @@ const EN = {
   "Automatisch": "Automatic", "Automatische Antwortvorschläge": "Automatic reply suggestions",
   "Basis": "Base", "Belegung mit Preisen und Mindestaufenthalt; sperren und Preise setzen": "Occupancy with prices and minimum stay; block dates and set prices",
   "Belegung nach Wochentag": "Occupancy by weekday", "Benachrichtigungen, KI-Assistent, Provisionen und Abruf direkt im Dashboard ändern": "Change notifications, AI assistant, commissions and polling directly in the dashboard",
-  "Benutzer dieser Rollen sehen in Home Assistant nur Smoobu: keine Seitenleiste, keine Menüs, andere Seiten leiten auf die Startseite um. Eingestellt hier – kein Eingriff am Handy nötig. Admins sind nie betroffen.": "Users of these roles only see Smoobu in Home Assistant: no sidebar, no menus, other pages redirect to the start page. Set here – no access to the phone needed. Admins are never affected.", "Bewertung & Empfehlung, Preis- und Last-Minute-Aufgaben, Aufschläge, Genius und Last-Minute-Einstellungen. Preise im Kalender setzen bleibt möglich.": "Rating & recommendation, price and last-minute tasks, markups, Genius and last-minute settings. Setting prices in the calendar stays possible.",
+  "Benutzer dieser Rollen sehen in Home Assistant nur Smoobu: keine Seitenleiste, keine Menüs, andere Seiten leiten auf die Startseite um. Eingestellt hier – kein Eingriff am Handy nötig. Admins sind nie betroffen.": "Users of these roles only see Smoobu in Home Assistant: no sidebar, no menus, other pages redirect to the start page. Set here – no access to the phone needed. Admins are never affected.", "Bewertung & Empfehlung, Preis- und Last-Minute-Aufgaben, Aufschläge, Genius und Last-Minute-Einstellungen (Reiter Preise & Kanäle). Preise im Kalender setzen bleibt möglich.": "Rating & recommendation, price and last-minute tasks, markups, Genius and last-minute settings. Setting prices in the calendar stays possible.",
   "Bis": "To", "Bitte Preis oder Preis-Entität angeben": "Please enter a price or a price entity",
   "Bitte eine Datei wählen": "Please choose a file", "Bitte eine KI wählen oder „KI erlauben“ ausschalten": "Please choose an AI or switch off \"Allow AI\"",
   "Bitte einen Stromzähler wählen oder „Konstant“": "Please choose an energy meter or \"Constant\"", "Bitte einen Zähler wählen oder „Konstant“": "Please choose a meter or \"Constant\"",
@@ -6104,7 +6104,10 @@ class SmoobuHeaderCard extends SmoobuCard {
 // ===========================================================================
 const SET_TABS = [
   ["benachrichtigungen", "Benachrichtigungen"], ["assistent", "KI-Assistent"],
-  ["provisionen", "Provisionen & Kanäle"], ["kosten", "Kosten & Preise"],
+  // v1.19.1 (Wunsch Betreiber 22.11.2026): Aufschläge, Genius und Last-Minute aus „Kosten & Preise“ nach „Preise & Kanäle“
+  // (vorher „Provisionen & Kanäle“) – alles je Kanal und zur Preisfindung an einer Stelle; „Kosten“ nur noch Kosten.
+  // Reiter-Schlüssel unverändert („provisionen“, „kosten“), damit Sprungziele und gespeicherte Reiter weiter passen.
+  ["provisionen", "Preise & Kanäle"], ["kosten", "Kosten"],
   // v1.19.0b12 (Review 21.11.2026): alles zur Reinigung und die Türcodes an einer Stelle (vorher auf 4 Reiter verteilt)
   ["reinigung", "Reinigung & Zugang"], ["rechte", "Benutzer & Rechte"], ["allgemein", "Allgemein & Abruf"],
 ];
@@ -6124,9 +6127,10 @@ const PUSH_TIME = { zahlung: "notify_zahlung_time", briefing: "assist_briefing_t
 const SET_FIELD_TAB = (key) => {
   if (key.startsWith("notify_") || key === "assist_briefing_time") return "benachrichtigungen";
   if (["ai_enabled", "assistant", "ai_entity", "assist_status", "assist_path"].includes(key) || key.startsWith("ai_")) return "assistent";
-  if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels"].includes(key)) return "provisionen";
+  if (["commissions", "commission_other", "direct_channels", "payment_excluded_channels", "channel_markups", "genius_discount", "genius_share"].includes(key)
+    || key.startsWith("lastminute_")) return "provisionen";
   if (key.startsWith("cleaning_") || key.startsWith("door_") || ["cost_cleaning", "cost_cleaning_minutes"].includes(key)) return "reinigung";
-  if (key.startsWith("cost_") || key.startsWith("lastminute_") || ["channel_markups", "genius_discount", "genius_share"].includes(key)) return "kosten";
+  if (key.startsWith("cost_")) return "kosten";
   if (["user_roles", "default_role", "settings_users", "role_rights", "custom_roles", "focus_roles"].includes(key)) return "rechte";
   return "allgemein";
 };
@@ -6366,6 +6370,33 @@ class SmoobuSettingsCard extends SmoobuCard {
           <button class="btn flat" data-prompt="probe">${t("Probelauf nächste Buchung")}</button>`,
           changed ? "Probelauf nutzt die gespeicherten Einstellungen – erst speichern." : "Zeigt den exakten Text. Der Probelauf ruft die KI nicht auf.")}</div></div>`;
   }
+  // v1.19.1: Preisfindung (Aufschläge je Kanal, Booking.com Genius, Last-Minute) – Reiter „Preise & Kanäle“, nur mit Modul Preise
+  priceBlocks(meta) {
+    const d = this._draft;
+    const mk = Object.entries(d.channel_markups || {}).map(([ch, pct]) => `<tr><td>${esc(chn(ch))}</td>
+      <td class="n"><span class="inline" style="justify-content:flex-end"><input type="number" data-mk="${esc(ch)}" min="-50" max="300" step="1" value="${esc(pct)}"><span class="unit">%</span></span></td>
+      <td><button class="lnk" data-mdel="${esc(ch)}">${t("Entfernen")}</button></td></tr>`).join("");
+    return `
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Aufschläge je Kanal")}</b>
+        <span class="sub">${t("Wie im Smoobu-Preistool: Kanalpreis = Basispreis + Aufschlag. Grundlage für Preisuntergrenzen und Empfehlungen.")}</span></div></div>
+      <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Aufschlag")}</th><th></th></tr></thead><tbody>${mk}</tbody></table></div>
+        <div class="inline">${this.chanSelect("channel_markups", Object.keys(d.channel_markups || {}))}</div>${this.err("channel_markups")}
+        ${this.fld("Booking.com Genius-Rabatt", this.numIn("genius_discount", 0, 50, 1, "%"), "Genius-Gäste zahlen weniger als den Kanalpreis.", "genius_discount")}
+        ${this.fld("Anteil Genius-Buchungen", this.numIn("genius_share", 0, 100, 1, "%"), "Unbekannt? 100 % lassen – vorsichtige Annahme (siehe Booking.com-Extranet).", "genius_share")}
+        ${(() => {
+          // v1.18.0: Checkup aus den eigenen Buchungen (Booking.com markiert Genius-Gäste in der Notiz)
+          const g = meta.genius_check;
+          if (!g || !g.buchungen) return `<div class="sub">${t("Genius-Check: keine Booking.com-Buchungen in den letzten 24 Monaten.")}</div>`;
+          const same = Number(d.genius_share) === g.anteil;
+          return `<div class="note">${t("Genius-Check")}: <b>${num(g.genius)} ${t("von")} ${num(g.buchungen)}</b> ${t("Booking.com-Buchungen der letzten 24 Monate waren Genius-Gäste")} (${num(g.anteil)} %).
+            ${same ? `✓ ${t("passt zur Einstellung")}` : `<button class="btn flat sm" data-genius="${g.anteil}">${t("Gemessenen Anteil übernehmen")} (${num(g.anteil)} %)</button>`}
+            <div class="sub">${t("Den Rabatt selbst (10/15/20 %) liefert Booking.com nicht – bitte im Extranet unter Genius nachsehen.")}</div></div>`;
+        })()}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Last-Minute")}</b>
+        <span class="sub">${t("Standard: kein Rabatt. Nur Lücken zwischen zwei Gästen oder Nächte in schwach gebuchten Monaten bekommen einen Vorschlag – nie unter der Untergrenze.")}</span></div></div><div class="gb">
+        ${this.fld("Last-Minute-Fenster", this.numIn("lastminute_days", 1, 14, 1, "Tage"), "So viele Tage vor Anreise gilt eine freie Nacht als Last-Minute.", "lastminute_days")}
+        ${this.fld("Höchster Rabatt", this.numIn("lastminute_max_discount", 0, 30, 1, "%"), "", "lastminute_max_discount")}</div></div>`;
+  }
   tabProv(meta) {
     const d = this._draft;
     const fixed = meta.feste_provisionen;
@@ -6396,7 +6427,8 @@ class SmoobuSettingsCard extends SmoobuCard {
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Direktkanäle")}</b><span class="sub">${t("Zählen als Direktvermarktung (Direkt vs. Portale).")}</span></div></div>
         <div class="gb">${this.pick("direct_channels", meta.kanaele, chn, true)}${this.err("direct_channels")}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Zahlung über das Portal")}</b><span class="sub">${t("Buchungen dieser Kanäle zählen nicht als offene Zahlung.")}</span></div></div>
-        <div class="gb">${this.pick("payment_excluded_channels", meta.kanaele, chn, true)}${this.err("payment_excluded_channels")}</div></div>`;
+        <div class="gb">${this.pick("payment_excluded_channels", meta.kanaele, chn, true)}${this.err("payment_excluded_channels")}</div></div>
+      ${d.module_preise !== false ? this.priceBlocks(meta) : ""}`;
   }
   // v1.18.0: variable Kosten (Deckungsbeitrag) und Preisaufschläge aus dem Smoobu-Preistool
   // v1.19.0 (Wunsch Betreiber 20.11.2026): Strom, Wasser und Heizung jeweils konstant (wie bisher, Standard) oder aus
@@ -6611,16 +6643,13 @@ class SmoobuSettingsCard extends SmoobuCard {
     const share = d.cost_grid_share || [];
     const months = MONTHS_SHORT.map((m, i) => `<label class="inline" style="gap:4px"><span class="unit" style="width:28px">${esc(t(m))}</span>
       <input type="number" data-share="${i}" min="0" max="100" step="1" value="${esc(share[i] ?? "")}" style="width:64px"><span class="unit">%</span></label>`).join("");
-    const mk = Object.entries(d.channel_markups || {}).map(([ch, pct]) => `<tr><td>${esc(chn(ch))}</td>
-      <td class="n"><span class="inline" style="justify-content:flex-end"><input type="number" data-mk="${esc(ch)}" min="-50" max="300" step="1" value="${esc(pct)}"><span class="unit">%</span></span></td>
-      <td><button class="lnk" data-mdel="${esc(ch)}">${t("Entfernen")}</button></td></tr>`).join("");
     // Vorschau Heizkosten-Verteilung: Anteil je Monat relativ zum Januar (je Nacht)
     const days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     const wJan = HEAT_PROMILLE[0] / 31;
     const dist = MONTHS_SHORT.map((m, i) => `${t(m)} ${num((HEAT_PROMILLE[i] / days[i]) / wJan * 100, 0)} %`).join(" · ");
     // v1.19.0b10: Module – Kosten-Teil nur mit Modul Kosten, Aufschläge/Genius/Last-Minute nur mit Modul Preise,
     // Stundenlöhne nur mit Modul Reinigung (Entwurf, damit das Umschalten sofort wirkt)
-    const ko = d.module_kosten !== false, pr = d.module_preise !== false, rn = d.module_reinigung !== false;
+    const ko = d.module_kosten !== false, rn = d.module_reinigung !== false;
     const costHtml = !ko ? `<div class="note">${t("Modul „Kosten“ ist aus (Reiter Allgemein & Abruf → Module).")}</div>` : `<div class="note">${t("Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.")}</div>
       ${this.billsBlock(meta)}
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Je Aufenthalt")}</b>
@@ -6640,27 +6669,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Wert PV-Strom", this.numIn("cost_pv_value", 0, 200, 0.01, "ct/kWh"), "", "cost_pv_value")}
         ${this.gridShareBlock(meta, months)}</div></div>
       ${this.powerBlock(meta)}${this.meterBlock(meta, "wasser")}${this.meterBlock(meta, "heizung")}${this.measureBlock(meta)}`;
-    const priceHtml = !pr ? "" : `
-      <div class="grp"><div class="gh"><div class="grow"><b>${t("Aufschläge je Kanal")}</b>
-        <span class="sub">${t("Wie im Smoobu-Preistool: Kanalpreis = Basispreis + Aufschlag. Grundlage für Preisuntergrenzen und Empfehlungen.")}</span></div></div>
-      <div class="gb"><div class="scroll"><table class="prov"><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Aufschlag")}</th><th></th></tr></thead><tbody>${mk}</tbody></table></div>
-        <div class="inline">${this.chanSelect("channel_markups", Object.keys(d.channel_markups || {}))}</div>${this.err("channel_markups")}
-        ${this.fld("Booking.com Genius-Rabatt", this.numIn("genius_discount", 0, 50, 1, "%"), "Genius-Gäste zahlen weniger als den Kanalpreis.", "genius_discount")}
-        ${this.fld("Anteil Genius-Buchungen", this.numIn("genius_share", 0, 100, 1, "%"), "Unbekannt? 100 % lassen – vorsichtige Annahme (siehe Booking.com-Extranet).", "genius_share")}
-        ${(() => {
-          // v1.18.0: Checkup aus den eigenen Buchungen (Booking.com markiert Genius-Gäste in der Notiz)
-          const g = meta.genius_check;
-          if (!g || !g.buchungen) return `<div class="sub">${t("Genius-Check: keine Booking.com-Buchungen in den letzten 24 Monaten.")}</div>`;
-          const same = Number(d.genius_share) === g.anteil;
-          return `<div class="note">${t("Genius-Check")}: <b>${num(g.genius)} ${t("von")} ${num(g.buchungen)}</b> ${t("Booking.com-Buchungen der letzten 24 Monate waren Genius-Gäste")} (${num(g.anteil)} %).
-            ${same ? `✓ ${t("passt zur Einstellung")}` : `<button class="btn flat sm" data-genius="${g.anteil}">${t("Gemessenen Anteil übernehmen")} (${num(g.anteil)} %)</button>`}
-            <div class="sub">${t("Den Rabatt selbst (10/15/20 %) liefert Booking.com nicht – bitte im Extranet unter Genius nachsehen.")}</div></div>`;
-        })()}</div></div>
-      <div class="grp"><div class="gh"><div class="grow"><b>${t("Last-Minute")}</b>
-        <span class="sub">${t("Standard: kein Rabatt. Nur Lücken zwischen zwei Gästen oder Nächte in schwach gebuchten Monaten bekommen einen Vorschlag – nie unter der Untergrenze.")}</span></div></div><div class="gb">
-        ${this.fld("Last-Minute-Fenster", this.numIn("lastminute_days", 1, 14, 1, "Tage"), "So viele Tage vor Anreise gilt eine freie Nacht als Last-Minute.", "lastminute_days")}
-        ${this.fld("Höchster Rabatt", this.numIn("lastminute_max_discount", 0, 30, 1, "%"), "", "lastminute_max_discount")}</div></div>`;
-    return costHtml + priceHtml;
+    return costHtml;
   }
   // v1.18.0: Benutzerrollen – nur Admins vergeben Rollen; alle sehen die Übersicht Rolle × Recht
   // v1.19.0 (Wunsch Betreiber 20.11.2026): Rollenkonfigurator – Admins setzen die Rechte je Rolle per Häkchen,
@@ -6871,7 +6880,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         <span class="sub">${t("Ausgeschaltete Module verschwinden aus Dashboard, Einstellungen und Pushes. Gespeicherte Daten bleiben erhalten.")}</span></div></div>
       <div class="gb">${this.fld("Reinigung", this.sw("module_reinigung", "Reinigung"), "Reinigungsboard, Reinigung in den Buchungsdetails, Reinigungs-Pushes und -Aufgaben, Statistik-Modul. Aus: Reinigungskosten nach Standardlohn.", "module_reinigung")}
         ${this.fld("Kosten", this.sw("module_kosten", "Kosten"), "Variable Kosten, Deckungsbeitrag in Finanzen und Statistik, Zählermessung, Nebenkosten-Upload. Aus: nur Umsatz und Provisionen.", "module_kosten")}
-        ${this.fld("Preise", this.sw("module_preise", "Preise"), "Bewertung & Empfehlung, Preis- und Last-Minute-Aufgaben, Aufschläge, Genius und Last-Minute-Einstellungen. Preise im Kalender setzen bleibt möglich.", "module_preise")}</div></div>`;
+        ${this.fld("Preise", this.sw("module_preise", "Preise"), "Bewertung & Empfehlung, Preis- und Last-Minute-Aufgaben, Aufschläge, Genius und Last-Minute-Einstellungen (Reiter Preise & Kanäle). Preise im Kalender setzen bleibt möglich.", "module_preise")}</div></div>`;
     return `${mods}${board}<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
         ${this.fld("Webhook (Echtzeit)", this.sw("use_webhook", "Webhook"), "Smoobu meldet Änderungen sofort über Nabu Casa.")}
         ${this.fld("Abfrageintervall", this.numIn("scan_interval", 1, 120, 1, "min"), "Zusätzlicher Abgleich neben dem Webhook.", "scan_interval")}
@@ -6894,8 +6903,8 @@ class SmoobuSettingsCard extends SmoobuCard {
     const { meta } = res;
     const tab = this._state.tab;
     const errTabs = new Set(Object.keys(this._state.errors).map((k) => SET_FIELD_TAB(k.split(".")[0])));
-    // v1.19.0b10: Reiter „Kosten & Preise“ nur, solange eines der beiden Module an ist
-    const hideCost = this._draft.module_kosten === false && this._draft.module_preise === false;
+    // v1.19.0b10: Reiter „Kosten“ nur mit Modul Kosten (v1.19.1: Preise liegen jetzt unter „Preise & Kanäle“)
+    const hideCost = this._draft.module_kosten === false;
     const tabs = SET_TABS.filter(([k]) => k !== "kosten" || !hideCost).map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
     const konten = res.konten.length > 1 ? `<select data-entry>${res.konten.map((k) => `<option value="${esc(k.entry_id)}" ${k.entry_id === res.entry_id ? "selected" : ""}>${esc(k.title)}</option>`).join("")}</select>` : "";
     const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "kosten" && !hideCost ? this.tabCost(meta)
