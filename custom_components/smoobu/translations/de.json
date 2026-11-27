@@ -292,12 +292,47 @@
               "bis": "Bis"
             },
             "data_description": {}
+          },
+          "lexware": {
+            "name": "Rechnungen & Zahlungen (Lexware, Beta)",
+            "description": "Zahlungseingang, Anzahlung fehlt, Rest am Anreisetag noch offen.",
+            "data": {
+              "aktiv": "Aktiv",
+              "empfaenger": "Empfänger",
+              "ruhezeit": "Hält Ruhezeit ein"
+            },
+            "data_description": {
+              "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
+            }
           }
         }
       },
       "wohnungen": {
         "title": "Wohnungskürzel",
         "description": "Kürzel je Wohnung für Dashboard und Pushes (bis {max} Zeichen, Buchstaben/Ziffern, eindeutig über alle Smoobu-Konten). Leer = automatisch. Automatisch wären: {auto}."
+      },
+      "lexware": {
+        "title": "Lexware Office (Beta)",
+        "description": "Optional: Rechnungsentwürfe in Lexware Office (Public API, ab Tarif XL) und Zahlungsüberwachung. API-Key: {key}. Die Positionen (Lexware-Artikel je Position) stellst du in der Einstellungskarte im Reiter „Lexware“ ein. BETA – bitte jeden Entwurf in Lexware prüfen.",
+        "data": {
+          "lexware_enabled": "Lexware einschalten",
+          "lexware_api_key": "API-Key (leer = behalten)",
+          "lexware_api_key_loeschen": "Gespeicherten API-Key entfernen",
+          "lexware_mock": "Testmodus (Beispieldaten, nichts wird gesendet)",
+          "lexware_tax_private": "Privatgäste",
+          "lexware_tax_company": "Firmen",
+          "lexware_invoice_date": "Rechnungsdatum",
+          "lexware_deposit_pct": "Anzahlung (wenn nicht in Smoobu angegeben)",
+          "lexware_deposit_days": "Anzahlung fehlt nach",
+          "lexware_contact_search": "Kontakt suchen über",
+          "paid_direkt": "Bedeutung „bezahlt“ – Direktbuchungen",
+          "paid_portal": "Bedeutung „bezahlt“ – Portal-Buchungen"
+        },
+        "data_description": {
+          "lexware_api_key": "In Lexware Office unter Erweiterungen → Public API erstellen.",
+          "lexware_invoice_date": "Erstellungsdatum mit Fälligkeit am Anreisetag: Lexware zeigt die Rechnung bis zur Anreise als offen (nicht überfällig).",
+          "lexware_deposit_days": "Tage nach Erstellung der Rechnung; danach Hinweis und Push „Storno möglich“. Home Assistant storniert nie selbst."
+        }
       }
     },
     "error": {
@@ -759,6 +794,33 @@
         "energie_dashboard": "Energie-Dashboard (ganzes Haus)",
         "monatswerte": "Feste Monatswerte",
         "jahreswert": "Jahreswert (statisch)"
+      }
+    },
+    "lex_tax": {
+      "options": {
+        "gross": "Bruttorechnung (USt enthalten)",
+        "net": "Nettorechnung (zzgl. USt)"
+      }
+    },
+    "lex_invoice_date": {
+      "options": {
+        "erstellung": "Erstellungsdatum, fällig am Anreisetag (empfohlen)",
+        "anreise": "Anreisedatum (vordatiert – nicht empfohlen)"
+      }
+    },
+    "lex_search": {
+      "options": {
+        "name": "Name",
+        "email": "E-Mail",
+        "beide": "Name und E-Mail"
+      }
+    },
+    "paid_meaning": {
+      "options": {
+        "zahlung": "Zahlung erhalten (von Hand)",
+        "rechnung": "Rechnung gestellt, Zahlung woanders (von Hand)",
+        "lexware_zahlung": "Zahlung laut Lexware (automatisch)",
+        "lexware_rechnung": "Rechnung gestellt laut Lexware (automatisch)"
       }
     }
   },

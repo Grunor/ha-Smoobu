@@ -235,8 +235,17 @@ async def test_options_and_unload(hass, setup):
     bad = await hass.config_entries.options.async_configure(result["flow_id"], {label: "#!"})
     assert bad["errors"] == {label: "invalid_code"}
     result = await hass.config_entries.options.async_configure(result["flow_id"], {label: "fw1x"})
+    # v1.20.0: Schritt „Lexware Office (Beta)“ – Testmodus an, kein API-Key
+    assert result["type"] == "form" and result["step_id"] == "lexware"
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {
+        "lexware_enabled": True, "lexware_api_key": "", "lexware_api_key_loeschen": False, "lexware_mock": True,
+        "lexware_tax_private": "gross", "lexware_tax_company": "net", "lexware_invoice_date": "erstellung",
+        "lexware_deposit_pct": 50, "lexware_deposit_days": 7, "lexware_contact_search": "name",
+        "paid_direkt": "lexware_zahlung", "paid_portal": "lexware_rechnung"})
     assert result["type"] == "create_entry"
     o = setup.options
+    assert o["lexware_enabled"] is True and o["lexware_mock"] is True and "lexware_api_key" not in o
+    assert o["paid_meaning"] == {"direkt": "lexware_zahlung", "portal": "lexware_rechnung"}
     assert o["commissions"]["Airbnb"] == 20 and o["commissions"]["Expedia"] == 18
     assert o["cost_cleaning"] == 20 and o["cost_grid_share"][0] == 70 and o["channel_markups"] == {"Airbnb": 33.0}
     assert o["notify_buchung"] is True and o["notify_buchung_to"] == ["notify.mobile_app_test"]

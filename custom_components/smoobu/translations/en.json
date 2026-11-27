@@ -292,12 +292,47 @@
               "bis": "Until"
             },
             "data_description": {}
+          },
+          "lexware": {
+            "name": "Invoices & payments (Lexware, beta)",
+            "description": "Payment received, deposit missing, balance still open on arrival day.",
+            "data": {
+              "aktiv": "Enabled",
+              "empfaenger": "Recipients",
+              "ruhezeit": "Respects quiet hours"
+            },
+            "data_description": {
+              "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
+            }
           }
         }
       },
       "wohnungen": {
         "title": "Property codes",
         "description": "Code per property for dashboard and pushes (up to {max} characters, letters/digits, unique across all Smoobu accounts). Empty = automatic. Automatic codes: {auto}."
+      },
+      "lexware": {
+        "title": "Lexware Office (beta)",
+        "description": "Optional: draft invoices in Lexware Office (Public API, plan XL and up) and payment tracking. API key: {key}. Invoice lines (Lexware article per position) are set up in the settings card, tab \"Lexware\". BETA – please review every draft in Lexware.",
+        "data": {
+          "lexware_enabled": "Enable Lexware",
+          "lexware_api_key": "API key (empty = keep)",
+          "lexware_api_key_loeschen": "Remove stored API key",
+          "lexware_mock": "Test mode (sample data, nothing is sent)",
+          "lexware_tax_private": "Private guests",
+          "lexware_tax_company": "Companies",
+          "lexware_invoice_date": "Invoice date",
+          "lexware_deposit_pct": "Deposit (unless set in Smoobu)",
+          "lexware_deposit_days": "Deposit missing after",
+          "lexware_contact_search": "Find contact by",
+          "paid_direkt": "Meaning of \"paid\" – direct bookings",
+          "paid_portal": "Meaning of \"paid\" – portal bookings"
+        },
+        "data_description": {
+          "lexware_api_key": "Created in Lexware Office under Add-ons → Public API.",
+          "lexware_invoice_date": "Creation date with due date on arrival day: Lexware shows the invoice as open (not overdue) until arrival.",
+          "lexware_deposit_days": "Days after the invoice was created; then a notice and push \"cancellation possible\". Home Assistant never cancels on its own."
+        }
       }
     },
     "error": {
@@ -759,6 +794,33 @@
         "energie_dashboard": "Energy dashboard (whole house)",
         "monatswerte": "Fixed monthly values",
         "jahreswert": "Annual value (static)"
+      }
+    },
+    "lex_tax": {
+      "options": {
+        "gross": "Gross invoice (VAT included)",
+        "net": "Net invoice (plus VAT)"
+      }
+    },
+    "lex_invoice_date": {
+      "options": {
+        "erstellung": "Creation date, due on arrival day (recommended)",
+        "anreise": "Arrival date (backdated/forward-dated – not recommended)"
+      }
+    },
+    "lex_search": {
+      "options": {
+        "name": "Name",
+        "email": "E-mail",
+        "beide": "Name and e-mail"
+      }
+    },
+    "paid_meaning": {
+      "options": {
+        "zahlung": "Payment received (manual)",
+        "rechnung": "Invoice issued, payment tracked elsewhere (manual)",
+        "lexware_zahlung": "Payment according to Lexware (automatic)",
+        "lexware_rechnung": "Invoice issued according to Lexware (automatic)"
       }
     }
   },

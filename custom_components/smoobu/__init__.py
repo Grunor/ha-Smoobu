@@ -95,6 +95,7 @@ from .notifications import SmoobuNotifier
 from .reinigung import CleaningBoard
 from .nebenkosten import UtilityBills
 from .tuercode import DoorCodes, fill as fill_door_code
+from .lexware import LexwareModule
 from .websocket_api import NebenkostenUploadView
 from .coordinator import SmoobuCoordinator
 from .frontend import async_register_frontend
@@ -148,6 +149,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> bo
     # v1.19.0: Türcodes (vor den Plattformen, damit die Sensoren beim Start schon Codes kennen)
     coordinator.doorcodes = DoorCodes(hass, coordinator)
     await coordinator.doorcodes.async_setup()
+    # v1.20.0 (BETA): Lexware Office (Rechnungsentwürfe, Zahlungsstand) – ohne Schalter/API-Key inaktiv
+    coordinator.lexware = LexwareModule(hass, coordinator)
+    await coordinator.lexware.async_setup()
     coordinator.assistant = SmoobuAssistant(hass, coordinator)
     await coordinator.assistant.async_setup()
 
@@ -183,6 +187,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> b
         await entry.runtime_data.cleaning.async_unload()
     if getattr(entry, "runtime_data", None) and getattr(entry.runtime_data, "doorcodes", None):
         await entry.runtime_data.doorcodes.async_unload()
+    if getattr(entry, "runtime_data", None) and getattr(entry.runtime_data, "lexware", None):
+        await entry.runtime_data.lexware.async_unload()
     if webhook_id := entry.data.get(CONF_WEBHOOK_ID):
         webhook.async_unregister(hass, webhook_id)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
@@ -196,6 +202,8 @@ async def async_remove_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> N
     await _async_remove_remote_webhook(hass, entry, client, update_entry=False)
     # v1.17.0: Warteschlange/Erinnerungsstand der Benachrichtigungen entfernen
     await Store(hass, 1, f"{DOMAIN}_notify_{entry.entry_id}").async_remove()
+    # v1.20.0: Lexware-Zuordnungen (Buchung ↔ Rechnung) entfernen; die Rechnungen in Lexware bleiben
+    await Store(hass, 1, f"{DOMAIN}_lexware_{entry.entry_id}").async_remove()
 
 
 # ===========================================================================

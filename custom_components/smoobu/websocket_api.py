@@ -203,6 +203,13 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_bills_list)
     websocket_api.async_register_command(hass, ws_bills_analyse)
     websocket_api.async_register_command(hass, ws_bills_delete)
+    # v1.20.0 (BETA): Lexware Office
+    websocket_api.async_register_command(hass, ws_lexware_status)
+    websocket_api.async_register_command(hass, ws_lexware_preview)
+    websocket_api.async_register_command(hass, ws_lexware_create)
+    websocket_api.async_register_command(hass, ws_lexware_tasks)
+    websocket_api.async_register_command(hass, ws_lexware_test)
+    websocket_api.async_register_command(hass, ws_lexware_refresh)
 
 
 _TARGET = {vol.Optional("entry_id"): str, vol.Optional("apartment_id"): _apt_id}
@@ -838,7 +845,7 @@ async def ws_settings_get(hass: HomeAssistant, connection: websocket_api.ActiveC
             "entry_id": entry.entry_id,
             "konten": [{"entry_id": e.entry_id, "title": e.title}
                        for e in smoobu_settings.editable_entries(hass, connection.user)],
-            "werte": smoobu_settings.current(entry),
+            "werte": smoobu_settings.public(smoobu_settings.current(entry)),
             "meta": await smoobu_settings.meta(hass, entry, connection.user),
         },
     )
@@ -858,7 +865,7 @@ async def ws_settings_set(hass: HomeAssistant, connection: websocket_api.ActiveC
         connection.send_result(msg["id"], {"ok": False, "fehler": errors})
         return
     changed = await smoobu_settings.save(hass, entry, options)
-    connection.send_result(msg["id"], {"ok": True, "geaendert": changed, "werte": smoobu_settings.current(entry)})
+    connection.send_result(msg["id"], {"ok": True, "geaendert": changed, "werte": smoobu_settings.public(smoobu_settings.current(entry))})
 
 
 # ---------------------------------------------------------------------------
@@ -1413,3 +1420,130 @@ def ws_focus(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
             connection.send_result(msg["id"], {"aktiv": True, **focus})
             return
     connection.send_result(msg["id"], {"aktiv": False})
+
+
+# ---------------------------------------------------------------------------
+# Lexware Office (v1.20.0, BETA) – Logik in lexware*.py
+# ---------------------------------------------------------------------------
+_LEX_OV = vol.Schema({
+    vol.Optional("hunde"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=0, max=20))),
+    vol.Optional("rabatt"): vol.All(vol.Coerce(float), vol.Range(min=0, max=99)),
+    vol.Optional("ist_firma"): bool,
+    vol.Optional("firma"): vol.All(str, vol.Length(max=120)),
+    vol.Optional("anrede"): vol.In(("", "herr", "frau")),
+    vol.Optional("gruppe"): vol.In(("direkt", "portal")),
+    vol.Optional("neu"): bool,
+    vol.Optional("zeilen"): {vol.Coerce(str): {vol.Optional("menge"): vol.Any(None, vol.Coerce(float)),
+                                                vol.Optional("einzel"): vol.Any(None, vol.Coerce(float))}},
+})
+
+
+def _lex(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any], right: str):
+    """Coordinator + Lexware-Modul oder Fehler senden (None)."""
+    try:
+        c, _apt = _resolve(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return None, None
+    if not _guard(connection, msg, [c], right):
+        return None, None
+    return c, getattr(c, "lexware", None)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/lexware/status", **_TARGET, vol.Required("reservation_id"): vol.Coerce(int)})
+@callback
+def ws_lexware_status(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Rechnungs-/Zahlungsstand einer Buchung (Recht „finanzen“). `aktiv` = Modul an."""
+    c, lex = _lex(hass, connection, msg, "finanzen")
+    if c is None:
+        return
+    on = bool(lex and lex.enabled)
+    connection.send_result(msg["id"], {
+        "aktiv": on, "testmodus": bool(lex and lex.mock),
+        "stand": lex.evaluate(msg["reservation_id"]) if on else None,
+        "darf_erstellen": rechte.allowed(connection.user, c.config_entry.options, "rechnungen"),
+    })
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/lexware/preview", **_TARGET, vol.Required("reservation_id"): vol.Coerce(int),
+                                  vol.Optional("overrides", default={}): _LEX_OV})
+@websocket_api.async_response
+async def ws_lexware_preview(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    c, lex = _lex(hass, connection, msg, "rechnungen")
+    if c is None:
+        return
+    if not lex or not lex.enabled:
+        connection.send_error(msg["id"], "disabled", "Lexware ist in den Einstellungen aus")
+        return
+    try:
+        connection.send_result(msg["id"], await lex.preview(msg["reservation_id"], msg["overrides"]))
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/lexware/create", **_TARGET, vol.Required("reservation_id"): vol.Coerce(int),
+                                  vol.Optional("overrides", default={}): _LEX_OV, vol.Optional("contact_id"): vol.Any(None, str)})
+@websocket_api.async_response
+async def ws_lexware_create(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    c, lex = _lex(hass, connection, msg, "rechnungen")
+    if c is None:
+        return
+    if not lex or not lex.enabled:
+        connection.send_error(msg["id"], "disabled", "Lexware ist in den Einstellungen aus")
+        return
+    try:
+        connection.send_result(msg["id"], await lex.create(msg["reservation_id"], msg["overrides"], msg.get("contact_id")))
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/lexware/tasks", **_TARGET})
+@callback
+def ws_lexware_tasks(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Aufgaben für „Wartet auf dich“ (Kategorie „Rechnungen“) über alle gewählten Konten/Wohnungen."""
+    try:
+        pairs = _targets(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    coords = [c for c, _a in pairs]
+    if not _guard(connection, msg, coords, "finanzen"):
+        return
+    out: list[dict[str, Any]] = []
+    for c in dict.fromkeys(coords):
+        lex = getattr(c, "lexware", None)
+        if lex and lex.enabled:
+            apts = {a for cc, a in pairs if cc is c}
+            out += [{**t, "entry_id": c.config_entry.entry_id} for t in lex.tasks(apartment_ids=apts)]
+    connection.send_result(msg["id"], {"aufgaben": out, "aktiv": any(getattr(c, "lexware", None) and c.lexware.enabled for c in coords)})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/lexware/test", **_TARGET})
+@websocket_api.async_response
+async def ws_lexware_test(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Verbindung prüfen und Artikel neu laden (Recht „einstellungen“)."""
+    c, lex = _lex(hass, connection, msg, "einstellungen")
+    if c is None:
+        return
+    if not lex or not lex.enabled:
+        connection.send_result(msg["id"], {"ok": False, "fehler": "Lexware ist aus oder es fehlt der API-Key"})
+        return
+    res = await lex.test_connection()
+    if res.get("ok"):
+        await lex.refresh_articles()
+    connection.send_result(msg["id"], {**res, "artikel": lex.articles_choice()})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/lexware/refresh", **_TARGET, vol.Optional("reservation_id"): vol.Coerce(int)})
+@websocket_api.async_response
+async def ws_lexware_refresh(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Zahlungsstand sofort bei Lexware nachlesen (Button „Aktualisieren“)."""
+    c, lex = _lex(hass, connection, msg, "finanzen")
+    if c is None:
+        return
+    if not lex or not lex.enabled:
+        connection.send_error(msg["id"], "disabled", "Lexware ist in den Einstellungen aus")
+        return
+    await lex.async_poll(only=str(msg["reservation_id"]) if msg.get("reservation_id") else None)
+    connection.send_result(msg["id"], {"stand": lex.evaluate(msg["reservation_id"]) if msg.get("reservation_id") else None,
+                                       "status": dict(lex.status)})

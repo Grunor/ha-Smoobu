@@ -60,6 +60,9 @@ from .energie import (
     DEFAULT_COST_PREHEAT_HOURS,
     POWER_SOURCES,
 )
+from . import lexware as lex
+from . import lexware_regeln as lex_regeln
+from .lexware_zahlung import DEFAULT_PAID_MEANING, PAID_MEANINGS
 from .tuercode import (
     CONF_DOOR_CODE_AFTER,
     CONF_DOOR_CODE_BEFORE,
@@ -327,6 +330,26 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_LASTMINUTE_MAX_DISCOUNT: float(o.get(CONF_LASTMINUTE_MAX_DISCOUNT, DEFAULT_LASTMINUTE_MAX_DISCOUNT)),
         # v1.18.0: Saisons (Statistik/Finanzen: Zeitraum „Saison“, Gruppierung „Saison“)
         "saisons": season_cfg.from_options(o),
+        # v1.20.0 (BETA): Lexware Office (lexware.py). Der API-Key geht nie an die Karte (siehe public()).
+        lex.CONF_LEX_ENABLED: bool(lex.opt(o, lex.CONF_LEX_ENABLED)),
+        lex.CONF_LEX_KEY: str(o.get(lex.CONF_LEX_KEY) or ""),
+        lex.CONF_LEX_MOCK: bool(lex.opt(o, lex.CONF_LEX_MOCK)),
+        lex.CONF_LEX_RULES: {g: [dict(r) for r in (o.get(lex.CONF_LEX_RULES) or {}).get(g, [])] for g in lex_regeln.GROUPS},
+        lex.CONF_LEX_TAX_COMPANY: str(lex.opt(o, lex.CONF_LEX_TAX_COMPANY)),
+        lex.CONF_LEX_TAX_PRIVATE: str(lex.opt(o, lex.CONF_LEX_TAX_PRIVATE)),
+        lex.CONF_LEX_INVOICE_DATE: str(lex.opt(o, lex.CONF_LEX_INVOICE_DATE)),
+        lex.CONF_LEX_PAYMENT_TEXT: {g: str((o.get(lex.CONF_LEX_PAYMENT_TEXT) or {}).get(g) or lex_regeln.DEFAULT_PAYMENT_TEXT[g])
+                                    for g in lex_regeln.GROUPS},
+        lex.CONF_LEX_DEPOSIT_PCT: float(lex.opt(o, lex.CONF_LEX_DEPOSIT_PCT)),
+        lex.CONF_LEX_DEPOSIT_DAYS: int(lex.opt(o, lex.CONF_LEX_DEPOSIT_DAYS)),
+        lex.CONF_LEX_DRAFT_DAYS: int(lex.opt(o, lex.CONF_LEX_DRAFT_DAYS)),
+        lex.CONF_LEX_MISSING_DAYS: int(lex.opt(o, lex.CONF_LEX_MISSING_DAYS)),
+        lex.CONF_LEX_SEARCH: str(lex.opt(o, lex.CONF_LEX_SEARCH)),
+        lex.CONF_LEX_COUNTRY: str(lex.opt(o, lex.CONF_LEX_COUNTRY)),
+        lex.CONF_LEX_WEBHOOK: bool(lex.opt(o, lex.CONF_LEX_WEBHOOK)),
+        lex.CONF_LEX_SYNC: bool(lex.opt(o, lex.CONF_LEX_SYNC)),
+        # Bedeutung des Smoobu-Hakens „bezahlt“ je Kanalgruppe – gilt auch ohne Lexware
+        lex.CONF_PAID_MEANING: {g: str((o.get(lex.CONF_PAID_MEANING) or {}).get(g) or DEFAULT_PAID_MEANING[g]) for g in lex_regeln.GROUPS},
     }
     # Je Push-Art an/aus und Empfänger (gleiche Rückfallregeln wie der Benachrichtigungsdienst)
     for kind in NOTIFY_TYPES:
@@ -451,6 +474,14 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
         "saison_standard": season_cfg.DEFAULT_SEASONS,
         # v1.19.0: Auswahl für Stromzähler, Strompreis und Vorheizstart + Messergebnis je Wohnung
         **energy_meta(hass, coordinator),
+        # v1.20.0 (BETA): Lexware – Artikel-Auswahl, Vorlage der Regelzeilen, Verbindungsstand
+        "lexware": {
+            "artikel": coordinator.lexware.articles_choice() if coordinator and getattr(coordinator, "lexware", None) else [],
+            "vorlage": lex_regeln.TEMPLATE, "mengen": list(lex_regeln.QUANTITIES), "bedingungen": list(lex_regeln.CONDITIONS),
+            "bedeutungen": list(PAID_MEANINGS),
+            "status": dict(coordinator.lexware.status) if coordinator and getattr(coordinator, "lexware", None) else {},
+            "aktiv": bool(coordinator and getattr(coordinator, "lexware", None) and coordinator.lexware.enabled),
+        },
     }
 
 
@@ -751,6 +782,50 @@ def _user_minutes(value: Any) -> dict[str, float]:
     return out
 
 
+def _lex_rules(value: Any) -> dict[str, list[dict[str, Any]]]:
+    """v1.20.0: Regelzeilen je Kanalgruppe (Lexware). Nur bekannte Schlüssel, höchstens 30 Zeilen je Gruppe."""
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_rules")
+    out: dict[str, list[dict[str, Any]]] = {}
+    for group in lex_regeln.GROUPS:
+        rows = value.get(group) or []
+        if not isinstance(rows, list) or len(rows) > 30:
+            raise vol.Invalid("invalid_rules")
+        clean = []
+        for r in rows:
+            if not isinstance(r, dict):
+                raise vol.Invalid("invalid_rules")
+            row = {k: r[k] for k in ("artikel", "hinweis", "menge", "ab", "max", "anzahl", "bedingung", "wert", "preis") if r.get(k) not in (None, "")}
+            row.setdefault("menge", "pauschal")
+            row.setdefault("preis", "artikel")
+            clean.append(row)
+        errs = lex_regeln.validate_rules(clean)
+        if errs:
+            raise vol.Invalid("invalid_" + errs[0].removeprefix("invalid_"))
+        out[group] = clean
+    return out
+
+
+def _lex_texts(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid")
+    return {g: str(value.get(g) or "")[:500] for g in lex_regeln.GROUPS}
+
+
+def _paid_meaning(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict) or any(value.get(g) not in PAID_MEANINGS for g in lex_regeln.GROUPS):
+        raise vol.Invalid("invalid")
+    return {g: value[g] for g in lex_regeln.GROUPS}
+
+
+def public(values: dict[str, Any]) -> dict[str, Any]:
+    """Werte für die Karte: API-Key nie im Klartext, nur ob einer gespeichert ist (v1.20.0)."""
+    out = dict(values)
+    out["lexware_api_key_gesetzt"] = bool(out.get(lex.CONF_LEX_KEY))
+    out[lex.CONF_LEX_KEY] = ""
+    return out
+
+
 def _locks(value: Any) -> dict[str, dict[str, Any]]:
     """{Wohnungs-ID: {typ, entitaet, slot_von, slot_bis, modus, code}} – Schloss-Adapter und Code-Modus
     für Türcodes (v1.19.0; Modus „statisch“ z. B. für einen Schlüsseltresor ab v1.19.0b2)."""
@@ -893,6 +968,24 @@ FIELDS: dict[str, Any] = {
     CONF_LASTMINUTE_DAYS: _int(1, 14),
     CONF_LASTMINUTE_MAX_DISCOUNT: _num(0, 30),
     "saisons": season_cfg.validate,
+    lex.CONF_LEX_ENABLED: bool,
+    lex.CONF_LEX_KEY: vol.All(str, vol.Length(max=200)),
+    "lexware_api_key_loeschen": bool,
+    lex.CONF_LEX_MOCK: bool,
+    lex.CONF_LEX_RULES: _lex_rules,
+    lex.CONF_LEX_TAX_COMPANY: vol.In(lex_regeln.TAX_TYPES),
+    lex.CONF_LEX_TAX_PRIVATE: vol.In(lex_regeln.TAX_TYPES),
+    lex.CONF_LEX_INVOICE_DATE: vol.In(lex_regeln.INVOICE_DATES),
+    lex.CONF_LEX_PAYMENT_TEXT: _lex_texts,
+    lex.CONF_LEX_DEPOSIT_PCT: _num(0, 100),
+    lex.CONF_LEX_DEPOSIT_DAYS: _int(1, 60),
+    lex.CONF_LEX_DRAFT_DAYS: _int(0, 30),
+    lex.CONF_LEX_MISSING_DAYS: _int(0, 365),
+    lex.CONF_LEX_SEARCH: vol.In(("name", "email", "beide")),
+    lex.CONF_LEX_COUNTRY: vol.Match(r"^[A-Z]{2}$"),
+    lex.CONF_LEX_WEBHOOK: bool,
+    lex.CONF_LEX_SYNC: bool,
+    lex.CONF_PAID_MEANING: _paid_meaning,
     **{f"notify_{kind}": bool for kind in NOTIFY_TYPES},
     **{f"notify_{kind}_to": _pattern_list(_NOTIFY_RE) for kind in NOTIFY_TYPES},
     **{f"notify_{kind}_quiet": bool for kind in NOTIFY_TYPES},
@@ -914,6 +1007,14 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
             # Eigene Fehlercodes durchreichen, sonst allgemein „ungültig“
             msg = str(err.msg) if getattr(err, "msg", None) else ""
             errors[key] = msg if msg.startswith(("invalid_", "duplicate_")) else "invalid"
+
+    # v1.20.0: leerer API-Key aus der Karte = bisherigen behalten; entfernen nur über „lexware_api_key_loeschen“
+    if lex.CONF_LEX_KEY in changes and not str(changes.get(lex.CONF_LEX_KEY) or "").strip():
+        values[lex.CONF_LEX_KEY] = current(entry)[lex.CONF_LEX_KEY]
+    if values.pop("lexware_api_key_loeschen", False):
+        values[lex.CONF_LEX_KEY] = ""
+    if values.get(lex.CONF_LEX_ENABLED) and not values.get(lex.CONF_LEX_KEY) and not values.get(lex.CONF_LEX_MOCK):
+        errors.setdefault(lex.CONF_LEX_KEY, "lexware_key_required")
 
     # Wer im Dashboard ändern darf und welche Rolle jemand hat, legen nur Admins fest
     if not (user and user.is_admin):
@@ -1006,7 +1107,7 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
     merged[CONF_ASSIST_GAPS] = merged["notify_luecken"]
     merged[CONF_NOTIFY_QUIET_MESSAGES] = not merged["notify_nachricht_quiet"]
     # Leere Werte entfernen statt als None speichern (gleiches Verhalten wie der Options-Dialog)
-    for key in (CONF_AI_ENTITY, CONF_HISTORY_SINCE):
+    for key in (CONF_AI_ENTITY, CONF_HISTORY_SINCE, lex.CONF_LEX_KEY):
         if not merged.get(key):
             merged.pop(key, None)
     return merged, {}

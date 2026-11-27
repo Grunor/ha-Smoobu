@@ -602,6 +602,8 @@ class SmoobuOptionsFlow(OptionsFlow):
                 vol.Optional("luecken"): kind_section("luecken", {
                     vol.Required("uhrzeit", default=_time_default(opts.get(CONF_NOTIFY_GAPS_TIME, DEFAULT_NOTIFY_GAPS_TIME))): hhmm,
                 }),
+                # v1.20.0 (BETA): Lexware – Zahlungseingang, Anzahlung fehlt, Rest am Anreisetag offen
+                vol.Optional("lexware"): kind_section("lexware"),
                 vol.Optional("ruhezeit"): section(vol.Schema({
                     vol.Required("aktiv", default=bool(opts.get(CONF_NOTIFY_QUIET, False))): BooleanSelector(),
                     vol.Required("von", default=_time_default(opts.get(CONF_NOTIFY_QUIET_FROM, DEFAULT_NOTIFY_QUIET_FROM))): hhmm,
@@ -679,7 +681,9 @@ class SmoobuOptionsFlow(OptionsFlow):
                 # Gleiches für ein geleertes „Daten abrufen seit“ → wieder „Jahre Historie“
                 if not self._general.get(CONF_HISTORY_SINCE):
                     merged.pop(CONF_HISTORY_SINCE, None)
-                return self.async_create_entry(data=merged)
+                # v1.20.0: noch ein Schritt „Lexware Office (Beta)“
+                self._merged = merged
+                return await self.async_step_lexware()
         auto = all_codes(self.hass, {entry.entry_id: {}})
         schema = vol.Schema(
             {
@@ -692,3 +696,55 @@ class SmoobuOptionsFlow(OptionsFlow):
         return self.async_show_form(step_id="wohnungen", data_schema=schema, errors=errors,
                                     description_placeholders={"auto": hint, "max": str(MAX_CODE_LEN)})
 
+    async def async_step_lexware(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """v1.20.0 (BETA): Lexware Office – Grundeinstellungen. Die Regelzeilen (Artikel je Position)
+        stellt man in der Einstellungskarte ein (Liste mit Artikel-Auswahl passt nicht in dieses Formular)."""
+        from .lexware import (  # noqa: PLC0415
+            CONF_LEX_DEPOSIT_DAYS, CONF_LEX_DEPOSIT_PCT, CONF_LEX_ENABLED, CONF_LEX_INVOICE_DATE, CONF_LEX_KEY,
+            CONF_LEX_MOCK, CONF_LEX_SEARCH, CONF_LEX_TAX_COMPANY, CONF_LEX_TAX_PRIVATE, CONF_PAID_MEANING, opt,
+        )
+        from .lexware_zahlung import DEFAULT_PAID_MEANING, PAID_MEANINGS  # noqa: PLC0415
+
+        o = self.config_entry.options
+        merged = dict(getattr(self, "_merged", None) or o)
+        if user_input is not None:
+            key = str(user_input.get(CONF_LEX_KEY) or "").strip()
+            merged.update({
+                CONF_LEX_ENABLED: bool(user_input.get(CONF_LEX_ENABLED)),
+                CONF_LEX_MOCK: bool(user_input.get(CONF_LEX_MOCK)),
+                CONF_LEX_TAX_COMPANY: user_input.get(CONF_LEX_TAX_COMPANY, "net"),
+                CONF_LEX_TAX_PRIVATE: user_input.get(CONF_LEX_TAX_PRIVATE, "gross"),
+                CONF_LEX_INVOICE_DATE: user_input.get(CONF_LEX_INVOICE_DATE, "erstellung"),
+                CONF_LEX_DEPOSIT_PCT: float(user_input.get(CONF_LEX_DEPOSIT_PCT, 50)),
+                CONF_LEX_DEPOSIT_DAYS: int(user_input.get(CONF_LEX_DEPOSIT_DAYS, 7)),
+                CONF_LEX_SEARCH: user_input.get(CONF_LEX_SEARCH, "name"),
+                CONF_PAID_MEANING: {"direkt": user_input.get("paid_direkt"), "portal": user_input.get("paid_portal")},
+            })
+            if key:  # leer = bisherigen Schlüssel behalten
+                merged[CONF_LEX_KEY] = key
+            elif user_input.get("lexware_api_key_loeschen"):
+                merged.pop(CONF_LEX_KEY, None)
+            return self.async_create_entry(data=merged)
+        meaning = o.get(CONF_PAID_MEANING) or {}
+
+        def sel(options: tuple[str, ...] | list[str], key: str) -> SelectSelector:
+            return SelectSelector(SelectSelectorConfig(options=list(options), translation_key=key, mode=SelectSelectorMode.DROPDOWN))
+
+        schema = vol.Schema({
+            vol.Required(CONF_LEX_ENABLED, default=bool(opt(o, CONF_LEX_ENABLED))): BooleanSelector(),
+            vol.Optional(CONF_LEX_KEY, description={"suggested_value": ""}): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+            vol.Required("lexware_api_key_loeschen", default=False): BooleanSelector(),
+            vol.Required(CONF_LEX_MOCK, default=bool(opt(o, CONF_LEX_MOCK))): BooleanSelector(),
+            vol.Required(CONF_LEX_TAX_PRIVATE, default=opt(o, CONF_LEX_TAX_PRIVATE)): sel(("gross", "net"), "lex_tax"),
+            vol.Required(CONF_LEX_TAX_COMPANY, default=opt(o, CONF_LEX_TAX_COMPANY)): sel(("net", "gross"), "lex_tax"),
+            vol.Required(CONF_LEX_INVOICE_DATE, default=opt(o, CONF_LEX_INVOICE_DATE)): sel(("erstellung", "anreise"), "lex_invoice_date"),
+            vol.Required(CONF_LEX_DEPOSIT_PCT, default=float(opt(o, CONF_LEX_DEPOSIT_PCT))): NumberSelector(
+                NumberSelectorConfig(min=0, max=100, step=1, unit_of_measurement="%", mode=NumberSelectorMode.BOX)),
+            vol.Required(CONF_LEX_DEPOSIT_DAYS, default=int(opt(o, CONF_LEX_DEPOSIT_DAYS))): NumberSelector(
+                NumberSelectorConfig(min=1, max=60, step=1, unit_of_measurement="d", mode=NumberSelectorMode.BOX)),
+            vol.Required(CONF_LEX_SEARCH, default=opt(o, CONF_LEX_SEARCH)): sel(("name", "email", "beide"), "lex_search"),
+            vol.Required("paid_direkt", default=meaning.get("direkt") or DEFAULT_PAID_MEANING["direkt"]): sel(PAID_MEANINGS, "paid_meaning"),
+            vol.Required("paid_portal", default=meaning.get("portal") or DEFAULT_PAID_MEANING["portal"]): sel(PAID_MEANINGS, "paid_meaning"),
+        })
+        return self.async_show_form(step_id="lexware", data_schema=schema,
+                                    description_placeholders={"key": "gesetzt" if o.get(CONF_LEX_KEY) else "nicht gesetzt"})

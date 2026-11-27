@@ -58,6 +58,8 @@ RIGHTS: dict[str, str] = {
     "reinigung_zuweisen": "Reinigung zuweisen",
     "preise": "Preise ändern und Empfehlungen übernehmen",
     "einstellungen": "Einstellungen ändern",
+    # v1.20.0 (BETA): Rechnungsentwürfe in Lexware Office erstellen (Zahlungsstand sehen = „finanzen“)
+    "rechnungen": "Rechnungen erstellen (Lexware)",
 }
 
 _ALL = frozenset(RIGHTS)
@@ -86,6 +88,7 @@ DEPENDS: dict[str, tuple[str, ...]] = {
     "reinigung": ("belegung_sehen",),          # ohne: Reinigungen ohne Vornamen der Gäste
     "reinigung_zuweisen": ("belegung_sehen",),
     "antworten": ("nachrichten",),             # antworten ohne die Nachricht zu lesen
+    "rechnungen": ("gaeste", "finanzen"),      # Rechnung braucht Gastdaten und Preise
 }
 ADMIN = "admin"
 SYSTEM = "system"

@@ -98,7 +98,8 @@ CONF_ASSIST_BRIEFING_TIME = "assist_briefing_time"
 CONF_ASSIST_GAPS = "assist_gaps"
 # Benachrichtigungen (v1.17.0): je Push-Art notify_<art> (an/aus) und notify_<art>_to (Empfänger)
 # v1.18.0: „umbuchung“ = Zeitraum oder Unterkunft geändert (Wunsch Betreiber 20.11.2026)
-NOTIFY_TYPES = ["buchung", "storno", "umbuchung", "nachricht", "vorschlag", "zahlung", "briefing", "luecken"]
+# v1.20.0: „lexware“ = Rechnungen & Zahlungen aus Lexware Office (BETA: Zahlungseingang, Anzahlung fehlt, Rest offen)
+NOTIFY_TYPES = ["buchung", "storno", "umbuchung", "nachricht", "vorschlag", "zahlung", "briefing", "luecken", "lexware"]
 CONF_NOTIFY_QUIET = "notify_quiet"  # Ruhezeit an/aus
 CONF_NOTIFY_QUIET_FROM = "notify_quiet_from"
 CONF_NOTIFY_QUIET_TO = "notify_quiet_to"
@@ -106,7 +107,7 @@ CONF_NOTIFY_QUIET_MESSAGES = "notify_quiet_messages"  # Altwert (bis 1.18.0b8): 
 # v1.18.0: je Push-Art notify_<art>_quiet = hält die Ruhezeit ein (wird gesammelt). Standard = Verhalten bis 1.18.0b8:
 # Buchung, Storno, KI-Vorschlag warten; Zahlung, Briefing, Lücken kommen zur eingestellten Uhrzeit sofort;
 # Gästenachricht folgt dem Altwert notify_quiet_messages (Standard: sofort).
-NOTIFY_QUIET_DEFAULT = {"buchung": True, "storno": True, "umbuchung": True, "vorschlag": True, "zahlung": False, "briefing": False, "luecken": False}
+NOTIFY_QUIET_DEFAULT = {"buchung": True, "storno": True, "umbuchung": True, "vorschlag": True, "zahlung": False, "briefing": False, "luecken": False, "lexware": True}
 CONF_NOTIFY_PAYMENT_DAYS = "notify_zahlung_days"
 CONF_NOTIFY_PAYMENT_TIME = "notify_zahlung_time"
 CONF_NOTIFY_GAPS_TIME = "notify_luecken_time"
