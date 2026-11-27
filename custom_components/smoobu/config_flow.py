@@ -604,6 +604,8 @@ class SmoobuOptionsFlow(OptionsFlow):
                 }),
                 # v1.20.0 (BETA): Lexware – Zahlungseingang, Anzahlung fehlt, Rest am Anreisetag offen
                 vol.Optional("lexware"): kind_section("lexware"),
+                # v1.20.0: statischer Türcode läuft ab / Buchung ohne Code
+                vol.Optional("tuercode"): kind_section("tuercode"),
                 vol.Optional("ruhezeit"): section(vol.Schema({
                     vol.Required("aktiv", default=bool(opts.get(CONF_NOTIFY_QUIET, False))): BooleanSelector(),
                     vol.Required("von", default=_time_default(opts.get(CONF_NOTIFY_QUIET_FROM, DEFAULT_NOTIFY_QUIET_FROM))): hhmm,

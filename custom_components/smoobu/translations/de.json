@@ -304,6 +304,18 @@
             "data_description": {
               "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
             }
+          },
+          "tuercode": {
+            "name": "Türcode",
+            "description": "Statischer Türcode läuft bald ab (kein nächster eingetragen) oder eine Buchung hat keinen gültigen Code.",
+            "data": {
+              "aktiv": "Aktiv",
+              "empfaenger": "Empfänger",
+              "ruhezeit": "Hält Ruhezeit ein"
+            },
+            "data_description": {
+              "ruhezeit": "An: wird in der Ruhezeit gesammelt und zum Ende zugestellt. Aus: kommt immer sofort."
+            }
           }
         }
       },

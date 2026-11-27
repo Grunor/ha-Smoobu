@@ -19,6 +19,20 @@ Statischer Code (ab v1.19.0b2, Wunsch Betreiber 21.11.2026, z. B. Schlüsseltres
   Buchungen den neuen Code (Notiz wird ersetzt, ein Schloss neu programmiert). Keine Wechsel-Erinnerung
   (Entscheidung Betreiber).
 
+Statischer Code mit Gültigkeit (v1.20.0, Wunsch/Entscheidungen Betreiber 27.11.2026):
+- Je Wohnung zusätzlich „gültig ab/bis“ (ganze Tage, ab 00:00, beide optional = unbegrenzt) und ein
+  „nächster Code“ mit „gültig ab“ (Pflicht) und optional „bis“ (`ab`, `bis`, `naechster_code`, `naechster_ab`,
+  `naechster_bis` in `door_locks[<Wohnung>]`). Der nächste Code gilt ab seinem Starttag – auch wenn der aktuelle
+  kein „bis“ hat.
+- Maßgeblich ist der Code am **Anreisetag** (Schlüsseltresor: Gast holt den Schlüssel bei Anreise). Ist der Gast
+  schon angereist und für seinen Anreisetag kein Code mehr eingetragen (z. B. nach dem Nachrücken), behält er seinen.
+- Gilt für eine Buchung kein Code (abgelaufen, kein nächster): kein Code (Status „fehlt“, Notizzeile entfällt,
+  Platzhalter „(Code folgt)“), Aufgabe im Board „Wartet auf dich“ + Push (Push-Art „tuercode“).
+- Erinnerung `door_code_static_remind_days` (Standard 14) Tage vor Ablauf des aktuellen Codes, solange kein
+  nächster eingetragen ist (Aufgabe + einmal Push).
+- Am Starttag rückt der nächste Code in den aktuellen nach (Optionen werden ohne Neuladen umgeschrieben),
+  das Feld „nächster Code“ ist danach wieder frei.
+
 Sicherheit:
 - Zufall aus `secrets` (kryptografisch). Abgelehnt werden triviale Codes (alle Ziffern gleich, auf-/
   absteigende Folgen, kurze Muster wie 1212/123123) und Codes, die eine andere Buchung derselben
@@ -66,6 +80,8 @@ PLACEHOLDER_RE = re.compile(r"\{\{\s*t(?:ü|ue|u)rcode\s*\}\}", re.IGNORECASE)
 NOTE_RE = re.compile(r"^T(?:ü|ue)rcode:.*$\n?", re.MULTILINE)
 SET_LEAD = timedelta(minutes=10)   # so lange vor Gültigkeitsbeginn ins Schloss schreiben
 CHECK_EVERY = timedelta(minutes=5)
+CONF_DOOR_CODE_REMIND = "door_code_static_remind_days"  # v1.20.0
+DEFAULT_REMIND_DAYS = 14
 KEEP_DAYS = 60
 RECENT = 50
 
@@ -110,6 +126,35 @@ def window(rec: dict[str, Any], checkin: time, checkout: time, before_h: float, 
     start = datetime.combine(date.fromisoformat(rec["anreise"]), t(rec.get("check_in"), checkin), tz) - timedelta(hours=before_h)
     end = datetime.combine(date.fromisoformat(rec["abreise"]), t(rec.get("check_out"), checkout), tz) + timedelta(hours=after_h)
     return start, end
+
+
+def static_for(cfg: dict[str, Any], day: str) -> str | None:
+    """v1.20.0: statischer Code, der am Tag `day` (JJJJ-MM-TT, Anreisetag) gilt – None = keiner."""
+    nxt, nab, nbis = str(cfg.get("naechster_code") or ""), cfg.get("naechster_ab"), cfg.get("naechster_bis")
+    if nxt and nab and day >= nab:
+        return nxt if not nbis or day <= nbis else None
+    code, ab, bis = str(cfg.get("code") or ""), cfg.get("ab"), cfg.get("bis")
+    if code and (not ab or day >= ab) and (not bis or day <= bis):
+        return code
+    return None
+
+
+def static_end(cfg: dict[str, Any]) -> str | None:
+    """v1.20.0: letzter Tag, für den ein statischer Code eingetragen ist (None = unbegrenzt)."""
+    if cfg.get("naechster_code") and cfg.get("naechster_ab"):
+        return cfg.get("naechster_bis") or None
+    return cfg.get("bis") or None
+
+
+def static_rollover(cfg: dict[str, Any], today: str) -> dict[str, Any] | None:
+    """v1.20.0: ab dem Starttag rückt der nächste Code nach – neue Konfiguration oder None (nichts zu tun)."""
+    if not (cfg.get("naechster_code") and cfg.get("naechster_ab") and today >= cfg["naechster_ab"]):
+        return None
+    out = {k: v for k, v in cfg.items() if k not in ("code", "ab", "bis", "naechster_code", "naechster_ab", "naechster_bis")}
+    out.update({"code": cfg["naechster_code"], "ab": cfg["naechster_ab"]})
+    if cfg.get("naechster_bis"):
+        out["bis"] = cfg["naechster_bis"]
+    return out
 
 
 def note_line(code: str, start: datetime, end: datetime) -> str:
@@ -172,6 +217,7 @@ class DoorCodes:
         self.store: Store = Store(hass, 1, f"{DOMAIN}_tuercodes_{coordinator.config_entry.entry_id}")
         self.codes: dict[str, dict[str, Any]] = {}
         self.recent: dict[str, list[str]] = {}
+        self.pushed: list[str] = []  # v1.20.0: Hinweise, zu denen schon ein Push ging
         self._unsubs: list[Callable[[], None]] = []
         self._lock = asyncio.Lock()
         self._loaded = False
@@ -187,6 +233,7 @@ class DoorCodes:
     async def async_setup(self) -> None:
         data = await self.store.async_load() or {}
         self.codes, self.recent = dict(data.get("codes") or {}), dict(data.get("zuletzt") or {})
+        self.pushed = list(data.get("gemeldet") or [])
         self._loaded = True
         if not self.enabled:
             return
@@ -202,7 +249,7 @@ class DoorCodes:
             await self._save()
 
     async def _save(self) -> None:
-        await self.store.async_save({"codes": self.codes, "zuletzt": self.recent})
+        await self.store.async_save({"codes": self.codes, "zuletzt": self.recent, "gemeldet": self.pushed})
 
     @callback
     def _on_data(self) -> None:
@@ -247,35 +294,46 @@ class DoorCodes:
                     continue
                 if end < now:
                     continue  # vergangen: keinen Code mehr erzeugen
-                static = self.static_code(r["wohnung_id"])
+                # v1.20.0: statischer Modus → Code, der am Anreisetag gilt (None = keiner eingetragen → „fehlt“)
+                is_static = self.static_mode(r["wohnung_id"])
+                static = self.static_code(r["wohnung_id"], r["anreise"]) if is_static else None
+                if is_static and static is None and it and it.get("code") and r["anreise"] < now.date().isoformat():
+                    static = it["code"]  # Gast ist schon da: kein Code mehr eingetragen für seinen Anreisetag → seinen behalten
                 if it is None:
-                    code = static or new_code(digits, self._taken(r["wohnung_id"], start, end))
+                    code = static if is_static else new_code(digits, self._taken(r["wohnung_id"], start, end))
                     it = self.codes[bid] = {"buchung_id": r["id"], "wohnung_id": r["wohnung_id"], "code": code,
-                                            "art": "statisch" if static else "zufall",
-                                            "von": start.isoformat(), "bis": end.isoformat(), "status": "geplant",
+                                            "art": "statisch" if is_static else "zufall",
+                                            "von": start.isoformat(), "bis": end.isoformat(), "status": "geplant" if code else "fehlt",
                                             "erstellt": now.isoformat(timespec="seconds"), "slot": None, "fehler": None}
-                    if not static:  # statische Codes nicht in die Zufalls-Historie
+                    if not is_static:  # statische Codes nicht in die Zufalls-Historie
                         self.recent.setdefault(str(r["wohnung_id"]), []).append(code)
                         self.recent[str(r["wohnung_id"])] = self.recent[str(r["wohnung_id"])][-RECENT:]
                     changed = True
                 elif it.get("status") not in ("geloescht", "abgelaufen") and (
-                        (static and it["code"] != static) or (not static and it.get("art") == "statisch")):
-                    # Statischer Code geändert bzw. Modus gewechselt → Code tauschen (Schloss neu, Notiz unten)
-                    await self._swap(it, static or new_code(digits, self._taken(r["wohnung_id"], start, end, skip=bid)),
-                                     "statisch" if static else "zufall")
+                        (is_static and it.get("code") != static) or (not is_static and it.get("art") == "statisch")):
+                    # Statischer Code geändert (auch: Gültigkeit/nächster Code) bzw. Modus gewechselt → Code tauschen
+                    # (Schloss neu, Notiz unten); v1.20.0: static None = für diese Anreise kein Code → „fehlt“
+                    await self._swap(it, static if is_static else new_code(digits, self._taken(r["wohnung_id"], start, end, skip=bid)),
+                                     "statisch" if is_static else "zufall")
                     changed = True
                 elif (it["von"], it["bis"]) != (start.isoformat(), end.isoformat()) and it.get("status") != "geloescht":
                     it.update({"von": start.isoformat(), "bis": end.isoformat()})
                     changed = True
                 if it.get("status") != "geloescht" and self.opts.get(CONF_DOOR_CODE_NOTE, True):
-                    want = merge_note(r.get("notiz"), note_line(it["code"], start, end))
+                    line = note_line(it["code"], start, end) if it.get("code") else None  # v1.20.0: ohne Code keine Zeile
+                    want = merge_note(r.get("notiz"), line)
                     if (r.get("notiz") or "").strip() != want.strip():
-                        await self._write_note(r, note_line(it["code"], start, end))
+                        await self._write_note(r, line)
             # Schloss: setzen kurz vor Beginn, löschen nach Ende
             for bid, it in self.codes.items():
                 if it.get("status") in ("geloescht", "abgelaufen"):
                     continue
                 von, bis = datetime.fromisoformat(it["von"]), datetime.fromisoformat(it["bis"])
+                if it.get("status") == "fehlt":  # v1.20.0: kein Code → nichts ins Schloss; nach Ende abgelaufen
+                    if now >= bis:
+                        it["status"] = "abgelaufen"
+                        changed = True
+                    continue
                 if now >= bis:
                     await self._clear_lock(it)
                     it["status"] = "abgelaufen"
@@ -288,28 +346,100 @@ class DoorCodes:
             for bid in [b for b, it in self.codes.items() if it["bis"] < cutoff]:
                 self.codes.pop(bid)
                 changed = True
+            changed |= await self._static_checks(now)
             if changed:
                 await self._save()
                 self.c.async_update_listeners()
 
-    async def _swap(self, it: dict[str, Any], code: str, art: str) -> None:
-        """Code einer laufenden/künftigen Buchung tauschen: alten aus dem Schloss, neuer wird im
-        nächsten Schritt von async_sync gesetzt (Status zurück auf „geplant“)."""
-        await self._clear_lock(it)
-        it.update({"code": code, "art": art, "status": "geplant", "slot": None, "fehler": None})
+    # --- Statischer Code: Nachrücken, fehlende Codes, Erinnerung (v1.20.0) -----------------
+    def _rollover(self, today: str) -> bool:
+        """Nächsten Code in den aktuellen nachrücken lassen – Optionen ohne Neuladen umschreiben."""
+        locks = dict(self.opts.get(CONF_DOOR_LOCKS) or {})
+        new = {apt: static_rollover(cfg, today) for apt, cfg in locks.items() if isinstance(cfg, dict) and cfg.get("modus") == "statisch"}
+        new = {apt: cfg for apt, cfg in new.items() if cfg}
+        if not new:
+            return False
+        from . import SKIP_RELOAD  # noqa: PLC0415  (Kreisimport vermeiden)
 
-    def static_code(self, apt: Any) -> str | None:
-        """Statischer Code der Wohnung (Modus „statisch“), sonst None."""
+        entry = self.c.config_entry
+        self.hass.data.setdefault(SKIP_RELOAD, set()).add(entry.entry_id)
+        self.hass.config_entries.async_update_entry(entry, options={**entry.options, CONF_DOOR_LOCKS: {**locks, **new}})
+        _LOGGER.info("Smoobu: nächster statischer Türcode ist jetzt aktuell (Wohnungen %s)", list(new))
+        return True
+
+    def hints(self) -> list[dict[str, Any]]:
+        """Aufgaben „Wartet auf dich“: Buchungen ohne gültigen statischen Code, Code läuft bald ab ohne nächsten."""
+        if not self.enabled:
+            return []
+        today = dt_util.now().date()
+        lead = int(self.opts.get(CONF_DOOR_CODE_REMIND, DEFAULT_REMIND_DAYS))
+        out: list[dict[str, Any]] = []
+        for it in self.codes.values():
+            if it.get("status") == "fehlt":
+                out.append({"art": "code_fehlt", "buchung_id": it["buchung_id"], "wohnung_id": it["wohnung_id"],
+                            "anreise": it["von"][:10], "key": f"tuercode:fehlt:{it['buchung_id']}"})
+        for apt, cfg in (self.opts.get(CONF_DOOR_LOCKS) or {}).items():
+            if not isinstance(cfg, dict) or cfg.get("modus") != "statisch" or cfg.get("naechster_code") or not cfg.get("bis"):
+                continue
+            if lead and today.isoformat() >= (date.fromisoformat(cfg["bis"]) - timedelta(days=lead)).isoformat():
+                out.append({"art": "code_laeuft_ab", "wohnung_id": int(apt) if str(apt).isdigit() else apt, "bis": cfg["bis"],
+                            "key": f"tuercode:ablauf:{apt}:{cfg['bis']}"})
+        out.sort(key=lambda x: x.get("anreise") or x.get("bis") or "")
+        return out
+
+    async def _static_checks(self, now: datetime) -> bool:
+        """Nachrücken und je Hinweis einmal Push (Push-Art „tuercode“). Rückgabe: gespeicherte Daten geändert."""
+        changed = self._rollover(now.date().isoformat())
+        notifier = getattr(self.c, "notifier", None)
+        hints = self.hints()
+        sent = self.pushed
+        live = {h["key"] for h in hints}
+        for h in hints:
+            if h["key"] in sent:
+                continue
+            sent.append(h["key"])
+            changed = True
+            if notifier is None:
+                continue
+            if h["art"] == "code_fehlt":
+                rec = next((r for r in self.c.records_all() if r["id"] == h["buchung_id"]), {})
+                text = (f"Für {rec.get('vorname') or 'die Buchung'} (Anreise {date.fromisoformat(h['anreise']).strftime('%d.%m.')}) "
+                        "gilt kein Türcode – bitte in den Einstellungen den nächsten Code eintragen.")
+            else:
+                text = (f"Der Türcode gilt nur bis {date.fromisoformat(h['bis']).strftime('%d.%m.%Y')} – "
+                        "bitte den nächsten Code in den Einstellungen eintragen.")
+            await notifier.send("tuercode", "🔑 Türcode", text, {"tag": f"smoobu_{h['key'].replace(':', '_')}"})
+        # erledigte Hinweise vergessen (z. B. Code eingetragen) – so kommt ein späterer Fall wieder
+        keep = [k for k in sent if k in live]
+        if keep != sent:
+            self.pushed[:] = keep
+            changed = True
+        return changed
+
+    async def _swap(self, it: dict[str, Any], code: str | None, art: str) -> None:
+        """Code einer laufenden/künftigen Buchung tauschen: alten aus dem Schloss, neuer wird im
+        nächsten Schritt von async_sync gesetzt (Status zurück auf „geplant“; ohne Code „fehlt“)."""
+        await self._clear_lock(it)
+        it.update({"code": code, "art": art, "status": "geplant" if code else "fehlt", "slot": None, "fehler": None})
+
+    def static_mode(self, apt: Any) -> bool:
+        """v1.20.0: Wohnung im Modus „statisch“ (unabhängig davon, ob gerade ein Code gilt)."""
+        return self._lock_cfg(apt).get("modus") == "statisch"
+
+    def static_code(self, apt: Any, day: str | None = None) -> str | None:
+        """Statischer Code der Wohnung am Tag `day` (Standard heute), sonst None (kein statischer Modus / keiner gültig)."""
         cfg = self._lock_cfg(apt)
-        code = str(cfg.get("code") or "")
-        return code if cfg.get("modus") == "statisch" and STATIC_RE.fullmatch(code) else None
+        if cfg.get("modus") != "statisch":
+            return None
+        code = static_for(cfg, day or dt_util.now().date().isoformat())
+        return code if code and STATIC_RE.fullmatch(code) else None
 
     def known_codes(self) -> set[str]:
         """Alle Codes, die nie an die KI dürfen: je Buchung plus statische aus den Optionen."""
         out = {it["code"] for it in self.codes.values() if it.get("code")}
         for cfg in (self.opts.get(CONF_DOOR_LOCKS) or {}).values():
-            if isinstance(cfg, dict) and cfg.get("modus") == "statisch" and cfg.get("code"):
-                out.add(str(cfg["code"]))
+            if isinstance(cfg, dict) and cfg.get("modus") == "statisch":
+                out |= {str(cfg[k]) for k in ("code", "naechster_code") if cfg.get(k)}  # v1.20.0: auch der nächste
         return out
 
     async def renew(self, booking_id: int) -> dict[str, Any]:
@@ -318,7 +448,7 @@ class DoorCodes:
             r = next((x for x in self.c.records_all() if x["id"] == booking_id and not x.get("blockiert")), None)
             if r is None:
                 raise ValueError("not_found")
-            if self.static_code(r["wohnung_id"]):
+            if self.static_mode(r["wohnung_id"]):
                 raise ValueError("statisch")  # statischer Code: in den Einstellungen ändern
             start, end = self._window(r)
             old = self.codes.get(str(booking_id))
@@ -412,4 +542,4 @@ class DoorCodes:
 
     def code_for_send(self, booking_id: Any) -> str | None:
         it = self.codes.get(str(booking_id))
-        return it["code"] if it and it.get("status") != "geloescht" else None
+        return it["code"] if it and it.get("status") != "geloescht" and it.get("code") else None

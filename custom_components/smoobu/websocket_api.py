@@ -199,6 +199,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_energy_vacancy)
     websocket_api.async_register_command(hass, ws_focus)
     websocket_api.async_register_command(hass, ws_doorcode_get)
+    websocket_api.async_register_command(hass, ws_doorcode_tasks)
     websocket_api.async_register_command(hass, ws_doorcode_renew)
     websocket_api.async_register_command(hass, ws_bills_list)
     websocket_api.async_register_command(hass, ws_bills_analyse)
@@ -1421,8 +1422,33 @@ def ws_doorcode_get(hass: HomeAssistant, connection: websocket_api.ActiveConnect
     lock = doors._lock_cfg(_apt) if doors else {"typ": "kein"}  # noqa: SLF001
     connection.send_result(msg["id"], {"aktiv": bool(doors and doors.enabled), "code": doors.for_booking(msg["reservation_id"]) if doors else None,
                                        "schloss": lock.get("typ", "kein"),
-                                       "statisch": bool(doors and doors.static_code(_apt)),
+                                       "statisch": bool(doors and doors.static_mode(_apt)),
                                        "darf_erneuern": rechte.allowed(connection.user, c.config_entry.options, "belegung")})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "smoobu/doorcode/tasks", **_TARGET})
+@callback
+def ws_doorcode_tasks(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """v1.20.0: Hinweise zum statischen Türcode für „Wartet auf dich“ (Recht „einstellungen“ – dort wird er gepflegt)."""
+    try:
+        pairs = _targets(hass, msg)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    if not _guard(connection, msg, [c for c, _ in pairs], "einstellungen"):
+        return
+    out = []
+    by_coord: dict[Any, set[Any]] = {}
+    for c, apt in pairs:
+        by_coord.setdefault(c, set()).add(apt)
+    for c, apts in by_coord.items():
+        doors = getattr(c, "doorcodes", None)
+        for h in doors.hints() if doors else []:
+            if h["wohnung_id"] not in apts:
+                continue
+            rec = next((r for r in c.records_all() if r["id"] == h.get("buchung_id")), {}) if h.get("buchung_id") else {}
+            out.append({**h, "entry_id": c.config_entry.entry_id, "gast": rec.get("gast"), "kuerzel": c.apartment_code(h["wohnung_id"])})
+    connection.send_result(msg["id"], {"aufgaben": out})
 
 
 @websocket_api.websocket_command({vol.Required("type"): "smoobu/doorcode/renew", **_TARGET, vol.Required("reservation_id"): vol.Coerce(int)})

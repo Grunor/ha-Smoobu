@@ -11,6 +11,7 @@ Push-Arten (je an/aus und eigene Empfänger, Optionsschritt „Benachrichtigunge
 - briefing   Tagesbriefing zur festen Uhrzeit
 - luecken    Nicht buchbare Lücken (Mindestaufenthalt) zur festen Uhrzeit
 - lexware    v1.20.0 (BETA): Zahlungseingang, Anzahlung fehlt, Restzahlung am Anreisetag offen (Lexware Office)
+- tuercode   v1.20.0: statischer Türcode läuft bald ab (kein nächster eingetragen) bzw. Buchung ohne gültigen Code
 
 Ruhezeit: Nicht dringende Pushes werden in der Ruhezeit gesammelt und zum Ende
 zugestellt (je Tag/Thema nur der neueste Stand). Sofort kommen weiterhin:
@@ -84,6 +85,8 @@ def opt_enabled(opts: dict[str, Any], kind: str) -> bool:
         return bool(opts.get(CONF_ASSIST_GAPS))
     if kind == "lexware":  # v1.20.0: ohne eigene Einstellung an, sobald das Lexware-Modul an ist
         return bool(opts.get("lexware_enabled"))
+    if kind == "tuercode":  # v1.20.0: statischer Türcode läuft ab / fehlt – an, sobald Türcodes an sind
+        return bool(opts.get("door_code_enabled"))
     return False
 
 

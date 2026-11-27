@@ -304,6 +304,18 @@
             "data_description": {
               "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
             }
+          },
+          "tuercode": {
+            "name": "Door code",
+            "description": "Static door code expires soon (no next code entered) or a booking has no valid code.",
+            "data": {
+              "aktiv": "Enabled",
+              "empfaenger": "Recipients",
+              "ruhezeit": "Respects quiet hours"
+            },
+            "data_description": {
+              "ruhezeit": "On: held during quiet hours and delivered when they end. Off: always immediately."
+            }
           }
         }
       },

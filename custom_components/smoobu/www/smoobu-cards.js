@@ -476,7 +476,16 @@ const EN = {
   "Reinigungsboard, Reinigung in den Buchungsdetails, Reinigungs-Pushes und -Aufgaben, Statistik-Modul. Aus: Reinigungskosten nach Standardlohn.": "Cleaning board, cleaning in the booking details, cleaning pushes and tasks, statistics module. Off: cleaning costs at the default wage.", "Reinigungsboard: Reinigungen je Abreise zuweisen, übernehmen und abhaken": "Cleaning board: assign, take over and tick off cleanings per departure",
   "Reinigungskosten": "Cleaning costs", "Reinigungszeit (Standard)": "Cleaning time (default)",
   "Reinigungszeit (leer = Standard)": "Cleaning time (empty = default)", "Reinigungszeit gespeichert": "Cleaning time saved",
-  "Reinigungstag gespeichert": "Cleaning day saved", "Reinigungstag": "Cleaning day", "Abreise am": "Departure on",
+  "Reinigungstag gespeichert": "Cleaning day saved",
+  "gültig ab": "valid from", "Nächster Code": "Next code", "optional": "optional", "Erinnerung statischer Code": "Static code reminder",
+  "Tage vor Ablauf": "days before expiry", "Kein Türcode": "No door code", "Buchung ohne Türcode": "Booking without door code",
+  "Türcode läuft ab": "Door code expires", "Statischer Code gilt bis": "Static code valid until",
+  "noch kein nächster Code eingetragen.": "no next code entered yet.", "für diesen Tag ist kein statischer Code eingetragen.": "no static code is entered for this day.",
+  "Für den Anreisetag gilt kein statischer Code – nächsten Code in den Einstellungen eintragen.": "No static code applies on the arrival day – enter the next code in the settings.",
+  "4–12 Ziffern/Buchstaben. Gilt ganze Tage ab 00:00, leer = unbegrenzt. Jede Buchung bekommt den Code, der an ihrem Anreisetag gilt; ändern hier tauscht ihn bei allen noch kommenden Buchungen (Notiz, Schloss).": "4–12 digits/letters. Valid whole days from 00:00, empty = unlimited. Each booking gets the code valid on its arrival day; changing it here swaps it for all upcoming bookings (note, lock).",
+  "Buchungen mit Anreise ab diesem Tag bekommen den nächsten Code. Am Starttag wird er zum aktuellen Code, das Feld ist danach wieder frei.": "Bookings arriving from this day get the next code. On its start day it becomes the current code and this field is free again.",
+  "Aufgabe und Push, wenn der statische Code bald abläuft und noch kein nächster eingetragen ist (0 = aus). Buchungen ohne gültigen Code melden sich immer.": "Task and push when the static code expires soon and no next code is entered (0 = off). Bookings without a valid code are always reported.",
+  "Türcode": "Door code", "Statischer Türcode läuft bald ab (kein nächster eingetragen) oder eine Buchung hat keinen gültigen Code.": "Static door code expires soon (no next code entered) or a booking has no valid code.", "Reinigungstag": "Cleaning day", "Abreise am": "Departure on",
   "In Smoobu gesperrt bis einschließlich": "Blocked in Smoobu up to and including", "spätestens": "at the latest",
   "Reinigungstag (bis zur nächsten Anreise; später = Nächte dazwischen in Smoobu sperren)": "Cleaning day (up to the next arrival; later = block the nights in between in Smoobu)",
   "Reinigungstag nur von der Abreise bis zur nächsten Anreise möglich": "Cleaning day only possible from departure up to the next arrival",
@@ -1614,7 +1623,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     // v1.18.0: Finanzen nur mit Recht „finanzen“ (sonst bleibt die Übersicht ohne Umsatz-Kacheln nutzbar)
     const fin = can("finanzen", tg.apartment_id);
     const none = Promise.resolve(null);
-    const [month, ytd, last12, prevYear, list, portalList, taskState, emp, cleaning, lexT, ...rates] = await Promise.all([
+    const [month, ytd, last12, prevYear, list, portalList, taskState, emp, cleaning, lexT, doorT, ...rates] = await Promise.all([
       fin ? this.store.ws("smoobu/analytics", { ...tg, period: "monat", compare: "vorjahr_stand" }) : none,
       fin ? this.store.ws("smoobu/analytics", { ...tg, period: "jahr_bis_heute", compare: "vorjahr" }) : none,
       fin ? this.store.ws("smoobu/analytics", { ...tg, start: iso(addMonths(m0, -11)), end: iso(addMonths(m0, 1)), compare: "vorjahr" }) : none,
@@ -1629,6 +1638,8 @@ class SmoobuOverviewCard extends SmoobuCard {
       can("reinigung_zuweisen", tg.apartment_id) ? this.store.ws("smoobu/cleaning/get", tg, { cache: false }).catch(() => null) : none,
       // v1.20.0 (BETA): Lexware-Aufgaben (Rechnung fehlt, Entwurf offen, Anzahlung fehlt, Rest offen) + Bedeutung „bezahlt“
       fin ? this.store.ws("smoobu/lexware/tasks", tg, { cache: false }).catch(() => null) : none,
+      // v1.20.0: Hinweise zum statischen Türcode (läuft ab / Buchung ohne Code) – nur wer Einstellungen ändern darf
+      can("einstellungen", tg.apartment_id) ? this.store.ws("smoobu/doorcode/tasks", tg, { cache: false }).catch(() => null) : none,
       ...apts.map((w) => this.store.ws("smoobu/rates", { ...tg, apartment_id: w.apartment_id, start: today, end: rateEnd })
         .then((r) => r.preise).catch(() => ({}))),
     ]);
@@ -1643,7 +1654,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     const ratesBy = Object.fromEntries(apts.map((w, i) => [w.apartment_id, rates[i] || {}]));
     // Anreise ≤ heute, nicht storniert/gesperrt, ohne offenen Betrag (sonst normaler Weg) und noch nicht markiert
     const portalOpen = portalList.filter((b) => !b.storniert && !b.blockiert && portalPay(b) && !b.bezahlt && b.anreise <= today);
-    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy, portalOpen, taskState, emp, fin, cleaning, lexT };
+    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy, portalOpen, taskState, emp, fin, cleaning, lexT, doorT };
   }
 
   // ---- Kopf ----------------------------------------------------------------
@@ -1973,6 +1984,16 @@ class SmoobuOverviewCard extends SmoobuCard {
       add("reinigung", `reinigung:${x.key}`, `<div class="tt">🧹 ${t("Reinigung nicht zugewiesen")}${this.multi && x.kuerzel ? codeTag(x.kuerzel) : ""}</div>
         <p>${x.tag && x.tag !== x.datum ? `📅 ${fdowLong(x.tag)}` : `${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}`}${x.wechsel ? ` · 🔄 ${t("Gästewechsel")}, ${t("Anreise")} ${uhr(x.naechste?.check_in)}` : ""}${x.hund ? " · 🐕" : ""}</p>
         <div class="ta"><span class="sub">${daysWord(nightsBetween(today, x.tag || x.datum))}</span><button class="btn" data-goclean>${t("Zuweisen")} →</button>`, `0${x.tag || x.datum}`);
+    }
+    // v1.20.0: statischer Türcode – Buchung ohne gültigen Code (dringend, nach Anreise) bzw. Code läuft bald ab
+    for (const x of d.doorT?.aufgaben || []) {
+      const fehlt = x.art === "code_fehlt";
+      add("einrichtung", x.key, `<div class="tt">🔑 ${t(fehlt ? "Buchung ohne Türcode" : "Türcode läuft ab")}${this.multi && x.kuerzel ? codeTag(x.kuerzel) : ""}
+          ${fehlt ? `<button class="lnk" style="margin-left:auto" data-id="${x.buchung_id}">${t("Buchung öffnen")}</button>` : ""}</div>
+        <p>${fehlt ? `${esc(x.gast || "")}, ${t("Anreise")} ${fdowLong(x.anreise)} – ${t("für diesen Tag ist kein statischer Code eingetragen.")}`
+          : `${t("Statischer Code gilt bis")} ${fdowLong(x.bis)} – ${t("noch kein nächster Code eingetragen.")}`}</p>
+        <div class="ta"><span class="sub">${fehlt ? daysWord(nightsBetween(today, x.anreise)) : ""}</span><button class="btn" data-news-go="opt-tuercode-gueltig">${t("Einstellen")} →</button>`,
+        `${fehlt ? "0" : "2"}${x.anreise || x.bis}`);
     }
     // v1.18.0: neue Einstellungen der Integration → „Einrichtung“ (nur wer Einstellungen ändern darf)
     if (rightsOf(allApartment(d.info)).has("einstellungen")) News.list.filter((x) => x.art === "einstellung").forEach((n, i) => {
@@ -3282,6 +3303,9 @@ class SmoobuBookingDialog extends HTMLElement {
     const x = this.door;
     if (!x?.aktiv || !x.code) return "";
     const c = x.code;
+    // v1.20.0: statischer Modus, aber für den Anreisetag kein Code eingetragen
+    if (c.status === "fehlt") return `<div><h3>🔑 ${t("Zugang")}</h3><div class="row" style="align-items:center;gap:8px">
+        <span class="badge bad">${t("Kein Türcode")}</span><span class="sub">${t("Für den Anreisetag gilt kein statischer Code – nächsten Code in den Einstellungen eintragen.")}</span></div></div>`;
     const st = { geplant: ["", "geplant"], gesetzt: ["good", "im Schloss"], aktiv: ["good", "aktiv"], abgelaufen: ["", "abgelaufen"],
       geloescht: ["bad", "gelöscht"], fehler: ["bad", "Fehler"] }[c.status] || ["", c.status];
     const f = (v) => `${fdate(v)} ${String(v).slice(11, 16)}`;
@@ -6398,6 +6422,7 @@ const PUSH_INFO = {
   luecken: ["Nicht buchbare Lücken", "Lücken, die der Mindestaufenthalt sperrt – zur festen Uhrzeit."],
   // v1.20.0 (BETA)
   lexware: ["Rechnungen & Zahlungen (Lexware, Beta)", "Zahlungseingang, Anzahlung fehlt (Storno möglich), Restzahlung am Anreisetag offen."],
+  tuercode: ["Türcode", "Statischer Türcode läuft bald ab (kein nächster eingetragen) oder eine Buchung hat keinen gültigen Code."],
 };
 const PUSH_TIME = { zahlung: "notify_zahlung_time", briefing: "assist_briefing_time", luecken: "notify_luecken_time" };
 // Feld → Reiter (für Fehler: der Reiter mit dem ersten Fehler wird geöffnet)
@@ -6422,7 +6447,8 @@ const SET_ERR = {
   // v1.19.0: Rollenkonfigurator
   invalid_right: "Unbekanntes Recht", invalid_role_name: "Name 1–30 Zeichen", duplicate_role_name: "Rollenname schon vergeben",
   invalid_role_count: "Höchstens 10 eigene Rollen", invalid_lock: "Unbekannter Schloss-Typ", invalid_lock_entity: "Schloss-Entität bzw. Skript prüfen",
-  invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", invalid_static_code: "Statischer Code: 4–12 Ziffern/Buchstaben", invalid_focus_path: "Startseite: Pfad wie /dashboard/ansicht", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“", grid_share_entity_required: "Bitte je Wohnung einen Netzbezug-Sensor wählen oder einen anderen Netzanteil",
+  invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", invalid_static_code: "Statischer Code: 4–12 Ziffern/Buchstaben",
+  invalid_static_dates: "Statischer Code: „bis“ nicht vor „ab“; nächster Code braucht „gültig ab“ nach dem aktuellen Zeitraum", invalid_focus_path: "Startseite: Pfad wie /dashboard/ansicht", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“", grid_share_entity_required: "Bitte je Wohnung einen Netzbezug-Sensor wählen oder einen anderen Netzanteil",
   meter_entity_required: "Bitte einen Zähler wählen oder „Konstant“", price_required: "Bitte Preis oder Preis-Entität angeben", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
   // v1.20.0: Lexware
   lexware_key_required: "API-Key fehlt – oder Testmodus einschalten", invalid_ust_rates: "Sätze: Datum und 0–50 % je Zeile", invalid_rules: "Regelzeilen ungültig", invalid_rule: "Eine Regelzeile ist unvollständig",
@@ -7106,8 +7132,17 @@ class SmoobuSettingsCard extends SmoobuCard {
         `<select data-lock="${esc(w.id)}|modus"><option value="zufall" ${stat ? "" : "selected"}>${t("Zufall je Buchung")}</option>
           <option value="statisch" ${stat ? "selected" : ""}>${t("Statisch (z. B. Schlüsseltresor)")}</option></select>
         ${stat ? `<input type="text" data-lock="${esc(w.id)}|code" value="${esc(l.code || "")}" maxlength="12" autocomplete="off"
-          spellcheck="false" placeholder="${t("Tresorcode")}" style="width:140px;font-family:monospace">` : ""}`,
-        stat ? "4–12 Ziffern/Buchstaben. Jede Buchung bekommt diesen Code; ändern hier tauscht ihn bei allen noch kommenden Buchungen (Notiz, Schloss)." : "", "door_locks");
+          spellcheck="false" placeholder="${t("Tresorcode")}" style="width:140px;font-family:monospace">
+          <span class="unit">${t("gültig ab")}</span><input type="date" data-lock="${esc(w.id)}|ab" value="${esc(l.ab || "")}" style="width:150px">
+          <span class="unit">${t("bis")}</span><input type="date" data-lock="${esc(w.id)}|bis" value="${esc(l.bis || "")}" style="width:150px">` : ""}`,
+        stat ? "4–12 Ziffern/Buchstaben. Gilt ganze Tage ab 00:00, leer = unbegrenzt. Jede Buchung bekommt den Code, der an ihrem Anreisetag gilt; ändern hier tauscht ihn bei allen noch kommenden Buchungen (Notiz, Schloss)." : "", "door_locks")
+        // v1.20.0 (Wunsch Betreiber 27.11.2026): nächster statischer Code mit eigenem Zeitraum – rückt am Starttag nach
+        + (stat ? this.fld(`${t("Nächster Code")}${multi ? ` · ${w.name}` : ""}`,
+          `<input type="text" data-lock="${esc(w.id)}|naechster_code" value="${esc(l.naechster_code || "")}" maxlength="12" autocomplete="off"
+            spellcheck="false" placeholder="${t("optional")}" style="width:140px;font-family:monospace">
+          <span class="unit">${t("gültig ab")}</span><input type="date" data-lock="${esc(w.id)}|naechster_ab" value="${esc(l.naechster_ab || "")}" style="width:150px">
+          <span class="unit">${t("bis")}</span><input type="date" data-lock="${esc(w.id)}|naechster_bis" value="${esc(l.naechster_bis || "")}" style="width:150px">`,
+          "Buchungen mit Anreise ab diesem Tag bekommen den nächsten Code. Am Starttag wird er zum aktuellen Code, das Feld ist danach wieder frei.", "door_locks") : "");
       return mode + this.fld(`${t("Schloss")}${multi ? ` · ${w.name}` : ""}`,
         `<select data-lock="${esc(w.id)}|typ">${types.map(([k, lab]) => `<option value="${k}" ${l.typ === k ? "selected" : ""}>${t(lab)}</option>`).join("")}</select>${ent}`,
         l.typ === "skript" ? "Skript bekommt aktion (setzen/loeschen), code, slot, gueltig_von, gueltig_bis, buchung_id, wohnung_id."
@@ -7122,6 +7157,8 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Gültig ab", this.numIn("door_code_before_h", 0, 48, 0.5, "h vor Check-in"), "", "door_code_before_h")}
         ${this.fld("Gültig bis", this.numIn("door_code_after_h", 0, 48, 0.5, "h nach Check-out"), "", "door_code_after_h")}
         ${this.fld("In Smoobu-Notiz schreiben", this.sw("door_code_note", "In Smoobu-Notiz schreiben"), "Eigene Zeile „Türcode: … (gültig …)“; der Rest der Notiz bleibt.", "door_code_note")}
+        ${Object.values(locks).some((l) => l.modus === "statisch") ? this.fld("Erinnerung statischer Code", this.numIn("door_code_static_remind_days", 0, 90, 1, "Tage vor Ablauf"),
+          "Aufgabe und Push, wenn der statische Code bald abläuft und noch kein nächster eingetragen ist (0 = aus). Buchungen ohne gültigen Code melden sich immer.", "door_code_static_remind_days") : ""}
         ${rows}${dl("sm-schloesser", meta.schloesser)}${dl("sm-skripte", meta.skripte)}
         <div class="note">${t("Entitäten „Türcode aktueller Gast“ / „Türcode nächster Gast“ je Wohnung: den Zustand sieht jeder HA-Benutzer, der sie sehen kann – nicht auf Gäste-Dashboards zeigen.")}</div></div></div>`;
   }

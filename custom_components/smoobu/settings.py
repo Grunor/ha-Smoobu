@@ -70,10 +70,12 @@ from .tuercode import (
     CONF_DOOR_CODE_DIGITS,
     CONF_DOOR_CODE_ENABLED,
     CONF_DOOR_CODE_NOTE,
+    CONF_DOOR_CODE_REMIND,
     CONF_DOOR_LOCKS,
     DEFAULT_AFTER_H,
     DEFAULT_BEFORE_H,
     DEFAULT_DIGITS,
+    DEFAULT_REMIND_DAYS,
     LOCK_TYPES,
     MODES,
     STATIC_RE,
@@ -313,6 +315,7 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_DOOR_CODE_AFTER: float(o.get(CONF_DOOR_CODE_AFTER, DEFAULT_AFTER_H)),
         CONF_DOOR_CODE_NOTE: bool(o.get(CONF_DOOR_CODE_NOTE, True)),
         CONF_DOOR_LOCKS: {str(k): dict(v) for k, v in (o.get(CONF_DOOR_LOCKS) or {}).items()},
+        CONF_DOOR_CODE_REMIND: int(o.get(CONF_DOOR_CODE_REMIND, DEFAULT_REMIND_DAYS)),  # v1.20.0
         # v1.19.0: Wasser und Heizung ebenfalls konstant (Standard) oder aus Zähler
         CONF_COST_WATER_SOURCE: str(o.get(CONF_COST_WATER_SOURCE, "konstant")),
         CONF_COST_WATER_ENTITIES: {str(k): str(v) for k, v in (o.get(CONF_COST_WATER_ENTITIES) or {}).items() if v},
@@ -892,7 +895,7 @@ def _locks(value: Any) -> dict[str, dict[str, Any]]:
             code = str(cfg.get("code") or "").strip()
             if not STATIC_RE.fullmatch(code):
                 raise vol.Invalid("invalid_static_code")
-            mode = {"modus": "statisch", "code": code}
+            mode = {"modus": "statisch", "code": code, **_static_validity(cfg, code)}
         if typ == "kein":
             out[str(apt)] = {"typ": "kein", **mode}
             continue
@@ -907,6 +910,39 @@ def _locks(value: Any) -> dict[str, dict[str, Any]]:
         if not 1 <= lo <= hi <= 250:
             raise vol.Invalid("invalid_lock_slot")
         out[str(apt)] = {"typ": typ, "entitaet": ent, "slot_von": lo, "slot_bis": hi, **mode}
+    return out
+
+
+def _day(value: Any) -> str | None:
+    """Datum JJJJ-MM-TT oder leer."""
+    if value in (None, ""):
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10]).isoformat()
+    except ValueError as err:
+        raise vol.Invalid("invalid_static_dates") from err
+
+
+def _static_validity(cfg: dict[str, Any], code: str) -> dict[str, Any]:
+    """v1.20.0: Gültigkeit des statischen Codes (ganze Tage) und nächster Code mit eigenem Zeitraum.
+
+    Regeln: bis ≥ ab; nächster Code braucht „ab“; er beginnt nach dem aktuellen (nach „ab“ und nach „bis“,
+    falls gesetzt), sein „bis“ ≥ sein „ab“. Leere Felder werden nicht gespeichert."""
+    ab, bis = _day(cfg.get("ab")), _day(cfg.get("bis"))
+    if ab and bis and bis < ab:
+        raise vol.Invalid("invalid_static_dates")
+    out: dict[str, Any] = {k: v for k, v in (("ab", ab), ("bis", bis)) if v}
+    nxt = str(cfg.get("naechster_code") or "").strip()
+    if not nxt:
+        return out
+    if not STATIC_RE.fullmatch(nxt):
+        raise vol.Invalid("invalid_static_code")
+    nab, nbis = _day(cfg.get("naechster_ab")), _day(cfg.get("naechster_bis"))
+    if not nab or (ab and nab <= ab) or (bis and nab <= bis) or (nbis and nbis < nab):
+        raise vol.Invalid("invalid_static_dates")
+    out.update({"naechster_code": nxt, "naechster_ab": nab})
+    if nbis:
+        out["naechster_bis"] = nbis
     return out
 
 
@@ -1002,6 +1038,7 @@ FIELDS: dict[str, Any] = {
     CONF_DOOR_CODE_AFTER: _num(0, 48),
     CONF_DOOR_CODE_NOTE: bool,
     CONF_DOOR_LOCKS: _locks,
+    CONF_DOOR_CODE_REMIND: _int(0, 90),  # v1.20.0: Erinnerung vor Ablauf des statischen Codes (0 = aus)
     CONF_COST_WATER_SOURCE: vol.In(POWER_SOURCES),
     CONF_COST_WATER_ENTITIES: _entity_map,
     CONF_COST_WATER_PRICE: _num(0, 100),

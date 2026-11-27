@@ -21,6 +21,11 @@ from typing import Any
 
 NEWS: list[dict[str, Any]] = [
     # --- neue Einstellungen (Einrichtung) ------------------------------------------------------------
+    {"id": "opt-tuercode-gueltig", "version": "1.20.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "reinigung", "sel": '[data-neu="tuercode"]',
+     "titel": "Statischen Türcode mit Gültigkeit", "titel_en": "Static door code with validity",
+     "text": "Statischer Code mit „gültig ab/bis“ und nächster Code mit eigenem Zeitraum – jede Buchung bekommt den Code ihres Anreisetags, Erinnerung vor Ablauf.",
+     "text_en": "Static code with \"valid from/until\" and a next code with its own period – each booking gets the code of its arrival day, reminder before expiry."},
     {"id": "opt-umsatzsteuer", "version": "1.20.0", "art": "einstellung", "recht": "einstellungen",
      "seite": "smoobu-einstellungen", "tab": "umsatzsteuer", "sel": '[data-neu="umsatzsteuer"]',
      "titel": "Umsatzsteuer einstellen", "titel_en": "Set up VAT",
