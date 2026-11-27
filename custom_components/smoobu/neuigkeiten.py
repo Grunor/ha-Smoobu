@@ -21,6 +21,11 @@ from typing import Any
 
 NEWS: list[dict[str, Any]] = [
     # --- neue Einstellungen (Einrichtung) ------------------------------------------------------------
+    {"id": "opt-lexware", "version": "1.20.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "lexware", "sel": '[data-neu="lexware"]',
+     "titel": "Lexware Office anbinden (Beta)", "titel_en": "Connect Lexware Office (beta)",
+     "text": "Optional, ab Lexware-Tarif XL: Rechnungsentwürfe per Button aus den Buchungsdetails nach deinen Lexware-Artikeln, Zahlungsstand (Anzahlung/komplett) und Hinweise. Auch ohne Lexware neu: Bedeutung des Hakens „bezahlt“ je Kanalgruppe.",
+     "text_en": "Optional, Lexware plan XL and up: draft invoices by button from the booking details based on your Lexware articles, payment status (deposit/full) and notices. Also new without Lexware: meaning of the \"paid\" tick per channel group."},
     {"id": "opt-netzanteil", "version": "1.19.1", "art": "einstellung", "recht": "einstellungen",
      "seite": "smoobu-einstellungen", "tab": "kosten", "sel": '[data-neu="netzanteil"]',
      "titel": "Netzanteil der Stromkosten wählen", "titel_en": "Choose the grid share of power costs",

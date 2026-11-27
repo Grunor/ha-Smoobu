@@ -37,6 +37,7 @@ Sie verbindet Home Assistant direkt mit der Smoobu-API und stellt Buchungen, Gä
 - [Dashboard-Karten](#dashboard-karten-ab-180)
 - [Dashboard-Vorlage](#dashboard-vorlage)
 - [KI-Assistent und KI-Sperre](#ki-assistent-ab-1100)
+- [Lexware Office (Beta)](#lexware-office-beta-ab-1200)
 - [Events](#events)
 - [Beispiele](#beispiele)
 - [Webhook](#webhook)
@@ -73,6 +74,7 @@ Diese Integration übernimmt die Signatur und stellt alle Daten nativ in Home As
 - 📈 **Statistik-Werkbank:** Bewertung & Empfehlung (Preise per Button übernehmen und rückgängig machen), **Deckungsbeitrag** mit Brücke, Buchungstempo mit Prognose, Saison-Matrix mit Abweichung zum Ø, Wochentage, Kanäle, Buchungsfenster und -zeitpunkt, verlorene Nächte, Stornos, Gäste, Ehrentafel, Service, **Reinigung** (wer hat wann welche Wohnung gereinigt); **eigene Module** mit Vorlagen, Vorschau und Bearbeiten; Anordnung im HA-Benutzerprofil
 - 🌦️ **Saisons** frei einstellbar (Name + Startmonat) mit **automatischer Erkennung** aus den bisherigen Jahren
 - 💬 **Posteingang:** offene Gastnachrichten, „Keine Antwort nötig“, KI-Vorschlag
+- 🧾 **Lexware Office (BETA, optional, ab Lexware-Tarif XL):** Rechnungsentwurf per Button aus den Buchungsdetails nach deinen Lexware-Artikeln (je Nacht, Zusatzperson, Kind, Hund, Endreinigung bis/ab n Nächte, Rest aus dem Buchungspreis), Firmen netto mit Gast als Ansprechpartner, Zahlungsstand (Anzahlung/komplett) und Hinweise in „Wartet auf dich“
 - 🔑 **Türcodes:** Zufallscode je Buchung (Stellen einstellbar, keine trivialen Codes) oder statischer Code je Wohnung, z. B. für einen Schlüsseltresor, Gültigkeit Check-in − 2 h bis Check-out + 1 h (einstellbar), in der Smoobu-Notiz, in den Buchungsdetails, als Entität und optional direkt im Schloss (Matter, Z-Wave JS, ZHA, Zigbee2MQTT oder eigenes Skript); in Antworten als Platzhalter `{{ turcode }}`, der erst beim Senden lokal ersetzt wird
 - 🧹 **Reinigungsboard:** Reinigung je Abreise mit Check-out, nächster Anreise und Gästewechsel; **zuweisen**, selbst übernehmen und abhaken, Push an die zugewiesene Person (bei Zuweisung und am Vorabend)
 - ⚙️ **Einstellungen im Dashboard** mit **Rollenkonfigurator** (Rechte je Rolle per Häkchen, eigene Rollen, Rolle **Reinigung** – sieht vom Gast nur den Vornamen); neue Optionen erscheinen unter „Wartet auf dich“ → Einrichtung, Neuerungen unter **„✨ Neu“** in der Kopfzeile
@@ -542,6 +544,21 @@ Option **„Datenschutz-Stufe“** (Optionen → KI-Assistent bzw. Einstellungsk
 
 ---
 
+### Lexware Office (Beta, ab 1.20.0)
+
+> **BETA** – noch nicht mit einem echten Lexware-Konto bestätigt. Jeden Entwurf in Lexware prüfen.
+
+Optionales Modul für die [Lexware Office Public API](https://developers.lexware.io/docs/) (laut Lexware ab Tarif **XL**). Einschalten unter Einstellungen → Reiter **„Lexware (Beta)“** (oder Options-Dialog, letzter Schritt) mit dem API-Key aus Lexware (Erweiterungen → Public API). Ohne XL lässt sich alles im **Testmodus** mit Beispielartikeln ausprobieren – dabei wird nichts gesendet.
+
+- **Positionen:** je Kanalgruppe (Direkt/Portal) eine Liste von Regelzeilen. Jede Zeile = ein Lexware-Artikel (Bezeichnung, Einheit, Steuersatz aus Lexware) mit Menge (pauschal, je Nacht, je Person/Zusatzperson, je Kind, je Hund mit Obergrenze …), optionaler Bedingung (z. B. nur bis 14 Nächte) und Preis aus dem Artikel oder **Rest aus dem Buchungspreis** – so stimmt die Summe immer mit Smoobu. „Vorlage übernehmen“ legt eine typische Ferienwohnungs-Rechnung an. Platzhalter `[Portal]`, `[n]`, `[Nächte]`, `[Fällig]`, `[Betrag]`, `[Anzahlung]` ersetzt die Integration.
+- **Rechnung:** Button „Rechnungsentwurf erstellen“ in den Buchungsdetails → Vorschau (Mengen, Preise, Hunde, Gesamtrabatt, Firma, Kontakt) → Lexware bekommt einen **Entwurf**; finalisiert wird in Lexware. Rechnungsdatum = heute, **fällig am Anreisetag** (so zeigt Lexware die Rechnung bis zur Anreise als offen, nicht als überfällig). Privatgäste brutto, Firmen netto (einstellbar); bei Firmen wird der Gast Ansprechpartner.
+- **Kontakt:** Suche über den Namen (bei Firmen Firmenname), nur exakte Treffer; mehrere Treffer → Auswahl in der Vorschau; sonst neuer Kunde.
+- **Zahlungen:** Abgleich per Webhook (öffentliche HTTPS-URL, z. B. Nabu Casa) und stündlich. Soll-Anzahlung = Anzahlung aus Smoobu, sonst 50 % (einstellbar). Hinweise in „Wartet auf dich“ und Push „Rechnungen & Zahlungen“: Anzahlung nach n Tagen nicht da (Storno möglich – die Integration storniert nie selbst), Rest am Anreisetag offen, Entwurf nicht finalisiert, Rechnung fehlt.
+- **Bedeutung „bezahlt“** (auch ohne Lexware): je Kanalgruppe „Zahlung erhalten“ oder „Rechnung gestellt“ von Hand – mit Lexware automatisch „Zahlung laut Lexware“ bzw. „Rechnung gestellt laut Lexware“ (nur Lexware → Smoobu).
+- **Recht:** „Rechnungen erstellen (Lexware)“; den Zahlungsstand sieht, wer „Finanzen“ sehen darf.
+
+![Lexware: Rechnung in den Buchungsdetails](docs/screenshots/lexware_rechnung.png) ![Lexware: Vorschau](docs/screenshots/lexware_vorschau.png)
+
 ### Events
 
 Jedes Webhook-Ereignis wird als Event **`smoobu_event`** auf den Home-Assistant-Eventbus gelegt.
@@ -707,6 +724,7 @@ Wird der Webhook in den Optionen abgeschaltet oder die Integration gelöscht, en
 - Der **Diagnose-Download** schwärzt Zugangsdaten, Webhook-URL und alle Gästedaten.
 - **Reinigungsdaten (Beschäftigte):** Das Reinigungsboard speichert je erledigter Reinigung, **wer** gereinigt hat und wer abgehakt hat, dazu Tag, Wohnung und Dauer – keine Gastnamen. Bei angestellten Reinigungskräften sind das Beschäftigtendaten: Informiert die Personen, dass und wofür (Einsatzplanung, Abrechnung, Kosten je Aufenthalt) das erfasst wird (Art. 13 DSGVO). Nach der Frist **„Person aufbewahren“** (Einstellungen → Reinigung & Zugang → Datenschutz, Standard **10 Jahre** = steuerliche Aufbewahrung) wird die Person automatisch zu **„Unbekannt“**; die Statistik bleibt. Offene, nicht erledigte Einträge verfallen nach 60 Tagen.
 - **Verantwortlich** für die Verarbeitung (DSGVO) bist du als Betreiber der Home-Assistant-Installation. Die Integration speichert alles lokal in Home Assistant; an Dritte gehen Daten nur an Smoobu selbst und – wenn eingeschaltet – an den gewählten KI-Anbieter (siehe Datenschutz-Stufe).
+- **Lexware (Beta):** Für Rechnungen gehen Name, Adresse, E-Mail, Telefon, Zeitraum und Preis des Gastes an Lexware Office – nur auf Knopfdruck. Rechnungsdaten gehen nie an die KI. Der API-Key liegt in den Optionen und wird nie an die Dashboard-Karten geschickt.
 - Smoobu signiert Webhooks nicht. Die Integration schützt sich deshalb über die geheime, zufällige Webhook-URL und nimmt nur Ereignisse an, deren Smoobu-Benutzer-ID zum eingerichteten Konto passt. Bei abweichender ID wird mit `403` abgelehnt.
 - Die Webhook-URL nicht weitergeben. Bei Verdacht: Webhook in den Optionen aus- und wieder einschalten, dann wird eine neue URL erzeugt.
 
@@ -786,6 +804,7 @@ It connects Home Assistant directly to the Smoobu API and provides bookings, gue
 - [Dashboard cards](#dashboard-cards-since-180)
 - [Dashboard template](#dashboard-template)
 - [AI assistant and AI lock](#ai-assistant-since-1100)
+- [Lexware Office (beta)](#lexware-office-beta-since-1200)
 - [Events](#events-1)
 - [Examples](#examples)
 - [Webhook](#webhook-1)
@@ -822,6 +841,7 @@ This integration handles the signing and exposes all data natively in Home Assis
 - 📈 **Statistics workbench:** rating & recommendation (apply prices with one click and undo), **contribution margin** with bridge, booking pace with forecast, season matrix with deviation from the average, weekdays, channels, booking window and timing, lost nights, cancellations, guests, hall of fame, service, **cleaning** (who cleaned which property when); **custom modules** with templates, preview and editing; arrangement stored in the HA user profile
 - 🌦️ **Seasons** freely adjustable (name + start month) with **automatic detection** from past years
 - 💬 **Inbox:** open guest messages, "No reply needed", AI suggestion
+- 🧾 **Lexware Office (BETA, optional, Lexware plan XL and up):** draft invoice by button from the booking details based on your Lexware articles (per night, extra person, child, dog, final cleaning up to/from n nights, remainder of the booking price), companies net with the guest as contact person, payment status (deposit/full) and notices in "Waiting for you"
 - 🔑 **Door codes:** random code per booking (digits configurable, no trivial codes), valid from check-in − 2 h to check-out + 1 h (configurable), in the Smoobu note, in the booking details, as an entity and optionally written to the lock (Matter, Z-Wave JS, ZHA, Zigbee2MQTT or own script); in replies as placeholder `{{ turcode }}`, replaced locally only when sending
 - 🧹 **Cleaning board:** one cleaning per departure with check-out, next arrival and same-day changeover; **assign**, take over and tick off, push to the assigned person (on assignment and the evening before)
 - ⚙️ **Settings in the dashboard** with a **role configurator** (permissions per role via checkboxes, custom roles, role **Cleaning** – sees only the guest's first name); new options appear under "Waiting for you" → Setup, changes under **"✨ New"** in the header
@@ -1273,6 +1293,21 @@ Option **"Privacy level"** (Options → AI assistant, or settings card → AI as
 
 ---
 
+### Lexware Office (beta, since 1.20.0)
+
+> **BETA** – not yet confirmed with a real Lexware account. Review every draft in Lexware.
+
+Optional module for the [Lexware Office Public API](https://developers.lexware.io/docs/) (according to Lexware plan **XL** and up). Enable it in the settings tab **"Lexware (beta)"** (or the last step of the options dialog) with the API key from Lexware (Add-ons → Public API). Without XL everything can be tried in **test mode** with sample articles – nothing is sent.
+
+- **Lines:** per channel group (direct/portal) a list of rules. Each rule = one Lexware article (name, unit, tax rate from Lexware) with quantity (flat, per night, per person/extra person, per child, per dog with cap …), optional condition (e.g. only up to 14 nights) and price from the article or the **remainder of the booking price** – so the total always matches Smoobu. "Use template" creates a typical holiday-rental invoice. Placeholders `[Portal]`, `[n]`, `[Nächte]`, `[Fällig]`, `[Betrag]`, `[Anzahlung]` are replaced by the integration.
+- **Invoice:** button "Create draft invoice" in the booking details → preview (quantities, prices, dogs, total discount, company, contact) → Lexware receives a **draft**; finalising happens in Lexware. Invoice date = today, **due on arrival day** (Lexware shows it as open, not overdue, until arrival). Private guests gross, companies net (configurable); for companies the guest becomes the contact person.
+- **Contact:** looked up by name (company name for companies), exact matches only; several → choice in the preview; otherwise a new customer.
+- **Payments:** sync via webhook (public HTTPS URL, e.g. Nabu Casa) and hourly. Due deposit = deposit from Smoobu, otherwise 50 % (configurable). Notices in "Waiting for you" and push "Invoices & payments": deposit missing after n days (cancellation possible – the integration never cancels on its own), balance open on arrival day, draft not finalised, invoice missing.
+- **Meaning of "paid"** (also without Lexware): per channel group "payment received" or "invoice issued" by hand – with Lexware automatically "payment according to Lexware" or "invoice issued according to Lexware" (Lexware → Smoobu only).
+- **Permission:** "Create invoices (Lexware)"; the payment status is visible to everyone who may see "Finances".
+
+![Lexware: invoice in the booking details](docs/screenshots/lexware_rechnung.png) ![Lexware: preview](docs/screenshots/lexware_vorschau.png)
+
 ### Events
 
 Every webhook event is fired on the Home Assistant event bus as **`smoobu_event`**.
@@ -1438,6 +1473,7 @@ If the webhook is turned off in the options or the integration is deleted, the r
 - The **diagnostics download** redacts credentials, the webhook URL and all guest data.
 - **Cleaning data (staff):** for each completed cleaning the cleaning board stores **who** cleaned and who checked it off, plus date, property and duration – no guest names. For employed cleaners this is employee data: tell them that and why it is recorded (scheduling, payroll, cost per stay; Art. 13 GDPR). After the **"Keep person for"** period (Settings → Cleaning & access → Privacy, default **10 years** = tax retention), the person automatically becomes **"Unknown"**; statistics stay. Open, unfinished entries expire after 60 days.
 - You, as operator of the Home Assistant installation, are the **controller** under GDPR. The integration stores everything locally in Home Assistant; data only goes to Smoobu itself and – if enabled – to the chosen AI provider (see privacy level).
+- **Lexware (beta):** for invoices the guest's name, address, e-mail, phone, period and price are sent to Lexware Office – only on button press. Invoice data never goes to the AI. The API key is stored in the options and never sent to the dashboard cards.
 - Smoobu does not sign webhooks. The integration therefore relies on the secret, random webhook URL and only accepts events whose Smoobu user ID matches the configured account. Other IDs are rejected with `403`.
 - Do not share the webhook URL. If in doubt: turn the webhook off and on again in the options, which creates a new URL.
 

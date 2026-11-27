@@ -239,9 +239,7 @@ class LexwareModule:
         out["gast"] = {k: g[k] for k in ("vorname", "nachname", "name", "strasse", "plz", "ort", "land")}
         out["anrede"] = ov.get("anrede") or ""
         out["kontakt"] = await self._contact_candidates(g, company)
-        if company == "" and ov.get("firma") is not None and str(ov.get("firma")).strip() == "" and ov.get("ist_firma"):
-            out["fehler"] = sorted({*out["fehler"], "firmenname_fehlt"})
-        if ov.get("ist_firma") and not company:
+        if ov.get("ist_firma") and not company:  # Firma gewählt, aber ohne Namen (Pflicht, Entscheidung Betreiber 27.11.2026)
             out["fehler"] = sorted({*out["fehler"], "firmenname_fehlt"})
         out["vorhanden"] = self.data["rechnungen"].get(str(booking_id))
         out["soll_anzahlung"] = deposit

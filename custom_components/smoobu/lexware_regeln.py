@@ -67,7 +67,7 @@ TEMPLATE: dict[str, list[dict[str, Any]]] = {
         {"artikel": None, "hinweis": "Endreinigung Langzeit", "menge": "pauschal", "bedingung": "naechte_min", "wert": 15, "preis": "artikel"},
     ],
     "portal": [
-        {"artikel": None, "hinweis": "Übernachtung [n] Person(en) (Portal)", "menge": "pauschal", "preis": "rest"},
+        {"artikel": None, "hinweis": "Übernachtung [n] Person(en)", "menge": "pauschal", "preis": "rest"},
     ],
 }
 

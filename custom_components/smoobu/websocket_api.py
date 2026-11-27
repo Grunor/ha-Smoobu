@@ -1458,8 +1458,14 @@ def ws_lexware_status(hass: HomeAssistant, connection: websocket_api.ActiveConne
     if c is None:
         return
     on = bool(lex and lex.enabled)
+    from .lexware import paid_meaning  # noqa: PLC0415
+
+    rec = next((r for r in c.records_all() if r.get("id") == msg["reservation_id"]), {}) or {}
+    group = "direkt" if rec.get("gruppe") == "Direkt" else "portal"
     connection.send_result(msg["id"], {
         "aktiv": on, "testmodus": bool(lex and lex.mock),
+        # Bedeutung des Smoobu-Hakens „bezahlt“ (gilt auch ohne Lexware: Beschriftung der Buttons)
+        "gruppe": group, "bedeutung": paid_meaning(c.config_entry.options, group),
         "stand": lex.evaluate(msg["reservation_id"]) if on else None,
         "darf_erstellen": rechte.allowed(connection.user, c.config_entry.options, "rechnungen"),
     })
@@ -1515,7 +1521,11 @@ def ws_lexware_tasks(hass: HomeAssistant, connection: websocket_api.ActiveConnec
         if lex and lex.enabled:
             apts = {a for cc, a in pairs if cc is c}
             out += [{**t, "entry_id": c.config_entry.entry_id} for t in lex.tasks(apartment_ids=apts)]
-    connection.send_result(msg["id"], {"aufgaben": out, "aktiv": any(getattr(c, "lexware", None) and c.lexware.enabled for c in coords)})
+    from .lexware import paid_meaning  # noqa: PLC0415
+
+    first = coords[0].config_entry.options if coords else {}
+    connection.send_result(msg["id"], {"aufgaben": out, "aktiv": any(getattr(c, "lexware", None) and c.lexware.enabled for c in coords),
+                                       "bedeutung": {g: paid_meaning(first, g) for g in ("direkt", "portal")}})
 
 
 @websocket_api.websocket_command({vol.Required("type"): "smoobu/lexware/test", **_TARGET})

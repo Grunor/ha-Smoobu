@@ -28,6 +28,37 @@ const SMOOBU_CARDS_VERSION = "1.19.1b6";
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
 // ---------------------------------------------------------------------------
 const EN = {
+  // v1.20.0 (BETA): Lexware Office
+  "Rechnung": "Invoice", "keine Rechnung": "no invoice", "Entwurf": "Draft", "offen": "open", "Anzahlung unvollständig": "Deposit incomplete",
+  "Anzahlung erhalten": "Deposit received", "bezahlt": "paid", "storniert": "cancelled", "Testmodus": "Test mode",
+  "Rechnungsentwurf erstellen": "Create draft invoice", "In Lexware öffnen": "Open in Lexware", "Aktualisieren": "Refresh",
+  "Betrag": "Amount", "Anzahlung (Soll)": "Deposit (due)", "Gezahlt": "Paid", "gezahlt": "paid", "Fällig": "Due", "Zahlungen": "Payments",
+  "Für diese Buchung gibt es noch keine Rechnung in Lexware.": "There is no invoice in Lexware for this booking yet.",
+  "Entwurf noch nicht in Lexware finalisiert": "Draft not finalised in Lexware yet", "Anzahlung fehlt – Storno möglich": "Deposit missing – cancellation possible",
+  "Restzahlung offen (Anreise erreicht)": "Balance open (arrival reached)", "Rechnung fehlt": "Invoice missing", "Rechnung erstellen": "Create invoice",
+  "Vorschau Rechnungsentwurf": "Draft invoice preview", "Vorschau wird berechnet …": "Calculating preview …", "Firma": "Company", "Firmenname": "Company name",
+  "Anrede": "Salutation", "Herr": "Mr", "Frau": "Ms", "Hunde": "Dogs", "Gesamtrabatt": "Total discount", "Kontakt": "Contact", "Ansprechpartner": "Contact person",
+  "– Kontakt wählen –": "– choose contact –", "Neuen Kontakt anlegen": "Create new contact", "Kundennr.": "Customer no.", "Neuer Kontakt wird angelegt": "A new contact will be created",
+  "Position": "Line", "Menge": "Quantity", "brutto": "gross", "USt": "VAT", "Rest aus Buchungspreis": "remainder of booking price",
+  "Nettorechnung": "Net invoice", "Bruttorechnung": "Gross invoice", "Rabatt": "Discount", "netto": "net", "Rechnungsdatum": "Invoice date", "fällig": "due",
+  "Neu berechnen": "Recalculate", "Entwurf in Lexware anlegen": "Create draft in Lexware", "Rechnungsentwurf in Lexware anlegen?": "Create draft invoice in Lexware?",
+  "Entwurf in Lexware angelegt": "Draft created in Lexware", "Aus Lexware aktualisiert": "Refreshed from Lexware",
+  "Lexware bekommt nur einen Entwurf – prüfen und finalisieren in Lexware.": "Lexware only receives a draft – review and finalise it in Lexware.",
+  "Zahlungsstatus kommt automatisch aus Lexware": "Payment status comes automatically from Lexware",
+  "„Bezahlt“ = Rechnung gestellt – kommt automatisch aus Lexware": "\"Paid\" = invoice issued – set automatically from Lexware",
+  "Rechnung gestellt": "Invoice issued", "Rechnung nicht gestellt": "Invoice not issued", "Rechnung nicht als gestellt markiert": "Invoice not marked as issued",
+  "Hund erkannt – Anzahl eintragen": "Dog detected – enter number", "Firmenname fehlt": "Company name missing",
+  "Summe weicht vom Smoobu-Preis ab": "Total differs from the Smoobu price", "Rechnungsdatum liegt in der Zukunft (vordatiert)": "Invoice date is in the future (forward-dated)",
+  "Rest-Preis weicht deutlich vom Artikelpreis ab (Rabatt/Saisonpreis?)": "Remainder price differs clearly from the article price (discount/seasonal price?)",
+  "Lexware (Beta)": "Lexware (beta)", "Lexware einschalten": "Enable Lexware", "API-Key": "API key", "Verbindung": "Connection",
+  "Verbindung testen & Artikel laden": "Test connection & load articles", "Artikel": "Articles", "verbunden": "connected", "Lexware verbunden": "Lexware connected",
+  "Abgleich per Webhook": "Sync via webhook", "Haken in Smoobu setzen": "Set ticks in Smoobu", "Positionen – Direktbuchungen": "Lines – direct bookings",
+  "Positionen – Portal-Buchungen": "Lines – portal bookings", "Zeile": "Line", "Vorlage übernehmen": "Use template", "Zahlungstext": "Payment text",
+  "Bedeutung „bezahlt“": "Meaning of \"paid\"", "Privatgäste": "Private guests", "Firmen": "Companies", "Kontakt suchen über": "Find contact by",
+  "Land (Standard)": "Country (default)", "Anzahlung fehlt nach": "Deposit missing after", "Entwurf offen nach": "Draft open after",
+  "„Rechnung fehlt“ ab": "\"Invoice missing\" from", "Bedingung": "Condition", "ab Person": "from person", "max.": "max.",
+  "Noch keine Regelzeilen.": "No lines yet.", "Vorhandene Zeilen durch die Vorlage ersetzen?": "Replace existing lines with the template?",
+  "Rechnungen & Zahlungen (Lexware, Beta)": "Invoices & payments (Lexware, beta)",
   // v1.18.0: Kosten & Preise, Bewertung & Empfehlung
   "Übernehmen …": "Apply …", "Preis anpassen …": "Adjust price …", "Preis anpassen": "Adjust price", "Übernehmen": "Apply", "Vorschau": "Preview",
   "Neuer Basispreis je Nacht": "New base price per night", "Änderung zum bisherigen Tagespreis": "Change to the current daily price",
@@ -711,6 +742,21 @@ const CSS_VARS = (p) => `--sm-bg:${p.bg};--sm-surf:${p.surf};--sm-surf2:${p.surf
 
 // v1.17.1: Übergabe Übersicht → Belegungsplan (nur für diesen Tab, wird beim Lesen gelöscht)
 // v1.18.0: Beta-Kennzeichnung „Umbuchen“ – nach Bestätigung mit echten Buchungen entfernen (Konstante + Stellen)
+// v1.20.0: Lexware Office ist BETA (Wunsch Betreiber 27.11.2026: „unbedingt mit Beta labeln“) – Suche: BETA_LEX
+const BETA_LEX = `<span class="beta" title="Beta: Lexware-Anbindung ist neu und noch nicht mit einem echten Lexware-Konto bestätigt – jeden Entwurf in Lexware prüfen">BETA</span>`;
+const LEX_STATUS = { keine: ["", "keine Rechnung"], entwurf: ["warn", "Entwurf"], offen: ["bad", "offen"],
+  anzahlung_teilweise: ["warn", "Anzahlung unvollständig"], anzahlung: ["good", "Anzahlung erhalten"], bezahlt: ["good", "bezahlt"],
+  storniert: ["", "storniert"] };
+const LEX_HINT = { entwurf_offen: "Entwurf noch nicht in Lexware finalisiert", anzahlung_fehlt: "Anzahlung fehlt – Storno möglich",
+  rest_offen: "Restzahlung offen (Anreise erreicht)", rechnung_fehlt: "Rechnung fehlt" };
+const LEX_MSG = { hunde_unbekannt: "Hund erkannt – Anzahl eintragen", keine_regeln: "Keine Regelzeilen für diese Kanalgruppe (Einstellungen → Lexware)",
+  keine_artikel: "Keinem Regelposten ist ein Lexware-Artikel zugeordnet (Einstellungen → Lexware)", mehrere_rest: "Mehrere Zeilen mit „Rest aus Buchungspreis“",
+  artikel_fehlt: "Ein zugeordneter Artikel fehlt in Lexware", rest_negativ: "Rest-Position wäre negativ – Mengen/Preise prüfen",
+  keine_positionen: "Keine Positionen", firmenname_fehlt: "Firmenname fehlt", rest_abweichung: "Rest-Preis weicht deutlich vom Artikelpreis ab (Rabatt/Saisonpreis?)",
+  summe_abweichung: "Summe weicht vom Smoobu-Preis ab", rechnungsdatum_zukunft: "Rechnungsdatum liegt in der Zukunft (vordatiert)" };
+// Bedeutung des Smoobu-Hakens „bezahlt“ (Einstellung je Kanalgruppe): lexware_* = automatisch aus Lexware, von Hand gesperrt
+const paidLocked = (m) => String(m || "").startsWith("lexware_");
+const paidIsInvoice = (m) => m === "rechnung" || m === "lexware_rechnung";
 const BETA_UMBUCHEN = `<span class="beta" title="Beta: Smoobu dokumentiert das Umbuchen per Schnittstelle nicht – Ergebnis wird bei Smoobu nachgelesen">BETA</span>`;
 // v1.18.0 (Entscheidung Betreiber 20.11.2026): Kalender-Auswahl wie eine Buchung – erster Tipp = Anreise,
 // zweiter Tipp = Abreise (19. + 20. = 1 Nacht). Nur ein Tipp (oder zweimal derselbe Tag) = 1 Nacht ab diesem Tag.
@@ -917,6 +963,12 @@ class SmoobuStore {
 // Gemeinsames Aussehen
 // ---------------------------------------------------------------------------
 const BASE_CSS = `
+  /* v1.20.0: BETA-Kennzeichnung für alle Karten (Lexware); im Dialog zusätzlich in DIALOG_CSS */
+  .beta { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: .66rem; font-weight: 700;
+    letter-spacing: .06em; vertical-align: 2px; color: var(--sm-warn); border: 1px solid var(--sm-warn);
+    background: color-mix(in srgb, var(--sm-warn) 12%, transparent); }
+  .lexlist { display: grid; gap: 0; font-size: .88rem; }
+  .lexpos { display: grid; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--sm-line); }
   /* v1.18.0: „NEU“-Markierung + Hervorhebung beim Ansprung */
   .neu { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: .64rem; font-weight: 700; letter-spacing: .06em;
     vertical-align: 2px; color: var(--sm-acc-ink); background: var(--sm-accent); cursor: pointer; }
@@ -1543,7 +1595,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     // v1.18.0: Finanzen nur mit Recht „finanzen“ (sonst bleibt die Übersicht ohne Umsatz-Kacheln nutzbar)
     const fin = can("finanzen", tg.apartment_id);
     const none = Promise.resolve(null);
-    const [month, ytd, last12, prevYear, list, portalList, taskState, emp, cleaning, ...rates] = await Promise.all([
+    const [month, ytd, last12, prevYear, list, portalList, taskState, emp, cleaning, lexT, ...rates] = await Promise.all([
       fin ? this.store.ws("smoobu/analytics", { ...tg, period: "monat", compare: "vorjahr_stand" }) : none,
       fin ? this.store.ws("smoobu/analytics", { ...tg, period: "jahr_bis_heute", compare: "vorjahr" }) : none,
       fin ? this.store.ws("smoobu/analytics", { ...tg, start: iso(addMonths(m0, -11)), end: iso(addMonths(m0, 1)), compare: "vorjahr" }) : none,
@@ -1556,6 +1608,8 @@ class SmoobuOverviewCard extends SmoobuCard {
       fin ? this.store.ws("smoobu/stats", { ...tg, mode: "empfehlung" }).catch(() => null) : none,
       // v1.19.0: nicht zugewiesene Reinigungen (nur wer zuweisen darf)
       can("reinigung_zuweisen", tg.apartment_id) ? this.store.ws("smoobu/cleaning/get", tg, { cache: false }).catch(() => null) : none,
+      // v1.20.0 (BETA): Lexware-Aufgaben (Rechnung fehlt, Entwurf offen, Anzahlung fehlt, Rest offen) + Bedeutung „bezahlt“
+      fin ? this.store.ws("smoobu/lexware/tasks", tg, { cache: false }).catch(() => null) : none,
       ...apts.map((w) => this.store.ws("smoobu/rates", { ...tg, apartment_id: w.apartment_id, start: today, end: rateEnd })
         .then((r) => r.preise).catch(() => ({}))),
     ]);
@@ -1570,7 +1624,7 @@ class SmoobuOverviewCard extends SmoobuCard {
     const ratesBy = Object.fromEntries(apts.map((w, i) => [w.apartment_id, rates[i] || {}]));
     // Anreise ≤ heute, nicht storniert/gesperrt, ohne offenen Betrag (sonst normaler Weg) und noch nicht markiert
     const portalOpen = portalList.filter((b) => !b.storniert && !b.blockiert && portalPay(b) && !b.bezahlt && b.anreise <= today);
-    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy, portalOpen, taskState, emp, fin, cleaning };
+    return { apt, apts, info, today, month, ytd, last12, prevYear, bookings, status, ratesBy, portalOpen, taskState, emp, fin, cleaning, lexT };
   }
 
   // ---- Kopf ----------------------------------------------------------------
@@ -1758,7 +1812,11 @@ class SmoobuOverviewCard extends SmoobuCard {
 
   // ---- Listen --------------------------------------------------------------
   lists(d) {
-    const { apt, apts, today, bookings, status, ratesBy, portalOpen = [] } = d;
+    const { apt, apts, today, bookings, status, ratesBy, portalOpen = [], lexT = null } = d;
+    // v1.20.0: Bedeutung des Hakens „bezahlt“ je Kanalgruppe (Einstellungen) – automatisch aus Lexware = keine Buttons
+    const mean = lexT?.bedeutung || {};
+    const lexOn = !!lexT?.aktiv;
+    const lockP = lexOn && paidLocked(mean.portal), lockD = lexOn && paidLocked(mean.direkt);
     const cur = apt.currency;
     const guests = bookings.filter((b) => !b.blockiert);
     const next = guests.filter((b) => b.anreise >= today && b.anreise > (this.multi ? "" : today)).slice(0, this._config.upcoming);
@@ -1811,17 +1869,32 @@ class SmoobuOverviewCard extends SmoobuCard {
         ${status[b.id].letzte_text ? `<p>„${esc(status[b.id].letzte_text)}“</p>` : "<p></p>"}
         <div class="ta"><button class="btn" data-id="${b.id}">${t("Antworten")}</button><span class="ago">${ago(status[b.id].letzte_zeit)}</span>`, "0"));
     // Portal-Rechnung noch nicht als erhalten markiert (Anreise erreicht) – älteste zuerst
-    portalAll.forEach((b) => add("rechnungen", `rechnung:${b.id}`, `<div class="tt">${t("Nicht als erhalten markiert")}${this.code(b)}
+    // v1.20.0: mit Lexware und „bezahlt = Rechnung gestellt laut Lexware“ setzt HA den Haken selbst → stattdessen Lexware-Aufgaben
+    if (!lockP) portalAll.forEach((b) => add("rechnungen", `rechnung:${b.id}`, `<div class="tt">${t(paidIsInvoice(mean.portal) ? "Rechnung nicht als gestellt markiert" : "Nicht als erhalten markiert")}${this.code(b)}
         <button class="lnk" style="margin-left:auto" data-id="${b.id}">${t("Buchung öffnen")}</button></div>
         <p>${esc(b.gast)}, ${t("Anreise")} ${fdowLong(b.anreise)} · <span class="dot" style="background:${colorOf(apt, b.kanal)}"></span> ${esc(chn(b.kanal))}</p>
         <div class="ta"><span class="amt muted">${money(b.brutto, cur, 2)}</span>
-          <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t("Erhalten")}</button>`, `1${b.anreise}`));
+          <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t(paidIsInvoice(mean.portal) ? "Rechnung gestellt" : "Erhalten")}</button>`, `1${b.anreise}`));
+    // v1.20.0 (BETA): Aufgaben aus Lexware – älteste Anreise zuerst
+    for (const x of lexT?.aufgaben || []) {
+      const b = { id: x.buchung_id, wohnung_id: x.wohnung_id, gast: x.gast, anreise: x.anreise, kanal: x.kanal };
+      const sum = x.art === "rechnung_fehlt" ? money(x.brutto, cur, 2) : money(x.offen, cur, 2);
+      const extra = x.art === "anzahlung_fehlt" ? ` · ${t("Anzahlung (Soll)")} ${money(x.soll_anzahlung, cur, 2)}, ${t("gezahlt")} ${money(x.gezahlt, cur, 2)}` : "";
+      add("rechnungen", `lex:${x.art}:${x.buchung_id}`, `<div class="tt">🧾 ${t(LEX_HINT[x.art] || x.art)}${BETA_LEX}${this.code(b)}
+          <button class="lnk" style="margin-left:auto" data-id="${x.buchung_id}">${t("Buchung öffnen")}</button></div>
+        <p>${esc(x.gast || "")}, ${t("Anreise")} ${fdowLong(x.anreise)} · <span class="dot" style="background:${colorOf(apt, x.kanal)}"></span> ${esc(chn(x.kanal))}${extra}</p>
+        <div class="ta"><span class="amt ${x.art === "rechnung_fehlt" ? "muted" : ""}">${sum}</span>
+          ${x.link ? `<a class="btn flat" href="${esc(x.link)}" target="_blank" rel="noopener">${t("In Lexware öffnen")} ↗</a>` : ""}
+          ${x.art === "rechnung_fehlt" ? `<button class="btn" data-id="${x.buchung_id}">🧾 ${t("Rechnung erstellen")}</button>` : ""}`,
+        `${x.art === "anzahlung_fehlt" || x.art === "rest_offen" ? "1" : "3"}${x.anreise}`);
+    }
     unpaid.forEach((b) => { const p = payInfo(b); add("rechnungen", `zahlung:${b.id}`, `<div class="tt">${t("Zahlung offen")}${this.code(b)}
         <button class="lnk" style="margin-left:auto" data-id="${b.id}">${t("Buchung öffnen")}</button></div>
         <p>${esc(b.gast)}, ${t("Anreise")} ${fdowLong(b.anreise)}${p.canPre ? ` · ${t("Anzahlung")} ${money(p.pre, cur, 2)} ${t("offen")}` : ""}</p>
         <div class="ta"><span class="amt">${money(b.offen, cur, 2)}</span>
-          ${p.canPre ? `<button class="btn flat" data-pay="anzahlung" data-pid="${b.id}">✓ ${t("Anzahlung")}</button>` : ""}
-          <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t("Erhalten")}</button>`, `2${b.anreise}`); });
+          ${lockD ? `<span class="sub">🔒 ${t("Zahlungsstatus kommt aus Lexware")}</span>` : `
+          ${p.canPre && !paidIsInvoice(mean.direkt) ? `<button class="btn flat" data-pay="anzahlung" data-pid="${b.id}">✓ ${t("Anzahlung")}</button>` : ""}
+          <button class="btn" data-pay="zahlung" data-pid="${b.id}">✓ ${t(paidIsInvoice(mean.direkt) ? "Rechnung gestellt" : "Erhalten")}</button>`}`, `2${b.anreise}`); });
     // Preise, Last-Minute, Lücken aus der Empfehlung (nur mit Recht „preise“: ohne lassen sie sich nicht erledigen)
     this._taskApplies = [];
     const applyBtn = (label, cfg, primary = true) => {
@@ -3136,6 +3209,8 @@ class SmoobuBookingDialog extends HTMLElement {
         // Antwortstatus + Assistent sind optional: schlägt einer fehl, bleibt der Dialog ohne diese Teile nutzbar
         this.store.ws("smoobu/message_status", { ...this.target, reservation_ids: [this.rid] }, { cache: false }).catch(() => null),
         this.store.ws("smoobu/assistant/state", this.target, { cache: false }).catch(() => null)]);
+      // v1.20.0 (BETA): Rechnungs-/Zahlungsstand aus Lexware + Bedeutung „bezahlt“ (nur mit Recht „Finanzen“)
+      this.lex = await this.store.ws("smoobu/lexware/status", { ...this.target, reservation_id: this.rid }, { cache: false }).catch(() => null);
       // v1.19.0: Türcode dieser Buchung (nur mit Recht „Gästedaten“, sonst ohne)
       this.door = await this.store.ws("smoobu/doorcode/get", { ...this.target, reservation_id: this.rid }, { cache: false }).catch(() => null);
       // v1.19.0: Reinigung dieser Buchung (Dauer buchbar) – nur mit Recht „Reinigung“, sonst einfach ohne
@@ -3293,7 +3368,7 @@ class SmoobuBookingDialog extends HTMLElement {
           b.anzahlung && ["Anzahlung", `${money(b.anzahlung, cur, 2)} ${b.anzahlung_bezahlt || b.bezahlt ? "✓" : "✗"}`],
           b.offen > 0 && ["Restbetrag", `<b style="color:var(--sm-bad)">${money(b.offen, cur, 2)}</b>`],
           b.kurtaxe && ["Kurtaxe", money(b.kurtaxe, cur, 2)],
-        ])}${this.payHtml(b)}</div>` : ""}
+        ])}${this.payHtml(b)}</div>${this.lexHtml(b)}` : ""}
         <div><h3>${t("Notiz")}</h3><textarea data-k="notice">${esc(b.notiz || "")}</textarea>
           <div class="row"><button class="btn flat" data-act="notice">${t("Speichern")}</button></div>
           ${b.assistent_notiz ? `<div class="sub" style="margin-top:8px;white-space:pre-wrap">${esc(b.assistent_notiz)}</div>` : ""}</div>
@@ -3401,8 +3476,153 @@ class SmoobuBookingDialog extends HTMLElement {
     }
   }
   // v1.17.0: Zahlungseingang markieren (Logik gemeinsam mit der Übersicht: payInfo/markPayment)
+  // v1.20.0 (BETA): Abschnitt „Rechnung“ – Stand aus Lexware, Entwurf mit Vorschau erstellen, in Lexware öffnen
+  lexHtml(b) {
+    const x = this.lex;
+    if (!x?.aktiv || b.blockiert || !x.stand) return "";
+    const st = x.stand, cur = this.apt?.currency || "EUR";
+    const [cls, label] = LEX_STATUS[st.status] || ["", st.status];
+    const kv = (rows) => `<dl class="kv">${rows.filter(Boolean).map(([k, v]) => `<dt>${t(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
+    const hints = (st.hinweise || []).map((h) => `<div class="sub" style="color:var(--sm-warn)">⚠ ${esc(t(LEX_HINT[h] || h))}</div>`).join("");
+    const pays = (st.zahlungen || []).map((z) => `${fdate(z.datum)} ${money(z.betrag, cur, 2)}`).join(" · ");
+    const has = st.status !== "keine";
+    const canNew = x.darf_erstellen && (st.status === "keine" || st.status === "storniert") && !b.storniert;
+    const btns = [
+      canNew && !this.lexPrev && `<button class="btn" data-act="lexnew">🧾 ${t("Rechnungsentwurf erstellen")}</button>`,
+      st.link && `<a class="btn flat" href="${esc(st.link)}" target="_blank" rel="noopener">${t("In Lexware öffnen")} ↗</a>`,
+      has && `<button class="btn flat" data-act="lexref">↻ ${t("Aktualisieren")}</button>`,
+    ].filter(Boolean);
+    return `<div><h3>🧾 ${t("Rechnung")}${BETA_LEX}${x.testmodus ? ` <span class="badge warn">${t("Testmodus")}</span>` : ""}</h3>
+      <div class="row" style="margin-bottom:6px"><span class="badge ${cls}">${t(label)}</span>${st.nummer ? `<span class="badge">${esc(st.nummer)}</span>` : ""}
+        ${st.firma ? `<span class="badge">🏢 ${esc(st.firma)}</span>` : ""}</div>
+      ${has ? kv([
+        ["Betrag", `<b>${money(st.summe, cur, 2)}</b>`],
+        st.gruppe === "direkt" && ["Anzahlung (Soll)", money(st.soll_anzahlung, cur, 2)],
+        st.gruppe === "direkt" && ["Gezahlt", money(st.gezahlt, cur, 2)],
+        st.gruppe === "direkt" && st.offen > 0 && ["Offen", `<b style="color:var(--sm-bad)">${money(st.offen, cur, 2)}</b>`],
+        st.faellig && ["Fällig", fdow(st.faellig)],
+        st.erstellt && ["Erstellt", fdate(st.erstellt)],
+        pays && ["Zahlungen", pays],
+      ]) : `<div class="sub">${t("Für diese Buchung gibt es noch keine Rechnung in Lexware.")}</div>`}
+      ${hints}${this.lexPrevHtml(b)}
+      ${btns.length ? `<div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px">${btns.join("")}</div>` : ""}</div>`;
+  }
+  lexPrevHtml(b) {
+    const P = this.lexPrev;
+    if (!P) return "";
+    if (P.busy && !P.res) return `<div class="mvbox"><div class="sub">${t("Vorschau wird berechnet …")}</div></div>`;
+    const r = P.res, ov = P.ov, cur = this.apt?.currency || "EUR";
+    if (!r) return `<div class="mvbox"><div class="err">${esc(P.err || t("Fehler"))}</div><div class="row"><button class="btn flat" data-act="lexcancel">${t("Abbrechen")}</button></div></div>`;
+    // Positionen gestapelt statt Tabelle: die Spalte im Dialog ist schmal (~400 px), Eingaben bleiben sichtbar
+    const rows = r.positionen.map((p) => `<div class="lexpos"><div><b>${esc(p.name)}</b>${p.preisquelle === "rest" ? ` <span class="sub">· ${t("Rest aus Buchungspreis")}</span>` : ""}</div>
+      <div class="row" style="gap:6px 12px;flex-wrap:wrap;align-items:center">
+        <label><input type="number" step="1" min="0" data-lexq="${p.regel}" value="${p.menge}" style="width:64px"> ${esc(p.einheit)}</label>
+        <span>× ${p.preisquelle === "rest" ? `<b>${money(r.steuerart === "net" ? p.einzel_netto : p.einzel_brutto, cur, 2)}</b>`
+          : `<input type="number" step="0.01" data-lexp="${p.regel}" value="${p.einzel_brutto}" style="width:84px"> €`}</span>
+        <span class="sub">${r.steuerart === "net" ? t("netto") : t("brutto")} · ${p.steuersatz} % ${t("USt")}</span></div></div>`).join("");
+    const k = r.kontakt || {};
+    const contact = k.modus === "auswahl"
+      ? `<select data-lex="kontakt"><option value="">${t("– Kontakt wählen –")}</option>${k.treffer.map((c) => `<option value="${esc(c.id)}" ${P.contact === c.id ? "selected" : ""}>${esc(c.name)}${c.kundennummer ? ` · ${c.kundennummer}` : ""}${c.adresse ? ` · ${esc(c.adresse)}` : ""}</option>`).join("")}
+         <option value="__neu" ${P.contact === "__neu" ? "selected" : ""}>${t("Neuen Kontakt anlegen")}</option></select>`
+      : k.modus === "vorhanden" ? `✓ ${esc(k.treffer[0].name)}${k.treffer[0].kundennummer ? ` · ${t("Kundennr.")} ${k.treffer[0].kundennummer}` : ""}`
+      : k.modus === "fehler" ? `<span style="color:var(--sm-bad)">${esc(k.fehler || "")}</span>` : t("Neuer Kontakt wird angelegt");
+    const msgs = [...(r.fehler || []).map((f) => `<div class="err">${esc(t(LEX_MSG[f] || f))}</div>`),
+      ...(r.warnungen || []).map((w) => `<div class="sub" style="color:var(--sm-warn)">⚠ ${esc(t(LEX_MSG[w] || w))}</div>`)].join("");
+    const hund = r.fakten?.hunde_quelle === "hinweis" || ov.hunde !== undefined || (r.fehler || []).includes("hunde_unbekannt");
+    const blocked = (r.fehler || []).length || (k.modus === "auswahl" && !P.contact) || P.busy;
+    return `<div class="mvbox"><b>🧾 ${t("Vorschau Rechnungsentwurf")}${BETA_LEX}</b>
+      <div class="row" style="flex-wrap:wrap;gap:10px;align-items:center">
+        <label><input type="checkbox" data-lex="ist_firma" ${ov.ist_firma ? "checked" : ""}> ${t("Firma")}</label>
+        ${ov.ist_firma ? `<label>${t("Firmenname")} <input data-lex="firma" value="${esc(ov.firma || "")}" style="width:180px"></label>` : ""}
+        <label>${t("Anrede")} <select data-lex="anrede">${[["", "–"], ["herr", "Herr"], ["frau", "Frau"]].map(([v, l]) => `<option value="${v}" ${ov.anrede === v ? "selected" : ""}>${t(l)}</option>`).join("")}</select></label>
+        ${hund ? `<label>🐕 ${t("Hunde")} <input type="number" min="0" max="5" data-lex="hunde" value="${ov.hunde ?? ""}" style="width:56px"></label>` : ""}
+        <label>${t("Gesamtrabatt")} <input type="number" min="0" max="99" step="0.5" data-lex="rabatt" value="${ov.rabatt || ""}" style="width:64px"> %</label></div>
+      <div class="sub">${t("Kontakt")}: ${contact}${ov.ist_firma && esc(b.gast) ? ` · ${t("Ansprechpartner")}: ${esc(b.gast)}` : ""}</div>
+      <div class="lexlist">${rows}</div>
+      <div class="mvres"><div>${t(r.steuerart === "net" ? "Nettorechnung" : "Bruttorechnung")}${r.rabatt ? ` · ${t("Rabatt")} ${r.rabatt} %` : ""}:
+        <b>${money(r.summen.brutto, cur, 2)}</b> (${t("netto")} ${money(r.summen.netto, cur, 2)}, ${t("USt")} ${money(r.summen.steuer, cur, 2)}) · ${t("Smoobu")} ${money(r.soll, cur, 2)}</div>
+        <div class="sub">${t("Rechnungsdatum")} ${fdate(r.rechnungsdatum)} · ${t("fällig")} ${fdate(r.faellig)} · „${esc(r.zahlungstext)}“</div>
+        ${r.gruppe === "direkt" ? `<div class="sub">${t("Anzahlung (Soll)")} ${money(r.soll_anzahlung, cur, 2)}</div>` : ""}</div>
+      ${msgs}
+      <div class="row" style="flex-wrap:wrap;gap:8px"><button class="btn flat" data-act="lexcalc">↻ ${t("Neu berechnen")}</button>
+        <button class="btn" data-act="lexcreate" ${blocked ? "disabled" : ""}>✓ ${t("Entwurf in Lexware anlegen")}</button>
+        <button class="btn flat" data-act="lexcancel">${t("Abbrechen")}</button></div>
+      <div class="sub">${t("Lexware bekommt nur einen Entwurf – prüfen und finalisieren in Lexware.")}</div></div>`;
+  }
+  // Eingaben der Vorschau einsammeln (Mengen/Preise je Regelzeile, Firma, Hunde, Rabatt, Kontakt)
+  lexInputs() {
+    const r = this.shadowRoot, P = this.lexPrev;
+    if (!P) return;
+    const g = (k) => r.querySelector(`[data-lex="${k}"]`);
+    const ov = { ...P.ov };
+    if (g("ist_firma")) ov.ist_firma = g("ist_firma").checked;
+    if (g("firma")) ov.firma = g("firma").value.trim();
+    if (!ov.ist_firma) delete ov.firma;
+    if (g("anrede")) ov.anrede = g("anrede").value;
+    if (g("hunde")) { if (g("hunde").value === "") delete ov.hunde; else ov.hunde = Number(g("hunde").value); }
+    if (g("rabatt")) { const v = Number(g("rabatt").value || 0); if (v) ov.rabatt = v; else delete ov.rabatt; }
+    const zeilen = {};
+    r.querySelectorAll("[data-lexq]").forEach((el) => { zeilen[el.dataset.lexq] = { ...(zeilen[el.dataset.lexq] || {}), menge: Number(el.value) }; });
+    r.querySelectorAll("[data-lexp]").forEach((el) => { zeilen[el.dataset.lexp] = { ...(zeilen[el.dataset.lexp] || {}), einzel: Number(el.value) }; });
+    // nur echte Änderungen gegenüber der Berechnung mitschicken
+    for (const p of P.res?.positionen || []) {
+      const z = zeilen[p.regel];
+      if (!z) continue;
+      if (z.menge === p.menge) delete z.menge;
+      if (z.einzel === p.einzel_brutto || p.preisquelle === "rest") delete z.einzel;
+      if (!Object.keys(z).length) delete zeilen[p.regel];
+    }
+    ov.zeilen = { ...(P.ov.zeilen || {}), ...zeilen };
+    if (!Object.keys(ov.zeilen).length) delete ov.zeilen;
+    P.ov = ov;
+    if (g("kontakt")) P.contact = g("kontakt").value;
+  }
+  async lexAct(a) {
+    if (a === "lexcancel") { this.lexPrev = null; return this.render(); }
+    if (a === "lexref") {
+      try { const res = await this.store.ws("smoobu/lexware/refresh", { ...this.target, reservation_id: this.rid }, { cache: false });
+        this.lex = { ...this.lex, stand: res.stand }; toast(t("Aus Lexware aktualisiert")); }
+      catch (e) { toast(`${t("Fehler")}: ${e?.message || e}`); }
+      return this.render();
+    }
+    if (a === "lexnew") this.lexPrev = { ov: {}, res: null, busy: true, contact: "" };
+    else this.lexInputs();
+    const P = this.lexPrev;
+    if (a === "lexcreate") {
+      if (!(await confirmDialog(t("Rechnungsentwurf in Lexware anlegen?")))) return;
+      P.busy = true; this.render();
+      try {
+        const contact = P.contact && P.contact !== "__neu" ? P.contact : null;
+        const res = await this.store.ws("smoobu/lexware/create", { ...this.target, reservation_id: this.rid, overrides: P.ov, contact_id: contact }, { cache: false });
+        toast(`✓ ${t("Entwurf in Lexware angelegt")}${res.hinweis ? ` – ${t(res.hinweis)}` : ""}`);
+        this.lexPrev = null;
+        if (res.link) window.open(res.link, "_blank", "noopener");
+        return this.load();
+      } catch (e) { P.busy = false; toast(`${t("Fehler")}: ${e?.message || e}`); return this.render(); }
+    }
+    P.busy = true; this.render();
+    try {
+      P.res = await this.store.ws("smoobu/lexware/preview", { ...this.target, reservation_id: this.rid, overrides: P.ov }, { cache: false });
+      P.err = null;
+      // Hund erkannt, Anzahl unbekannt → Feld zeigen (leer = Pflichteingabe)
+    } catch (e) { P.res = null; P.err = e?.message || String(e); }
+    P.busy = false;
+    this.render();
+  }
   payHtml(b) {
     const p = payInfo(b);
+    // v1.20.0: Bedeutung des Hakens – automatisch aus Lexware → keine Buttons; „Rechnung gestellt“ → andere Beschriftung
+    const m = this.lex?.bedeutung;
+    if (paidLocked(m) && this.lex?.aktiv) {
+      return `<div class="sub" style="margin-top:8px">🔒 ${t(paidIsInvoice(m) ? "„Bezahlt“ = Rechnung gestellt – kommt automatisch aus Lexware" : "Zahlungsstatus kommt automatisch aus Lexware")}${BETA_LEX}</div>`;
+    }
+    if (paidIsInvoice(m)) {
+      const inv = [
+        p.canPay && `<button class="btn" data-act="paid">✓ ${t("Rechnung gestellt")}</button>`,
+        p.canUnpay && `<button class="btn flat" data-act="unpaid">↶ ${t("Rechnung nicht gestellt")}</button>`,
+      ].filter(Boolean);
+      return inv.length ? `<div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px">${inv.join("")}</div>` : "";
+    }
     const btns = [
       p.canPre && `<button class="btn flat" data-act="pre">✓ ${t("Anzahlung erhalten")}</button>`,
       p.canPay && `<button class="btn" data-act="paid">✓ ${t("Zahlung erhalten")}</button>`,
@@ -3418,6 +3638,8 @@ class SmoobuBookingDialog extends HTMLElement {
     // Entwurf mitschreiben, damit er beim Neuzeichnen (z. B. nach „Keine Antwort nötig“) nicht verloren geht
     r.querySelector('[data-k="msg"]')?.addEventListener("input", (e) => { this.draft = e.target.value; });
     r.querySelector("[data-noreply]")?.addEventListener("click", () => this.noReply(true));
+    // v1.20.0: Firma an/aus in der Rechnungsvorschau → Feld Firmenname ein-/ausblenden (Neuberechnung erst per Button)
+    r.querySelector('[data-lex="ist_firma"]')?.addEventListener("change", () => { this.lexInputs(); this.render(); });
     // Reinigung zuweisen direkt in den Buchungsdetails
     r.querySelector('[data-k="cassign"]')?.addEventListener("change", (e) => this.cleanSet("zuweisen", { benutzer_id: e.target.value || null }));
     // v1.19.0b12: Reinigungszeit speichert beim Ändern (wie auf dem Reinigungsboard)
@@ -3466,6 +3688,7 @@ class SmoobuBookingDialog extends HTMLElement {
     if (a === "close") return this.remove();
     if (a === "ai") return this.aiSuggest();
     if (["move", "mvcancel", "mvcheck", "mvdo"].includes(a)) return this.moveAct(a); // v1.18.0: Umbuchen
+    if (a.startsWith("lex")) return this.lexAct(a); // v1.20.0 (BETA): Lexware
     if (a === "dcopy") { try { await navigator.clipboard.writeText(this.door.code.code); toast(t("Kopiert")); } catch (e) { toast(this.door.code.code); } return; }
     if (a === "drenew") {
       if (!(await confirmDialog(t("Neuen Türcode erzeugen? Der alte gilt dann nicht mehr (auch im Schloss).")))) return;
@@ -6110,7 +6333,17 @@ const SET_TABS = [
   ["provisionen", "Preise & Kanäle"], ["kosten", "Kosten"],
   // v1.19.0b12 (Review 21.11.2026): alles zur Reinigung und die Türcodes an einer Stelle (vorher auf 4 Reiter verteilt)
   ["reinigung", "Reinigung & Zugang"], ["rechte", "Benutzer & Rechte"], ["allgemein", "Allgemein & Abruf"],
+  // v1.20.0 (BETA): Lexware Office – Rechnungsentwürfe, Zahlungsstand, Bedeutung „bezahlt“
+  ["lexware", "Lexware (Beta)"],
 ];
+// v1.20.0: Regelzeilen – Mengenarten und Bedingungen (Schlüssel wie lexware_regeln.py)
+const LEX_QTY = { pauschal: "pauschal (1)", nacht: "je Nacht", person: "je Person", person_nacht: "je Person und Nacht",
+  zusatzperson: "je Zusatzperson", zusatzperson_nacht: "je Zusatzperson und Nacht", kind: "je Kind", kind_nacht: "je Kind und Nacht",
+  hund: "je Hund", hund_nacht: "je Hund und Nacht", fest: "feste Menge" };
+const LEX_COND = { "": "immer", naechte_max: "Nächte höchstens", naechte_min: "Nächte mindestens", hund: "nur mit Hund", kein_hund: "nur ohne Hund",
+  personen_min: "Personen mindestens", kinder: "nur mit Kindern" };
+const LEX_MEANING = { zahlung: "Zahlung erhalten (von Hand)", rechnung: "Rechnung gestellt, Zahlung woanders (von Hand)",
+  lexware_zahlung: "Zahlung laut Lexware (automatisch)", lexware_rechnung: "Rechnung gestellt laut Lexware (automatisch)" };
 const PUSH_INFO = {
   buchung: ["Neue Buchung", "Sobald eine neue Buchung eingeht (keine Sperrzeiten)."],
   storno: ["Storno & Änderung", "Storniert oder geändert (Personen, Ankunft, Preis) – mit Vorher → Nachher."],
@@ -6121,6 +6354,8 @@ const PUSH_INFO = {
   zahlung: ["Zahlungserinnerung", "Offene Zahlung einige Tage vor Anreise (ohne Kanäle mit Zahlung über das Portal)."],
   briefing: ["Tagesbriefing", "Zusammenfassung des Tages zur festen Uhrzeit."],
   luecken: ["Nicht buchbare Lücken", "Lücken, die der Mindestaufenthalt sperrt – zur festen Uhrzeit."],
+  // v1.20.0 (BETA)
+  lexware: ["Rechnungen & Zahlungen (Lexware, Beta)", "Zahlungseingang, Anzahlung fehlt (Storno möglich), Restzahlung am Anreisetag offen."],
 };
 const PUSH_TIME = { zahlung: "notify_zahlung_time", briefing: "assist_briefing_time", luecken: "notify_luecken_time" };
 // Feld → Reiter (für Fehler: der Reiter mit dem ersten Fehler wird geöffnet)
@@ -6132,6 +6367,7 @@ const SET_FIELD_TAB = (key) => {
   if (key.startsWith("cleaning_") || key.startsWith("door_") || ["cost_cleaning", "cost_cleaning_minutes"].includes(key)) return "reinigung";
   if (key.startsWith("cost_")) return "kosten";
   if (["user_roles", "default_role", "settings_users", "role_rights", "custom_roles", "focus_roles"].includes(key)) return "rechte";
+  if (key.startsWith("lexware_") || key === "paid_meaning") return "lexware"; // v1.20.0
   return "allgemein";
 };
 const SET_ERR = {
@@ -6145,6 +6381,9 @@ const SET_ERR = {
   invalid_role_count: "Höchstens 10 eigene Rollen", invalid_lock: "Unbekannter Schloss-Typ", invalid_lock_entity: "Schloss-Entität bzw. Skript prüfen",
   invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", invalid_static_code: "Statischer Code: 4–12 Ziffern/Buchstaben", invalid_focus_path: "Startseite: Pfad wie /dashboard/ansicht", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“", grid_share_entity_required: "Bitte je Wohnung einen Netzbezug-Sensor wählen oder einen anderen Netzanteil",
   meter_entity_required: "Bitte einen Zähler wählen oder „Konstant“", price_required: "Bitte Preis oder Preis-Entität angeben", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
+  // v1.20.0: Lexware
+  lexware_key_required: "API-Key fehlt – oder Testmodus einschalten", invalid_rules: "Regelzeilen ungültig", invalid_rule: "Eine Regelzeile ist unvollständig",
+  invalid_multiple_rest: "Nur eine Zeile je Gruppe darf den Rest aus dem Buchungspreis bekommen",
   // v1.18.0: Saisons
   invalid_season_count: "2 bis 6 Saisons", invalid_season: "Ungültige Saison", invalid_season_name: "Jede Saison braucht einen Namen",
   invalid_season_start: "Startmonat 1–12", invalid_season_duplicate_name: "Saisonnamen doppelt", invalid_season_duplicate_start: "Zwei Saisons mit gleichem Startmonat",
@@ -6898,6 +7137,66 @@ class SmoobuSettingsCard extends SmoobuCard {
       ${this.seasonBlock(meta)}
       ${codes ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Wohnungskürzel")}</b><span class="sub">${t("Höchstens 4 Buchstaben/Ziffern, eindeutig über alle Konten.")}</span></div></div><div class="gb">${codes}</div></div>` : ""}`;
   }
+  // v1.20.0 (BETA): Reiter „Lexware“ – Verbindung, Regelzeilen je Kanalgruppe, Steuer/Datum/Texte, Zahlungen, Bedeutung „bezahlt“
+  tabLexware(meta) {
+    const d = this._draft, L = meta.lexware || { artikel: [], vorlage: {}, status: {} };
+    const arts = L.artikel || [];
+    const st = L.status || {};
+    const opt = (map, cur) => Object.entries(map).map(([k, l]) => `<option value="${esc(k)}" ${k === (cur ?? "") ? "selected" : ""}>${esc(t(l))}</option>`).join("");
+    const rows = (g) => (d.lexware_rules?.[g] || []).map((r, i) => {
+      const artSel = `<select data-lxr="${g}|${i}|artikel" style="max-width:260px"><option value="">${t(r.hinweis ? `– ${r.hinweis}: Artikel wählen –` : "– Artikel wählen –")}</option>${arts.map((a) =>
+        `<option value="${esc(a.id)}" ${a.id === r.artikel ? "selected" : ""}>${esc(a.name)} · ${money(a.brutto, "EUR", 2)} / ${esc(a.einheit)} · ${a.steuersatz} %</option>`).join("")}
+        ${r.artikel && !arts.some((a) => a.id === r.artikel) ? `<option value="${esc(r.artikel)}" selected>${t("(nicht in Lexware gefunden)")}</option>` : ""}</select>`;
+      const qty = `<select data-lxr="${g}|${i}|menge">${opt(LEX_QTY, r.menge)}</select>`
+        + (["zusatzperson", "zusatzperson_nacht"].includes(r.menge) ? ` ${t("ab Person")} <input type="number" min="1" max="20" data-lxr="${g}|${i}|ab" value="${esc(r.ab ?? 2)}" style="width:56px">` : "")
+        + (["hund", "hund_nacht"].includes(r.menge) ? ` ${t("max.")} <input type="number" min="0" max="10" data-lxr="${g}|${i}|max" value="${esc(r.max ?? "")}" style="width:56px">` : "")
+        + (r.menge === "fest" ? ` <input type="number" min="0" step="0.5" data-lxr="${g}|${i}|anzahl" value="${esc(r.anzahl ?? 1)}" style="width:64px">` : "");
+      const cond = `<select data-lxr="${g}|${i}|bedingung">${opt(LEX_COND, r.bedingung || "")}</select>`
+        + (["naechte_max", "naechte_min", "personen_min"].includes(r.bedingung) ? ` <input type="number" min="0" max="365" data-lxr="${g}|${i}|wert" value="${esc(r.wert ?? "")}" style="width:64px">` : "");
+      const price = `<select data-lxr="${g}|${i}|preis">${opt({ artikel: "Artikelpreis", rest: "Rest aus Buchungspreis" }, r.preis || "artikel")}</select>`;
+      return `<div class="sprop"><div class="gh"><b>${i + 1}.</b>${artSel}
+          <button class="lnk" data-lxmove="${g}|${i}|-1" ${i ? "" : "disabled"} title="${t("nach oben")}">↑</button>
+          <button class="lnk" data-lxdel="${g}|${i}" title="${t("Entfernen")}">✕</button></div>
+        <div class="srow"><span class="unit">${t("Menge")}</span>${qty}<span class="unit">${t("Bedingung")}</span>${cond}<span class="unit">${t("Preis")}</span>${price}</div></div>`;
+    }).join("") || `<div class="sub">${t("Noch keine Regelzeilen.")}</div>`;
+    const grp = (g, title, desc) => `<div class="grp"><div class="gh"><div class="grow"><b>${t(title)}</b><span class="sub">${t(desc)}</span></div></div><div class="gb">
+        ${rows(g)}${this.err(`lexware_rules`)}
+        <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn flat" data-lxadd="${g}">＋ ${t("Zeile")}</button>
+          <button class="btn flat" data-lxtpl="${g}">${t("Vorlage übernehmen")}</button></div>
+        ${this.fld("Zahlungstext", `<textarea data-lxtxt="${g}" rows="2" style="width:min(100%,460px)">${esc(d.lexware_payment_text?.[g] || "")}</textarea>`,
+          "Platzhalter: [Fällig] [Portal] [Betrag] [Anzahlung] [n] [Nächte]. Steht auf der Rechnung als Zahlungsbedingung.")}
+        ${this.fld("Bedeutung „bezahlt“", `<select data-lxmean="${g}">${opt(LEX_MEANING, d.paid_meaning?.[g])}</select>`,
+          g === "direkt" ? "Automatisch: Haken und Anzahlung in Smoobu kommen aus Lexware, von Hand gesperrt." : "Automatisch: Haken, sobald die Rechnung in Lexware finalisiert ist.", "paid_meaning")}</div></div>`;
+    const conn = st.verbunden === true ? `<span class="badge good">✓ ${t("verbunden")}</span>` : st.verbunden === false ? `<span class="badge bad" title="${esc(st.fehler || "")}">${t("Fehler")}: ${esc(st.fehler || "")}</span>` : "";
+    return `<div class="note">🧾 ${t("Lexware Office (Public API, ab Tarif XL): Rechnungsentwürfe per Button in den Buchungsdetails, Zahlungsstand und Hinweise in „Wartet auf dich“.")}${BETA_LEX}
+        <div class="sub">${t("Lexware bekommt immer nur einen Entwurf – prüfen und finalisieren in Lexware. Rechnungsdatum = heute, fällig am Anreisetag.")}</div></div>
+      <div class="grp ${d.lexware_enabled ? "" : "off"}" data-neu="lexware"><div class="gh"><div class="grow"><b>${t("Lexware einschalten")}${BETA_LEX}</b>
+        <span class="sub">${t("Ohne API-Key bzw. Testmodus bleibt das Modul aus.")}</span>${conn ? `<div>${conn}</div>` : ""}</div>${this.sw("lexware_enabled", "Lexware einschalten")}</div>
+        <div class="gb">
+          ${this.fld("API-Key", `<input type="password" data-txt="lexware_api_key" autocomplete="off" placeholder="${esc(t(d.lexware_api_key_gesetzt ? "gespeichert – leer lassen zum Behalten" : "In Lexware: Erweiterungen → Public API"))}" style="width:min(100%,360px)">
+            ${d.lexware_api_key_gesetzt ? `<button class="lnk" data-lxkeydel>${t(d.lexware_api_key_loeschen ? "wird entfernt" : "Entfernen")}</button>` : ""}`, "", "lexware_api_key")}
+          ${this.fld("Testmodus", this.sw("lexware_mock", "Testmodus"), "Beispiel-Lexware mit Demo-Artikeln, nichts wird gesendet – zum Ausprobieren ohne XL-Tarif.")}
+          ${this.fld("Verbindung", `<button class="btn flat" data-lxtest ${L.aktiv ? "" : "disabled"}>${t("Verbindung testen & Artikel laden")}</button><span class="unit">${arts.length} ${t("Artikel")}</span>`,
+            L.aktiv ? "" : "Erst einschalten und speichern.")}
+          ${this.fld("Abgleich per Webhook", this.sw("lexware_webhook", "Abgleich per Webhook"), "Sonst nur stündlich. Braucht eine öffentliche HTTPS-Adresse (z. B. Nabu Casa).")}
+          ${this.fld("Haken in Smoobu setzen", this.sw("lexware_sync_smoobu", "Haken in Smoobu setzen"), "Gemäß „Bedeutung bezahlt“ (nur Lexware → Smoobu).")}</div></div>
+      ${grp("direkt", "Positionen – Direktbuchungen", "Je Zeile ein Lexware-Artikel. Genau eine Zeile bekommt den Rest aus dem Buchungspreis (meist die Übernachtung), damit die Summe zu Smoobu passt.")}
+      ${grp("portal", "Positionen – Portal-Buchungen", "Meist eine Pauschale (Rest) – Platzhalter [Portal] und [n] im Artikeltext werden ersetzt.")}
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Rechnung")}</b></div></div><div class="gb">
+        ${this.fld("Privatgäste", `<select data-sel="lexware_tax_private">${opt({ gross: "Bruttorechnung (USt enthalten)", net: "Nettorechnung (zzgl. USt)" }, d.lexware_tax_private)}</select>`)}
+        ${this.fld("Firmen", `<select data-sel="lexware_tax_company">${opt({ net: "Nettorechnung (zzgl. USt)", gross: "Bruttorechnung (USt enthalten)" }, d.lexware_tax_company)}</select>`,
+          "Firma wird in der Vorschau angegeben; der Gast wird Ansprechpartner.")}
+        ${this.fld("Rechnungsdatum", `<select data-sel="lexware_invoice_date">${opt({ erstellung: "Erstellungsdatum, fällig am Anreisetag (empfohlen)", anreise: "Anreisedatum (vordatiert – nicht empfohlen)" }, d.lexware_invoice_date)}</select>`,
+          "Mit Fälligkeit am Anreisetag zeigt Lexware die Rechnung bis zur Anreise als offen, nicht als überfällig.")}
+        ${this.fld("Kontakt suchen über", `<select data-sel="lexware_contact_search">${opt({ name: "Name (bei Firmen: Firmenname)", email: "E-Mail", beide: "Name und E-Mail" }, d.lexware_contact_search)}</select>`,
+          "Nur exakte Treffer; bei mehreren wählst du in der Vorschau.")}
+        ${this.fld("Land (Standard)", `<input type="text" data-txt="lexware_default_country" value="${esc(d.lexware_default_country || "DE")}" maxlength="2" style="width:56px">`, "Für neue Kontakte ohne Land.", "lexware_default_country")}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Zahlungen")}</b><span class="sub">${t("Hinweise und Pushes nur für Direktbuchungen – bei Portalen kassiert das Portal.")}</span></div></div><div class="gb">
+        ${this.fld("Anzahlung", this.numIn("lexware_deposit_pct", 0, 100, 1, "%"), "Gilt, wenn in Smoobu keine Anzahlung angegeben ist.", "lexware_deposit_pct")}
+        ${this.fld("Anzahlung fehlt nach", this.numIn("lexware_deposit_days", 1, 60, 1, "Tage"), "Ab Erstellung der Rechnung; dann Hinweis und Push „Storno möglich“. Home Assistant storniert nie selbst.", "lexware_deposit_days")}
+        ${this.fld("Entwurf offen nach", this.numIn("lexware_draft_days", 0, 30, 1, "Tage"), "Hinweis, wenn ein Entwurf nicht finalisiert wurde.", "lexware_draft_days")}
+        ${this.fld("„Rechnung fehlt“ ab", this.numIn("lexware_missing_days", 0, 365, 1, "Tage vor Anreise"), "Nur Buchungen mit Anreise nach dem Einschalten (keine Altlasten).", "lexware_missing_days")}</div></div>`;
+  }
   body(res) {
     if (!res.erlaubt) return `<div class="head"><h2>${esc(t(this._config.title))}</h2></div><div class="empty">${t("Keine Berechtigung für die Smoobu-Einstellungen.")}</div>`;
     const { meta } = res;
@@ -6908,7 +7207,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const tabs = SET_TABS.filter(([k]) => k !== "kosten" || !hideCost).map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
     const konten = res.konten.length > 1 ? `<select data-entry>${res.konten.map((k) => `<option value="${esc(k.entry_id)}" ${k.entry_id === res.entry_id ? "selected" : ""}>${esc(k.title)}</option>`).join("")}</select>` : "";
     const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "kosten" && !hideCost ? this.tabCost(meta)
-      : tab === "rechte" ? this.tabRights(meta) : tab === "reinigung" ? this.tabCleaning(meta)
+      : tab === "rechte" ? this.tabRights(meta) : tab === "reinigung" ? this.tabCleaning(meta) : tab === "lexware" ? this.tabLexware(meta)
       : tab === "allgemein" || tab === "kosten" ? this.tabGeneral(meta) : this.tabPush(meta);
     const n = this.dirty ? Object.keys(this.changes()).length : 0;
     const status = this._state.saving ? t("Speichere … die Integration lädt danach neu.")
@@ -6932,6 +7231,58 @@ class SmoobuSettingsCard extends SmoobuCard {
     const d = this._draft;
     const redraw = () => this.render();
     root.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => this.setState({ tab: b.dataset.tab })));
+    // v1.20.0 (BETA): Lexware-Reiter
+    const lxRules = () => { d.lexware_rules = clone(d.lexware_rules || { direkt: [], portal: [] }); return d.lexware_rules; };
+    root.querySelectorAll("[data-lxr]").forEach((el) => el.addEventListener("change", () => {
+      const [g, i, k] = el.dataset.lxr.split("|"), rules = lxRules(), row = rules[g][Number(i)];
+      const v = el.type === "number" ? (el.value === "" ? null : Number(el.value)) : el.value;
+      if (v === null || v === "") delete row[k]; else row[k] = v;
+      if (k === "preis" && v === "rest") rules[g].forEach((r, j) => { if (j !== Number(i) && r.preis === "rest") r.preis = "artikel"; });
+      redraw();
+    }));
+    root.querySelectorAll("[data-lxadd]").forEach((b) => b.addEventListener("click", () => {
+      const rules = lxRules(); (rules[b.dataset.lxadd] ||= []).push({ menge: "pauschal", preis: "artikel" }); redraw();
+    }));
+    root.querySelectorAll("[data-lxdel]").forEach((b) => b.addEventListener("click", () => {
+      const [g, i] = b.dataset.lxdel.split("|"), rules = lxRules(); rules[g].splice(Number(i), 1); redraw();
+    }));
+    root.querySelectorAll("[data-lxmove]").forEach((b) => b.addEventListener("click", () => {
+      const [g, i, dir] = b.dataset.lxmove.split("|"), rules = lxRules(), a = Number(i), z = a + Number(dir);
+      if (z < 0 || z >= rules[g].length) return;
+      [rules[g][a], rules[g][z]] = [rules[g][z], rules[g][a]]; redraw();
+    }));
+    // Vorlage: Zeilen wie die Rechnung des Betreibers; Artikel per Namensähnlichkeit vorbelegt (bitte prüfen)
+    root.querySelectorAll("[data-lxtpl]").forEach((b) => b.addEventListener("click", async () => {
+      const g = b.dataset.lxtpl, L = this._data?.meta?.lexware || {}, rules = lxRules();
+      if ((rules[g] || []).length && !(await confirmDialog(t("Vorhandene Zeilen durch die Vorlage ersetzen?")))) return;
+      const norm = (x) => String(x || "").toLowerCase().replace(/\[.*?\]/g, "").replace(/[^a-zäöüß0-9 ]/g, " ");
+      rules[g] = (L.vorlage?.[g] || []).map((r) => {
+        const words = norm(r.hinweis).split(/\s+/).filter((w) => w.length > 3);
+        // Portal: Artikel mit Platzhalter ([n]/[Portal]) bevorzugen, Direkt: ohne Platzhalter
+        const pool = [...(L.artikel || [])].sort((a, b) => (g === "portal" ? -1 : 1) * (Number(a.name.includes("[")) - Number(b.name.includes("["))));
+        const hit = pool.find((a) => words.length && words.every((w) => norm(a.name).includes(w)));
+        return { ...r, artikel: hit?.id || null };
+      });
+      redraw();
+    }));
+    root.querySelectorAll("[data-lxtxt]").forEach((el) => el.addEventListener("input", () => {
+      d.lexware_payment_text = { ...(d.lexware_payment_text || {}), [el.dataset.lxtxt]: el.value }; this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-lxmean]").forEach((el) => el.addEventListener("change", () => {
+      d.paid_meaning = { ...(d.paid_meaning || {}), [el.dataset.lxmean]: el.value }; redraw();
+    }));
+    root.querySelector("[data-lxkeydel]")?.addEventListener("click", () => {
+      if (d.lexware_api_key_loeschen) delete d.lexware_api_key_loeschen; else d.lexware_api_key_loeschen = true; redraw();
+    });
+    root.querySelector("[data-lxtest]")?.addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      try {
+        const r = await this.store.ws("smoobu/lexware/test", { entry_id: this._data.entry_id }, { cache: false });
+        toast(r.ok ? `✓ ${t("Lexware verbunden")}${r.firma ? `: ${r.firma}` : ""} · ${r.artikel.length} ${t("Artikel")}` : `${t("Fehler")}: ${r.fehler}`);
+        this._reload();
+      } catch (err) { toast(`${t("Fehler")}: ${err?.message || err}`); }
+      e.target.disabled = false;
+    });
     root.querySelectorAll("[data-sw]").forEach((b) => b.addEventListener("click", () => { d[b.dataset.sw] = !d[b.dataset.sw]; redraw(); }));
     root.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => {
       const k = b.dataset.pick, v = b.dataset.v, list = d[k] || [];
