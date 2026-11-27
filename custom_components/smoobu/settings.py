@@ -61,6 +61,7 @@ from .energie import (
     POWER_SOURCES,
 )
 from . import lexware as lex
+from . import ust as ust_mod
 from . import lexware_regeln as lex_regeln
 from .lexware_zahlung import DEFAULT_PAID_MEANING, PAID_MEANINGS
 from .tuercode import (
@@ -348,6 +349,8 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         lex.CONF_LEX_COUNTRY: str(lex.opt(o, lex.CONF_LEX_COUNTRY)),
         lex.CONF_LEX_WEBHOOK: bool(lex.opt(o, lex.CONF_LEX_WEBHOOK)),
         lex.CONF_LEX_SYNC: bool(lex.opt(o, lex.CONF_LEX_SYNC)),
+        # v1.20.0: Umsatzsteuer (ust.py) – Grundschalter, „USt-pflichtig seit“, Ansicht, Sätze, Zuordnung, Kosten
+        **_ust_values(o),
         # Bedeutung des Smoobu-Hakens „bezahlt“ je Kanalgruppe – gilt auch ohne Lexware
         lex.CONF_PAID_MEANING: {g: str((o.get(lex.CONF_PAID_MEANING) or {}).get(g) or DEFAULT_PAID_MEANING[g]) for g in lex_regeln.GROUPS},
     }
@@ -474,6 +477,9 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
         "saison_standard": season_cfg.DEFAULT_SEASONS,
         # v1.19.0: Auswahl für Stromzähler, Strompreis und Vorheizstart + Messergebnis je Wohnung
         **energy_meta(hass, coordinator),
+        # v1.20.0: Umsatzsteuer – Preisbestandteile aus den Buchungen (für die Zuordnung)
+        "ust": {"bestandteile": ust_mod.elements_seen(coordinator.records_all()) if coordinator else [],
+                "standard_saetze": ust_mod.DEFAULT_RATES, "kostenarten": list(ust_mod.COST_KINDS)},
         # v1.20.0 (BETA): Lexware – Artikel-Auswahl, Vorlage der Regelzeilen, Verbindungsstand
         "lexware": {
             "artikel": coordinator.lexware.articles_choice() if coordinator and getattr(coordinator, "lexware", None) else [],
@@ -818,6 +824,50 @@ def _paid_meaning(value: Any) -> dict[str, str]:
     return {g: value[g] for g in lex_regeln.GROUPS}
 
 
+def _ust_values(o: Any) -> dict[str, Any]:
+    cfg = ust_mod.opts_of(dict(o))
+    return {
+        ust_mod.CONF_UST_MODE: cfg["modus"],
+        ust_mod.CONF_UST_SINCE: cfg["seit"].isoformat() if cfg["seit"] else None,
+        ust_mod.CONF_UST_VIEW: cfg["ansicht"],
+        ust_mod.CONF_UST_RATES: [{"ab": str(r.get("ab"))[:10], "ermaessigt": float(r.get("ermaessigt") or 0), "regel": float(r.get("regel") or 0)}
+                                 for r in cfg["saetze"]],
+        ust_mod.CONF_UST_MAP: dict(cfg["zuordnung"]),
+        ust_mod.CONF_UST_PORTAL: cfg["portal"],
+        ust_mod.CONF_UST_DEFAULT: cfg["standard"],
+        ust_mod.CONF_UST_COSTS: dict(cfg["kosten"]),
+        ust_mod.CONF_UST_LEXWARE: cfg["lexware"],
+    }
+
+
+def _ust_rates(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not 1 <= len(value) <= 20:
+        raise vol.Invalid("invalid_ust_rates")
+    out = []
+    for r in value:
+        try:
+            ab = date.fromisoformat(str(r.get("ab"))[:10]).isoformat()
+            e, g = float(r.get("ermaessigt")), float(r.get("regel"))
+        except (TypeError, ValueError, AttributeError) as err:
+            raise vol.Invalid("invalid_ust_rates") from err
+        if not (0 <= e <= 50 and 0 <= g <= 50):
+            raise vol.Invalid("invalid_ust_rates")
+        out.append({"ab": ab, "ermaessigt": e, "regel": g})
+    return sorted(out, key=lambda x: x["ab"])
+
+
+def _ust_map(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict) or len(value) > 100 or any(v not in ust_mod.KINDS for v in value.values()):
+        raise vol.Invalid("invalid")
+    return {str(k)[:120]: v for k, v in value.items()}
+
+
+def _ust_costs(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict) or any(k not in ust_mod.COST_KINDS or v not in ust_mod.KINDS for k, v in value.items()):
+        raise vol.Invalid("invalid")
+    return dict(value)
+
+
 def public(values: dict[str, Any]) -> dict[str, Any]:
     """Werte für die Karte: API-Key nie im Klartext, nur ob einer gespeichert ist (v1.20.0)."""
     out = dict(values)
@@ -986,6 +1036,15 @@ FIELDS: dict[str, Any] = {
     lex.CONF_LEX_WEBHOOK: bool,
     lex.CONF_LEX_SYNC: bool,
     lex.CONF_PAID_MEANING: _paid_meaning,
+    ust_mod.CONF_UST_MODE: vol.In(ust_mod.MODES),
+    ust_mod.CONF_UST_SINCE: vol.Any(None, "", vol.All(str, vol.Match(r"^\d{4}-\d{2}-\d{2}$", msg="invalid_date"))),
+    ust_mod.CONF_UST_VIEW: vol.In(ust_mod.VIEWS),
+    ust_mod.CONF_UST_RATES: _ust_rates,
+    ust_mod.CONF_UST_MAP: _ust_map,
+    ust_mod.CONF_UST_PORTAL: vol.In(ust_mod.KINDS),
+    ust_mod.CONF_UST_DEFAULT: vol.In(ust_mod.KINDS),
+    ust_mod.CONF_UST_COSTS: _ust_costs,
+    ust_mod.CONF_UST_LEXWARE: bool,
     **{f"notify_{kind}": bool for kind in NOTIFY_TYPES},
     **{f"notify_{kind}_to": _pattern_list(_NOTIFY_RE) for kind in NOTIFY_TYPES},
     **{f"notify_{kind}_quiet": bool for kind in NOTIFY_TYPES},
@@ -1107,7 +1166,10 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
     merged[CONF_ASSIST_GAPS] = merged["notify_luecken"]
     merged[CONF_NOTIFY_QUIET_MESSAGES] = not merged["notify_nachricht_quiet"]
     # Leere Werte entfernen statt als None speichern (gleiches Verhalten wie der Options-Dialog)
-    for key in (CONF_AI_ENTITY, CONF_HISTORY_SINCE, lex.CONF_LEX_KEY):
+    # v1.20.0: Ansicht nur speichern, wenn bewusst gewählt – sonst folgt sie dem Modus (Regelbesteuerung → ohne USt)
+    if ust_mod.CONF_UST_VIEW not in changes and ust_mod.CONF_UST_VIEW not in entry.options:
+        merged.pop(ust_mod.CONF_UST_VIEW, None)
+    for key in (CONF_AI_ENTITY, CONF_HISTORY_SINCE, lex.CONF_LEX_KEY, ust_mod.CONF_UST_SINCE):
         if not merged.get(key):
             merged.pop(key, None)
     return merged, {}

@@ -51,6 +51,7 @@ from .const import (
     FALLBACK_CHECKIN,
     FALLBACK_CHECKOUT,
 )
+from . import ust
 from .analytics import build_records, is_cancelled
 from . import energie
 from .const import CONF_CLEANING_WAGES
@@ -264,6 +265,12 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
         except (TypeError, ValueError):
             return "?"
 
+    def records_view(self, apartment_id: int, mode: str | None = None) -> list[dict[str, Any]]:
+        """v1.20.0: Datensätze für Auswertungen – Ansicht „ohne USt“, wenn eingestellt (Sensoren, Statistik)."""
+        cfg = ust.opts_of(self.config_entry.options)
+        mode = mode or (cfg["ansicht"] if cfg["modus"] == "regel" else "brutto")
+        return ust.view(self.records(apartment_id), mode)
+
     def records_all(self) -> list[dict[str, Any]]:
         """Datensätze aller Wohnungen des Kontos."""
         if not self.data:
@@ -394,8 +401,19 @@ class SmoobuCoordinator(DataUpdateCoordinator[SmoobuData]):
             _LOGGER.warning("Smoobu: Stromkosten aus Messwerten nicht berechnet: %s", err)
         # v1.19.0: Reinigungskosten je Buchung nach Stundenlohn der Person aus dem Reinigungsboard
         cleaning_costs = await self._cleaning_costs(records, cost_cfg)
+        # v1.20.0: Umsatzsteuer (optional) – Kosten ohne Vorsteuer, USt je Buchung, Ansicht für Sensoren
+        vat = ust.opts_of(self.config_entry.options)
+        lex = getattr(self, "lexware", None)
+        lex_nets = lex.invoice_nets() if lex is not None and vat["lexware"] else {}
         for apt_id in apartments:
-            db_apply(records[apt_id], cost_tables[apt_id], energy.get(apt_id), cleaning_costs)
+            db_apply(records[apt_id], cost_tables[apt_id], energy.get(apt_id), cleaning_costs, vat)
+            ust.enrich(records[apt_id], vat, lex_nets)
+            if vat["modus"] == "regel" and vat["ansicht"] == "ohne":
+                # Umsatz-Sensoren (Monat/Jahr, Direkt vs. Portale) ebenfalls ohne USt – Entscheidung Betreiber „überall“
+                nets = {r["id"]: r["naechte_ohne_ust"] for r in records[apt_id] if r.get("naechte_ohne_ust")}
+                rows[apt_id] = ust.night_rows_net(rows[apt_id], nets)
+                revenue[apt_id] = ust.revenue_by_month_net(records[apt_id])
+                earned[apt_id] = ust.revenue_by_month_net(records[apt_id], until=today)
 
         self._maybe_start_response_job()
         return SmoobuData(

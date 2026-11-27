@@ -301,6 +301,7 @@ class LexwareModule:
             self.data["rechnungen"][key] = {
                 "rechnung_id": iid, "status": "draft", "erstellt": now.date().isoformat(), "summe": out["summen"]["brutto"],
                 "faellig": out["faellig"], "gruppe": out["gruppe"], "kontakt_id": cid, "firma": company or None,
+                "netto": out["summen"]["netto"],  # v1.20.0: für die Umsatzsteuer-Auswertung (ust.py)
                 "nummer": None, "gemeldet": [],
             }
             await self._save()
@@ -360,6 +361,9 @@ class LexwareModule:
             gross = ((inv.get("totalPrice") or {}).get("totalGrossAmount"))
             if gross is not None:
                 rec["summe"] = float(gross)
+            net = ((inv.get("totalPrice") or {}).get("totalNetAmount"))
+            if net is not None:
+                rec["netto"] = float(net)
             if pay is not None:
                 rec["offen"] = round(float(pay.get("openAmount") or 0), 2)
                 rec["zahlung_status"] = pay.get("voucherStatus")
@@ -375,6 +379,13 @@ class LexwareModule:
         if changed:
             await self._save()
             self.c.async_update_listeners()
+
+    def invoice_nets(self) -> dict[int, float]:
+        """v1.20.0: Nettobetrag je Buchung aus (nicht stornierten) Lexware-Rechnungen – für ust.py."""
+        if not self.enabled:
+            return {}
+        return {int(k): float(r["netto"]) for k, r in self.data["rechnungen"].items()
+                if r.get("netto") is not None and r.get("status") != "voided"}
 
     def evaluate(self, booking_id: int, today: date | None = None) -> dict[str, Any]:
         rec = self.data["rechnungen"].get(str(booking_id))

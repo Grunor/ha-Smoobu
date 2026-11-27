@@ -207,7 +207,7 @@ def build_table(records: list[dict[str, Any]], cfg: CostConfig) -> CostTable:
 
 
 def apply(records: list[dict[str, Any]], table: CostTable, measured: dict[str, Any] | None = None,
-          cleaning: dict[Any, float] | None = None) -> None:
+          cleaning: dict[Any, float] | None = None, vat: dict[str, Any] | None = None) -> None:
     """Je Gästebuchung variable Kosten und Deckungsbeitrag ergänzen (in place).
 
     `var_naechte` = Kosten je Nacht inkl. anteiliger Reinigung/Wäsche (Aufenthaltskosten
@@ -250,4 +250,16 @@ def apply(records: list[dict[str, Any]], table: CostTable, measured: dict[str, A
         per_night = [round(n["heizung"] + n["warmwasser"] + n["wasser"] + n["strom"] + stay_part, 4) for n in nights]
         r["var_naechte"] = per_night
         r["var_kosten"] = round(sum(per_night), 2)
+        # v1.20.0: Kosten ohne Vorsteuer (Umsatzsteuer aktiv, Nächte ab „USt-pflichtig seit“) – ust.py
+        if vat and vat.get("modus") == "regel":
+            from .ust import cost_net  # noqa: PLC0415
+
+            net = []
+            for i, n in enumerate(nights):
+                day = arrival + timedelta(days=i)
+                net.append(round(sum(cost_net(k, n[k], day, vat) for k in ("heizung", "warmwasser", "wasser", "strom"))
+                                 + cost_net("reinigung", clean / r["naechte"], day, vat)
+                                 + cost_net("waesche", table.cfg.laundry / r["naechte"], day, vat), 4))
+            r["var_naechte_ohne_ust"] = net
+            r["var_kosten_ohne_ust"] = round(sum(net), 2)
         r["db"] = round(r["netto"] - r["var_kosten"], 2)

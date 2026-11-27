@@ -76,7 +76,7 @@ TASK_MODULES = {"reinigung": "reinigung", "preise": "preise", "lastminute": "pre
 from .coordinator import SmoobuCoordinator
 from .models import strip_html
 from . import settings as smoobu_settings
-from . import rechte
+from . import rechte, ust
 
 # Feste, gut unterscheidbare Farben je Kanal (Portalfarben angelehnt an die Marken,
 # Direktkanäle in Grüntönen). Unbekannte Kanäle bekommen Farben aus PALETTE.
@@ -274,7 +274,11 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
                                                                   for c in _coordinators(hass)])),
          "wohnungen": result, "zeitraeume": PERIODS, "vergleiche": COMPARES, "sperr_farbe": BLOCKED_COLOR,
          "saisons": seasons_from_options(next(iter(_coordinators(hass)), None).config_entry.options) if _coordinators(hass) else seasons_from_options({}),
-         "heute": dt_util.now().date().isoformat()},
+         "heute": dt_util.now().date().isoformat(),
+         # v1.20.0: Umsatzsteuer – Umschalter brutto / ohne USt in Finanzen und Statistik (erstes Konto mit USt)
+         "ust": next(({"aktiv": True, "ansicht": x["ansicht"], "seit": x["seit"].isoformat() if x["seit"] else None}
+                      for x in (ust.opts_of(c.config_entry.options) for c in _coordinators(hass)) if x["modus"] == "regel"),
+                     {"aktiv": False, "ansicht": "brutto"})},
     )
 
 
@@ -291,6 +295,8 @@ def ws_info(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg
         vol.Optional("compare_count", default=1): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
         # v1.18.0b8: Raster der Reihe (Filterleiste der Finanzen wie in der Statistik)
         vol.Optional("raster", default="auto"): vol.In(RASTERS),
+        # v1.20.0: Ansicht brutto / ohne USt (leer = Standard der Einstellungen)
+        vol.Optional("ust"): vol.In(("brutto", "ohne")),
     }
 )
 @callback
@@ -302,7 +308,8 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         return
     if not _guard(connection, msg, [c for c, _ in pairs], "finanzen"):
         return
-    recs = [r for c, a in pairs for r in c.records(a)]
+    # v1.20.0: Ansicht brutto / ohne USt (Parameter „ust“, sonst Standard der Einstellungen)
+    recs = [r for c, a in pairs for r in c.records_view(a, msg.get("ust"))]
     today = dt_util.now().date()
     if msg.get("period"):
         first = min((date.fromisoformat(r["anreise"]) for r in recs), default=None)
@@ -318,6 +325,23 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
                                   count=msg["compare_count"], raster=msg["raster"])
     result["prognose"] = forecast_year(recs, today, channels)
     result["farben"] = channel_colors([ch["name"] for ch in channels_of(recs)])
+    # v1.20.0: Umsatzsteuer im Zeitraum (Leistungsdatum) je Satz + Ansicht
+    cfgs = [ust.opts_of(c.config_entry.options) for c, _a in pairs]
+    if any(x["modus"] == "regel" for x in cfgs):
+        months = {}
+        for c, a in pairs:
+            for k, v in ust.vat_by_month(c.records(a), ust.opts_of(c.config_entry.options)).items():
+                if start.strftime("%Y-%m") <= k < end.strftime("%Y-%m") or k == start.strftime("%Y-%m"):
+                    for p, x in v.items():
+                        months.setdefault(k, {})[p] = round(months.get(k, {}).get(p, 0.0) + x, 2)
+        total = {}
+        for v in months.values():
+            for p, x in v.items():
+                total[p] = round(total.get(p, 0.0) + x, 2)
+        result["umsatzsteuer"] = {"aktiv": True, "ansicht": msg.get("ust") or cfgs[0]["ansicht"], "je_satz": total,
+                                  "summe": round(sum(total.values()), 2), "monate": months}
+    else:
+        result["umsatzsteuer"] = {"aktiv": False, "ansicht": "brutto"}
     connection.send_result(msg["id"], result)
 
 
@@ -343,6 +367,7 @@ def ws_analytics(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         # „Stichtag Vorjahr“ (gleiche Rechnung wie analytics.as_of: später angelegte
         # Buchungen fallen weg, Stornos über das Änderungsdatum angenähert)
         vol.Optional("as_of"): str,
+        vol.Optional("ust"): vol.In(("brutto", "ohne")),  # v1.20.0
     }
 )
 @websocket_api.async_response
@@ -363,7 +388,8 @@ async def ws_stats(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
         return
     if not _guard(connection, msg, [c for c, _ in pairs], "finanzen"):
         return
-    recs = [r for c, a in pairs for r in c.records(a)]
+    # v1.20.0: Ansicht brutto / ohne USt (Parameter „ust“, sonst Standard der Einstellungen)
+    recs = [r for c, a in pairs for r in c.records_view(a, msg.get("ust"))]
     today = dt_util.now().date()
     channels = msg.get("channels") or None
     if msg["mode"] == "pace":

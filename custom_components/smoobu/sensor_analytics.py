@@ -88,7 +88,7 @@ def _strip(result: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 def channel_stats(c: C, apt: int, channel: str) -> dict[str, Any]:
     def build() -> dict[str, Any]:
-        recs = c.records(apt)
+        recs = c.records_view(apt)
         today = _today()
         out: dict[str, Any] = {}
         for key, period in (
@@ -202,7 +202,7 @@ def selected(c: C, apt: int) -> dict[str, Any]:
     sel = selection(c, apt)
 
     def build() -> dict[str, Any]:
-        recs = c.records(apt)
+        recs = c.records_view(apt)
         first = min((date.fromisoformat(r["anreise"]) for r in recs), default=None)
         start, end = period_range(sel["zeitraum"], _today(), first)
         result = analyze_with_compare(recs, start, end, sel["kanal"], sel["vergleich"], today=_today())
@@ -319,7 +319,7 @@ class SmoobuForecastSensor(SmoobuEntity, SensorEntity):
 
     def _data(self) -> dict[str, Any]:
         c, apt = self.coordinator, self.apartment_id
-        return cached(c, ("prognose", apt), lambda: forecast_year(c.records(apt), _today()))
+        return cached(c, ("prognose", apt), lambda: forecast_year(c.records_view(apt), _today()))
 
     @property
     def native_value(self) -> float:
@@ -332,7 +332,7 @@ class SmoobuForecastSensor(SmoobuEntity, SensorEntity):
         today = _today()
         prev = cached(
             c, ("vorjahr_gesamt", apt),
-            lambda: analyze(c.records(apt), *period_range("vorjahr", today), series=False),
+            lambda: analyze(c.records_view(apt), *period_range("vorjahr", today), series=False),
         )
         return {
             **d,
