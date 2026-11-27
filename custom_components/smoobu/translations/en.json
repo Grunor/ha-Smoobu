@@ -649,10 +649,10 @@
         "name": "Last guest message"
       },
       "netto_umsatz_monat": {
-        "name": "Net revenue month"
+        "name": "Revenue after commission month"
       },
       "netto_umsatz_jahr": {
-        "name": "Net revenue year"
+        "name": "Revenue after commission year"
       },
       "provision_jahr": {
         "name": "Commission & fees year"
@@ -679,10 +679,10 @@
         "name": "Next guest Commission"
       },
       "aktueller_gast_netto_preis": {
-        "name": "Current guest Net price"
+        "name": "Current guest revenue after commission"
       },
       "naechster_gast_netto_preis": {
-        "name": "Next guest Net price"
+        "name": "Next guest revenue after commission"
       },
       "kanal": {
         "name": "Channel {kanal}"
@@ -691,10 +691,10 @@
         "name": "Forecast year"
       },
       "auswertung_brutto": {
-        "name": "Analysis gross"
+        "name": "Analysis revenue"
       },
       "auswertung_netto": {
-        "name": "Analysis net"
+        "name": "Analysis revenue after commission"
       },
       "auswertung_kosten": {
         "name": "Analysis costs"
@@ -715,7 +715,7 @@
         "name": "Analysis cancellation rate"
       },
       "auswertung_netto_pro_nacht": {
-        "name": "Analysis net per night"
+        "name": "Analysis revenue after commission per night"
       },
       "auswertung_aufenthalt": {
         "name": "Analysis avg. stay"

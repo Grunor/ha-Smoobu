@@ -393,13 +393,13 @@ async def test_direct_vs_portal(hass, setup):
     assert float(share.state) == 60.0, share.state
     assert share.attributes["kanaele"]["Airbnb"]["provision"] == 46.5
     assert share.attributes["ersparnis_direkt"] == round(450.5 * 0.155, 2)
-    net = hass.states.get("sensor.smoobu_ferienwohnung_nettoumsatz_jahr")
+    net = hass.states.get("sensor.smoobu_ferienwohnung_erlos_jahr")
     assert float(net.state) == 704.0
     assert float(hass.states.get("sensor.smoobu_ferienwohnung_umsatz_direkt_jahr").state) == 450.5
     assert float(hass.states.get("sensor.smoobu_ferienwohnung_umsatz_portale_jahr").state) == 300.0
     assert float(hass.states.get("sensor.smoobu_ferienwohnung_provision_gebuhren_jahr").state) == 46.5
     assert hass.states.get("sensor.smoobu_ferienwohnung_aktueller_gast_kanalgruppe").state == "Portal"
-    assert float(hass.states.get("sensor.smoobu_ferienwohnung_aktueller_gast_nettopreis").state) == 253.5
+    assert float(hass.states.get("sensor.smoobu_ferienwohnung_aktueller_gast_erlos").state) == 253.5
     p = hass.states.get("sensor.smoobu_ferienwohnung_preis_aktueller_gast")
     assert p.attributes["kanal_gruppe"] == "Portal" and p.attributes["netto"] == 253.5
 
@@ -418,7 +418,7 @@ async def test_channel_and_selection(hass, setup):
         "select", "select_option",
         {"entity_id": "select.smoobu_ferienwohnung_auswertung_zeitraum", "option": "monat"}, blocking=True)
     await hass.async_block_till_done()
-    brutto = hass.states.get("sensor.smoobu_ferienwohnung_auswertung_brutto")
+    brutto = hass.states.get("sensor.smoobu_ferienwohnung_auswertung_umsatz")
     assert brutto.attributes["kanal"] == "Airbnb" and brutto.attributes["zeitraum"] == "monat"
     # Airbnb-Buchung 13.–16.11.: 3 Nächte à 100 € im November
     assert float(brutto.state) == 300.0

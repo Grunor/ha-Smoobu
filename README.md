@@ -355,12 +355,12 @@ Brutto = Buchungspreis laut Smoobu. Provision = Wert, den Smoobu zur Buchung lie
 
 | Entität | Beispiel-ID | Inhalt |
 |---|---|---|
-| Nettoumsatz Monat / Jahr | `sensor.smoobu_ferienwohnung_nettoumsatz_monat` / `…_jahr` | Netto; Attribute `brutto`, `provision`, `zahlungsgebuehren`, `kostenquote_prozent`, `davon_bis_heute`, `vorjahr_gesamt`, `vorjahr_bis_heute`, `veraenderung_vorjahr_bis_heute_prozent`, `monate`, `monate_vorjahr`, `kanaele` |
+| Erlös Monat / Jahr (bis 1.19: Nettoumsatz) | `sensor.smoobu_ferienwohnung_erlos_monat` / `…_jahr` | Erlös (Umsatz − Provision/Gebühren); Attribute `brutto`, `provision`, `zahlungsgebuehren`, `kostenquote_prozent`, `davon_bis_heute`, `vorjahr_gesamt`, `vorjahr_bis_heute`, `veraenderung_vorjahr_bis_heute_prozent`, `monate`, `monate_vorjahr`, `kanaele` |
 | Provision & Gebühren Jahr | `sensor.smoobu_ferienwohnung_provision_gebuhren_jahr` | Summe Provision + Zahlungsgebühren; `je_kanal`, `vorjahr`, `vorjahr_bis_heute`, Kostenquote |
 | Umsatz Direkt / Portale Jahr | `sensor.smoobu_ferienwohnung_umsatz_direkt_jahr` / `…_umsatz_portale_jahr` | Brutto der Gruppe; `netto`, `buchungen`, `naechte`, `netto_pro_nacht`, `anteil_prozent`, `bis_heute`, `vorjahr`, `vorjahr_bis_heute`, Veränderung, `monate`, `monate_vorjahr` |
 | Direktanteil Jahr | `sensor.smoobu_ferienwohnung_direktanteil_jahr` | % am Bruttoumsatz; `anteil_naechte_prozent`, `vorjahr_prozent`, `veraenderung_prozentpunkte`, `ersparnis_direkt` (Direktumsatz × Kostenquote der Portale), `kanaele` / `kanaele_vorjahr` / `…_bis_heute` je Kanal (Brutto, Netto, Kosten, Buchungen, Nächte, Netto/Nacht, Anteil) |
 
-Je Gast zusätzlich: `…_aktueller_gast_kanalgruppe` (Direkt/Portal), `…_provision`, `…_nettopreis`; die Preis-Sensoren haben die Attribute `kanal_gruppe`, `provision`, `provision_quelle`, `zahlungsgebuehr`, `netto`, `kostenquote_prozent`.
+Je Gast zusätzlich: `…_aktueller_gast_kanalgruppe` (Direkt/Portal), `…_provision`, `…_erlos` (bis 1.19: `…_nettopreis`); die Preis-Sensoren haben die Attribute `kanal_gruppe`, `provision`, `provision_quelle`, `zahlungsgebuehr`, `netto`, `kostenquote_prozent`.
 
 **Optionen → Schritt „Provisionen“:** % je Kanal (Standard Airbnb 15,5 · Booking.com 15 · FeWo-direkt 8 · Website 0 · Direktbuchung 0), sonstige Portale (15), weitere Kanäle als `Kanal=Prozent; …`, Direktkanäle (Standard: Direct booking, Website). In der Einstellungs-Karte wählst du Kanäle per Dropdown: zuerst Kanäle mit Buchungen (mit Anzahl), dann in den Einstellungen genutzte, dann alle übrigen Smoobu-Kanäle. Smoobu hat keinen API-Endpunkt für angebundene Kanäle. Ein angebundenes Portal ohne Buchung (z. B. HomeToGo) findest du deshalb in der Katalog-Gruppe.
 
@@ -1120,7 +1120,7 @@ Gross = booking price from Smoobu. Commission = the value Smoobu sends with the 
 
 | Entity | Example ID | Content |
 |---|---|---|
-| Net revenue month / year | `sensor.smoobu_apartment_net_revenue_month` / `…_year` | Net; attributes `brutto`, `provision`, `zahlungsgebuehren`, `kostenquote_prozent`, `davon_bis_heute`, `vorjahr_gesamt`, `vorjahr_bis_heute`, change, `monate`, `monate_vorjahr`, `kanaele` |
+| Revenue after commission month / year (until 1.19: net revenue) | `sensor.smoobu_apartment_revenue_after_commission_month` / `…_year` | Revenue after commission/fees; attributes `brutto`, `provision`, `zahlungsgebuehren`, `kostenquote_prozent`, `davon_bis_heute`, `vorjahr_gesamt`, `vorjahr_bis_heute`, change, `monate`, `monate_vorjahr`, `kanaele` |
 | Commission & fees year | `sensor.smoobu_apartment_commission_fees_year` | Commission + payment fees; `je_kanal`, previous year, cost ratio |
 | Direct / portal revenue year | `sensor.smoobu_apartment_direct_revenue_year` / `…_portal_revenue_year` | Gross of the group; net, bookings, nights, net per night, share, year-to-date, previous year, monthly values |
 | Direct share year | `sensor.smoobu_apartment_direct_share_year` | % of gross revenue; share of nights, previous year, change in points, `ersparnis_direkt` (direct revenue × portal cost ratio), per-channel tables |

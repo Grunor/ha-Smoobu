@@ -35,15 +35,15 @@ from .seasons import month_map as season_month_map, order as season_order
 
 # Kennzahl → (Art, Bezeichnung, Einheit). Art: "nacht" oder "buchung"
 MEASURES: dict[str, tuple[str, str, str]] = {
-    "umsatz": ("nacht", "Umsatz brutto", "€"),
-    "netto": ("nacht", "Umsatz netto", "€"),
+    "umsatz": ("nacht", "Umsatz", "€"),
+    "netto": ("nacht", "Erlös", "€"),
     "kosten": ("nacht", "Provision + Gebühren", "€"),
     "naechte": ("nacht", "Belegte Nächte", "N"),
     "auslastung": ("nacht", "Auslastung", "%"),
     "adr": ("nacht", "Ø Preis je belegter Nacht (ADR)", "€"),
-    "netto_pro_nacht": ("nacht", "Nach Provision je belegter Nacht", "€"),
+    "netto_pro_nacht": ("nacht", "Erlös je belegter Nacht", "€"),
     "revpar": ("nacht", "Umsatz je verfügbarer Nacht (RevPAR)", "€"),
-    "netto_revpar": ("nacht", "Nach Provision je verfügbarer Nacht", "€"),
+    "netto_revpar": ("nacht", "Erlös-RevPAR (Erlös je verfügbarer Nacht)", "€"),
     "kostenquote": ("nacht", "Kostenquote", "%"),
     # v1.18.0: variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom) und
     # Deckungsbeitrag = Netto − variable Kosten (siehe deckungsbeitrag.py)

@@ -30,6 +30,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import (
     HomeAssistant,
+    callback,
     ServiceCall,
     ServiceResponse,
     SupportsResponse,
@@ -129,7 +130,55 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+# v1.20.0 (Entscheidung Betreiber 27.11.2026): Begriffe neu – „Umsatz“ (was der Gast zahlt, bisher „Brutto“),
+# „Erlös“ (nach Provision/Gebühren, bisher „Netto“), Umsatzsteuer als eigene Achse „inkl./ohne USt“.
+# Auch die Entitäts-IDs werden angepasst. unique_id (Schlüssel) bleibt gleich → Historie/Statistik bleiben erhalten
+# (der Recorder folgt der Umbenennung im Entity-Registry). Umbenannt wird nur, wenn die ID noch dem bisherigen
+# Standard entspricht – von Hand vergebene IDs bleiben unangetastet. Schlüssel → (alte Endungen, neuer Name je Sprache)
+ID_RENAMES: dict[str, tuple[tuple[str, ...], dict[str, str]]] = {
+    "netto_umsatz_monat": (("nettoumsatz_monat", "net_revenue_month"), {"de": "Erlös Monat", "en": "Revenue after commission month"}),
+    "netto_umsatz_jahr": (("nettoumsatz_jahr", "net_revenue_year"), {"de": "Erlös Jahr", "en": "Revenue after commission year"}),
+    "aktueller_gast_netto_preis": (("aktueller_gast_nettopreis", "current_guest_net_price"),
+                                   {"de": "Aktueller Gast Erlös", "en": "Current guest revenue after commission"}),
+    "naechster_gast_netto_preis": (("nachster_gast_nettopreis", "next_guest_net_price"),
+                                   {"de": "Nächster Gast Erlös", "en": "Next guest revenue after commission"}),
+    "auswertung_brutto": (("auswertung_brutto", "analysis_gross"), {"de": "Auswertung Umsatz", "en": "Analysis revenue"}),
+    "auswertung_netto": (("auswertung_netto", "analysis_net"), {"de": "Auswertung Erlös", "en": "Analysis revenue after commission"}),
+    "auswertung_netto_pro_nacht": (("auswertung_netto_pro_nacht", "analysis_net_per_night"),
+                                   {"de": "Auswertung Erlös pro Nacht", "en": "Analysis revenue after commission per night"}),
+}
+
+
+@callback
+def _migrate_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> list[tuple[str, str]]:
+    """Entitäts-IDs mit „brutto/netto“ auf die neuen Begriffe umstellen (einmalig, idempotent). Rückgabe: (alt, neu)."""
+    from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+    from homeassistant.util import slugify  # noqa: PLC0415
+
+    reg = er.async_get(hass)
+    done: list[tuple[str, str]] = []
+    for ent in er.async_entries_for_config_entry(reg, entry.entry_id):
+        key = next((k for k in ID_RENAMES if str(ent.unique_id).endswith(f"_{k}")), None)
+        if key is None:
+            continue
+        olds, names = ID_RENAMES[key]
+        domain, obj = ent.entity_id.split(".", 1)
+        for lang, old in zip(("de", "en"), olds, strict=True):
+            if obj == old or obj.endswith(f"_{old}"):
+                new_obj = obj[: len(obj) - len(old)] + slugify(names[lang])
+                new_id = f"{domain}.{new_obj}"
+                if new_id != ent.entity_id and reg.async_get(new_id) is None:
+                    reg.async_update_entity(ent.entity_id, new_entity_id=new_id)
+                    done.append((ent.entity_id, new_id))
+                break
+    if done:
+        _LOGGER.info("Smoobu: Entitäts-IDs auf neue Begriffe (Umsatz/Erlös) umgestellt: %s", done)
+    return done
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: SmoobuConfigEntry) -> bool:
+    # v1.20.0: vor dem Anlegen der Plattformen, damit die Entitäten gleich mit der neuen ID starten
+    _migrate_entity_ids(hass, entry)
     client = SmoobuClient(
         async_get_clientsession(hass), entry.data[CONF_API_KEY], entry.data[CONF_API_SECRET]
     )

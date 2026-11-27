@@ -98,3 +98,27 @@ async def test_ust_ende_zu_ende(hass, setup, hass_ws_client):  # noqa: F811
     await ws.send_json({"id": 5, "type": "smoobu/settings/get", "entry_id": entry.entry_id})
     meta = (await ws.receive_json())["result"]["meta"]
     assert any(b["name"] == "Endreinigung 1 Hund" for b in meta["ust"]["bestandteile"])
+
+
+async def test_ids_umsatz_erloes(hass):
+    """v1.20.0: Entitäts-IDs „brutto/netto“ → „umsatz/erlos“; eigene IDs bleiben, unique_id bleibt."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.smoobu import _migrate_entity_ids
+
+    entry = MockConfigEntry(domain=DOMAIN, unique_id="9", data={})
+    entry.add_to_hass(hass)
+    reg = er.async_get(hass)
+    a = reg.async_get_or_create("sensor", DOMAIN, f"{entry.entry_id}_123_netto_umsatz_jahr", config_entry=entry,
+                                suggested_object_id="apartment_x_smoobu_nettoumsatz_jahr")
+    b = reg.async_get_or_create("sensor", DOMAIN, f"{entry.entry_id}_123_auswertung_netto_pro_nacht", config_entry=entry,
+                                suggested_object_id="smoobu_fw_analysis_net_per_night")
+    c = reg.async_get_or_create("sensor", DOMAIN, f"{entry.entry_id}_123_auswertung_brutto", config_entry=entry,
+                                suggested_object_id="mein_eigener_name")
+    done = _migrate_entity_ids(hass, entry)
+    assert reg.async_get(a.entity_id) is None and reg.async_get("sensor.apartment_x_smoobu_erlos_jahr").unique_id == a.unique_id
+    assert reg.async_get("sensor.smoobu_fw_analysis_revenue_after_commission_per_night")
+    assert reg.async_get(c.entity_id) is not None  # von Hand vergebene ID bleibt
+    assert len(done) == 2 and _migrate_entity_ids(hass, entry) == []  # idempotent

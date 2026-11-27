@@ -29,8 +29,8 @@ const SMOOBU_CARDS_VERSION = "1.19.1b6";
 // ---------------------------------------------------------------------------
 const EN = {
   // v1.20.0: Umsatzsteuer
-  "Umsatzsteuer": "VAT", "ohne USt": "excl. VAT", "Nach Provision je belegter Nacht": "After commission per occupied night", "Nach Provision je verfügbarer Nacht": "After commission per available night", "Umsatz ohne USt": "Revenue excl. VAT", "ohne USt/Nacht": "excl. VAT/night", "keine im Zeitraum": "none in period",
-  "Beträge mit oder ohne Umsatzsteuer": "Amounts with or without VAT", "USt ab": "VAT from", "Nach Provision und Gebühren je verfügbarer Nacht": "After commission and fees per available night",
+  "Umsatzsteuer": "VAT", "inkl. USt": "incl. VAT", "Erlös-RevPAR (Erlös je verfügbarer Nacht)": "RevPAR after commission (per available night)", "ohne USt": "excl. VAT", "Erlös je belegter Nacht": "Revenue after commission per occupied night", "Erlös je verfügbarer Nacht": "Revenue after commission per available night", "Umsatz ohne USt": "Revenue excl. VAT", "Umsatz ohne USt/Nacht": "Revenue excl. VAT/night", "keine im Zeitraum": "none in period",
+  "Beträge mit oder ohne Umsatzsteuer": "Amounts with or without VAT", "USt ab": "VAT from", "Erlös (nach Provision und Gebühren) je verfügbarer Nacht": "Revenue after commission and fees per available night",
   // v1.20.0 (BETA): Lexware Office
   "Rechnung": "Invoice", "keine Rechnung": "no invoice", "Entwurf": "Draft", "offen": "open", "Anzahlung unvollständig": "Deposit incomplete",
   "Anzahlung erhalten": "Deposit received", "bezahlt": "paid", "storniert": "cancelled", "Testmodus": "Test mode",
@@ -86,7 +86,7 @@ const EN = {
   "auf": "to", "Untergrenze": "Floor", "teuerster Kanal": "most expensive channel", "Untergrenze je Kanal": "Floor per channel",
   "Variable Kosten je Nacht": "Variable costs per night", "Heizung": "Heating", "Warmwasser": "Hot water", "Strom": "Electricity",
   "Wasser": "Water", "je Aufenthalt": "per stay", "Nächte frei": "nights free", "Hinweise": "Notes",
-  "Vorjahre": "Previous years", "Vorjahre am gleichen Tag": "Previous years on the same day",   "In den Vorjahren belegt": "Booked in previous years", "so nicht buchbar": "not bookable this way",   "Aufschlag": "Markup", "Nach Provision je € Basispreis": "After commission per € base price", "gemessen": "measured",
+  "Vorjahre": "Previous years", "Vorjahre am gleichen Tag": "Previous years on the same day",   "In den Vorjahren belegt": "Booked in previous years", "so nicht buchbar": "not bookable this way",   "Aufschlag": "Markup", "Erlös je € Basispreis": "Revenue after commission per € base price", "gemessen": "measured",
   "Option": "option", "direkt": "direct", "gleich an allen": "same on all",   "der Nächte werden im selben oder im Vormonat gebucht": "of nights are booked in the same or the previous month",
   "Buchungsstand gegen die Vorjahre am gleichen Tag · Preisuntergrenzen aus den variablen Kosten": "Bookings on hand vs. previous years on the same day · price floors from variable costs",
   "Je Aufenthalt": "Per stay", "Wäsche": "Laundry", "Heizung & Warmwasser": "Heating & hot water",
@@ -123,10 +123,10 @@ const EN = {
   "PP = Prozentpunkte": "PP = percentage points",
   "Aktueller Gast": "Current guest", "Nächster Gast": "Next guest", "Nächste Anreisen": "Upcoming arrivals",
   "Lücken": "Gaps", "Offene Zahlungen": "Open payments", "keine": "none", "Nächte": "nights",
-  "Nacht": "night", "Personen": "guests", "Brutto": "Gross", "Nach Provision": "After commission", "Kosten": "Costs",
+  "Nacht": "night", "Personen": "guests", "Umsatz": "Revenue", "Erlös": "Revenue after commission", "Kosten": "Costs",
   "Auslastung": "Occupancy", "Buchungen": "Bookings", "Stornos": "Cancellations", "Stornoquote": "Cancellation rate",
   "Ø Aufenthalt": "Avg. stay", "Ø Vorlauf": "Avg. lead time", "Ø Personen": "Avg. guests", "Direktanteil": "Direct share",
-  "Prognose Jahr": "Forecast year", "Nach Provision/Nacht": "After commission/night", "Brutto/Nacht": "Gross/night", "Tage": "days",
+  "Prognose Jahr": "Forecast year", "Erlös/Nacht": "Revenue after commission/night", "Umsatz/Nacht": "Revenue/night", "Tage": "days",
   "Monat": "Month", "Jahr bis heute": "Year to date", "Kanal": "Channel", "Kanäle": "Channels", "Zeitraum": "Period",
   "Vergleich": "Comparison", "Alle": "All", "Direkt": "Direct", "Portale": "Portals", "Suche": "Search",
   "Provisionen": "Commissions", "Provision & Gebühren": "Commission & fees", "Kostenquote": "Cost ratio",
@@ -189,7 +189,7 @@ const EN = {
   "Belegt bis": "Occupied until", "Frei bis": "Vacant until", "Abreise bis": "Check-out by", "Bezahlt über": "Paid via",
   "Hund dabei": "Dog included", "Person": "guest", "Tagen": "days", "Die nächsten": "Next", "Wochen": "weeks", "brutto": "gross",
   "ggü. Buchungsstand": "vs. booking status", "Nächten": "nights", "netto": "net", "Prognose": "Forecast", "schon gebucht": "already booked",
-  "Nach Provision je Nacht": "After commission per night", "spart rund": "saves about", "Anteil am Umsatz": "Share of revenue", "Freie Zeiträume": "Free periods",
+  "Erlös je Nacht": "Revenue after commission per night", "spart rund": "saves about", "Anteil am Umsatz": "Share of revenue", "Freie Zeiträume": "Free periods",
   "nächste": "next", "Wartet auf dich": "Waiting for you", "wartet auf Antwort": "awaits reply", "Zahlung offen": "Payment open",
   "Buchung öffnen": "Open booking", "Alles erledigt.": "All done.", "Keine Anreisen geplant.": "No arrivals planned.", "Keine Lücken.": "No gaps.",
   "Reinigung": "Cleaning", "ab": "from", "Heute keine An- oder Abreise": "No arrival or departure today", "Nachricht": "message",
@@ -247,9 +247,9 @@ const EN = {
   "Mehr Nächte": "More nights", "Kosten je Nacht": "Costs per night", "jetzt": "now", "Saisonmix, Preise": "season mix, prices",
   "Höhere Preise je Nacht": "Higher prices per night", "Niedrigere Preise je Nacht": "Lower prices per night", "Ausl.": "Occ.", "die geringere Auslastung kostete": "the lower occupancy cost",
   "die höhere Auslastung brachte": "the higher occupancy brought", "sparte aber": "but saved", "verursachte aber": "but caused",
-  "Nach Provision − variable Kosten": "After commission − variable costs", "Was hat den DB verändert?": "What changed the CM?", "DB je Monat": "CM per month",
+  "Erlös − variable Kosten": "Revenue after commission − variable costs", "Was hat den DB verändert?": "What changed the CM?", "DB je Monat": "CM per month",
   "Linie = Vergleich": "line = comparison", "Keine variablen Kosten hinterlegt – Einstellungen → Kosten": "No variable costs set – Settings → Costs",
-  "Nach Provision − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom); Fixkosten nicht enthalten": "After commission − variable costs (cleaning, laundry, heating, hot water, water, power); fixed costs not included",
+  "Erlös − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom); Fixkosten nicht enthalten": "Revenue after commission − variable costs (cleaning, laundry, heating, hot water, water, power); fixed costs not included",
   "Fixkosten (Grundsteuer, Versicherung, Internet …) sind nicht enthalten. Variable Kosten aus Einstellungen → Kosten; Heizung/Warmwasser nach Gradtagszahlen je Monat verteilt.": "Fixed costs (property tax, insurance, internet …) are not included. Variable costs from Settings → Costs; heating/hot water distributed by monthly degree days.",
   // v1.18.0: Baukasten – Bearbeiten, Vorschau, Vorlagen
   "Bearbeiten": "Edit", "Modul bearbeiten": "Edit module", "Änderungen speichern": "Save changes", "Als neues Modul": "As new module",
@@ -258,15 +258,15 @@ const EN = {
   "Umsatz je Monat nach Kanal": "Revenue per month by channel", "Welcher Kanal trägt in welchem Monat den Umsatz?": "Which channel carries revenue in which month?",
   "Auslastung nach Wochentag": "Occupancy by weekday", "Welche Nächte bleiben am häufigsten leer?": "Which nights stay empty most often?",
   "Preis je Nacht nach Saison und Kanal": "Price per night by season and channel", "Wo ist der Preis je Nacht je Saison am höchsten?": "Where is the price per night highest per season?",
-  "Nach Provision je Nacht nach Aufenthaltsdauer": "After commission per night by length of stay", "Bringen kurze Aufenthalte mehr je Nacht?": "Do short stays earn more per night?",
+  "Erlös je Nacht nach Aufenthaltsdauer": "Revenue after commission per night by length of stay", "Bringen kurze Aufenthalte mehr je Nacht?": "Do short stays earn more per night?",
   "Vorlauf nach Kanal": "Lead time by channel", "Wie früh buchen Gäste je Kanal (Median)?": "How early do guests book per channel (median)?",
-  "Stammgäste und Neukunden": "Returning and new guests", "Nach Provision je Nacht von Stammgästen im Vergleich": "After commission per night of returning guests compared",
+  "Stammgäste und Neukunden": "Returning and new guests", "Erlös je Nacht von Stammgästen im Vergleich": "Revenue after commission per night of returning guests compared",
   "Stornoquote je Kanal": "Cancellation rate by channel", "Welcher Kanal storniert am häufigsten?": "Which channel cancels most often?",
   "Gäste mit Hund je Saison": "Guests with dogs by season", "Wann kommen die meisten Hunde?": "When do most dogs come?",
   "Aufenthaltsdauer im Jahresverlauf": "Length of stay over the year", "Median der Nächte je Anreisemonat": "Median nights per arrival month",
   "Gästesprachen": "Guest languages", "Buchungen nach Sprache des Gastes": "Bookings by guest language",
   "Personen je Buchung nach Saison": "Guests per booking by season", "Familien im Sommer, Paare im Winter?": "Families in summer, couples in winter?",
-  "Deckungsbeitrag je Monat": "Contribution margin per month", "Nach Provision minus variable Kosten je Monat": "After commission minus variable costs per month",
+  "Deckungsbeitrag je Monat": "Contribution margin per month", "Erlös minus variable Kosten je Monat": "Revenue after commission minus variable costs per month",
   "Buchungswert": "Booking value", "Ø Buchungswert brutto als große Zahl": "Ø gross booking value as a big number",
   // v1.18.0: frühere Aufenthalte des Gastes
   "Stammgast": "Returning guest", "Schon": "Already", "bei uns": "with us", "zuletzt": "last", "Nein – erster Aufenthalt": "No – first stay",
@@ -359,7 +359,7 @@ const EN = {
   "Bis": "To", "Bitte Preis oder Preis-Entität angeben": "Please enter a price or a price entity",
   "Bitte eine Datei wählen": "Please choose a file", "Bitte eine KI wählen oder „KI erlauben“ ausschalten": "Please choose an AI or switch off \"Allow AI\"",
   "Bitte einen Stromzähler wählen oder „Konstant“": "Please choose an energy meter or \"Constant\"", "Bitte einen Zähler wählen oder „Konstant“": "Please choose a meter or \"Constant\"",
-  "Booking.com-Buchungen der letzten 24 Monate waren Genius-Gäste": "Booking.com bookings of the last 24 months were Genius guests", "Brutto der stornierten Buchungen": "Gross of cancelled bookings",
+  "Booking.com-Buchungen der letzten 24 Monate waren Genius-Gäste": "Booking.com bookings of the last 24 months were Genius guests", "Umsatz der stornierten Buchungen": "Revenue of cancelled bookings",
   "Buchungen dieser Kanäle zählen nicht als offene Zahlung.": "Bookings of these channels do not count as open payments.", "Buchungen im Filter (inkl. Stornos)": "Bookings in the filter (incl. cancellations)",
   "Buchungen mit Anreise im Zeitraum": "Bookings with arrival in the period", "Buchungen mit Nachrichten-Verlauf": "Bookings with message history",
   "Buchungen mit Provision von Smoobu": "Bookings with commission from Smoobu", "Buchungsfenster & Aufenthalt": "Booking window & stay",
@@ -441,7 +441,7 @@ const EN = {
   "Monate × Jahre seit": "Months × years since", "Nachrichten der Gäste lesen und beantworten": "Read and answer guest messages",
   "Nachrichten werden im Hintergrund gedrosselt nachgeladen (einmalig ab 2020, danach stündlich neue)": "Messages are loaded throttled in the background (once from 2020, then new ones hourly)", "Nacht von … auf …, je Kalenderwoche": "Night from … to …, per calendar week",
   "Name 1–30 Zeichen": "Name 1–30 characters", "Nebenkostenabrechnung auswerten (KI)": "Analyse utility bill (AI)",
-  "Umsatz nach Provision und Provision/Gebühren (schraffiert) je Kanal": "Revenue after commission and commission/fees (hatched) per channel", "RevPAR nach Provision": "RevPAR after commission",
+  "Erlös und Provision/Gebühren (schraffiert) je Kanal": "Revenue after commission and commission/fees (hatched) per channel", "Erlös-RevPAR": "RevPAR after commission",
   "Netzanteil": "Grid share", "Netzanteil stündlich messen": "Measure grid share hourly", "Energie-Dashboard": "Energy dashboard", "Monatswerte": "Monthly values", "Jahreswert": "Annual value",
   "Monatswerte (Rückfall)": "Monthly values (fallback)", "Netzanteil im Jahr": "Grid share for the year", "Netzbezug-Sensor": "Grid import sensor",
   "Gelten vor dem ersten Messwert und für künftige Buchungen.": "Used before the first measured value and for future bookings.",
@@ -585,7 +585,7 @@ const EN = {
   "– keine –": "– none –", "– niemand –": "– nobody –",
   "Aus = keinerlei KI-Aufruf, keine Daten an KI-Anbieter.": "Off = no AI call at all, no data to AI providers.",
   "Diese Preisänderung rückgängig machen? Die vorherigen Tagespreise werden in Smoobu wieder gesetzt.": "Undo this price change? The previous daily prices are set in Smoobu again.",
-  "Kanal-Matrix: Netto je Nacht × Anteil Nächte, Blase = Buchungen": "Channel matrix: net per night × share of nights, bubble = bookings",
+  "Kanal-Matrix: Erlös je Nacht × Anteil Nächte, Blase = Buchungen": "Channel matrix: revenue after commission per night × share of nights, bubble = bookings",
   "Leer = automatisch": "Empty = automatic",
   "Neuen Türcode erzeugen? Der alte gilt dann nicht mehr (auch im Schloss).": "Create a new door code? The old one will no longer be valid (also in the lock).",
   "Spalte = Abstand Buchungsmonat → Aufenthaltsmonat": "Column = distance booking month → month of stay",
@@ -594,7 +594,7 @@ const EN = {
   "Sperrt die Oberfläche, nicht die HA-API: Home Assistant kennt keine Rechte je Benutzer und Gerät. Die Smoobu-Daten prüft weiterhin der Server. Automatisch = Seite Reinigung für reine Reinigungsrollen, sonst die Übersicht.": "Locks the UI, not the HA API: Home Assistant has no permissions per user and device. The server still checks the Smoobu data. Automatic = cleaning page for cleaning-only roles, otherwise the overview.",
   "Strompreis je Monat = Netzanteil × Netzpreis + Rest × Wert des PV-Stroms (entgangene Einspeisevergütung).": "Electricity price per month = grid share × grid price + rest × value of PV power (lost feed-in tariff).",
   "Tage in Smoobu ändern? Smoobu überträgt den Basispreis mit den Aufschlägen an alle Portale.": "Change days in Smoobu? Smoobu transfers the base price with the markups to all portals.",
-  "Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.": "Variable costs = costs that only arise from a stay. Contribution margin = net − variable costs. Fixed costs (property tax, insurance, internet) do not belong here.",
+  "Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Erlös − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.": "Variable costs = costs that only arise from a stay. Contribution margin = net − variable costs. Fixed costs (property tax, insurance, internet) do not belong here.",
   "Verläufe: kräftige Linie = letzte 12 Monate bzw. dieses Jahr, blasse Linie = Vorjahr.": "Trends: bold line = last 12 months or this year, pale line = previous year.",
   "Wie im Smoobu-Preistool: Kanalpreis = Basispreis + Aufschlag. Grundlage für Preisuntergrenzen und Empfehlungen.": "As in the Smoobu price tool: channel price = base price + markup. Basis for price floors and recommendations.",
   "Zahlen oben = Kalenderwoche": "Numbers on top = calendar week",
@@ -638,8 +638,8 @@ const priceName = (p) => { const m = PRICE_DE[p.typ]; return LANG === "de" && m 
 const GLOSSARY = {
   ADR: "Ø Preis je belegter Nacht (brutto)",
   RevPAR: "Umsatz je verfügbarer Nacht = ADR × Auslastung",
-  "RevPAR nach Provision": "RevPAR after commission",
-  DB: "Deckungsbeitrag = Netto − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom)",
+  "Erlös-RevPAR": "RevPAR after commission",
+  DB: "Deckungsbeitrag = Erlös − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom)",
   "DB-RevPAR": "Deckungsbeitrag je verfügbarer Nacht",
   Untergrenze: "Basispreis, ab dem eine Buchung über diesen Kanal noch einen positiven Deckungsbeitrag bringt",
   PP: "Prozentpunkte – Veränderung einer Quote",
@@ -654,7 +654,7 @@ const GLOSSARY = {
 };
 const GLOSSARY_EN = {
   ADR: "average price per occupied night (gross)", RevPAR: "revenue per available night = ADR × occupancy",
-  "RevPAR nach Provision": "RevPAR after commission", PP: "percentage points – change of a rate",
+  "Erlös-RevPAR": "RevPAR after commission", PP: "percentage points – change of a rate",
   n: "number of bookings the value is based on", "Vgl.": "comparison period", "Ø": "average", N: "nights",
   "Δ": "change vs. comparison", Pace: "booking pace: bookings on hand the same day before the stay",
   "P10–P90": "range covering 80 % of prior years' late bookings", KW: "calendar week",
@@ -1814,9 +1814,9 @@ class SmoobuOverviewCard extends SmoobuCard {
         `${t("ggü. Buchungsstand")} ${fdate(month.stichtag_vergleich, { day: "2-digit", month: "2-digit", year: "numeric" })}`, now.brutto, prev.brutto)}
       ${k(`${t("Auslastung")} ${monthName(today)}`, pct(month.auslastung_prozent, 0), delta(month.veraenderung_punkte?.auslastung_prozent, "pp"),
         `${num(month.naechte)} von ${num((month.tage || 30) * units)} ${t("Nächten")}`, now.occ, prev.occ)}
-      ${k(t("Jahr bis heute"), money(ytd.brutto, cur), delta(ytd.veraenderung_prozent?.brutto), `${t("netto")} ${money(ytd.netto, cur)}`, cum, cumPrev)}
+      ${k(t("Jahr bis heute"), money(ytd.brutto, cur), delta(ytd.veraenderung_prozent?.brutto), `${t("Erlös")} ${money(ytd.netto, cur)}`, cum, cumPrev)}
       ${k(`${t("Prognose")} ${year}`, money(prog.prognose, cur), delta(progDelta), `${money(prog.gebucht, cur)} ${t("schon gebucht")}`, cum, monthly ? cumPrevYear : null)}
-      ${k(t("Nach Provision je Nacht"), money(ytd.netto_pro_nacht, cur), delta(ytd.veraenderung_prozent?.netto_pro_nacht),
+      ${k(t("Erlös je Nacht"), money(ytd.netto_pro_nacht, cur), delta(ytd.veraenderung_prozent?.netto_pro_nacht),
         `${t("Vorjahr")} ${money(ytd.vergleich?.netto_pro_nacht, cur)}`, now.npn, prev.npn)}
       ${k(t("Direktanteil"), pct(ytd.direktanteil_prozent, 0), delta(ytd.veraenderung_punkte?.direktanteil_prozent, "pp"),
         saved ? `${t("spart rund")} ${money(saved, cur)} ${t("Provision")}` : t("Anteil am Umsatz"), now.direct, prev.direct)}
@@ -2331,7 +2331,7 @@ function priceDialog(card, d) {
         const floor = d.untergrenze?.[k.kanal];
         const low = floor && base < floor;
         return `<div style="display:flex;gap:8px"><span style="flex:1">${esc(chn(k.kanal))}${k.aufschlag ? ` (+${num(k.aufschlag)} %)` : ""}</span>
-          <b>${money(base * (1 + (k.aufschlag || 0) / 100), d.cur)}</b><span style="width:110px;text-align:right;color:${low ? p.bad : p.mut}">${t("netto")} ≈ ${money(base * k.netto_je_euro, d.cur)}${low ? " ⚠" : ""}</span></div>`;
+          <b>${money(base * (1 + (k.aufschlag || 0) / 100), d.cur)}</b><span style="width:110px;text-align:right;color:${low ? p.bad : p.mut}">${t("Erlös")} ≈ ${money(base * k.netto_je_euro, d.cur)}${low ? " ⚠" : ""}</span></div>`;
       }).join("") + (d.kanaele.some((k) => d.untergrenze?.[k.kanal] && base < d.untergrenze[k.kanal]) ? `<div style="color:${p.bad};margin-top:4px">⚠ ${t("Unter der Untergrenze: diese Kanäle bringen bei 2 Nächten keinen Deckungsbeitrag mehr.")}</div>` : "");
     };
     const run = async (dry) => {
@@ -2468,8 +2468,8 @@ function downloadCsv(name, rows) {
 // ===========================================================================
 const BOOKING_COLS = [
   ["status", "Status"], ["anreise", "Anreise"], ["abreise", "Abreise"], ["naechte", "Nächte", "n"], ["gast", "Gast"],
-  ["personen", "Personen", "n"], ["kanal", "Kanal"], ["brutto", "Brutto", "n"], ["kosten", "Kosten", "n"],
-  ["netto", "Nach Provision", "n"], ["netto_pro_nacht", "Nach Provision/Nacht", "n"], ["offen", "Offen", "n"], ["vorlauf_tage", "Vorlauf", "n"],
+  ["personen", "Personen", "n"], ["kanal", "Kanal"], ["brutto", "Umsatz", "n"], ["kosten", "Kosten", "n"],
+  ["netto", "Erlös", "n"], ["netto_pro_nacht", "Erlös/Nacht", "n"], ["offen", "Offen", "n"], ["vorlauf_tage", "Vorlauf", "n"],
 ];
 // Datumsspalten starten beim Sortieren immer absteigend (neueste zuerst), alle übrigen aufsteigend
 const BOOKING_DATE_COLS = new Set(["anreise", "abreise"]);
@@ -2716,7 +2716,7 @@ function periodName(von, bis) {
   return `${fdate(von)} – ${fdate(iso(b))}`;
 }
 // Diagramm-Kennzahlen der Finanzen-Karte (v1.17.0: + Provisionen & Gebühren je Portal)
-const METRIC_LABEL = { brutto: "Brutto", netto: "Nach Provision", naechte: "Nächte", kosten: "Provisionen" };
+const METRIC_LABEL = { brutto: "Umsatz", netto: "Erlös", naechte: "Nächte", kosten: "Provisionen" };
 // ===========================================================================
 // Gemeinsame Filterleiste Statistik + Finanzen (v1.18.0b8)
 // ===========================================================================
@@ -2792,7 +2792,7 @@ function filterBarHtml(card, d, { simple = false, compares = STATS_COMPARE, rast
   const u = d.info?.ust;
   const uv = UstView.get() || u?.ansicht || "brutto";
   const ustSeg = u?.aktiv ? `<span class="grp"><div class="seg" role="group" aria-label="${t("Umsatzsteuer")}" title="${esc(t("Beträge mit oder ohne Umsatzsteuer"))}${u.seit ? ` · ${esc(t("USt ab"))} ${fdate(u.seit)}` : ""}">
-      <button data-ust="brutto" aria-pressed="${uv === "brutto"}">${t("Brutto")}</button><button data-ust="ohne" aria-pressed="${uv === "ohne"}">${t("ohne USt")}</button></div></span>` : "";
+      <button data-ust="brutto" aria-pressed="${uv === "brutto"}">${t("inkl. USt")}</button><button data-ust="ohne" aria-pressed="${uv === "ohne"}">${t("ohne USt")}</button></div></span>` : "";
   if (simple) return `<div class="fbar">${period}${anchor}${cmp}${ustSeg}${sdef}</div>`;
   const ws = d.info.wohnungen;
   const sel = card.target.apartment_id;
@@ -2974,9 +2974,9 @@ class SmoobuAnalyticsCard extends SmoobuCard {
         <td class="n">${x.buchungen}</td><td class="n">${pct(x.direktanteil_prozent, 0)}</td></tr>`;
     }).join("");
     return `<h3>${t("Mehrfachvergleich")}</h3>
-      <div class="scroll"><table><thead><tr><th>${t("Zeitraum")}</th><th class="n">${t("Brutto")}</th><th class="n" title="${t("Veränderung zum nächstälteren Zeitraum")}">Δ</th>
-        <th class="n">${t("Nach Provision")}</th><th class="n">${t("Provision & Gebühren")}</th><th class="n">${t("Kostenquote")}</th><th class="n">${t("Nächte")}</th>
-        <th class="n">${t("Auslastung")}</th><th class="n">${t("Nach Provision/Nacht")}</th><th class="n">${t("Buchungen")}</th><th class="n">${t("Direktanteil")}</th></tr></thead>
+      <div class="scroll"><table><thead><tr><th>${t("Zeitraum")}</th><th class="n">${t("Umsatz")}</th><th class="n" title="${t("Veränderung zum nächstälteren Zeitraum")}">Δ</th>
+        <th class="n">${t("Erlös")}</th><th class="n">${t("Provision & Gebühren")}</th><th class="n">${t("Kostenquote")}</th><th class="n">${t("Nächte")}</th>
+        <th class="n">${t("Auslastung")}</th><th class="n">${t("Erlös/Nacht")}</th><th class="n">${t("Buchungen")}</th><th class="n">${t("Direktanteil")}</th></tr></thead>
         <tbody>${body}</tbody></table></div>`;
   }
   // v1.17.0: acht Zusatzkacheln
@@ -2996,7 +2996,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       <i style="height:${Math.round((w.naechte / wmax) * 18)}px"></i>${t(days[i])}</div>`).join("")}</div>`;
     return [
       tile(t("Erlös je verfügbare Nacht"), money(r.erloes_verfuegbare_nacht, cur),
-        `${t("netto")} · ${num(r.verfuegbare_naechte)} ${t("verfügbar")} ${delta(dp.erloes_verfuegbare_nacht)}`),
+        `${t("Erlös")} · ${num(r.verfuegbare_naechte)} ${t("verfügbar")} ${delta(dp.erloes_verfuegbare_nacht)}`),
       // Potenzial = noch buchbare freie Nächte × Ø Netto/Nacht; entgangen = vergangene freie Nächte × Ø Netto/Nacht
       tile(t("Freie Nächte"), num(r.frei_naechte),
         `${r.frei_kommend} ${t("buchbar")} · ${t("Potenzial")} ${money(r.frei_potenzial_netto, cur)}`
@@ -3009,7 +3009,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       tile(t("Teuerstes Portal"), portals.length ? pct(portals[0][1].kostenquote_prozent) : "–",
         portals.length ? `<b>${esc(portals[0][0])}</b>${portals.length > 1 ? `<br>${t("günstigstes")}: ${esc(portals.at(-1)[0])} ${pct(portals.at(-1)[1].kostenquote_prozent)}` : ""}` : ""),
       tile(t("Bester Kanal je Nacht"), perNight.length ? money(perNight[0][1].netto_pro_nacht, cur) : "–",
-        perNight.length ? `<b>${esc(perNight[0][0])}</b> ${t("netto")}${perNight.length > 1 ? `<br>${t("schwächster")}: ${esc(perNight.at(-1)[0])} ${money(perNight.at(-1)[1].netto_pro_nacht, cur)}` : ""}` : ""),
+        perNight.length ? `<b>${esc(perNight[0][0])}</b> ${t("Erlös")}${perNight.length > 1 ? `<br>${t("schwächster")}: ${esc(perNight.at(-1)[0])} ${money(perNight.at(-1)[1].netto_pro_nacht, cur)}` : ""}` : ""),
       tile(t("Stammgäste"), pct(r.stammgaeste_prozent, 0),
         `${r.stammgaeste} / ${r.buchungen} ${t("Buchungen")} ${delta(dpp.stammgaeste_prozent ?? null, "pp")}`),
       tile(t("Wochenende Fr/Sa"), pct(r.wochenende_anteil_prozent, 0),
@@ -3074,19 +3074,19 @@ class SmoobuAnalyticsCard extends SmoobuCard {
         afterCmp: s.compare !== "kein" ? `<select data-k="ccount" title="${t("Anzahl Vergleichszeiträume")}">${COMPARE_COUNTS.map((n) =>
           `<option value="${n}" ${n === s.compareCount ? "selected" : ""}>${n} ${t(s.compare === "vorperiode" ? (n === 1 ? "Periode" : "Perioden") : (n === 1 ? "Jahr" : "Jahre"))}</option>`).join("")}</select>` : "" })}
       <div class="grid">
-        ${tile(t(r.umsatzsteuer?.aktiv && r.umsatzsteuer.ansicht === "ohne" ? "Umsatz ohne USt" : "Brutto"), money(r.brutto, cur), `${cmpTxt("brutto", (v) => money(v, cur))} ${delta(dp.brutto)}${endTxt("brutto", (v) => money(v, cur))}`)}
+        ${tile(t(r.umsatzsteuer?.aktiv && r.umsatzsteuer.ansicht === "ohne" ? "Umsatz ohne USt" : "Umsatz"), money(r.brutto, cur), `${cmpTxt("brutto", (v) => money(v, cur))} ${delta(dp.brutto)}${endTxt("brutto", (v) => money(v, cur))}`)}
         ${r.umsatzsteuer?.aktiv ? tile(t("Umsatzsteuer"), money(r.umsatzsteuer.summe, cur), Object.entries(r.umsatzsteuer.je_satz || {}).sort((a, b) => Number(a[0]) - Number(b[0]))
           .map(([p, v]) => `${num(Number(p))} %: ${money(v, cur, 2)}`).join(" · ") || t("keine im Zeitraum")) : ""}
-        ${tile(t("Nach Provision"), money(r.netto, cur), `${cmpTxt("netto", (v) => money(v, cur))} ${delta(dp.netto)}${endTxt("netto", (v) => money(v, cur))}`)}
+        ${tile(t("Erlös"), money(r.netto, cur), `${cmpTxt("netto", (v) => money(v, cur))} ${delta(dp.netto)}${endTxt("netto", (v) => money(v, cur))}`)}
         ${tile(t("Kosten"), money(r.kosten, cur), `${pct(r.kostenquote_prozent)} ${delta(dpp.kostenquote_prozent, "pp", true)}`)}
         ${tile(t("Auslastung"), pct(r.auslastung_prozent, 0), `${r.naechte} ${t("Nächte")} · ${r.gesperrt_naechte} ${t("Gesperrt")} ${delta(dpp.auslastung_prozent, "pp")}${endTxt("auslastung_prozent", (v) => pct(v, 0), true)}`)}
-        ${tile(t("Nach Provision/Nacht"), money(r.netto_pro_nacht, cur), `${t(r.umsatzsteuer?.aktiv && r.umsatzsteuer.ansicht === "ohne" ? "ohne USt/Nacht" : "Brutto/Nacht")} ${money(r.brutto_pro_nacht, cur)} ${delta(dp.netto_pro_nacht)}${endTxt("netto_pro_nacht", (v) => money(v, cur))}`)}
+        ${tile(t("Erlös/Nacht"), money(r.netto_pro_nacht, cur), `${t(r.umsatzsteuer?.aktiv && r.umsatzsteuer.ansicht === "ohne" ? "Umsatz ohne USt/Nacht" : "Umsatz/Nacht")} ${money(r.brutto_pro_nacht, cur)} ${delta(dp.netto_pro_nacht)}${endTxt("netto_pro_nacht", (v) => money(v, cur))}`)}
         ${tile(t("Buchungen"), num(r.buchungen), `${r.stornos} ${t("Stornos")} (${pct(r.stornoquote_prozent, 0)}) ${delta(dp.buchungen)}${endTxt("buchungen", (v) => num(v))}`)}
         ${tile(t("Ø Aufenthalt"), `${num(r.aufenthalt_schnitt, 1)} N`, `${cmpTxt("aufenthalt_schnitt", (v) => num(v, 1))} ${delta(dp.aufenthalt_schnitt)}`)}
         ${tile(t("Ø Vorlauf"), `${num(r.vorlauf_schnitt)} ${t("Tage")}`, `Median ${num(r.vorlauf_median)} · ${cmpTxt("vorlauf_schnitt", (v) => num(v))}`)}
         ${tile(t("Ø Personen"), num(r.personen_schnitt, 1), `${r.hunde} × 🐕 · ${money(r.preis_pro_buchung, cur)} je Buchung`)}
         ${tile(t("Direktanteil"), pct(r.direktanteil_prozent, 0), delta(dpp.direktanteil_prozent, "pp"))}
-        ${r.prognose ? tile(t("Prognose Jahr"), money(r.prognose.prognose, cur), `${t("Nach Provision")} ${money(r.prognose.prognose_netto, cur)}`) : ""}
+        ${r.prognose ? tile(t("Prognose Jahr"), money(r.prognose.prognose, cur), `${t("Erlös")} ${money(r.prognose.prognose_netto, cur)}`) : ""}
         ${this.extraTiles(apt, r)}
       </div>
       <h3>${t("Diagramm")}</h3>
@@ -3104,8 +3104,8 @@ class SmoobuAnalyticsCard extends SmoobuCard {
               <span class="sub">${t("Direktanteil")}</span></div>`}</div>
       ${this.multiTable(apt, r)}
       ${per.length > 1 ? `<h3>${t("Wohnungen im Vergleich")}</h3>
-      <div class="scroll"><table><thead><tr><th>${t("Wohnung")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
-        <th class="n">${t("Nach Provision")}</th><th class="n">${t("Auslastung")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Nach Provision/Nacht")}</th>
+      <div class="scroll"><table><thead><tr><th>${t("Wohnung")}</th><th class="n">${t("Umsatz")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
+        <th class="n">${t("Erlös")}</th><th class="n">${t("Auslastung")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Erlös/Nacht")}</th>
         <th class="n">${t("Buchungen")}</th><th class="n">${t("Direktanteil")}</th></tr></thead><tbody>
         ${per.map(({ w, x }) => `<tr><td>${codeTag(w.kuerzel)} ${esc(w.name)}</td><td class="n">${money(x.brutto, cur)}</td>
           <td class="n">${pct(r.brutto ? (x.brutto / r.brutto) * 100 : null, 0)}</td><td class="n">${delta(x.veraenderung_prozent?.brutto)}</td>
@@ -3114,8 +3114,8 @@ class SmoobuAnalyticsCard extends SmoobuCard {
           <td class="n">${pct(x.direktanteil_prozent, 0)}</td></tr>`).join("")}</tbody></table></div>` : ""}
       ${ins.length ? `<h3>${t("Erkenntnisse")}</h3><ul class="ins">${ins.map((i) => `<li>${i}</li>`).join("")}</ul>` : ""}
       <h3>${t("Kanaltabelle")}</h3>
-      <div class="scroll"><table><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
-        <th class="n">${t("Nach Provision")}</th><th class="n">${t("Provision & Gebühren")}</th><th class="n">${t("Kostenquote")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Nach Provision/Nacht")}</th>
+      <div class="scroll"><table><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Umsatz")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
+        <th class="n">${t("Erlös")}</th><th class="n">${t("Provision & Gebühren")}</th><th class="n">${t("Kostenquote")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Erlös/Nacht")}</th>
         <th class="n">${t("Buchungen")}</th><th class="n">${t("Stornoquote")}</th><th class="n">${t("Ø Aufenthalt")}</th><th class="n">${t("Ø Vorlauf")}</th><th class="n">${t("Ø Personen")}</th></tr></thead>
         <tbody>${table || `<tr><td colspan="14" class="empty">${t("Keine Daten")}</td></tr>`}</tbody>
         <tfoot><tr><td>${t("Summe")}</td><td class="n">${money(r.brutto, cur)}</td><td class="n">100 %</td><td class="n">${delta(dp.brutto)}</td>
@@ -3387,10 +3387,10 @@ class SmoobuBookingDialog extends HTMLElement {
           raw.address && (raw.address.street || raw.address.city) && ["Adresse", esc([raw.address.street, raw.address.postalCode, raw.address.location || raw.address.city, raw.address.country].filter(Boolean).join(", "))],
         ])}</div>${this.doorHtml()}${this.cleanHtml()}
         <div><h3>${t("Preis")}</h3>${positions}${kv([
-          ["Brutto", `<b>${money(b.brutto, cur, 2)}</b>${b.naechte ? ` · ${money(b.brutto_pro_nacht, cur, 2)}/${t("Nacht")}` : ""}`],
+          ["Umsatz", `<b>${money(b.brutto, cur, 2)}</b>${b.naechte ? ` · ${money(b.brutto_pro_nacht, cur, 2)}/${t("Nacht")}` : ""}`],
           ["Provision", `${money(b.provision, cur, 2)}${b.provision_quelle === "konfiguration" ? " (geschätzt)" : ""}`],
           b.zahlungsgebuehr && ["Zahlungsgebühr", money(b.zahlungsgebuehr, cur, 2)],
-          ["Nach Provision", `<b>${money(b.netto, cur, 2)}</b> · ${money(b.netto_pro_nacht, cur, 2)}/${t("Nacht")}`],
+          ["Erlös", `<b>${money(b.netto, cur, 2)}</b> · ${money(b.netto_pro_nacht, cur, 2)}/${t("Nacht")}`],
           b.anzahlung && ["Anzahlung", `${money(b.anzahlung, cur, 2)} ${b.anzahlung_bezahlt || b.bezahlt ? "✓" : "✗"}`],
           b.offen > 0 && ["Restbetrag", `<b style="color:var(--sm-bad)">${money(b.offen, cur, 2)}</b>`],
           b.kurtaxe && ["Kurtaxe", money(b.kurtaxe, cur, 2)],
@@ -4136,12 +4136,12 @@ const STATS_KPIS = [
   { id: "auslastung", label: "Auslastung", pp: true, hint: "Belegte Nächte ÷ verfügbare Nächte (gesperrte Nächte zählen nicht als verfügbar)" },
   { id: "adr", label: "ADR", hint: "Ø Preis je belegter Nacht (brutto)" },
   { id: "revpar", label: "RevPAR", hint: "Umsatz je verfügbarer Nacht = ADR × Auslastung" },
-  { id: "netto_revpar", label: "RevPAR nach Provision", hint: "Nach Provision und Gebühren je verfügbarer Nacht" },
+  { id: "netto_revpar", label: "Erlös-RevPAR", hint: "Erlös (nach Provision und Gebühren) je verfügbarer Nacht" },
   { id: "vorlauf", label: "Vorlauf", hint: "Median der Tage zwischen Buchung und Anreise (Anreisen im Zeitraum)" },
   { id: "stornoquote", label: "Stornoquote", pp: true, invert: true, hint: "Stornos ÷ alle Buchungen mit Anreise im Zeitraum" },
 ];
 const STATS_EINFACH = ["umsatz", "auslastung", "adr", "stornoquote"];
-const MATRIX_MEASURES = [["auslastung", "Auslastung"], ["umsatz", "Umsatz"], ["adr", "ADR"], ["revpar", "RevPAR"], ["netto", "Nach Provision"], ["db", "DB"]];
+const MATRIX_MEASURES = [["auslastung", "Auslastung"], ["umsatz", "Umsatz"], ["adr", "ADR"], ["revpar", "RevPAR"], ["netto", "Erlös"], ["db", "DB"]];
 const PERIOD_TYPES = [["monat", "Monat"], ["quartal", "Quartal"], ["saison", "Saison"], ["jahr", "Jahr"], ["frei", "Frei"]];
 const PERIOD_MONTHS = { monat: 1, quartal: 3, saison: 3, jahr: 12 };
 const STATS_COMPARE = [["stichtag", "Stichtag Vorjahr"], ["vorjahr", "Ganzes Vorjahr"], ["vorperiode", "Vorperiode"]];
@@ -4494,11 +4494,11 @@ const STATS_MODULES = {
       const m0 = (x) => money(x, cur), m2 = (x) => money(x, cur, 2);
       const tiles = tilesRow([
         [t("Deckungsbeitrag"), `${m0(DB1)} ${delta(rel(DB1, DB0))}`, `${vg("db", () => m0(DB0))}${m.fin ? ` · ${t("Endstand")} ${m0(m.fin.wert)}` : ""}`,
-          t("Nach Provision − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom); Fixkosten nicht enthalten"), n < 5],
+          t("Erlös − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom); Fixkosten nicht enthalten"), n < 5],
         [t("DB je belegter Nacht"), `${m2(v(a, "db_pro_nacht"))} ${delta(rel(v(a, "db_pro_nacht"), v(b, "db_pro_nacht")))}`, vg("db_pro_nacht", m2)],
         ["DB-RevPAR", `${m2(v(a, "db_revpar"))} ${delta(rel(v(a, "db_revpar"), v(b, "db_revpar")))}`, vg("db_revpar", m2), t("Deckungsbeitrag je verfügbarer Nacht")],
         [t("Variable Kosten"), `${m0(V1)} ${delta(rel(V1, V0), "%", true)}`, `${vg("var_kosten", m0)} · ${N1 ? m2(V1 / N1) : "–"}/${t("Nacht")}`],
-        [t("Nach Provision"), `${m0(NE1)} ${delta(rel(NE1, NE0))}`, `${vg("netto", m0)} · ${N1 ? m2(NE1 / N1) : "–"}/${t("Nacht")}`],
+        [t("Erlös"), `${m0(NE1)} ${delta(rel(NE1, NE0))}`, `${vg("netto", m0)} · ${N1 ? m2(NE1 / N1) : "–"}/${t("Nacht")}`],
         [t("Belegte Nächte"), `${num(N1)} ${delta(rel(N1, N0))}`, `${t("Vgl.")} ${num(N0)} · ${t("Ausl.")} ${pct(v(a, "auslastung"), 0)} (${pct(v(b, "auslastung"), 0)})`,
           `${t("Auslastung")} ${pct(v(a, "auslastung"), 1)}, ${t("Vergleich")} ${pct(v(b, "auslastung"), 1)}`],
       ]);
@@ -4534,13 +4534,13 @@ const STATS_MODULES = {
         lead = `<p class="sub" style="margin:2px 0 10px">${t("Deckungsbeitrag")} <b>${dDB >= 0 ? "+" : "−"}${m0(Math.abs(dDB))}</b> ${t("ggü.")} ${esc(cmpName)}.
           ${p1 >= p0 ? t("Höhere Preise je Nacht") : t("Niedrigere Preise je Nacht")}: <b>${ePreis >= 0 ? "+" : "−"}${m0(Math.abs(ePreis))}</b>;
           ${N1 < N0 ? t("die geringere Auslastung kostete") : t("die höhere Auslastung brachte")} ${m0(Math.abs(eUms))} ${t("Umsatz")},
-          ${N1 < N0 ? t("sparte aber") : t("verursachte aber")} ${m0(Math.abs(eKost))} ${t("variable Kosten")} → ${t("netto")} <b>${eMenge >= 0 ? "+" : "−"}${m0(Math.abs(eMenge))}</b>.</p>`;
+          ${N1 < N0 ? t("sparte aber") : t("verursachte aber")} ${m0(Math.abs(eKost))} ${t("variable Kosten")} → ${t("Erlös")} <b>${eMenge >= 0 ? "+" : "−"}${m0(Math.abs(eMenge))}</b>.</p>`;
       }
       const labels = m.ser.map((x) => x.fach);
       const chart = labels.length ? barChart({ labels, unit: "monat", fmt: (x) => money(x, cur),
         stacks: [{ name: t("DB"), color: "var(--sm-accent)", values: m.ser.map((x) => x.wert || 0) }],
         line: { label: cmpName, values: labels.map((_, i) => m.serC[i]?.wert || 0) } }) : "";
-      return panel(`${t("Deckungsbeitrag")}${neuBadge("neu-deckung")}`, `${t("Nach Provision − variable Kosten")} · ${t("Vergleich")}: ${esc(cmpName)}`,
+      return panel(`${t("Deckungsbeitrag")}${neuBadge("neu-deckung")}`, `${t("Erlös − variable Kosten")} · ${t("Vergleich")}: ${esc(cmpName)}`,
         `${lead}${tiles}<div class="split2"><div><div class="kl">${t("Was hat den DB verändert?")}</div>${bridge || `<div class="empty">${t("Keine Daten")}</div>`}</div>
           <div><div class="kl">${t("DB je Monat")} <span class="sub" style="margin-left:6px;font-weight:400">${t("Linie = Vergleich")}</span></div>${chart}</div></div>
         ${gloss(["DB", "DB-RevPAR", "Vgl."])}
@@ -4569,7 +4569,7 @@ const STATS_MODULES = {
         const head = `<div class="emp-head"><div><div class="kl">${t("Basispreis heute")}</div><div class="kv">${money(bp.heute, cur)}</div>
             <div class="ks">${bp.einheitlich ? t("gleich an allen") + ` ${num(bp.tage)} ` + t("Tagen") : `${money(bp.min, cur)} – ${money(bp.max, cur)}`}</div></div>
           ${(w.kanaele || []).map((k) => `<div data-tip="${esc(`${k.kanal}: ${t("Aufschlag")} ${num(k.aufschlag)} %${k.genius ? ` · Genius` : ""} · ${t("Kostenquote")} ${pct(k.kostenquote, 1)} (${t(k.kostenquote_quelle)})
-${t("Nach Provision je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
+${t("Erlös je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
             <div class="kl"><span class="dot" style="background:${chColor(k.kanal)}"></span> ${esc(chn(k.kanal))}</div><div class="kv sm">${money(k.netto_je_nacht, cur)}</div>
             <div class="ks">${t("netto je Nacht")}${k.aufschlag ? ` · +${num(k.aufschlag)} %` : ""}${k.genius ? " · Genius" : ""}</div></div>`).join("")}</div>`;
         const months = (w.monate || []).map((mo) => {
@@ -4589,7 +4589,7 @@ ${t("Nach Provision je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
           const label = D(`${mo.monat}-01`).toLocaleDateString(locale(), { month: "long", year: "numeric" });
           return `<div class="emp-m"><div class="row"><b class="grow">${esc(label)}</b><span class="badge ${rc}">${t(rl)}</span></div>
             ${band}
-            <div class="ks">${t("RevPAR nach Provision")} ${money(mo.netto_revpar_stand, cur, 2)} · DB-RevPAR ${money(mo.db_revpar_stand, cur, 2)} · ${num(mo.frei_ab_heute)} ${t("Nächte frei")}${mo.gesperrt ? ` · ${num(mo.gesperrt)} ${t("gesperrt")}` : ""}
+            <div class="ks">${t("Erlös-RevPAR")} ${money(mo.netto_revpar_stand, cur, 2)} · DB-RevPAR ${money(mo.db_revpar_stand, cur, 2)} · ${num(mo.frei_ab_heute)} ${t("Nächte frei")}${mo.gesperrt ? ` · ${num(mo.gesperrt)} ${t("gesperrt")}` : ""}
               ${mo.prognose_auslastung !== null && mo.prognose_auslastung !== undefined ? ` · ${t("Prognose")} ${pct(mo.prognose_auslastung, 0)}` : ""}</div>
             <div class="emp-r ${ac}"><b>${t(al)}${e.preis_neu ? ` ${t("auf")} ${money(e.preis_neu, cur)} (${e.prozent > 0 ? "+" : ""}${num(e.prozent)} %)` : ""}</b><span>${esc(t(e.grund || ""))}</span>
               ${mo.untergrenze_massgeblich ? `<span class="ks">${t("Untergrenze")} (2 N., ${t("teuerster Kanal")}): ${money(mo.untergrenze_massgeblich, cur)}</span>` : ""}
@@ -4651,7 +4651,7 @@ ${t("Nach Provision je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
           <div class="ks emp-foot" style="margin-top:10px">${(w.annahmen || []).map((a) => esc(t(a))).join(" · ")}${w.kurzfristig_prozent !== null && w.kurzfristig_prozent !== undefined ? ` · ${num(w.kurzfristig_prozent)} % ${t("der Nächte werden im selben oder im Vormonat gebucht")}` : ""}</div>`;
       }).join("") || `<div class="empty">${t("Keine Daten")}</div>`;
       return panel(t("Bewertung & Empfehlung"), t("Buchungsstand gegen die Vorjahre am gleichen Tag · Preisuntergrenzen aus den variablen Kosten"),
-        `${blocks}${gloss(["RevPAR nach Provision", "DB-RevPAR", "Untergrenze", "Pace", "n"])}`);
+        `${blocks}${gloss(["Erlös-RevPAR", "DB-RevPAR", "Untergrenze", "Pace", "n"])}`);
     },
   },
   // 4: Belegungs-Heatmap Wochentag × KW + Auslastung/ADR je Wochentag
@@ -4703,7 +4703,7 @@ ${t("Nach Provision je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
       const rows = names.map((k) => {
         const net = m.netto.get(k)?.wert || 0, cost = m.kosten.get(k)?.wert || 0, n = m.buchungen.get(k)?.wert || 0;
         const col = chColor(k);
-        const tip = `${k}\n${t("Nach Provision")} ${money(net, cur)} · ${t("Provision & Gebühren")} ${money(cost, cur)} (${pct(net + cost ? (cost / (net + cost)) * 100 : null, 1)})\n${t("Nach Provision/Nacht")} ${money(m.netto_pro_nacht.get(k)?.wert, cur)} · ${num(m.naechte.get(k)?.wert)} ${t("Nächte")} · n = ${n}`;
+        const tip = `${k}\n${t("Erlös")} ${money(net, cur)} · ${t("Provision & Gebühren")} ${money(cost, cur)} (${pct(net + cost ? (cost / (net + cost)) * 100 : null, 1)})\n${t("Erlös/Nacht")} ${money(m.netto_pro_nacht.get(k)?.wert, cur)} · ${num(m.naechte.get(k)?.wert)} ${t("Nächte")} · n = ${n}`;
         return `<div class="hr${n < 5 ? " low" : ""}" data-tip="${esc(tip)}"><span class="hl"><span class="dot" style="background:${col}"></span>${esc(k)}</span>
           <span class="ht"><i style="width:${((net / max) * 100).toFixed(1)}%;background:${col}"></i><i style="width:${((cost / max) * 100).toFixed(1)}%;background:${col};opacity:.5;
             background-image:repeating-linear-gradient(135deg, transparent 0 3px, var(--sm-surf) 3px 5px)"></i></span>
@@ -4742,12 +4742,12 @@ ${t("Nach Provision je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
         labels += `<text x="${lx}" y="${ly}" font-size="10.5" font-weight="600" fill="currentColor" pointer-events="none">${esc(p.k)}</text>`;
       }
       svg += labels;
-      return panel(t("Kanal-Wirtschaftlichkeit"), t("Umsatz nach Provision und Provision/Gebühren (schraffiert) je Kanal"),
+      return panel(t("Kanal-Wirtschaftlichkeit"), t("Erlös und Provision/Gebühren (schraffiert) je Kanal"),
         `<div class="split2"><div><div class="hb">${rows}</div>
-          <div class="legend"><span><i style="background:var(--sm-ink)"></i>${t("Nach Provision")}</span>
+          <div class="legend"><span><i style="background:var(--sm-ink)"></i>${t("Erlös")}</span>
           <span><i style="background:var(--sm-ink);opacity:.5;background-image:repeating-linear-gradient(135deg, transparent 0 3px, var(--sm-surf) 3px 5px)"></i>${t("Provision & Gebühren")}</span>
           <span>${t("blass = weniger als 5 Buchungen")}</span></div></div>
-          <div><div class="kl">${t("Kanal-Matrix: Netto je Nacht × Anteil Nächte, Blase = Buchungen")}</div>
+          <div><div class="kl">${t("Kanal-Matrix: Erlös je Nacht × Anteil Nächte, Blase = Buchungen")}</div>
           <svg class="ch" viewBox="0 0 ${W} ${H}" role="img">${svg}</svg></div></div>`);
     },
   },
@@ -4882,7 +4882,7 @@ ${t("Nach Provision je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
       const low = m.buchungen < 5;
       const tiles = tilesRow([
         [t("Stornoquote"), pct(m.quote, 1), `${m.stornos} ${t("von")} ${m.buchungen} ${t("Buchungen")}`, "", low],
-        [t("Ausfall"), money(m.ausfall, cur), `${num(m.naechte)} ${t("Nächte")}`, t("Brutto der stornierten Buchungen")],
+        [t("Ausfall"), money(m.ausfall, cur), `${num(m.naechte)} ${t("Nächte")}`, t("Umsatz der stornierten Buchungen")],
         [t("Wiederbelegt"), pct(m.wiederbelegt_prozent, 0), `${num(m.wiederbelegt_naechte)} ${t("von")} ${num(m.naechte)} ${t("Nächten")}`,
           t("Nächte stornierter Buchungen, die später von einer anderen Buchung belegt sind")],
         [t("Storno-Vorlauf"), m.vorlauf_median === null ? "–" : `${num(m.vorlauf_median)} ${t("Tage")}`, t("Median vor Anreise"),
@@ -4940,7 +4940,7 @@ ${t("Nach Provision je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
           ${block(t("Sprache"), m.sprache, (f) => t(LANGS[f] || f))}</div>
           <div class="legend" style="margin-top:8px"><span><i style="background:var(--sm-accent)"></i>${t("Buchungen")}</span>
             <span><i style="background:color-mix(in srgb, var(--sm-accent) 40%, var(--sm-surf2))"></i>${t("Nächte")}</span></div>
-          ${sg?.wert && nk?.wert ? `<div class="sub" style="margin-top:8px">${t("Nach Provision je Nacht")}: ${t("Stammgast")} ${money(sg.wert, d.apt.currency)} (n = ${sg.n}) · ${t("Neukunde")} ${money(nk.wert, d.apt.currency)} (n = ${nk.n})</div>` : ""}`);
+          ${sg?.wert && nk?.wert ? `<div class="sub" style="margin-top:8px">${t("Erlös je Nacht")}: ${t("Stammgast")} ${money(sg.wert, d.apt.currency)} (n = ${sg.n}) · ${t("Neukunde")} ${money(nk.wert, d.apt.currency)} (n = ${nk.n})</div>` : ""}`);
     },
   },
   // v1.18.0b7: Ehrentafel (Fun-Statistik) – Backend stats.ranking. Zwei Spalten mit je Top 3:
@@ -5096,7 +5096,7 @@ ${t("Nach Provision je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
       const more = rows.length > 25 ? `<button class="lnk" data-k="tableall">${card._state.tableAll ? t("Weniger anzeigen") : `${t("Alle")} ${rows.length} ${t("anzeigen")}`}</button>` : "";
       return panel(t("Datentabelle"), `${rows.length} ${t("Buchungen im Filter (inkl. Stornos)")}`,
         `<div class="scroll"><table><thead><tr><th>${t("Anreise")}</th><th>${t("Abreise")}</th><th>${t("Gast")}</th><th>${t("Kanal")}</th><th class="n">${t("Nächte")}</th>
-          <th class="n">${t("Personen")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Nach Provision")}</th><th class="n">${t("Vorlauf")}</th><th>${t("Status")}</th></tr></thead>
+          <th class="n">${t("Personen")}</th><th class="n">${t("Umsatz")}</th><th class="n">${t("Erlös")}</th><th class="n">${t("Vorlauf")}</th><th>${t("Status")}</th></tr></thead>
           <tbody>${body || `<tr><td colspan="10" class="empty">${t("Keine Buchungen")}</td></tr>`}</tbody></table></div>
           <div class="row" style="margin-top:8px">${more}<span class="grow"></span></div>`,
         `<button class="btn flat" data-k="csv">${t("CSV exportieren")}</button>`);
@@ -5145,12 +5145,12 @@ const MODULE_PRESETS = [
     tip: "Welche Nächte bleiben am häufigsten leer?" },
   { title: "Preis je Nacht nach Saison und Kanal", measure: "adr", dimension: "saison", split: "kanal", view: "heatmap",
     tip: "Wo ist der Preis je Nacht je Saison am höchsten?" },
-  { title: "Nach Provision je Nacht nach Aufenthaltsdauer", measure: "netto_pro_nacht", dimension: "aufenthalt", split: "", view: "balken",
+  { title: "Erlös je Nacht nach Aufenthaltsdauer", measure: "netto_pro_nacht", dimension: "aufenthalt", split: "", view: "balken",
     tip: "Bringen kurze Aufenthalte mehr je Nacht?" },
   { title: "Vorlauf nach Kanal", measure: "vorlauf", dimension: "kanal", split: "", view: "balken",
     tip: "Wie früh buchen Gäste je Kanal (Median)?" },
   { title: "Stammgäste und Neukunden", measure: "netto_pro_nacht", dimension: "stammgast", split: "", view: "tabelle",
-    tip: "Nach Provision je Nacht von Stammgästen im Vergleich" },
+    tip: "Erlös je Nacht von Stammgästen im Vergleich" },
   { title: "Stornoquote je Kanal", measure: "stornoquote", dimension: "kanal", split: "", view: "tabelle",
     tip: "Welcher Kanal storniert am häufigsten?" },
   { title: "Gäste mit Hund je Saison", measure: "hund_anteil", dimension: "saison", split: "", view: "balken",
@@ -5162,7 +5162,7 @@ const MODULE_PRESETS = [
   { title: "Personen je Buchung nach Saison", measure: "personen", dimension: "saison", split: "", view: "balken",
     tip: "Familien im Sommer, Paare im Winter?" },
   { title: "Deckungsbeitrag je Monat", measure: "db", dimension: "monat", split: "", view: "balken",
-    tip: "Nach Provision minus variable Kosten je Monat" },
+    tip: "Erlös minus variable Kosten je Monat" },
   { title: "Buchungswert", measure: "buchungswert", dimension: "monat", split: "", view: "kennzahl",
     tip: "Ø Buchungswert brutto als große Zahl" },
 ];
@@ -5587,7 +5587,7 @@ class SmoobuStatsCard extends SmoobuCard {
       `${t("Preis je Nacht auf Vergleichsniveau")} ≈ +${money((adrC - adr) * (u / adr), cur)}`]);
     const fp = d.freePeriod;
     if (fp && fp.frei_kommend > 0 && fp.frei_potenzial_netto > 0) levers.push([fp.frei_potenzial_netto,
-      `${num(fp.frei_kommend)} ${t("freie Nächte im Zeitraum")} ≈ ${money(fp.frei_potenzial_netto, cur)} ${t("netto")}`]);
+      `${num(fp.frei_kommend)} ${t("freie Nächte im Zeitraum")} ≈ ${money(fp.frei_potenzial_netto, cur)} ${t("Erlös")}`]);
     if (levers.length) parts.push(`${t("Größter Hebel")}: <b>${levers.sort((a, b) => b[0] - a[0])[0][1]}</b>.`);
     const n = k.umsatz?.tot.n || 0;
     return { h, p: parts.join(" "), m: `${t("Basis")}: ${num(n)} ${t("Buchungen")}${n < 5 ? ` · ${t("wenig Daten")}` : ""}` };
@@ -5781,7 +5781,7 @@ class SmoobuStatsCard extends SmoobuCard {
     const low = f.jahre_basis < 5;
     const span = Math.max(f.oben, 1);
     const pos = (v) => `${Math.min(100, Math.max(0, (v / span) * 100)).toFixed(1)}%`;
-    return `<div class="panel fc${low ? " low" : ""}"><div class="ph"><h2>${t("Prognose")} ${p.zieljahr}</h2><span class="sub">${t("Umsatz brutto")}</span></div>
+    return `<div class="panel fc${low ? " low" : ""}"><div class="ph"><h2>${t("Prognose")} ${p.zieljahr}</h2><span class="sub">${t("Umsatz")}</span></div>
       <div class="kl">${t("wahrscheinlich")}</div>
       <div class="big" data-tip="${esc(`${t("Median der Nachbuchung aus")} ${f.jahre_basis} ${t("Vorjahren")}`)}">${money(f.wahrscheinlich, cur)}</div>
       <div class="range">${f.oben > f.unten ? `${t("Spanne")} ${money(f.unten, cur)} – ${money(f.oben, cur)}` : t("Keine Spanne – zu wenige Vorjahre")}</div>
@@ -6918,7 +6918,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     // v1.19.0b10: Module – Kosten-Teil nur mit Modul Kosten, Aufschläge/Genius/Last-Minute nur mit Modul Preise,
     // Stundenlöhne nur mit Modul Reinigung (Entwurf, damit das Umschalten sofort wirkt)
     const ko = d.module_kosten !== false, rn = d.module_reinigung !== false;
-    const costHtml = !ko ? `<div class="note">${t("Modul „Kosten“ ist aus (Reiter Allgemein & Abruf → Module).")}</div>` : `<div class="note">${t("Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Netto − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.")}</div>
+    const costHtml = !ko ? `<div class="note">${t("Modul „Kosten“ ist aus (Reiter Allgemein & Abruf → Module).")}</div>` : `<div class="note">${t("Variable Kosten = Kosten, die nur durch einen Aufenthalt entstehen. Deckungsbeitrag = Erlös − variable Kosten. Fixkosten (Grundsteuer, Versicherung, Internet) gehören nicht hierher.")}</div>
       ${this.billsBlock(meta)}
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Je Aufenthalt")}</b>
         <span class="sub">${t("Reinigung")}: ${num((Number(d.cost_cleaning_minutes) || 0) / 60 * (Number(d.cost_cleaning) || 0), 2)} € ${t("je Aufenthalt (Standard) – Zeit und Stundenlöhne im Reiter „Reinigung & Zugang“.")}</span></div></div><div class="gb">
@@ -7192,7 +7192,7 @@ class SmoobuSettingsCard extends SmoobuCard {
         ${this.fld("Standard", `<select data-sel="ust_default">${opt(KIND, d.ust_default || "ermaessigt")}</select>`, "Beherbergung ist in Deutschland ermäßigt.")}
         ${this.fld("Portal-Buchungen", `<select data-sel="ust_portal">${opt(KIND, d.ust_portal || "ermaessigt")}</select>`, "Portalpreis komplett mit dieser Steuerart (wie die Portal-Rechnung).")}
         ${items}
-        ${this.fld("Netto aus Lexware", this.sw("ust_lexware", "Netto aus Lexware"), "Gibt es zur Buchung eine Lexware-Rechnung, gilt deren Nettobetrag (Rechnung und Statistik rechnen gleich).")}</div></div>
+        ${this.fld("Nettobetrag aus Lexware", this.sw("ust_lexware", "Nettobetrag aus Lexware"), "Gibt es zur Buchung eine Lexware-Rechnung, gilt deren Nettobetrag (Rechnung und Statistik rechnen gleich).")}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Kosten ohne Vorsteuer")}</b><span class="sub">${t("Kostenwerte gelten als brutto; je Kostenart wird die Vorsteuer herausgerechnet. Provisionen der Portale: Reverse Charge – zählen wie berechnet.")}</span></div></div><div class="gb">${costs}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Steuersätze")}</b><span class="sub">${t("Mit Gültigkeit ab Datum – deutsche Sätze voreingetragen (u. a. 2. Halbjahr 2020).")}</span></div></div><div class="gb">
         ${rates}${this.err("ust_rates")}<div class="row" style="gap:8px"><button class="btn flat" data-ustrateadd>＋ ${t("Zeile")}</button>

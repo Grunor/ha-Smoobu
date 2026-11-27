@@ -649,10 +649,10 @@
         "name": "Letzte Gästenachricht"
       },
       "netto_umsatz_monat": {
-        "name": "Nettoumsatz Monat"
+        "name": "Erlös Monat"
       },
       "netto_umsatz_jahr": {
-        "name": "Nettoumsatz Jahr"
+        "name": "Erlös Jahr"
       },
       "provision_jahr": {
         "name": "Provision & Gebühren Jahr"
@@ -679,10 +679,10 @@
         "name": "Nächster Gast Provision"
       },
       "aktueller_gast_netto_preis": {
-        "name": "Aktueller Gast Nettopreis"
+        "name": "Aktueller Gast Erlös"
       },
       "naechster_gast_netto_preis": {
-        "name": "Nächster Gast Nettopreis"
+        "name": "Nächster Gast Erlös"
       },
       "kanal": {
         "name": "Kanal {kanal}"
@@ -691,10 +691,10 @@
         "name": "Prognose Jahr"
       },
       "auswertung_brutto": {
-        "name": "Auswertung Brutto"
+        "name": "Auswertung Umsatz"
       },
       "auswertung_netto": {
-        "name": "Auswertung Netto"
+        "name": "Auswertung Erlös"
       },
       "auswertung_kosten": {
         "name": "Auswertung Kosten"
@@ -715,7 +715,7 @@
         "name": "Auswertung Stornoquote"
       },
       "auswertung_netto_pro_nacht": {
-        "name": "Auswertung Netto pro Nacht"
+        "name": "Auswertung Erlös pro Nacht"
       },
       "auswertung_aufenthalt": {
         "name": "Auswertung Aufenthaltsdauer"

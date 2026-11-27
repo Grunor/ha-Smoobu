@@ -78,7 +78,7 @@ FIELDS: tuple[BookingField, ...] = (
     BookingField("kanal", "Kanal", "Channel", lambda c, b: _text((b.get("channel") or {}).get("name")), "mdi:web"),
     BookingField("kanal_gruppe", "Kanalgruppe", "Channel group", lambda c, b: c.costs(b)["kanal_gruppe"], "mdi:source-branch"),
     BookingField("provision", "Provision", "Commission", lambda c, b: round(c.costs(b)["provision"] + c.costs(b)["zahlungsgebuehr"], 2), "mdi:hand-coin", monetary=True),
-    BookingField("netto_preis", "Nettopreis", "Net price", lambda c, b: c.costs(b)["netto"], "mdi:cash-check", monetary=True),
+    BookingField("netto_preis", "Erlös", "Revenue after commission", lambda c, b: c.costs(b)["netto"], "mdi:cash-check", monetary=True),
     BookingField("sprache", "Sprache", "Language", lambda c, b: _text(b.get("language")), "mdi:translate"),
     BookingField("email", "E-Mail", "Email", lambda c, b: _text(b.get("email")), "mdi:email"),
     BookingField("telefon", "Telefon", "Phone", lambda c, b: _text(b.get("phone")), "mdi:phone"),
