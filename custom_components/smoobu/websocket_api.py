@@ -1129,6 +1129,14 @@ async def ws_booking_move(hass: HomeAssistant, connection: websocket_api.ActiveC
 
 # ---------------------------------------------------------------------------
 # Reinigungsboard (v1.19.0, Wunsch Betreiber 20.11.2026) – Logik und Rechte in reinigung.py
+# v1.20.0: lesbare Meldungen für „Reinigung planen“ (die Karte übersetzt sie ins Englische)
+CLEANING_MESSAGES = {
+    "out_of_range": "Reinigungstag nur von der Abreise bis zur nächsten Anreise möglich",
+    "already_done": "Reinigung ist schon erledigt",
+    "invalid_date": "Ungültiges Datum",
+    "block_failed": "Sperre in Smoobu konnte nicht angepasst werden – Planung unverändert",
+    "no_block_channel": "Keine Sperrzeit in Smoobu gefunden, aus der die ID des Sperr-Kanals gelesen werden kann. Bitte einmal in Smoobu einen Zeitraum sperren.",
+}
 # ---------------------------------------------------------------------------
 def _cleaning_guard(connection, msg, coords, *rights: str) -> bool:
     """Mindestens eines der Rechte in jedem beteiligten Konto (sonst „unauthorized“)."""
@@ -1193,7 +1201,9 @@ async def ws_cleaning_get(hass: HomeAssistant, connection: websocket_api.ActiveC
      vol.Required("key"): vol.All(str, vol.Length(max=60)), vol.Required("aktion"): vol.In(CLEANING_ACTIONS),
      vol.Optional("benutzer_id"): vol.Any(None, vol.All(str, vol.Length(max=64))),
      # v1.19.0: Aktion „dauer“ – gebuchte Reinigungszeit in Minuten (None = Standard)
-     vol.Optional("minuten"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=1, max=600)))}
+     vol.Optional("minuten"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=1, max=600))),
+     # v1.20.0: Aktion „planen“ – Reinigungstag (JJJJ-MM-TT; leer = Abreisetag)
+     vol.Optional("datum"): vol.Any(None, vol.All(str, vol.Length(max=10)))}
 )
 @websocket_api.async_response
 async def ws_cleaning_set(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -1205,10 +1215,11 @@ async def ws_cleaning_set(hass: HomeAssistant, connection: websocket_api.ActiveC
     if not _cleaning_guard(connection, msg, [c], "reinigung", "reinigung_zuweisen"):
         return
     try:
-        state = await c.cleaning.async_set(msg["key"], msg["aktion"], connection.user, msg.get("benutzer_id"), msg.get("minuten"))
+        state = await c.cleaning.async_set(msg["key"], msg["aktion"], connection.user, msg.get("benutzer_id"), msg.get("minuten"),
+                                             msg.get("datum"))
     except CleaningError as err:
         connection.send_error(msg["id"], "unauthorized" if err.code in ("unauthorized", "not_yours", "already_assigned") else err.code,
-                              err.code)
+                              CLEANING_MESSAGES.get(err.code, err.code))
         return
     connection.send_result(msg["id"], {"zustand": state})
 

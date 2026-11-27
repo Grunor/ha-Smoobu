@@ -35,10 +35,29 @@ gesammelt (`async_bulk`: alle offenen bis zu einem Datum). Als Person geht auch 
 Erledigen wird ein Schnappschuss der Reinigung gespeichert (Tag, Wohnung, Gästewechsel, Hund,
 Personen, Nächte, Check-out), damit die Statistik auch nach Änderungen/Stornos stimmt.
 Die Statistik beginnt mit dem Update auf v1.19.0 – frühere Reinigungen kennt die Integration nicht.
+
+Reinigung planen (v1.20.0, Wunsch/Entscheidungen Betreiber 27.11.2026):
+- Aktion „planen“ (nur Recht „reinigung_zuweisen“): Reinigungstag frei wählbar vom Abreisetag bis höchstens zur
+  nächsten Belegung der Wohnung (Gast ODER bestehende Sperre – vermeidet überlappende Sperren). Ohne Folgebelegung
+  höchstens DAYS_AHEAD Tage nach der Abreise. Geprüft im Backend (`plan_range`), die Karte zeigt nur die Grenzen.
+- Liegt der Tag nach der Abreise, sperrt die Integration die Nächte ab Abreise (frühestens heute) bis zum Vortag
+  der Reinigung in Smoobu (Sperr-Kanal, Hinweis „Reinigung geplant (HA)“). Am Reinigungstag ist eine Anreise
+  möglich – wie beim Gästewechsel. Die Sperre wird im Store gemerkt (`sperre_id`), nur diese eigenen Sperren
+  ändert/löscht die Integration.
+- Verschieben = alte Sperre löschen, neue anlegen (Smoobu ändert Daten einer Sperre nicht zuverlässig per API).
+  Zurück auf den Abreisetag = Sperre freigeben.
+- Früher erledigt: die restliche Sperre wird ab dem Folgetag freigegeben (Entscheidung Betreiber).
+- Aufräumen (`async_reconcile`, nach jeder Aktualisierung): Buchung storniert oder Abreise verschoben (Reinigung
+  existiert nicht mehr) → eigene Sperre löschen; Sperre in Smoobu von Hand gelöscht → Planung zurück auf Abreise.
+- Die eigene Sperre zählt bei der Reinigung nicht als „nächste Belegung“ (sonst wäre sie ihre eigene Grenze).
+- Board, Vorabend-Erinnerung und Push richten sich nach dem geplanten Tag (`tag`); `datum` bleibt der Abreisetag
+  (Schlüssel, Statistik).
 """
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Callable
 
@@ -48,7 +67,11 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from . import rechte
+from .analytics import block_channel_id
+from .api import SmoobuError
 from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_CLEANING_PHONES = "cleaning_phones"        # {HA-Benutzer-ID: "notify.mobile_app_…"}
 CONF_CLEANING_NOTIFY = "cleaning_notify"        # Pushes an/aus (Standard an)
@@ -64,7 +87,10 @@ CONF_CLEANING_KEEP_YEARS = "cleaning_keep_years"  # v1.19.1b3: Person nach N Jah
 DEFAULT_CLEANING_KEEP_YEARS = 10
 CONF_CLEANING_MINUTES_BY_USER = "cleaning_minutes_by_user"  # v1.19.1b4: {HA-Benutzer-ID: Standard-Minuten}
 _PERSON_KEYS = ("erledigt_von", "erledigt_von_id")
-ACTIONS = ("uebernehmen", "abgeben", "zuweisen", "erledigt", "offen", "dauer", "nachtragen")
+ACTIONS = ("uebernehmen", "abgeben", "zuweisen", "erledigt", "offen", "dauer", "nachtragen", "planen")
+BLOCK_NOTICE = "Reinigung geplant (HA)"   # v1.20.0: Hinweis an der automatischen Sperre in Smoobu
+BLOCK_GRACE = timedelta(minutes=15)       # frisch angelegte Sperre fehlt evtl. noch in den Daten → nicht als gelöscht werten
+_BLOCK_KEYS = ("sperre_id", "sperre_von", "sperre_bis", "sperre_seit")
 # v1.19.1: Diese Aktionen gehen (nur mit „Reinigung zuweisen“) auch für Abreisen außerhalb des Board-Fensters
 # (älter als DAYS_BACK) – zum Nachtragen vergangener Reinigungen und zum Korrigieren nachgetragener.
 PAST_ACTIONS = ("nachtragen", "offen", "dauer")
@@ -84,12 +110,16 @@ def _time(value: Any, fallback: str) -> str:
 
 
 def build(records: list[dict[str, Any]], opts: dict[str, Any], today: date,
-          days_back: int = DAYS_BACK, days_ahead: int = DAYS_AHEAD) -> list[dict[str, Any]]:
-    """Reinigungen aus den Buchungsdatensätzen (ohne Zuweisung/Status), nach Tag sortiert."""
+          days_back: int = DAYS_BACK, days_ahead: int = DAYS_AHEAD, ignore: set[Any] | None = None) -> list[dict[str, Any]]:
+    """Reinigungen aus den Buchungsdatensätzen (ohne Zuweisung/Status), nach Tag sortiert.
+
+    v1.20.0: `ignore` = IDs der eigenen Reinigungs-Sperren – sie zählen nicht als nächste Belegung."""
+    ignore = ignore or set()
     start, end = (today - timedelta(days=days_back)).isoformat(), (today + timedelta(days=days_ahead)).isoformat()
     guests = sorted((r for r in records if not r.get("blockiert") and not r.get("storniert")),
                     key=lambda r: (r["anreise"], r["id"]))
-    occupied = sorted((r for r in records if not r.get("storniert")), key=lambda r: (r["anreise"], r["id"]))
+    occupied = sorted((r for r in records if not r.get("storniert") and r["id"] not in ignore),
+                      key=lambda r: (r["anreise"], r["id"]))
     out = []
     for r in guests:
         if not (start <= r["abreise"] <= end):
@@ -125,6 +155,24 @@ def build(records: list[dict[str, Any]], opts: dict[str, Any], today: date,
     return out
 
 
+def plan_range(item: dict[str, Any], today: date) -> tuple[str, str]:
+    """v1.20.0: erlaubter Reinigungstag (frühestens, spätestens) – ab Abreise (in der Vergangenheit: ab heute),
+    höchstens bis zur nächsten Belegung (Gast oder Sperre), ohne Folgebelegung DAYS_AHEAD Tage nach der Abreise."""
+    dep = date.fromisoformat(item["datum"])
+    nxt = item.get("naechste")
+    latest = nxt["datum"] if nxt else (dep + timedelta(days=DAYS_AHEAD)).isoformat()
+    return max(dep, today).isoformat(), latest
+
+
+def block_range(item: dict[str, Any], planned: str | None, today: date) -> tuple[str, str] | None:
+    """v1.20.0: zu sperrender Zeitraum (Anreise, Abreise im Smoobu-Sinn) – Nächte ab Abreise (frühestens heute)
+    bis zum Vortag der Reinigung; None = keine Sperre nötig."""
+    if not planned:
+        return None
+    start = max(item["datum"], today.isoformat())
+    return (start, planned) if planned > start else None
+
+
 class CleaningBoard:
     """Zuweisungen und Status der Reinigungen eines Kontos (hängt am Coordinator)."""
 
@@ -134,6 +182,7 @@ class CleaningBoard:
         self.store: Store = Store(hass, 1, f"{DOMAIN}_reinigung_{coordinator.config_entry.entry_id}")
         self.state: dict[str, dict[str, Any]] | None = None
         self._unsubs: list[Callable[[], None]] = []
+        self._lock = asyncio.Lock()  # v1.20.0: Sperren nie parallel anlegen/löschen
 
     @property
     def opts(self) -> dict[str, Any]:
@@ -147,6 +196,28 @@ class CleaningBoard:
             self._unsubs.append(async_track_time_change(self.hass, self._remind, hour=int(hh), minute=int(mm), second=0))
         except ValueError:
             pass
+        # v1.20.0: nach jeder Aktualisierung eigene Reinigungs-Sperren prüfen (Storno, verschobene Abreise)
+        self._unsubs.append(self.c.async_add_listener(self._on_update))
+
+    def _on_update(self) -> None:
+        if self.state and any(v.get("sperre_id") for v in self.state.values()) and not self._lock.locked():
+            self.hass.async_create_task(self.async_reconcile(), "smoobu_reinigung_sperren")
+
+    def own_blocks(self) -> set[Any]:
+        """IDs der eigenen Reinigungs-Sperren (v1.20.0)."""
+        return {v["sperre_id"] for v in (self.state or {}).values() if v.get("sperre_id")}
+
+    def _build(self, today: date, **kw: Any) -> list[dict[str, Any]]:
+        """build() mit eigenen Sperren als „ignorieren“; Fenster zurück so weit, dass noch geplante (nicht erledigte)
+        Reinigungen mit älterer Abreise sichtbar bleiben."""
+        back = kw.pop("days_back", DAYS_BACK)
+        for key, v in (self.state or {}).items():
+            if v.get("geplant") and v.get("status") != "erledigt" and v["geplant"] >= (today - timedelta(days=DAYS_BACK)).isoformat():
+                try:
+                    back = max(back, (today - date.fromisoformat(key.split(":")[-1])).days)
+                except ValueError:
+                    pass
+        return build(self.c.records_all(), self.opts, today, days_back=back, ignore=self.own_blocks(), **kw)
 
     async def async_unload(self) -> None:
         for u in self._unsubs:
@@ -198,16 +269,22 @@ class CleaningBoard:
         state = await self._load()
         opts = self.opts
         rights = rechte.rights_of(user, opts)
-        records = [r for r in self.c.records_all() if (apartments is None or r["wohnung_id"] in apartments)]
         names = await self._user_names()
         by_user = minutes_by_user(opts)
         out = []
+        today = dt_util.now().date()
         window = {"days_back": WIDE_BACK, "days_ahead": 2 * 366} if booking_id is not None else {}
-        for item in build(records, opts, dt_util.now().date(), **window):
+        for item in self._build(today, **window):
+            if apartments is not None and item["wohnung_id"] not in apartments:
+                continue
             if booking_id is not None and item["buchung_id"] != booking_id:
                 continue
             s = state.get(item["key"], {})
-            item = {**item, "zugewiesen": s.get("zugewiesen"), "zugewiesen_name": names.get(s.get("zugewiesen")),
+            frm, latest = plan_range(item, today)
+            item = {**item, "zugewiesen": s.get("zugewiesen"),
+                    # v1.20.0: geplanter Reinigungstag (None = Abreisetag), Grenzen fürs Verschieben, eigene Sperre
+                    "geplant": s.get("geplant"), "tag": s.get("geplant") or item["datum"],
+                    "planbar_von": frm, "planbar_bis": latest, "gesperrt_bis": s.get("sperre_bis") if s.get("sperre_id") else None, "zugewiesen_name": names.get(s.get("zugewiesen")),
                     "minuten": s.get("minuten"),
                     # v1.19.1b4: Standardzeit der zugewiesenen/reinigenden Person (None = allgemeiner Standard)
                     "standard_minuten_person": by_user.get(s.get("gereinigt_von") or s.get("zugewiesen") or ""),
@@ -227,13 +304,14 @@ class CleaningBoard:
                 name = (full_name or part.get("vorname")) if full else part.get("vorname")
                 part["vorname"] = name if "belegung_sehen" in rights else None
             out.append(item)
+        out.sort(key=lambda x: (x["tag"], x["check_out"] or "", x["key"]))
         return out
 
     async def async_stats(self, apartments: list[Any] | None, start: str, end: str, codes: dict[Any, str]) -> dict[str, Any]:
         state = await self._load()
         pending = []
         today = dt_util.now().date()
-        for item in build(self.c.records_all(), self.opts, today, days_back=400, days_ahead=0):
+        for item in self._build(today, days_back=400, days_ahead=0):
             s = state.get(item["key"], {})
             pending.append({**item, "zugewiesen": s.get("zugewiesen"), "status": s.get("status", "offen")})
         o = self.opts
@@ -257,7 +335,7 @@ class CleaningBoard:
 
     # --- Ändern ----------------------------------------------------------
     async def async_set(self, key: str, action: str, user: Any, target: str | None = None,
-                        minutes: int | None = None) -> dict[str, Any]:
+                        minutes: int | None = None, day: str | None = None) -> dict[str, Any]:
         """Aktion ausführen (Rechte siehe Modul-Doku). Rückgabe: neuer Zustand der Reinigung."""
         if action not in ACTIONS:
             raise CleaningError("invalid_action")
@@ -267,10 +345,11 @@ class CleaningBoard:
         if "reinigung" not in rights and not can_assign:
             raise CleaningError("unauthorized")
         today = dt_util.now().date()
-        item = next((x for x in build(self.c.records_all(), opts, today) if x["key"] == key), None)
+        await self._load()
+        item = next((x for x in self._build(today) if x["key"] == key), None)
         if item is None and can_assign and action in PAST_ACTIONS:
             # v1.19.1: ältere Abreise (außerhalb des Board-Fensters) – nur Zuweisende, nur Nachtragen/Korrigieren
-            item = next((x for x in build(self.c.records_all(), opts, today, days_back=WIDE_BACK, days_ahead=0)
+            item = next((x for x in self._build(today, days_back=WIDE_BACK, days_ahead=0)
                          if x["key"] == key), None)
         if item is None:
             raise CleaningError("not_found")
@@ -278,7 +357,29 @@ class CleaningBoard:
         cur = dict(state.get(key, {}))
         me = getattr(user, "id", None)
         before = cur.get("zugewiesen")
-        if action == "uebernehmen":
+        moved = False
+        if action == "planen":
+            # v1.20.0: Reinigungstag planen/verschieben – nur „Reinigung zuweisen“ (Entscheidung Betreiber 27.11.2026)
+            if not can_assign:
+                raise CleaningError("unauthorized")
+            if cur.get("status") == "erledigt":
+                raise CleaningError("already_done")
+            frm, latest = plan_range(item, today)
+            target_day = day or item["datum"]
+            try:
+                date.fromisoformat(target_day)
+            except (TypeError, ValueError) as err:
+                raise CleaningError("invalid_date") from err
+            if target_day != item["datum"] and not frm <= target_day <= latest:
+                raise CleaningError("out_of_range")
+            new = None if target_day == item["datum"] else target_day
+            moved = new != cur.get("geplant")
+            await self._block_or_save(state, key, cur, item, block_range(item, new, today))
+            if new:
+                cur["geplant"] = new
+            else:
+                cur.pop("geplant", None)
+        elif action == "uebernehmen":
             if "reinigung" not in rights:
                 raise CleaningError("unauthorized")
             if before and before != me and not can_assign:
@@ -302,7 +403,7 @@ class CleaningBoard:
             # leer, damit die Auswertung „Ø Minuten bis zum Abhaken“ nicht verfälscht wird.
             if not can_assign:
                 raise CleaningError("unauthorized")
-            if item["datum"] > today.isoformat():
+            if (cur.get("geplant") or item["datum"]) > today.isoformat():  # v1.20.0: geplanter Tag zählt
                 raise CleaningError("not_past")
             if target == UNKNOWN:
                 who_name = UNKNOWN_NAME
@@ -344,6 +445,13 @@ class CleaningBoard:
                 cur["gereinigt_von"] = who
                 cur["gereinigt_name"] = (await self._user_names()).get(who) if who else None
                 cur["snapshot"] = {k: item[k] for k in ("datum", "wohnung_id", "check_out", "wechsel", "hund", "personen", "naechte")}
+                if cur.get("geplant"):
+                    cur["snapshot"]["geplant"] = cur["geplant"]
+                # v1.20.0: früher erledigt → restliche Sperre ab dem Folgetag freigeben (Entscheidung Betreiber)
+                tomorrow = (today + timedelta(days=1)).isoformat()
+                if cur.get("sperre_id") and cur.get("sperre_bis", "") > tomorrow:
+                    want = (cur["sperre_von"], tomorrow) if cur["sperre_von"] < tomorrow else None
+                    await self._block_or_save(state, key, cur, item, want)
             else:
                 for k in ("erledigt_von", "erledigt_von_id", "erledigt_um", "gereinigt_von", "gereinigt_name", "snapshot",
                           "nachgetragen"):
@@ -357,8 +465,122 @@ class CleaningBoard:
                 await self._push(after, item, "zugewiesen")
             if before and before != me:
                 await self._push(before, item, "entfernt")
+        elif moved and after and after != me:  # v1.20.0: Termin verschoben → Push an die zugewiesene Person
+            await self._push(after, {**item, "tag": cur.get("geplant") or item["datum"]}, "verschoben")
         self.c.async_update_listeners()  # Karten laden neu (Datenabo)
         return cur
+
+    # --- Sperren (v1.20.0) -------------------------------------------------
+    async def _block_or_save(self, state: dict[str, Any], key: str, cur: dict[str, Any], item: dict[str, Any],
+                             want: tuple[str, str] | None) -> None:
+        """Sperre anpassen; schlägt das fehl, den tatsächlichen Sperr-Stand trotzdem speichern und Fehler weitergeben."""
+        async with self._lock:
+            try:
+                await self._apply_block(cur, item, want)
+            except CleaningError:
+                old = dict(state.get(key, {}))
+                for k in _BLOCK_KEYS:
+                    old.pop(k, None)
+                    if k in cur:
+                        old[k] = cur[k]
+                # Ohne Sperre gilt keine spätere Planung (sonst wäre die Wohnung ungeschützt buchbar)
+                if not old.get("sperre_id") and block_range(item, old.get("geplant"), dt_util.now().date()):
+                    old.pop("geplant", None)
+                state[key] = old
+                await self.store.async_save(state)
+                raise
+
+    async def _apply_block(self, cur: dict[str, Any], item: dict[str, Any], want: tuple[str, str] | None) -> None:
+        """Eigene Sperre in Smoobu auf `want` bringen (None = keine). Ändert `cur` (Speichern macht der Aufrufer).
+
+        Reihenfolge: alte löschen, neue anlegen (überlappende Sperren lehnt Smoobu ab). Scheitert das Anlegen,
+        wird die alte Sperre wiederhergestellt und `block_failed` gemeldet – die Planung bleibt dann unverändert."""
+        have = (cur["sperre_von"], cur["sperre_bis"]) if cur.get("sperre_id") else None
+        if have == want:
+            return
+        client = self.c.client
+        if have:
+            try:
+                await client.delete_reservation(cur["sperre_id"])
+            except SmoobuError as err:
+                if "404" not in str(err):
+                    raise CleaningError("block_failed") from err
+            for k in _BLOCK_KEYS:
+                cur.pop(k, None)
+        if want is None:
+            await self._refresh()
+            return
+        channel_id = block_channel_id(self.c.records(item["wohnung_id"]))
+        if channel_id is None:
+            raise CleaningError("no_block_channel")
+        async def create(rng: tuple[str, str]) -> Any:
+            res = await client.create_block({"arrivalDate": rng[0], "departureDate": rng[1], "apartmentId": item["wohnung_id"],
+                                             "channelId": channel_id, "notice": f"{BLOCK_NOTICE} · {item['key']}"})
+            return (res or {}).get("id")
+        try:
+            rid = await create(want)
+        except SmoobuError as err:
+            _LOGGER.warning("Smoobu: Reinigungs-Sperre %s nicht angelegt: %s", want, err)
+            if have:
+                try:
+                    old = await create(have)
+                    cur.update({"sperre_id": old, "sperre_von": have[0], "sperre_bis": have[1],
+                                "sperre_seit": dt_util.now().isoformat(timespec="seconds")})
+                except SmoobuError:
+                    pass
+            await self._refresh()
+            raise CleaningError("block_failed") from err
+        cur.update({"sperre_id": rid, "sperre_von": want[0], "sperre_bis": want[1],
+                    "sperre_seit": dt_util.now().isoformat(timespec="seconds")})
+        await self._refresh()
+
+    async def _refresh(self) -> None:
+        self.c.force_revenue_refresh = True
+        await self.c.async_request_refresh()
+
+    async def async_reconcile(self) -> int:
+        """Eigene Sperren aufräumen: Reinigung gibt es nicht mehr (Storno/Abreise verschoben) → Sperre löschen;
+        Sperre in Smoobu von Hand gelöscht → Planung zurück auf den Abreisetag. Rückgabe: Anzahl Änderungen."""
+        state = await self._load()
+        if not any(v.get("sperre_id") for v in state.values()):
+            return 0
+        async with self._lock:
+            today = dt_util.now().date()
+            items = {x["key"] for x in self._build(today, days_back=WIDE_BACK, days_ahead=2 * 366)}
+            ids = {r["id"] for r in self.c.records_all() if not r.get("storniert")}
+            now = dt_util.now()
+            n = tidy = 0
+            for key, v in state.items():
+                if not v.get("sperre_id"):
+                    continue
+                if v.get("sperre_bis", "") < today.isoformat():
+                    # Sperre ist vorbei → nur noch die Verknüpfung vergessen (spart die Prüfung bei jeder Aktualisierung)
+                    for k in _BLOCK_KEYS:
+                        v.pop(k, None)
+                    tidy += 1
+                    continue
+                fresh = (now - dt_util.parse_datetime(v.get("sperre_seit") or "1970-01-01T00:00:00+00:00")) < BLOCK_GRACE
+                if key not in items:
+                    if v["sperre_id"] in ids:
+                        try:
+                            await self.c.client.delete_reservation(v["sperre_id"])
+                        except SmoobuError as err:
+                            _LOGGER.warning("Smoobu: Reinigungs-Sperre %s nicht gelöscht: %s", v["sperre_id"], err)
+                            continue
+                    _LOGGER.info("Smoobu: Reinigung %s entfällt – eigene Sperre %s freigegeben", key, v["sperre_id"])
+                elif v["sperre_id"] in ids or fresh:
+                    continue  # Sperre vorhanden (oder gerade erst angelegt)
+                else:
+                    _LOGGER.info("Smoobu: Reinigungs-Sperre %s fehlt in Smoobu – Planung %s zurück auf Abreise", v["sperre_id"], key)
+                    v.pop("geplant", None)
+                for k in _BLOCK_KEYS:
+                    v.pop(k, None)
+                n += 1
+            if n or tidy:
+                await self.store.async_save(state)
+        if n:
+            await self._refresh()
+        return n
 
     async def async_bulk(self, user: Any, target: str, until: str, since: str | None = None,
                          replace: str | None = None) -> dict[str, int]:
@@ -383,7 +605,7 @@ class CleaningBoard:
         now = dt_util.now().isoformat(timespec="minutes")
         me = getattr(user, "id", None)
         done = replaced = 0
-        for item in build(self.c.records_all(), opts, dt_util.now().date(), days_back=WIDE_BACK, days_ahead=0):
+        for item in self._build(dt_util.now().date(), days_back=WIDE_BACK, days_ahead=0):
             if item["datum"] > until or (since and item["datum"] < since):
                 continue
             cur = dict(state.get(item["key"], {}))
@@ -410,8 +632,11 @@ class CleaningBoard:
         return (self.opts.get(CONF_CLEANING_PHONES) or {}).get(user_id)
 
     def _text(self, item: dict[str, Any]) -> str:
-        d = date.fromisoformat(item["datum"])
-        parts = [f"{_DOW[d.weekday()]} {d.strftime('%d.%m.')} ab {item['check_out']} Uhr"]
+        d = date.fromisoformat(item.get("tag") or item["datum"])
+        if d.isoformat() == item["datum"]:
+            parts = [f"{_DOW[d.weekday()]} {d.strftime('%d.%m.')} ab {item['check_out']} Uhr"]
+        else:  # v1.20.0: später geplant – Abreisetag zur Orientierung
+            parts = [f"{_DOW[d.weekday()]} {d.strftime('%d.%m.')} (Abreise {date.fromisoformat(item['datum']).strftime('%d.%m.')})"]
         if len(self.c.data.apartments if self.c.data else {}) > 1:
             parts.append(self.c.apartment_code(item["wohnung_id"]))
         n = item.get("naechste")
@@ -432,7 +657,7 @@ class CleaningBoard:
         if not phone or notifier is None:
             return
         title = {"zugewiesen": "🧹 Reinigung für dich", "entfernt": "🧹 Reinigung abgegeben",
-                 "erinnerung": "🧹 Morgen Reinigung"}[why]
+                 "erinnerung": "🧹 Morgen Reinigung", "verschoben": "🧹 Reinigung verschoben"}[why]
         await notifier.send("reinigung", title, self._text(item),
                             {"tag": f"smoobu_reinigung_{item['key']}", "url": self._path()},
                             check_enabled=False, to=[phone])
@@ -449,9 +674,10 @@ class CleaningBoard:
         if self._anonymize(state):  # v1.19.1b3: täglich Aufbewahrungsfrist prüfen
             await self.store.async_save(state)
         tomorrow = (dt_util.now().date() + timedelta(days=1)).isoformat()
-        for item in build(self.c.records_all(), self.opts, dt_util.now().date(), 0, 2):
+        for item in self._build(dt_util.now().date(), days_ahead=DAYS_AHEAD):
             s = state.get(item["key"], {})
-            if item["datum"] == tomorrow and s.get("zugewiesen") and s.get("status", "offen") == "offen":
+            item = {**item, "tag": s.get("geplant") or item["datum"]}  # v1.20.0: nach dem geplanten Tag
+            if item["tag"] == tomorrow and s.get("zugewiesen") and s.get("status", "offen") == "offen":
                 await self._push(s["zugewiesen"], item, "erinnerung")
 
 
@@ -477,6 +703,8 @@ def wage_of(wages: dict[str, float], uid: str | None, default: float) -> float:
 
 def _delay_minutes(snap: dict[str, Any], done: str | None) -> int | None:
     """Minuten vom Check-out bis zum Abhaken (negativ = vorher abgehakt; None = unbekannt/anderer Tag > 2 Tage)."""
+    if snap.get("geplant") and snap["geplant"] != snap.get("datum"):
+        return None  # v1.20.0: bewusst später geplant – kein „Verzug“ ab Check-out
     try:
         co = datetime.fromisoformat(f"{snap['datum']}T{snap.get('check_out') or '11:00'}")
         d = datetime.fromisoformat(done or "")

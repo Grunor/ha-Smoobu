@@ -332,3 +332,94 @@ async def test_reinigungszeit_je_person(hass, setup, hass_ws_client, hass_read_o
     assert err.get("cleaning_minutes_by_user")
     vals, err = _settings.validate(hass, entry, {"cleaning_minutes_by_user": {uid: 75, "x": ""}}, None)
     assert not err and vals["cleaning_minutes_by_user"] == {uid: 75}
+
+
+async def test_reinigung_planen_sperren(hass, setup, hass_ws_client, hass_read_only_user, hass_read_only_access_token,  # noqa: F811
+                                        aioclient_mock, freezer):
+    """v1.20.0: Reinigungstag planen → Nächte bis zum Vortag sperren; Grenze nächste Belegung; nur „zuweisen“;
+    verschieben = löschen + neu; früher erledigt → Rest ab Folgetag frei; Aufräumen bei Storno/von Hand gelöscht."""
+    from .test_smoobu import BASE
+
+    aioclient_mock.post(f"{BASE}/api/reservations", json={"id": 50})
+    aioclient_mock.delete(f"{BASE}/api/reservations/50", status=204, text="")
+    aioclient_mock.delete(f"{BASE}/api/reservations/3", status=204, text="")
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    hass.config_entries.async_update_entry(entry, options={**entry.options, "user_roles": {hass_read_only_user.id: "reinigung"}})
+    await hass.async_block_till_done()
+    eid, key = entry.entry_id, "2:2026-11-21"  # Abreise 21.11., danach Sperre ab 25.11.
+    admin = await hass_ws_client(hass)
+    cleaner = await hass_ws_client(hass, hass_read_only_access_token)
+
+    import json
+
+    def body_of(call):
+        raw = call[2]
+        return json.loads(raw) if isinstance(raw, (bytes, str)) else raw
+
+    def calls(method):
+        return [c for c in aioclient_mock.mock_calls if c[0] == method and "/api/reservations" in str(c[1])
+                and not str(c[1]).endswith("/messages")]
+
+    item = next(x for x in (await _call(admin, 1, type="smoobu/cleaning/get"))["result"]["reinigungen"] if x["key"] == key)
+    assert item["tag"] == "2026-11-21" and item["planbar_von"] == "2026-11-21" and item["planbar_bis"] == "2026-11-25"
+    # Nur „Reinigung zuweisen“; Grenze = nächste Belegung (auch eine Sperre)
+    assert (await _call(cleaner, 2, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="planen", datum="2026-11-24"))["error"]["code"] == "unauthorized"
+    assert (await _call(admin, 3, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="planen", datum="2026-11-26"))["error"]["code"] == "out_of_range"
+    assert (await _call(admin, 4, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="planen", datum="2026-11-20"))["error"]["code"] == "out_of_range"
+    assert calls("POST") == []
+    # Planen 25.11. (= Anreise der Folgebelegung erlaubt) → Sperre 21.–25.11. (Nächte bis Vortag)
+    z = (await _call(admin, 5, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="planen", datum="2026-11-25"))["result"]["zustand"]
+    assert z["geplant"] == "2026-11-25" and z["sperre_id"] == 50 and (z["sperre_von"], z["sperre_bis"]) == ("2026-11-21", "2026-11-25")
+    body = body_of(calls("POST")[-1])
+    assert (body["arrivalDate"], body["departureDate"], body["channelId"], body["apartmentId"]) == ("2026-11-21", "2026-11-25", 3, 123)
+    assert body["notice"].startswith("Reinigung geplant (HA)")
+    item = next(x for x in (await _call(admin, 6, type="smoobu/cleaning/get"))["result"]["reinigungen"] if x["key"] == key)
+    assert item["tag"] == "2026-11-25" and item["gesperrt_bis"] == "2026-11-25" and item["planbar_bis"] == "2026-11-25"
+    # Verschieben → alte löschen, neue anlegen
+    z = (await _call(admin, 7, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="planen", datum="2026-11-23"))["result"]["zustand"]
+    assert len(calls("DELETE")) == 1 and body_of(calls("POST")[-1])["departureDate"] == "2026-11-23" and z["sperre_bis"] == "2026-11-23"
+    # Zurück auf Abreise → Sperre frei
+    z = (await _call(admin, 8, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="planen", datum=None))["result"]["zustand"]
+    assert "geplant" not in z and "sperre_id" not in z and len(calls("DELETE")) == 2
+    # Früher erledigt: Sperre 21.–25.11., am 22.11. abgehakt → Rest ab 23.11. frei (neu 21.–23.11.)
+    await _call(admin, 9, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="planen", datum="2026-11-25")
+    # Smoobu liefert die Sperre jetzt mit aus (sonst gälte sie nach der Karenzzeit als von Hand gelöscht)
+    from .test_smoobu import BOOKINGS, mock_api
+
+    aioclient_mock.clear_requests()
+    blk = {**BOOKINGS[2], "id": 50, "arrival": "2026-11-21", "departure": "2026-11-25"}
+    aioclient_mock.get(f"{BASE}/api/reservations", json={"page_count": 1, "page": 1, "bookings": [*BOOKINGS, blk]})
+    mock_api(aioclient_mock)
+    aioclient_mock.post(f"{BASE}/api/reservations", json={"id": 50})
+    aioclient_mock.delete(f"{BASE}/api/reservations/50", status=204, text="")
+    aioclient_mock.delete(f"{BASE}/api/reservations/3", status=204, text="")
+    await entry.runtime_data.async_refresh()
+    item = next(x for x in (await _call(admin, 91, type="smoobu/cleaning/get"))["result"]["reinigungen"] if x["key"] == key)
+    assert item["naechste"]["datum"] == "2026-11-25"  # eigene Sperre zählt nicht als nächste Belegung
+    freezer.move_to("2026-11-22T10:00:00+00:00")
+    z = (await _call(admin, 92, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="erledigt"))["result"]["zustand"]
+    assert z["status"] == "erledigt" and z["sperre_bis"] == "2026-11-23" and body_of(calls("POST")[-1])["departureDate"] == "2026-11-23"
+    assert z["snapshot"]["geplant"] == "2026-11-25"
+    assert (await _call(admin, 93, type="smoobu/cleaning/set", entry_id=eid, key=key, aktion="planen", datum="2026-11-24"))["error"]["code"] == "already_done"
+
+    # Aufräumen: Reinigung gibt es nicht mehr → eigene Sperre löschen; Sperre fehlt in Smoobu → Planung zurück
+    board = entry.runtime_data.cleaning
+    board.state["99:2026-11-30"] = {"geplant": "2026-12-02", "sperre_id": 3, "sperre_von": "2026-11-30", "sperre_bis": "2026-12-02",
+                                    "sperre_seit": "2026-11-01T00:00:00+00:00"}
+    board.state[key].update({"status": "offen", "sperre_id": 77, "sperre_seit": "2026-11-01T00:00:00+00:00", "sperre_bis": "2026-11-25"})
+    assert await board.async_reconcile() == 2
+    assert str(calls("DELETE")[-1][1]).endswith("/api/reservations/3")
+    assert "sperre_id" not in board.state["99:2026-11-30"] and "geplant" not in board.state[key]
+    assert await board.async_reconcile() == 0
+
+
+def test_plan_und_sperrbereich():
+    from custom_components.smoobu.reinigung import block_range, plan_range
+
+    item = {"datum": "2026-11-21", "naechste": None}
+    assert plan_range(item, date(2026, 11, 15)) == ("2026-11-21", "2027-01-20")  # ohne Folgebelegung 60 Tage
+    assert plan_range(item, date(2026, 11, 23)) == ("2026-11-23", "2027-01-20")  # Abreise vorbei → ab heute
+    assert block_range(item, None, date(2026, 11, 15)) is None
+    assert block_range(item, "2026-11-23", date(2026, 11, 15)) == ("2026-11-21", "2026-11-23")
+    assert block_range(item, "2026-11-23", date(2026, 11, 22)) == ("2026-11-22", "2026-11-23")  # nicht rückwirkend
+    assert block_range(item, "2026-11-23", date(2026, 11, 23)) is None

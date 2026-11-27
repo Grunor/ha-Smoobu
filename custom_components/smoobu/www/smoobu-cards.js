@@ -476,6 +476,12 @@ const EN = {
   "Reinigungsboard, Reinigung in den Buchungsdetails, Reinigungs-Pushes und -Aufgaben, Statistik-Modul. Aus: Reinigungskosten nach Standardlohn.": "Cleaning board, cleaning in the booking details, cleaning pushes and tasks, statistics module. Off: cleaning costs at the default wage.", "Reinigungsboard: Reinigungen je Abreise zuweisen, übernehmen und abhaken": "Cleaning board: assign, take over and tick off cleanings per departure",
   "Reinigungskosten": "Cleaning costs", "Reinigungszeit (Standard)": "Cleaning time (default)",
   "Reinigungszeit (leer = Standard)": "Cleaning time (empty = default)", "Reinigungszeit gespeichert": "Cleaning time saved",
+  "Reinigungstag gespeichert": "Cleaning day saved", "Reinigungstag": "Cleaning day", "Abreise am": "Departure on",
+  "In Smoobu gesperrt bis einschließlich": "Blocked in Smoobu up to and including", "spätestens": "at the latest",
+  "Reinigungstag (bis zur nächsten Anreise; später = Nächte dazwischen in Smoobu sperren)": "Cleaning day (up to the next arrival; later = block the nights in between in Smoobu)",
+  "Reinigungstag nur von der Abreise bis zur nächsten Anreise möglich": "Cleaning day only possible from departure up to the next arrival",
+  "Reinigung ist schon erledigt": "Cleaning is already done", "Ungültiges Datum": "Invalid date",
+  "Sperre in Smoobu konnte nicht angepasst werden – Planung unverändert": "Block in Smoobu could not be adjusted – planning unchanged",
   "Rolle löschen": "Delete role", "Rollenname schon vergeben": "Role name already taken",
   "Saisonnamen doppelt": "Duplicate season names", "Schließen": "Close",
   "Schloss": "Lock", "Schloss-Entität bzw. Skript prüfen": "Check the lock entity or script",
@@ -1962,10 +1968,11 @@ class SmoobuOverviewCard extends SmoobuCard {
     // v1.19.0: Reinigungen der nächsten 7 Tage ohne Zuweisung → „Reinigung“ (Button führt zum Reinigungsboard).
     // Schlüssel mit Abreisetag: verschiebt sich die Abreise, erscheint die Aufgabe neu.
     const week = iso(addDays(D(today), 7));
-    for (const x of (d.cleaning?.reinigungen || []).filter((c) => !c.zugewiesen && c.status !== "erledigt" && c.datum >= today && c.datum <= week)) {
+    // v1.20.0: nach dem geplanten Reinigungstag (`tag`)
+    for (const x of (d.cleaning?.reinigungen || []).filter((c) => !c.zugewiesen && c.status !== "erledigt" && (c.tag || c.datum) >= today && (c.tag || c.datum) <= week)) {
       add("reinigung", `reinigung:${x.key}`, `<div class="tt">🧹 ${t("Reinigung nicht zugewiesen")}${this.multi && x.kuerzel ? codeTag(x.kuerzel) : ""}</div>
-        <p>${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}${x.wechsel ? ` · 🔄 ${t("Gästewechsel")}, ${t("Anreise")} ${uhr(x.naechste?.check_in)}` : ""}${x.hund ? " · 🐕" : ""}</p>
-        <div class="ta"><span class="sub">${daysWord(nightsBetween(today, x.datum))}</span><button class="btn" data-goclean>${t("Zuweisen")} →</button>`, `0${x.datum}`);
+        <p>${x.tag && x.tag !== x.datum ? `📅 ${fdowLong(x.tag)}` : `${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}`}${x.wechsel ? ` · 🔄 ${t("Gästewechsel")}, ${t("Anreise")} ${uhr(x.naechste?.check_in)}` : ""}${x.hund ? " · 🐕" : ""}</p>
+        <div class="ta"><span class="sub">${daysWord(nightsBetween(today, x.tag || x.datum))}</span><button class="btn" data-goclean>${t("Zuweisen")} →</button>`, `0${x.tag || x.datum}`);
     }
     // v1.18.0: neue Einstellungen der Integration → „Einrichtung“ (nur wer Einstellungen ändern darf)
     if (rightsOf(allApartment(d.info)).has("einstellungen")) News.list.filter((x) => x.art === "einstellung").forEach((n, i) => {
@@ -3297,7 +3304,7 @@ class SmoobuBookingDialog extends HTMLElement {
     const me = c.ich, done = x.status === "erledigt";
     // v1.19.1: vergangene, nicht erledigte Reinigung → nachtragen (wer hat gereinigt, Dauer, ein Klick).
     // Nur mit „Reinigung zuweisen“; ohne Push an die Person, Abhak-Zeitpunkt bleibt leer.
-    if (!done && c.darf_zuweisen && c.heute && x.datum < c.heute) {
+    if (!done && c.darf_zuweisen && c.heute && (x.tag || x.datum) < c.heute) {
       const users = c.benutzer || [];
       return `<div><h3>🧹 ${t("Reinigung")}</h3>
         <div class="sub" style="margin-bottom:8px">${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)} · ${t("vergangen, nicht erfasst")}</div>
@@ -3324,12 +3331,17 @@ class SmoobuBookingDialog extends HTMLElement {
     const dur = edit ? `<label class="dur" title="${t("Reinigungszeit (leer = Standard)")}"><input type="number" data-k="cmin" min="1" max="600" step="5"
         value="${x.minuten ?? ""}" placeholder="${x.standard_minuten_person || c.standard_minuten || 60}" style="width:72px"> min</label>`
       : `<span class="sub">${num(x.minuten || x.standard_minuten_person || c.standard_minuten || 60)} min</span>`;
+    // v1.20.0: Reinigungstag planen (Recht „Reinigung zuweisen“), Sperre in Smoobu anzeigen
+    const plan = !done && c.darf_zuweisen ? `<label class="dur" title="${t("Reinigungstag (bis zur nächsten Anreise; später = Nächte dazwischen in Smoobu sperren)")}">📅
+        <input type="date" data-k="cplan" min="${esc(x.planbar_von)}" max="${esc(x.planbar_bis)}" value="${esc(x.tag || x.datum)}"></label>` : "";
+    const lock = x.gesperrt_bis ? `<div class="sub">🔒 ${t("In Smoobu gesperrt bis einschließlich")} ${fdowLong(iso(addDays(D(x.gesperrt_bis), -1)))}</div>` : "";
+    const when = x.tag && x.tag !== x.datum ? `${t("Reinigungstag")} ${fdowLong(x.tag)} · ${t("Abreise am")} ${fdowLong(x.datum)}` : `${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}`;
     return `<div><h3>🧹 ${t("Reinigung")}</h3>
-      <div class="sub" style="margin-bottom:8px">${fdowLong(x.datum)} ${t("ab")} ${uhr(x.check_out)}${done ? (x.nachgetragen
+      <div class="sub" style="margin-bottom:8px">${when}${done ? (x.nachgetragen
         // v1.19.1: nachgetragene Reinigung – wer gereinigt hat + wann nachgetragen
         ? ` · ✓ ${t("gereinigt von")} ${esc(x.gereinigt_name || "?")} · ${t("nachgetragen")} ${fdate(x.nachgetragen)}`
         : ` · ✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""}`) : ""}</div>
-      <div class="row" style="align-items:center;flex-wrap:wrap;gap:8px">${who}${dur}${acts.join("")}</div></div>`;
+      ${lock}<div class="row" style="align-items:center;flex-wrap:wrap;gap:8px">${who}${plan}${dur}${acts.join("")}</div></div>`;
   }
   // Reinigung aus den Buchungsdetails ändern (gleiche Websocket-Aktion wie das Reinigungsboard)
   async cleanSet(aktion, extra = {}) {
@@ -3337,7 +3349,8 @@ class SmoobuBookingDialog extends HTMLElement {
     if (!x) return;
     try {
       await this.store.ws("smoobu/cleaning/set", { entry_id: x.entry_id, key: x.key, aktion, ...extra }, { cache: false });
-      toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : aktion === "nachtragen" ? `✓ ${t("Reinigung nachgetragen")}` : aktion === "zuweisen" ? t("Zugewiesen") : aktion === "dauer" ? t("Reinigungszeit gespeichert") : t("Gespeichert"));
+      toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : aktion === "nachtragen" ? `✓ ${t("Reinigung nachgetragen")}` : aktion === "zuweisen" ? t("Zugewiesen")
+        : aktion === "dauer" ? t("Reinigungszeit gespeichert") : aktion === "planen" ? t("Reinigungstag gespeichert") : t("Gespeichert"));
       this.load();
     } catch (e) { toast(`${t("Fehler")}: ${t(e?.message || String(e))}`); }
   }
@@ -3669,6 +3682,7 @@ class SmoobuBookingDialog extends HTMLElement {
     // Reinigung zuweisen direkt in den Buchungsdetails
     r.querySelector('[data-k="cassign"]')?.addEventListener("change", (e) => this.cleanSet("zuweisen", { benutzer_id: e.target.value || null }));
     // v1.19.0b12: Reinigungszeit speichert beim Ändern (wie auf dem Reinigungsboard)
+    r.querySelector('[data-k="cplan"]')?.addEventListener("change", (e) => this.cleanSet("planen", { datum: e.target.value || null }));  // v1.20.0
     r.querySelector('[data-k="cmin"]')?.addEventListener("change", (e) => this.cleanSet("dauer", { minuten: e.target.value === "" ? null : Number(e.target.value) }));
     // v1.18.0: Umbuchen – Datum/Unterkunft geändert → altes Prüfergebnis gilt nicht mehr; Preis nur merken
     r.querySelectorAll("[data-mv]").forEach((el) => el.addEventListener("change", () => {
@@ -7679,7 +7693,7 @@ class SmoobuCleaningCard extends SmoobuCard {
     const filter = s.filter || (r.darf_zuweisen ? "alle" : "fuer_mich");
     const limit = iso(addDays(D(r.heute), this._config.days));
     // Vergangene nur, solange nicht erledigt (vergessen?) – außer im Filter „Erledigt“
-    const base = r.reinigungen.filter((x) => x.datum <= limit && (filter === "erledigt" ? x.status === "erledigt" : x.status !== "erledigt"));
+    const base = r.reinigungen.filter((x) => x.tag <= limit && (filter === "erledigt" ? x.status === "erledigt" : x.status !== "erledigt"));
     const pick = {
       fuer_mich: (x) => x.zugewiesen === me || (!x.zugewiesen && r.darf_uebernehmen),
       offen: (x) => !x.zugewiesen,
@@ -7688,7 +7702,7 @@ class SmoobuCleaningCard extends SmoobuCard {
     }[filter];
     const list = base.filter(pick);
     if (filter === "erledigt") list.reverse();
-    const open = r.reinigungen.filter((x) => x.status !== "erledigt" && x.datum <= limit);
+    const open = r.reinigungen.filter((x) => x.status !== "erledigt" && x.tag <= limit);
     const free = open.filter((x) => !x.zugewiesen).length;
     const mine = open.filter((x) => x.zugewiesen === me).length;
     const users = r.benutzer || [];
@@ -7698,7 +7712,9 @@ class SmoobuCleaningCard extends SmoobuCard {
     const guest = (name, n, dog, nights) => [name ? esc(name) : "", pers(n), nights ? plural(nights, t("Nacht"), t("Nächte")) : ""].filter(Boolean).join(", ") + (dog ? " 🐕" : "");
     const row = (x) => {
       const n = x.naechste;
-      const late = x.datum < r.heute;
+      // v1.20.0: geplanter Reinigungstag (`tag`); `datum` bleibt der Abreisetag
+      const late = x.tag < r.heute;
+      const later = x.tag !== x.datum;
       const cls = ["cl", x.status === "erledigt" ? "done" : "", x.zugewiesen === me ? "mine" : "", !x.zugewiesen ? "free" : "", late ? "late" : ""].join(" ");
       const next = x.wechsel ? `<div class="s wx">🔄 ${t("Gästewechsel")}: ${t("Anreise")} ${uhr(n.check_in)} · ${guest(n.vorname, n.personen, n.hund)}</div>`
         : n ? `<div class="s">${n.sperre ? `${t("Danach gesperrt ab")} ${fdowLong(n.datum)}` : `${t("Nächste Anreise")} ${fdowLong(n.datum)} ${uhr(n.check_in)} · ${guest(n.vorname, n.personen, n.hund)}`}</div>`
@@ -7712,6 +7728,9 @@ class SmoobuCleaningCard extends SmoobuCard {
       if (!done && r.darf_uebernehmen && !x.zugewiesen) acts.push(`<button class="btn flat" data-cl="uebernehmen" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">${t("Übernehmen")}</button>`);
       if (!done && x.zugewiesen === me) acts.push(`<button class="lnk" data-cl="abgeben" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">${t("Abgeben")}</button>`);
       const mayDone = r.darf_zuweisen || !x.zugewiesen || x.zugewiesen === me;
+      // v1.20.0: Reinigungstag planen (nur „Reinigung zuweisen“) – Grenzen kommen aus dem Backend
+      if (!done && r.darf_zuweisen) acts.push(`<label class="dur" title="${t("Reinigungstag (bis zur nächsten Anreise; später = Nächte dazwischen in Smoobu sperren)")}">📅<input type="date"
+        data-plan="${esc(x.key)}" data-entry="${esc(x.entry_id)}" data-abreise="${esc(x.datum)}" min="${esc(x.planbar_von)}" max="${esc(x.planbar_bis)}" value="${esc(x.tag)}" style="width:140px"></label>`);
       // v1.19.0: tatsächliche Reinigungszeit je Reinigung buchen (leer = Standard)
       if (mayDone) acts.push(`<label class="dur" title="${t("Reinigungszeit (leer = Standard)")}"><input type="number" data-cmin="${esc(x.key)}" data-entry="${esc(x.entry_id)}"
         min="1" max="600" step="5" value="${x.minuten ?? ""}" placeholder="${x.standard_minuten_person || r.standard_minuten || 60}"><span class="unit">min</span></label>`);
@@ -7719,17 +7738,18 @@ class SmoobuCleaningCard extends SmoobuCard {
         ? `<button class="lnk" data-cl="offen" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">↺ ${t("Wieder offen")}</button>`
         : `<button class="btn" data-cl="erledigt" data-key="${esc(x.key)}" data-entry="${esc(x.entry_id)}">✓ ${t("Erledigt")}</button>`);
       return `<div class="${cls}"><span class="bar"></span><div>
-          <div class="t">${t("ab")} ${uhr(x.check_out)}${x.kuerzel && this.multi ? codeTag(x.kuerzel) : ""}
+          <div class="t">${later ? `📅 ${t("Abreise am")} ${fdowLong(x.datum)}` : `${t("ab")} ${uhr(x.check_out)}`}${x.kuerzel && this.multi ? codeTag(x.kuerzel) : ""}
             <span class="sub">${t("Abreise")}: ${guest(x.vorname, x.personen, x.hund, x.naechte)}</span></div>
           ${next}
+          ${x.gesperrt_bis ? `<div class="s">🔒 ${t("In Smoobu gesperrt bis einschließlich")} ${fdowLong(iso(addDays(D(x.gesperrt_bis), -1)))}</div>` : ""}
           ${done ? `<div class="s">✓ ${t("erledigt von")} ${esc(x.erledigt_von || "?")}${x.erledigt_um ? `, ${fdate(x.erledigt_um)} ${String(x.erledigt_um).slice(11, 16)}` : ""} · ${num(x.minuten || x.standard_minuten_person || r.standard_minuten || 60)} min${x.minuten ? "" : ` (${t("Standard")})`}</div>` : ""}
           ${late && !done ? `<div class="s" style="color:var(--sm-bad)">${t("Noch nicht abgehakt")}</div>` : ""}
         </div><div class="a">${acts.join("")}</div></div>`;
     };
     let html = "", day = null;
     for (const x of list) {
-      if (x.datum !== day) {
-        day = x.datum;
+      if (x.tag !== day) {
+        day = x.tag;
         const rel = nightsBetween(r.heute, day);
         html += `<div class="day ${rel === 0 ? "today" : ""}">${fdowLong(day)}${rel >= 0 && rel <= 1 ? ` · ${daysWord(rel)}` : ""}</div>`;
       }
@@ -7752,12 +7772,18 @@ class SmoobuCleaningCard extends SmoobuCard {
       el.disabled = true;
       try {
         await this.store.ws("smoobu/cleaning/set", { entry_id: el.dataset.entry, key: el.dataset.key || el.dataset.assign, aktion, ...extra }, { cache: false });
-        toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : aktion === "zuweisen" ? t("Zugewiesen") : aktion === "dauer" ? t("Reinigungszeit gespeichert") : t("Gespeichert"));
+        toast(aktion === "erledigt" ? `✓ ${t("Erledigt")}` : aktion === "zuweisen" ? t("Zugewiesen") : aktion === "dauer" ? t("Reinigungszeit gespeichert")
+          : aktion === "planen" ? t("Reinigungstag gespeichert") : t("Gespeichert"));
         this._reload();
       } catch (e) { el.disabled = false; toast(`${t("Fehler")}: ${t(e?.message || String(e))}`); }
     };
     root.querySelectorAll("[data-cl]").forEach((b) => b.addEventListener("click", () => send(b, b.dataset.cl)));
     root.querySelectorAll("[data-assign]").forEach((sel) => sel.addEventListener("change", () => send(sel, "zuweisen", { benutzer_id: sel.value || null })));
+    // v1.20.0: Reinigungstag – leer = zurück auf den Abreisetag
+    root.querySelectorAll("[data-plan]").forEach((inp) => inp.addEventListener("change", () => {
+      inp.dataset.key = inp.dataset.plan;
+      send(inp, "planen", { datum: inp.value || null });
+    }));
     root.querySelectorAll("[data-cmin]").forEach((inp) => inp.addEventListener("change", () => {
       inp.dataset.key = inp.dataset.cmin;
       send(inp, "dauer", { minuten: inp.value === "" ? null : Number(inp.value) });

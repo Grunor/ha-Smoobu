@@ -102,6 +102,11 @@ NEWS: list[dict[str, Any]] = [
      "text": "Wer welche Smoobu-Seiten sehen und was ändern darf (Verwalter, Betrieb, Mitarbeiter …).",
      "text_en": "Who may see which Smoobu pages and change what (manager, operations, staff …)."},
     # --- neue Funktionen („Was ist neu“) -------------------------------------------------------------
+    {"id": "neu-reinigung-planen", "version": "1.20.0", "art": "funktion", "recht": "reinigung_zuweisen",
+     "seite": "smoobu-reinigung", "sel": "[data-plan]",
+     "titel": "Reinigung später planen", "titel_en": "Plan cleaning later",
+     "text": "Reinigungstag frei wählen – bis zur nächsten Anreise. Liegt er nach der Abreise, werden die Nächte dazwischen in Smoobu automatisch gesperrt.",
+     "text_en": "Choose the cleaning day freely – up to the next arrival. If it is after departure, the nights in between are blocked in Smoobu automatically."},
     {"id": "neu-reinigung", "version": "1.19.0", "art": "funktion", "recht": "reinigung",
      "seite": "smoobu-reinigung", "sel": ".head",
      "titel": "Reinigungsboard", "titel_en": "Cleaning board",
