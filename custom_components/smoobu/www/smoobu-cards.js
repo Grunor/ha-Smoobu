@@ -28,6 +28,9 @@ const SMOOBU_CARDS_VERSION = "1.19.1b6";
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
 // ---------------------------------------------------------------------------
 const EN = {
+  // v1.20.0: Umsatzsteuer
+  "Umsatzsteuer": "VAT", "ohne USt": "excl. VAT", "Nach Provision je belegter Nacht": "After commission per occupied night", "Nach Provision je verfügbarer Nacht": "After commission per available night", "Umsatz ohne USt": "Revenue excl. VAT", "ohne USt/Nacht": "excl. VAT/night", "keine im Zeitraum": "none in period",
+  "Beträge mit oder ohne Umsatzsteuer": "Amounts with or without VAT", "USt ab": "VAT from", "Nach Provision und Gebühren je verfügbarer Nacht": "After commission and fees per available night",
   // v1.20.0 (BETA): Lexware Office
   "Rechnung": "Invoice", "keine Rechnung": "no invoice", "Entwurf": "Draft", "offen": "open", "Anzahlung unvollständig": "Deposit incomplete",
   "Anzahlung erhalten": "Deposit received", "bezahlt": "paid", "storniert": "cancelled", "Testmodus": "Test mode",
@@ -83,7 +86,7 @@ const EN = {
   "auf": "to", "Untergrenze": "Floor", "teuerster Kanal": "most expensive channel", "Untergrenze je Kanal": "Floor per channel",
   "Variable Kosten je Nacht": "Variable costs per night", "Heizung": "Heating", "Warmwasser": "Hot water", "Strom": "Electricity",
   "Wasser": "Water", "je Aufenthalt": "per stay", "Nächte frei": "nights free", "Hinweise": "Notes",
-  "Vorjahre": "Previous years", "Vorjahre am gleichen Tag": "Previous years on the same day",   "In den Vorjahren belegt": "Booked in previous years", "so nicht buchbar": "not bookable this way",   "Aufschlag": "Markup", "Netto je € Basispreis": "Net per € base price", "gemessen": "measured",
+  "Vorjahre": "Previous years", "Vorjahre am gleichen Tag": "Previous years on the same day",   "In den Vorjahren belegt": "Booked in previous years", "so nicht buchbar": "not bookable this way",   "Aufschlag": "Markup", "Nach Provision je € Basispreis": "After commission per € base price", "gemessen": "measured",
   "Option": "option", "direkt": "direct", "gleich an allen": "same on all",   "der Nächte werden im selben oder im Vormonat gebucht": "of nights are booked in the same or the previous month",
   "Buchungsstand gegen die Vorjahre am gleichen Tag · Preisuntergrenzen aus den variablen Kosten": "Bookings on hand vs. previous years on the same day · price floors from variable costs",
   "Je Aufenthalt": "Per stay", "Wäsche": "Laundry", "Heizung & Warmwasser": "Heating & hot water",
@@ -120,10 +123,10 @@ const EN = {
   "PP = Prozentpunkte": "PP = percentage points",
   "Aktueller Gast": "Current guest", "Nächster Gast": "Next guest", "Nächste Anreisen": "Upcoming arrivals",
   "Lücken": "Gaps", "Offene Zahlungen": "Open payments", "keine": "none", "Nächte": "nights",
-  "Nacht": "night", "Personen": "guests", "Brutto": "Gross", "Netto": "Net", "Kosten": "Costs",
+  "Nacht": "night", "Personen": "guests", "Brutto": "Gross", "Nach Provision": "After commission", "Kosten": "Costs",
   "Auslastung": "Occupancy", "Buchungen": "Bookings", "Stornos": "Cancellations", "Stornoquote": "Cancellation rate",
   "Ø Aufenthalt": "Avg. stay", "Ø Vorlauf": "Avg. lead time", "Ø Personen": "Avg. guests", "Direktanteil": "Direct share",
-  "Prognose Jahr": "Forecast year", "Netto/Nacht": "Net/night", "Brutto/Nacht": "Gross/night", "Tage": "days",
+  "Prognose Jahr": "Forecast year", "Nach Provision/Nacht": "After commission/night", "Brutto/Nacht": "Gross/night", "Tage": "days",
   "Monat": "Month", "Jahr bis heute": "Year to date", "Kanal": "Channel", "Kanäle": "Channels", "Zeitraum": "Period",
   "Vergleich": "Comparison", "Alle": "All", "Direkt": "Direct", "Portale": "Portals", "Suche": "Search",
   "Provisionen": "Commissions", "Provision & Gebühren": "Commission & fees", "Kostenquote": "Cost ratio",
@@ -186,7 +189,7 @@ const EN = {
   "Belegt bis": "Occupied until", "Frei bis": "Vacant until", "Abreise bis": "Check-out by", "Bezahlt über": "Paid via",
   "Hund dabei": "Dog included", "Person": "guest", "Tagen": "days", "Die nächsten": "Next", "Wochen": "weeks", "brutto": "gross",
   "ggü. Buchungsstand": "vs. booking status", "Nächten": "nights", "netto": "net", "Prognose": "Forecast", "schon gebucht": "already booked",
-  "Netto je Nacht": "Net per night", "spart rund": "saves about", "Anteil am Umsatz": "Share of revenue", "Freie Zeiträume": "Free periods",
+  "Nach Provision je Nacht": "After commission per night", "spart rund": "saves about", "Anteil am Umsatz": "Share of revenue", "Freie Zeiträume": "Free periods",
   "nächste": "next", "Wartet auf dich": "Waiting for you", "wartet auf Antwort": "awaits reply", "Zahlung offen": "Payment open",
   "Buchung öffnen": "Open booking", "Alles erledigt.": "All done.", "Keine Anreisen geplant.": "No arrivals planned.", "Keine Lücken.": "No gaps.",
   "Reinigung": "Cleaning", "ab": "from", "Heute keine An- oder Abreise": "No arrival or departure today", "Nachricht": "message",
@@ -244,9 +247,9 @@ const EN = {
   "Mehr Nächte": "More nights", "Kosten je Nacht": "Costs per night", "jetzt": "now", "Saisonmix, Preise": "season mix, prices",
   "Höhere Preise je Nacht": "Higher prices per night", "Niedrigere Preise je Nacht": "Lower prices per night", "Ausl.": "Occ.", "die geringere Auslastung kostete": "the lower occupancy cost",
   "die höhere Auslastung brachte": "the higher occupancy brought", "sparte aber": "but saved", "verursachte aber": "but caused",
-  "Netto − variable Kosten": "Net − variable costs", "Was hat den DB verändert?": "What changed the CM?", "DB je Monat": "CM per month",
+  "Nach Provision − variable Kosten": "After commission − variable costs", "Was hat den DB verändert?": "What changed the CM?", "DB je Monat": "CM per month",
   "Linie = Vergleich": "line = comparison", "Keine variablen Kosten hinterlegt – Einstellungen → Kosten": "No variable costs set – Settings → Costs",
-  "Netto − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom); Fixkosten nicht enthalten": "Net − variable costs (cleaning, laundry, heating, hot water, water, power); fixed costs not included",
+  "Nach Provision − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom); Fixkosten nicht enthalten": "After commission − variable costs (cleaning, laundry, heating, hot water, water, power); fixed costs not included",
   "Fixkosten (Grundsteuer, Versicherung, Internet …) sind nicht enthalten. Variable Kosten aus Einstellungen → Kosten; Heizung/Warmwasser nach Gradtagszahlen je Monat verteilt.": "Fixed costs (property tax, insurance, internet …) are not included. Variable costs from Settings → Costs; heating/hot water distributed by monthly degree days.",
   // v1.18.0: Baukasten – Bearbeiten, Vorschau, Vorlagen
   "Bearbeiten": "Edit", "Modul bearbeiten": "Edit module", "Änderungen speichern": "Save changes", "Als neues Modul": "As new module",
@@ -255,15 +258,15 @@ const EN = {
   "Umsatz je Monat nach Kanal": "Revenue per month by channel", "Welcher Kanal trägt in welchem Monat den Umsatz?": "Which channel carries revenue in which month?",
   "Auslastung nach Wochentag": "Occupancy by weekday", "Welche Nächte bleiben am häufigsten leer?": "Which nights stay empty most often?",
   "Preis je Nacht nach Saison und Kanal": "Price per night by season and channel", "Wo ist der Preis je Nacht je Saison am höchsten?": "Where is the price per night highest per season?",
-  "Netto je Nacht nach Aufenthaltsdauer": "Net per night by length of stay", "Bringen kurze Aufenthalte mehr je Nacht?": "Do short stays earn more per night?",
+  "Nach Provision je Nacht nach Aufenthaltsdauer": "After commission per night by length of stay", "Bringen kurze Aufenthalte mehr je Nacht?": "Do short stays earn more per night?",
   "Vorlauf nach Kanal": "Lead time by channel", "Wie früh buchen Gäste je Kanal (Median)?": "How early do guests book per channel (median)?",
-  "Stammgäste und Neukunden": "Returning and new guests", "Netto je Nacht von Stammgästen im Vergleich": "Net per night of returning guests compared",
+  "Stammgäste und Neukunden": "Returning and new guests", "Nach Provision je Nacht von Stammgästen im Vergleich": "After commission per night of returning guests compared",
   "Stornoquote je Kanal": "Cancellation rate by channel", "Welcher Kanal storniert am häufigsten?": "Which channel cancels most often?",
   "Gäste mit Hund je Saison": "Guests with dogs by season", "Wann kommen die meisten Hunde?": "When do most dogs come?",
   "Aufenthaltsdauer im Jahresverlauf": "Length of stay over the year", "Median der Nächte je Anreisemonat": "Median nights per arrival month",
   "Gästesprachen": "Guest languages", "Buchungen nach Sprache des Gastes": "Bookings by guest language",
   "Personen je Buchung nach Saison": "Guests per booking by season", "Familien im Sommer, Paare im Winter?": "Families in summer, couples in winter?",
-  "Deckungsbeitrag je Monat": "Contribution margin per month", "Netto minus variable Kosten je Monat": "Net minus variable costs per month",
+  "Deckungsbeitrag je Monat": "Contribution margin per month", "Nach Provision minus variable Kosten je Monat": "After commission minus variable costs per month",
   "Buchungswert": "Booking value", "Ø Buchungswert brutto als große Zahl": "Ø gross booking value as a big number",
   // v1.18.0: frühere Aufenthalte des Gastes
   "Stammgast": "Returning guest", "Schon": "Already", "bei uns": "with us", "zuletzt": "last", "Nein – erster Aufenthalt": "No – first stay",
@@ -438,7 +441,7 @@ const EN = {
   "Monate × Jahre seit": "Months × years since", "Nachrichten der Gäste lesen und beantworten": "Read and answer guest messages",
   "Nachrichten werden im Hintergrund gedrosselt nachgeladen (einmalig ab 2020, danach stündlich neue)": "Messages are loaded throttled in the background (once from 2020, then new ones hourly)", "Nacht von … auf …, je Kalenderwoche": "Night from … to …, per calendar week",
   "Name 1–30 Zeichen": "Name 1–30 characters", "Nebenkostenabrechnung auswerten (KI)": "Analyse utility bill (AI)",
-  "Netto und Provision/Gebühren (schraffiert) je Kanal": "Net and commission/fees (hatched) per channel", "Netto-RevPAR": "Net RevPAR",
+  "Umsatz nach Provision und Provision/Gebühren (schraffiert) je Kanal": "Revenue after commission and commission/fees (hatched) per channel", "RevPAR nach Provision": "RevPAR after commission",
   "Netzanteil": "Grid share", "Netzanteil stündlich messen": "Measure grid share hourly", "Energie-Dashboard": "Energy dashboard", "Monatswerte": "Monthly values", "Jahreswert": "Annual value",
   "Monatswerte (Rückfall)": "Monthly values (fallback)", "Netzanteil im Jahr": "Grid share for the year", "Netzbezug-Sensor": "Grid import sensor",
   "Gelten vor dem ersten Messwert und für künftige Buchungen.": "Used before the first measured value and for future bookings.",
@@ -635,7 +638,7 @@ const priceName = (p) => { const m = PRICE_DE[p.typ]; return LANG === "de" && m 
 const GLOSSARY = {
   ADR: "Ø Preis je belegter Nacht (brutto)",
   RevPAR: "Umsatz je verfügbarer Nacht = ADR × Auslastung",
-  "Netto-RevPAR": "Netto (nach Provision und Gebühren) je verfügbarer Nacht",
+  "RevPAR nach Provision": "RevPAR after commission",
   DB: "Deckungsbeitrag = Netto − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom)",
   "DB-RevPAR": "Deckungsbeitrag je verfügbarer Nacht",
   Untergrenze: "Basispreis, ab dem eine Buchung über diesen Kanal noch einen positiven Deckungsbeitrag bringt",
@@ -651,7 +654,7 @@ const GLOSSARY = {
 };
 const GLOSSARY_EN = {
   ADR: "average price per occupied night (gross)", RevPAR: "revenue per available night = ADR × occupancy",
-  "Netto-RevPAR": "net (after commission and fees) per available night", PP: "percentage points – change of a rate",
+  "RevPAR nach Provision": "RevPAR after commission", PP: "percentage points – change of a rate",
   n: "number of bookings the value is based on", "Vgl.": "comparison period", "Ø": "average", N: "nights",
   "Δ": "change vs. comparison", Pace: "booking pace: bookings on hand the same day before the stay",
   "P10–P90": "range covering 80 % of prior years' late bookings", KW: "calendar week",
@@ -879,6 +882,12 @@ const codeTag = (code) => (code ? `<em class="ak">${esc(code)}</em>` : "");
 // ---------------------------------------------------------------------------
 // Gemeinsamer Datenspeicher: eine Verbindung, ein Abo für alle Karten
 // ---------------------------------------------------------------------------
+// v1.20.0: Ansicht der Beträge (brutto / ohne USt) – je Browser gemerkt, leer = Standard der Einstellungen.
+// Gilt für Finanzen und Statistik (smoobu/analytics, smoobu/stats); Sensoren folgen dem Standard.
+const UstView = {
+  get() { try { return localStorage.getItem("smoobu-ust") || ""; } catch (e) { return ""; } },
+  set(v) { try { if (v) localStorage.setItem("smoobu-ust", v); else localStorage.removeItem("smoobu-ust"); } catch (e) { /* privat */ } },
+};
 class SmoobuStore {
   constructor(hass) {
     this.hass = hass;
@@ -896,6 +905,10 @@ class SmoobuStore {
     return window.__smoobuStore;
   }
   async ws(type, params = {}, { cache = true } = {}) {
+    // v1.20.0: gewählte USt-Ansicht mitschicken (nur wenn die Umsatzsteuer aktiv ist)
+    if ((type === "smoobu/analytics" || type === "smoobu/stats") && params.ust === undefined && UstView.get() && this.info?.ust?.aktiv) {
+      params = { ...params, ust: UstView.get() };
+    }
     const key = JSON.stringify([type, params]);
     if (cache && this._cache.has(key)) return this._cache.get(key);
     const p = this.hass.callWS({ type, ...params });
@@ -1803,7 +1816,7 @@ class SmoobuOverviewCard extends SmoobuCard {
         `${num(month.naechte)} von ${num((month.tage || 30) * units)} ${t("Nächten")}`, now.occ, prev.occ)}
       ${k(t("Jahr bis heute"), money(ytd.brutto, cur), delta(ytd.veraenderung_prozent?.brutto), `${t("netto")} ${money(ytd.netto, cur)}`, cum, cumPrev)}
       ${k(`${t("Prognose")} ${year}`, money(prog.prognose, cur), delta(progDelta), `${money(prog.gebucht, cur)} ${t("schon gebucht")}`, cum, monthly ? cumPrevYear : null)}
-      ${k(t("Netto je Nacht"), money(ytd.netto_pro_nacht, cur), delta(ytd.veraenderung_prozent?.netto_pro_nacht),
+      ${k(t("Nach Provision je Nacht"), money(ytd.netto_pro_nacht, cur), delta(ytd.veraenderung_prozent?.netto_pro_nacht),
         `${t("Vorjahr")} ${money(ytd.vergleich?.netto_pro_nacht, cur)}`, now.npn, prev.npn)}
       ${k(t("Direktanteil"), pct(ytd.direktanteil_prozent, 0), delta(ytd.veraenderung_punkte?.direktanteil_prozent, "pp"),
         saved ? `${t("spart rund")} ${money(saved, cur)} ${t("Provision")}` : t("Anteil am Umsatz"), now.direct, prev.direct)}
@@ -2456,7 +2469,7 @@ function downloadCsv(name, rows) {
 const BOOKING_COLS = [
   ["status", "Status"], ["anreise", "Anreise"], ["abreise", "Abreise"], ["naechte", "Nächte", "n"], ["gast", "Gast"],
   ["personen", "Personen", "n"], ["kanal", "Kanal"], ["brutto", "Brutto", "n"], ["kosten", "Kosten", "n"],
-  ["netto", "Netto", "n"], ["netto_pro_nacht", "Netto/Nacht", "n"], ["offen", "Offen", "n"], ["vorlauf_tage", "Vorlauf", "n"],
+  ["netto", "Nach Provision", "n"], ["netto_pro_nacht", "Nach Provision/Nacht", "n"], ["offen", "Offen", "n"], ["vorlauf_tage", "Vorlauf", "n"],
 ];
 // Datumsspalten starten beim Sortieren immer absteigend (neueste zuerst), alle übrigen aufsteigend
 const BOOKING_DATE_COLS = new Set(["anreise", "abreise"]);
@@ -2703,7 +2716,7 @@ function periodName(von, bis) {
   return `${fdate(von)} – ${fdate(iso(b))}`;
 }
 // Diagramm-Kennzahlen der Finanzen-Karte (v1.17.0: + Provisionen & Gebühren je Portal)
-const METRIC_LABEL = { brutto: "Brutto", netto: "Netto", naechte: "Nächte", kosten: "Provisionen" };
+const METRIC_LABEL = { brutto: "Brutto", netto: "Nach Provision", naechte: "Nächte", kosten: "Provisionen" };
 // ===========================================================================
 // Gemeinsame Filterleiste Statistik + Finanzen (v1.18.0b8)
 // ===========================================================================
@@ -2775,7 +2788,12 @@ function filterBarHtml(card, d, { simple = false, compares = STATS_COMPARE, rast
   const sdef = s.ptype === "saison" ? `<div class="sdef" title="${esc(t("Einstellbar unter Einstellungen → Allgemein & Abruf → Saisons"))}">
       <span class="lbl">${t("Saisons")}${neuBadge("neu-saisonfilter")}</span>${SEASONS.map((_, j) => (j + seasonOf(0)) % SEASONS.length).map((i) =>
         `<span class="sx${i === cur ? " on" : ""}"><b>${esc(t(SEASONS[i].name))}</b> ${seasonSpan(i)}</span>`).join("")}</div>` : ""; // ab der Januar-Saison wie in den Auswertungen
-  if (simple) return `<div class="fbar">${period}${anchor}${cmp}${sdef}</div>`;
+  // v1.20.0: Umschalter Brutto / ohne USt (nur mit Umsatzsteuer, Regelbesteuerung)
+  const u = d.info?.ust;
+  const uv = UstView.get() || u?.ansicht || "brutto";
+  const ustSeg = u?.aktiv ? `<span class="grp"><div class="seg" role="group" aria-label="${t("Umsatzsteuer")}" title="${esc(t("Beträge mit oder ohne Umsatzsteuer"))}${u.seit ? ` · ${esc(t("USt ab"))} ${fdate(u.seit)}` : ""}">
+      <button data-ust="brutto" aria-pressed="${uv === "brutto"}">${t("Brutto")}</button><button data-ust="ohne" aria-pressed="${uv === "ohne"}">${t("ohne USt")}</button></div></span>` : "";
+  if (simple) return `<div class="fbar">${period}${anchor}${cmp}${ustSeg}${sdef}</div>`;
   const ws = d.info.wohnungen;
   const sel = card.target.apartment_id;
   const apts = ws.length > 1 && !card._config.apartment_id && !HeaderApts.n
@@ -2784,7 +2802,7 @@ function filterBarHtml(card, d, { simple = false, compares = STATS_COMPARE, rast
         `<button data-apt="${w.apartment_id}" aria-pressed="${sel === w.apartment_id}" title="${esc(w.name)}">${esc(w.kuerzel || w.name)}</button>`).join("")}</div></span>` : "";
   const raster = `<span class="grp"><span class="lbl">${t("Raster")}</span><div class="seg">${rasters.map(([k, l]) =>
     `<button data-raster="${k}" aria-pressed="${s.raster === k}">${t(l)}</button>`).join("")}</div></span>`;
-  return `<div class="fbar">${period}${qsel}${anchor}${cmp}${afterCmp}<span class="sep"></span>${raster}${apts}
+  return `<div class="fbar">${period}${qsel}${anchor}${cmp}${afterCmp}${ustSeg}<span class="sep"></span>${raster}${apts}
     <span class="sep"></span><div class="chips">${channelChips(d.apt, s.channels)}</div>${tools}${sdef}</div>`;
 }
 // Ereignisse der Leiste; shiftPatch = zusätzlicher Zustand beim Blättern (Statistik: Pace-Jahr zurücksetzen).
@@ -2815,6 +2833,12 @@ function bindFilterBar(card, root, shiftPatch = {}) {
   root.querySelector('[data-k="from"]')?.addEventListener("change", (e) => card.setState({ from: e.target.value, quick: null }, true));
   root.querySelector('[data-k="to"]')?.addEventListener("change", (e) => card.setState({ to: e.target.value, quick: null }, true));
   root.querySelectorAll("[data-raster]").forEach((el) => el.addEventListener("click", () => card.setState({ raster: el.dataset.raster }, true)));
+  // v1.20.0: USt-Ansicht – gilt für alle Finanz-/Statistik-Karten dieses Browsers
+  root.querySelectorAll("[data-ust]").forEach((el) => el.addEventListener("click", () => {
+    const def = card._data?.info?.ust?.ansicht;
+    UstView.set(el.dataset.ust === def ? "" : el.dataset.ust);
+    card.store.invalidate();
+  }));
   root.querySelectorAll("[data-ch]").forEach((el) => el.addEventListener("click", () => card.setState({ channels: toggleChannel(s.channels, el.dataset.ch) }, true)));
   root.querySelectorAll("[data-apt]").forEach((el) => el.addEventListener("click", () => {
     AptSel.value = el.dataset.apt === ALL ? ALL : Number(el.dataset.apt);
@@ -2951,8 +2975,8 @@ class SmoobuAnalyticsCard extends SmoobuCard {
     }).join("");
     return `<h3>${t("Mehrfachvergleich")}</h3>
       <div class="scroll"><table><thead><tr><th>${t("Zeitraum")}</th><th class="n">${t("Brutto")}</th><th class="n" title="${t("Veränderung zum nächstälteren Zeitraum")}">Δ</th>
-        <th class="n">${t("Netto")}</th><th class="n">${t("Provision & Gebühren")}</th><th class="n">${t("Kostenquote")}</th><th class="n">${t("Nächte")}</th>
-        <th class="n">${t("Auslastung")}</th><th class="n">${t("Netto/Nacht")}</th><th class="n">${t("Buchungen")}</th><th class="n">${t("Direktanteil")}</th></tr></thead>
+        <th class="n">${t("Nach Provision")}</th><th class="n">${t("Provision & Gebühren")}</th><th class="n">${t("Kostenquote")}</th><th class="n">${t("Nächte")}</th>
+        <th class="n">${t("Auslastung")}</th><th class="n">${t("Nach Provision/Nacht")}</th><th class="n">${t("Buchungen")}</th><th class="n">${t("Direktanteil")}</th></tr></thead>
         <tbody>${body}</tbody></table></div>`;
   }
   // v1.17.0: acht Zusatzkacheln
@@ -3050,17 +3074,19 @@ class SmoobuAnalyticsCard extends SmoobuCard {
         afterCmp: s.compare !== "kein" ? `<select data-k="ccount" title="${t("Anzahl Vergleichszeiträume")}">${COMPARE_COUNTS.map((n) =>
           `<option value="${n}" ${n === s.compareCount ? "selected" : ""}>${n} ${t(s.compare === "vorperiode" ? (n === 1 ? "Periode" : "Perioden") : (n === 1 ? "Jahr" : "Jahre"))}</option>`).join("")}</select>` : "" })}
       <div class="grid">
-        ${tile(t("Brutto"), money(r.brutto, cur), `${cmpTxt("brutto", (v) => money(v, cur))} ${delta(dp.brutto)}${endTxt("brutto", (v) => money(v, cur))}`)}
-        ${tile(t("Netto"), money(r.netto, cur), `${cmpTxt("netto", (v) => money(v, cur))} ${delta(dp.netto)}${endTxt("netto", (v) => money(v, cur))}`)}
+        ${tile(t(r.umsatzsteuer?.aktiv && r.umsatzsteuer.ansicht === "ohne" ? "Umsatz ohne USt" : "Brutto"), money(r.brutto, cur), `${cmpTxt("brutto", (v) => money(v, cur))} ${delta(dp.brutto)}${endTxt("brutto", (v) => money(v, cur))}`)}
+        ${r.umsatzsteuer?.aktiv ? tile(t("Umsatzsteuer"), money(r.umsatzsteuer.summe, cur), Object.entries(r.umsatzsteuer.je_satz || {}).sort((a, b) => Number(a[0]) - Number(b[0]))
+          .map(([p, v]) => `${num(Number(p))} %: ${money(v, cur, 2)}`).join(" · ") || t("keine im Zeitraum")) : ""}
+        ${tile(t("Nach Provision"), money(r.netto, cur), `${cmpTxt("netto", (v) => money(v, cur))} ${delta(dp.netto)}${endTxt("netto", (v) => money(v, cur))}`)}
         ${tile(t("Kosten"), money(r.kosten, cur), `${pct(r.kostenquote_prozent)} ${delta(dpp.kostenquote_prozent, "pp", true)}`)}
         ${tile(t("Auslastung"), pct(r.auslastung_prozent, 0), `${r.naechte} ${t("Nächte")} · ${r.gesperrt_naechte} ${t("Gesperrt")} ${delta(dpp.auslastung_prozent, "pp")}${endTxt("auslastung_prozent", (v) => pct(v, 0), true)}`)}
-        ${tile(t("Netto/Nacht"), money(r.netto_pro_nacht, cur), `${t("Brutto/Nacht")} ${money(r.brutto_pro_nacht, cur)} ${delta(dp.netto_pro_nacht)}${endTxt("netto_pro_nacht", (v) => money(v, cur))}`)}
+        ${tile(t("Nach Provision/Nacht"), money(r.netto_pro_nacht, cur), `${t(r.umsatzsteuer?.aktiv && r.umsatzsteuer.ansicht === "ohne" ? "ohne USt/Nacht" : "Brutto/Nacht")} ${money(r.brutto_pro_nacht, cur)} ${delta(dp.netto_pro_nacht)}${endTxt("netto_pro_nacht", (v) => money(v, cur))}`)}
         ${tile(t("Buchungen"), num(r.buchungen), `${r.stornos} ${t("Stornos")} (${pct(r.stornoquote_prozent, 0)}) ${delta(dp.buchungen)}${endTxt("buchungen", (v) => num(v))}`)}
         ${tile(t("Ø Aufenthalt"), `${num(r.aufenthalt_schnitt, 1)} N`, `${cmpTxt("aufenthalt_schnitt", (v) => num(v, 1))} ${delta(dp.aufenthalt_schnitt)}`)}
         ${tile(t("Ø Vorlauf"), `${num(r.vorlauf_schnitt)} ${t("Tage")}`, `Median ${num(r.vorlauf_median)} · ${cmpTxt("vorlauf_schnitt", (v) => num(v))}`)}
         ${tile(t("Ø Personen"), num(r.personen_schnitt, 1), `${r.hunde} × 🐕 · ${money(r.preis_pro_buchung, cur)} je Buchung`)}
         ${tile(t("Direktanteil"), pct(r.direktanteil_prozent, 0), delta(dpp.direktanteil_prozent, "pp"))}
-        ${r.prognose ? tile(t("Prognose Jahr"), money(r.prognose.prognose, cur), `${t("Netto")} ${money(r.prognose.prognose_netto, cur)}`) : ""}
+        ${r.prognose ? tile(t("Prognose Jahr"), money(r.prognose.prognose, cur), `${t("Nach Provision")} ${money(r.prognose.prognose_netto, cur)}`) : ""}
         ${this.extraTiles(apt, r)}
       </div>
       <h3>${t("Diagramm")}</h3>
@@ -3079,7 +3105,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       ${this.multiTable(apt, r)}
       ${per.length > 1 ? `<h3>${t("Wohnungen im Vergleich")}</h3>
       <div class="scroll"><table><thead><tr><th>${t("Wohnung")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
-        <th class="n">${t("Netto")}</th><th class="n">${t("Auslastung")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Netto/Nacht")}</th>
+        <th class="n">${t("Nach Provision")}</th><th class="n">${t("Auslastung")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Nach Provision/Nacht")}</th>
         <th class="n">${t("Buchungen")}</th><th class="n">${t("Direktanteil")}</th></tr></thead><tbody>
         ${per.map(({ w, x }) => `<tr><td>${codeTag(w.kuerzel)} ${esc(w.name)}</td><td class="n">${money(x.brutto, cur)}</td>
           <td class="n">${pct(r.brutto ? (x.brutto / r.brutto) * 100 : null, 0)}</td><td class="n">${delta(x.veraenderung_prozent?.brutto)}</td>
@@ -3089,7 +3115,7 @@ class SmoobuAnalyticsCard extends SmoobuCard {
       ${ins.length ? `<h3>${t("Erkenntnisse")}</h3><ul class="ins">${ins.map((i) => `<li>${i}</li>`).join("")}</ul>` : ""}
       <h3>${t("Kanaltabelle")}</h3>
       <div class="scroll"><table><thead><tr><th>${t("Kanal")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Anteil")}</th><th class="n">Δ</th>
-        <th class="n">${t("Netto")}</th><th class="n">${t("Provision & Gebühren")}</th><th class="n">${t("Kostenquote")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Netto/Nacht")}</th>
+        <th class="n">${t("Nach Provision")}</th><th class="n">${t("Provision & Gebühren")}</th><th class="n">${t("Kostenquote")}</th><th class="n">${t("Nächte")}</th><th class="n">${t("Nach Provision/Nacht")}</th>
         <th class="n">${t("Buchungen")}</th><th class="n">${t("Stornoquote")}</th><th class="n">${t("Ø Aufenthalt")}</th><th class="n">${t("Ø Vorlauf")}</th><th class="n">${t("Ø Personen")}</th></tr></thead>
         <tbody>${table || `<tr><td colspan="14" class="empty">${t("Keine Daten")}</td></tr>`}</tbody>
         <tfoot><tr><td>${t("Summe")}</td><td class="n">${money(r.brutto, cur)}</td><td class="n">100 %</td><td class="n">${delta(dp.brutto)}</td>
@@ -3364,7 +3390,7 @@ class SmoobuBookingDialog extends HTMLElement {
           ["Brutto", `<b>${money(b.brutto, cur, 2)}</b>${b.naechte ? ` · ${money(b.brutto_pro_nacht, cur, 2)}/${t("Nacht")}` : ""}`],
           ["Provision", `${money(b.provision, cur, 2)}${b.provision_quelle === "konfiguration" ? " (geschätzt)" : ""}`],
           b.zahlungsgebuehr && ["Zahlungsgebühr", money(b.zahlungsgebuehr, cur, 2)],
-          ["Netto", `<b>${money(b.netto, cur, 2)}</b> · ${money(b.netto_pro_nacht, cur, 2)}/${t("Nacht")}`],
+          ["Nach Provision", `<b>${money(b.netto, cur, 2)}</b> · ${money(b.netto_pro_nacht, cur, 2)}/${t("Nacht")}`],
           b.anzahlung && ["Anzahlung", `${money(b.anzahlung, cur, 2)} ${b.anzahlung_bezahlt || b.bezahlt ? "✓" : "✗"}`],
           b.offen > 0 && ["Restbetrag", `<b style="color:var(--sm-bad)">${money(b.offen, cur, 2)}</b>`],
           b.kurtaxe && ["Kurtaxe", money(b.kurtaxe, cur, 2)],
@@ -4110,12 +4136,12 @@ const STATS_KPIS = [
   { id: "auslastung", label: "Auslastung", pp: true, hint: "Belegte Nächte ÷ verfügbare Nächte (gesperrte Nächte zählen nicht als verfügbar)" },
   { id: "adr", label: "ADR", hint: "Ø Preis je belegter Nacht (brutto)" },
   { id: "revpar", label: "RevPAR", hint: "Umsatz je verfügbarer Nacht = ADR × Auslastung" },
-  { id: "netto_revpar", label: "Netto-RevPAR", hint: "Netto (nach Provision und Gebühren) je verfügbarer Nacht" },
+  { id: "netto_revpar", label: "RevPAR nach Provision", hint: "Nach Provision und Gebühren je verfügbarer Nacht" },
   { id: "vorlauf", label: "Vorlauf", hint: "Median der Tage zwischen Buchung und Anreise (Anreisen im Zeitraum)" },
   { id: "stornoquote", label: "Stornoquote", pp: true, invert: true, hint: "Stornos ÷ alle Buchungen mit Anreise im Zeitraum" },
 ];
 const STATS_EINFACH = ["umsatz", "auslastung", "adr", "stornoquote"];
-const MATRIX_MEASURES = [["auslastung", "Auslastung"], ["umsatz", "Umsatz"], ["adr", "ADR"], ["revpar", "RevPAR"], ["netto", "Netto"], ["db", "DB"]];
+const MATRIX_MEASURES = [["auslastung", "Auslastung"], ["umsatz", "Umsatz"], ["adr", "ADR"], ["revpar", "RevPAR"], ["netto", "Nach Provision"], ["db", "DB"]];
 const PERIOD_TYPES = [["monat", "Monat"], ["quartal", "Quartal"], ["saison", "Saison"], ["jahr", "Jahr"], ["frei", "Frei"]];
 const PERIOD_MONTHS = { monat: 1, quartal: 3, saison: 3, jahr: 12 };
 const STATS_COMPARE = [["stichtag", "Stichtag Vorjahr"], ["vorjahr", "Ganzes Vorjahr"], ["vorperiode", "Vorperiode"]];
@@ -4468,11 +4494,11 @@ const STATS_MODULES = {
       const m0 = (x) => money(x, cur), m2 = (x) => money(x, cur, 2);
       const tiles = tilesRow([
         [t("Deckungsbeitrag"), `${m0(DB1)} ${delta(rel(DB1, DB0))}`, `${vg("db", () => m0(DB0))}${m.fin ? ` · ${t("Endstand")} ${m0(m.fin.wert)}` : ""}`,
-          t("Netto − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom); Fixkosten nicht enthalten"), n < 5],
+          t("Nach Provision − variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom); Fixkosten nicht enthalten"), n < 5],
         [t("DB je belegter Nacht"), `${m2(v(a, "db_pro_nacht"))} ${delta(rel(v(a, "db_pro_nacht"), v(b, "db_pro_nacht")))}`, vg("db_pro_nacht", m2)],
         ["DB-RevPAR", `${m2(v(a, "db_revpar"))} ${delta(rel(v(a, "db_revpar"), v(b, "db_revpar")))}`, vg("db_revpar", m2), t("Deckungsbeitrag je verfügbarer Nacht")],
         [t("Variable Kosten"), `${m0(V1)} ${delta(rel(V1, V0), "%", true)}`, `${vg("var_kosten", m0)} · ${N1 ? m2(V1 / N1) : "–"}/${t("Nacht")}`],
-        [t("Netto"), `${m0(NE1)} ${delta(rel(NE1, NE0))}`, `${vg("netto", m0)} · ${N1 ? m2(NE1 / N1) : "–"}/${t("Nacht")}`],
+        [t("Nach Provision"), `${m0(NE1)} ${delta(rel(NE1, NE0))}`, `${vg("netto", m0)} · ${N1 ? m2(NE1 / N1) : "–"}/${t("Nacht")}`],
         [t("Belegte Nächte"), `${num(N1)} ${delta(rel(N1, N0))}`, `${t("Vgl.")} ${num(N0)} · ${t("Ausl.")} ${pct(v(a, "auslastung"), 0)} (${pct(v(b, "auslastung"), 0)})`,
           `${t("Auslastung")} ${pct(v(a, "auslastung"), 1)}, ${t("Vergleich")} ${pct(v(b, "auslastung"), 1)}`],
       ]);
@@ -4514,7 +4540,7 @@ const STATS_MODULES = {
       const chart = labels.length ? barChart({ labels, unit: "monat", fmt: (x) => money(x, cur),
         stacks: [{ name: t("DB"), color: "var(--sm-accent)", values: m.ser.map((x) => x.wert || 0) }],
         line: { label: cmpName, values: labels.map((_, i) => m.serC[i]?.wert || 0) } }) : "";
-      return panel(`${t("Deckungsbeitrag")}${neuBadge("neu-deckung")}`, `${t("Netto − variable Kosten")} · ${t("Vergleich")}: ${esc(cmpName)}`,
+      return panel(`${t("Deckungsbeitrag")}${neuBadge("neu-deckung")}`, `${t("Nach Provision − variable Kosten")} · ${t("Vergleich")}: ${esc(cmpName)}`,
         `${lead}${tiles}<div class="split2"><div><div class="kl">${t("Was hat den DB verändert?")}</div>${bridge || `<div class="empty">${t("Keine Daten")}</div>`}</div>
           <div><div class="kl">${t("DB je Monat")} <span class="sub" style="margin-left:6px;font-weight:400">${t("Linie = Vergleich")}</span></div>${chart}</div></div>
         ${gloss(["DB", "DB-RevPAR", "Vgl."])}
@@ -4543,7 +4569,7 @@ const STATS_MODULES = {
         const head = `<div class="emp-head"><div><div class="kl">${t("Basispreis heute")}</div><div class="kv">${money(bp.heute, cur)}</div>
             <div class="ks">${bp.einheitlich ? t("gleich an allen") + ` ${num(bp.tage)} ` + t("Tagen") : `${money(bp.min, cur)} – ${money(bp.max, cur)}`}</div></div>
           ${(w.kanaele || []).map((k) => `<div data-tip="${esc(`${k.kanal}: ${t("Aufschlag")} ${num(k.aufschlag)} %${k.genius ? ` · Genius` : ""} · ${t("Kostenquote")} ${pct(k.kostenquote, 1)} (${t(k.kostenquote_quelle)})
-${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
+${t("Nach Provision je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
             <div class="kl"><span class="dot" style="background:${chColor(k.kanal)}"></span> ${esc(chn(k.kanal))}</div><div class="kv sm">${money(k.netto_je_nacht, cur)}</div>
             <div class="ks">${t("netto je Nacht")}${k.aufschlag ? ` · +${num(k.aufschlag)} %` : ""}${k.genius ? " · Genius" : ""}</div></div>`).join("")}</div>`;
         const months = (w.monate || []).map((mo) => {
@@ -4563,7 +4589,7 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
           const label = D(`${mo.monat}-01`).toLocaleDateString(locale(), { month: "long", year: "numeric" });
           return `<div class="emp-m"><div class="row"><b class="grow">${esc(label)}</b><span class="badge ${rc}">${t(rl)}</span></div>
             ${band}
-            <div class="ks">${t("Netto-RevPAR")} ${money(mo.netto_revpar_stand, cur, 2)} · DB-RevPAR ${money(mo.db_revpar_stand, cur, 2)} · ${num(mo.frei_ab_heute)} ${t("Nächte frei")}${mo.gesperrt ? ` · ${num(mo.gesperrt)} ${t("gesperrt")}` : ""}
+            <div class="ks">${t("RevPAR nach Provision")} ${money(mo.netto_revpar_stand, cur, 2)} · DB-RevPAR ${money(mo.db_revpar_stand, cur, 2)} · ${num(mo.frei_ab_heute)} ${t("Nächte frei")}${mo.gesperrt ? ` · ${num(mo.gesperrt)} ${t("gesperrt")}` : ""}
               ${mo.prognose_auslastung !== null && mo.prognose_auslastung !== undefined ? ` · ${t("Prognose")} ${pct(mo.prognose_auslastung, 0)}` : ""}</div>
             <div class="emp-r ${ac}"><b>${t(al)}${e.preis_neu ? ` ${t("auf")} ${money(e.preis_neu, cur)} (${e.prozent > 0 ? "+" : ""}${num(e.prozent)} %)` : ""}</b><span>${esc(t(e.grund || ""))}</span>
               ${mo.untergrenze_massgeblich ? `<span class="ks">${t("Untergrenze")} (2 N., ${t("teuerster Kanal")}): ${money(mo.untergrenze_massgeblich, cur)}</span>` : ""}
@@ -4625,7 +4651,7 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
           <div class="ks emp-foot" style="margin-top:10px">${(w.annahmen || []).map((a) => esc(t(a))).join(" · ")}${w.kurzfristig_prozent !== null && w.kurzfristig_prozent !== undefined ? ` · ${num(w.kurzfristig_prozent)} % ${t("der Nächte werden im selben oder im Vormonat gebucht")}` : ""}</div>`;
       }).join("") || `<div class="empty">${t("Keine Daten")}</div>`;
       return panel(t("Bewertung & Empfehlung"), t("Buchungsstand gegen die Vorjahre am gleichen Tag · Preisuntergrenzen aus den variablen Kosten"),
-        `${blocks}${gloss(["Netto-RevPAR", "DB-RevPAR", "Untergrenze", "Pace", "n"])}`);
+        `${blocks}${gloss(["RevPAR nach Provision", "DB-RevPAR", "Untergrenze", "Pace", "n"])}`);
     },
   },
   // 4: Belegungs-Heatmap Wochentag × KW + Auslastung/ADR je Wochentag
@@ -4677,7 +4703,7 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
       const rows = names.map((k) => {
         const net = m.netto.get(k)?.wert || 0, cost = m.kosten.get(k)?.wert || 0, n = m.buchungen.get(k)?.wert || 0;
         const col = chColor(k);
-        const tip = `${k}\n${t("Netto")} ${money(net, cur)} · ${t("Provision & Gebühren")} ${money(cost, cur)} (${pct(net + cost ? (cost / (net + cost)) * 100 : null, 1)})\n${t("Netto/Nacht")} ${money(m.netto_pro_nacht.get(k)?.wert, cur)} · ${num(m.naechte.get(k)?.wert)} ${t("Nächte")} · n = ${n}`;
+        const tip = `${k}\n${t("Nach Provision")} ${money(net, cur)} · ${t("Provision & Gebühren")} ${money(cost, cur)} (${pct(net + cost ? (cost / (net + cost)) * 100 : null, 1)})\n${t("Nach Provision/Nacht")} ${money(m.netto_pro_nacht.get(k)?.wert, cur)} · ${num(m.naechte.get(k)?.wert)} ${t("Nächte")} · n = ${n}`;
         return `<div class="hr${n < 5 ? " low" : ""}" data-tip="${esc(tip)}"><span class="hl"><span class="dot" style="background:${col}"></span>${esc(k)}</span>
           <span class="ht"><i style="width:${((net / max) * 100).toFixed(1)}%;background:${col}"></i><i style="width:${((cost / max) * 100).toFixed(1)}%;background:${col};opacity:.5;
             background-image:repeating-linear-gradient(135deg, transparent 0 3px, var(--sm-surf) 3px 5px)"></i></span>
@@ -4716,9 +4742,9 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
         labels += `<text x="${lx}" y="${ly}" font-size="10.5" font-weight="600" fill="currentColor" pointer-events="none">${esc(p.k)}</text>`;
       }
       svg += labels;
-      return panel(t("Kanal-Wirtschaftlichkeit"), t("Netto und Provision/Gebühren (schraffiert) je Kanal"),
+      return panel(t("Kanal-Wirtschaftlichkeit"), t("Umsatz nach Provision und Provision/Gebühren (schraffiert) je Kanal"),
         `<div class="split2"><div><div class="hb">${rows}</div>
-          <div class="legend"><span><i style="background:var(--sm-ink)"></i>${t("Netto")}</span>
+          <div class="legend"><span><i style="background:var(--sm-ink)"></i>${t("Nach Provision")}</span>
           <span><i style="background:var(--sm-ink);opacity:.5;background-image:repeating-linear-gradient(135deg, transparent 0 3px, var(--sm-surf) 3px 5px)"></i>${t("Provision & Gebühren")}</span>
           <span>${t("blass = weniger als 5 Buchungen")}</span></div></div>
           <div><div class="kl">${t("Kanal-Matrix: Netto je Nacht × Anteil Nächte, Blase = Buchungen")}</div>
@@ -4914,7 +4940,7 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
           ${block(t("Sprache"), m.sprache, (f) => t(LANGS[f] || f))}</div>
           <div class="legend" style="margin-top:8px"><span><i style="background:var(--sm-accent)"></i>${t("Buchungen")}</span>
             <span><i style="background:color-mix(in srgb, var(--sm-accent) 40%, var(--sm-surf2))"></i>${t("Nächte")}</span></div>
-          ${sg?.wert && nk?.wert ? `<div class="sub" style="margin-top:8px">${t("Netto je Nacht")}: ${t("Stammgast")} ${money(sg.wert, d.apt.currency)} (n = ${sg.n}) · ${t("Neukunde")} ${money(nk.wert, d.apt.currency)} (n = ${nk.n})</div>` : ""}`);
+          ${sg?.wert && nk?.wert ? `<div class="sub" style="margin-top:8px">${t("Nach Provision je Nacht")}: ${t("Stammgast")} ${money(sg.wert, d.apt.currency)} (n = ${sg.n}) · ${t("Neukunde")} ${money(nk.wert, d.apt.currency)} (n = ${nk.n})</div>` : ""}`);
     },
   },
   // v1.18.0b7: Ehrentafel (Fun-Statistik) – Backend stats.ranking. Zwei Spalten mit je Top 3:
@@ -5070,7 +5096,7 @@ ${t("Netto je € Basispreis")}: ${num(k.netto_je_euro, 2)}`)}">
       const more = rows.length > 25 ? `<button class="lnk" data-k="tableall">${card._state.tableAll ? t("Weniger anzeigen") : `${t("Alle")} ${rows.length} ${t("anzeigen")}`}</button>` : "";
       return panel(t("Datentabelle"), `${rows.length} ${t("Buchungen im Filter (inkl. Stornos)")}`,
         `<div class="scroll"><table><thead><tr><th>${t("Anreise")}</th><th>${t("Abreise")}</th><th>${t("Gast")}</th><th>${t("Kanal")}</th><th class="n">${t("Nächte")}</th>
-          <th class="n">${t("Personen")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Netto")}</th><th class="n">${t("Vorlauf")}</th><th>${t("Status")}</th></tr></thead>
+          <th class="n">${t("Personen")}</th><th class="n">${t("Brutto")}</th><th class="n">${t("Nach Provision")}</th><th class="n">${t("Vorlauf")}</th><th>${t("Status")}</th></tr></thead>
           <tbody>${body || `<tr><td colspan="10" class="empty">${t("Keine Buchungen")}</td></tr>`}</tbody></table></div>
           <div class="row" style="margin-top:8px">${more}<span class="grow"></span></div>`,
         `<button class="btn flat" data-k="csv">${t("CSV exportieren")}</button>`);
@@ -5119,12 +5145,12 @@ const MODULE_PRESETS = [
     tip: "Welche Nächte bleiben am häufigsten leer?" },
   { title: "Preis je Nacht nach Saison und Kanal", measure: "adr", dimension: "saison", split: "kanal", view: "heatmap",
     tip: "Wo ist der Preis je Nacht je Saison am höchsten?" },
-  { title: "Netto je Nacht nach Aufenthaltsdauer", measure: "netto_pro_nacht", dimension: "aufenthalt", split: "", view: "balken",
+  { title: "Nach Provision je Nacht nach Aufenthaltsdauer", measure: "netto_pro_nacht", dimension: "aufenthalt", split: "", view: "balken",
     tip: "Bringen kurze Aufenthalte mehr je Nacht?" },
   { title: "Vorlauf nach Kanal", measure: "vorlauf", dimension: "kanal", split: "", view: "balken",
     tip: "Wie früh buchen Gäste je Kanal (Median)?" },
   { title: "Stammgäste und Neukunden", measure: "netto_pro_nacht", dimension: "stammgast", split: "", view: "tabelle",
-    tip: "Netto je Nacht von Stammgästen im Vergleich" },
+    tip: "Nach Provision je Nacht von Stammgästen im Vergleich" },
   { title: "Stornoquote je Kanal", measure: "stornoquote", dimension: "kanal", split: "", view: "tabelle",
     tip: "Welcher Kanal storniert am häufigsten?" },
   { title: "Gäste mit Hund je Saison", measure: "hund_anteil", dimension: "saison", split: "", view: "balken",
@@ -5136,7 +5162,7 @@ const MODULE_PRESETS = [
   { title: "Personen je Buchung nach Saison", measure: "personen", dimension: "saison", split: "", view: "balken",
     tip: "Familien im Sommer, Paare im Winter?" },
   { title: "Deckungsbeitrag je Monat", measure: "db", dimension: "monat", split: "", view: "balken",
-    tip: "Netto minus variable Kosten je Monat" },
+    tip: "Nach Provision minus variable Kosten je Monat" },
   { title: "Buchungswert", measure: "buchungswert", dimension: "monat", split: "", view: "kennzahl",
     tip: "Ø Buchungswert brutto als große Zahl" },
 ];
@@ -6333,6 +6359,8 @@ const SET_TABS = [
   ["provisionen", "Preise & Kanäle"], ["kosten", "Kosten"],
   // v1.19.0b12 (Review 21.11.2026): alles zur Reinigung und die Türcodes an einer Stelle (vorher auf 4 Reiter verteilt)
   ["reinigung", "Reinigung & Zugang"], ["rechte", "Benutzer & Rechte"], ["allgemein", "Allgemein & Abruf"],
+  // v1.20.0: Umsatzsteuer (optional) – Grundschalter, „USt-pflichtig seit“, Sätze, Zuordnung, Kosten
+  ["umsatzsteuer", "Umsatzsteuer"],
   // v1.20.0 (BETA): Lexware Office – Rechnungsentwürfe, Zahlungsstand, Bedeutung „bezahlt“
   ["lexware", "Lexware (Beta)"],
 ];
@@ -6368,6 +6396,7 @@ const SET_FIELD_TAB = (key) => {
   if (key.startsWith("cost_")) return "kosten";
   if (["user_roles", "default_role", "settings_users", "role_rights", "custom_roles", "focus_roles"].includes(key)) return "rechte";
   if (key.startsWith("lexware_") || key === "paid_meaning") return "lexware"; // v1.20.0
+  if (key.startsWith("ust_")) return "umsatzsteuer"; // v1.20.0
   return "allgemein";
 };
 const SET_ERR = {
@@ -6382,7 +6411,7 @@ const SET_ERR = {
   invalid_lock_slot: "Code-Platz 1–250, „von“ ≤ „bis“", invalid_static_code: "Statischer Code: 4–12 Ziffern/Buchstaben", invalid_focus_path: "Startseite: Pfad wie /dashboard/ansicht", power_entity_required: "Bitte einen Stromzähler wählen oder „Konstant“", grid_share_entity_required: "Bitte je Wohnung einen Netzbezug-Sensor wählen oder einen anderen Netzanteil",
   meter_entity_required: "Bitte einen Zähler wählen oder „Konstant“", price_required: "Bitte Preis oder Preis-Entität angeben", role_is_default: "Gelöschte Rolle ist noch Standardrolle", invalid_grid_share: "12 Werte zwischen 0 und 100",
   // v1.20.0: Lexware
-  lexware_key_required: "API-Key fehlt – oder Testmodus einschalten", invalid_rules: "Regelzeilen ungültig", invalid_rule: "Eine Regelzeile ist unvollständig",
+  lexware_key_required: "API-Key fehlt – oder Testmodus einschalten", invalid_ust_rates: "Sätze: Datum und 0–50 % je Zeile", invalid_rules: "Regelzeilen ungültig", invalid_rule: "Eine Regelzeile ist unvollständig",
   invalid_multiple_rest: "Nur eine Zeile je Gruppe darf den Rest aus dem Buchungspreis bekommen",
   // v1.18.0: Saisons
   invalid_season_count: "2 bis 6 Saisons", invalid_season: "Ungültige Saison", invalid_season_name: "Jede Saison braucht einen Namen",
@@ -7137,6 +7166,38 @@ class SmoobuSettingsCard extends SmoobuCard {
       ${this.seasonBlock(meta)}
       ${codes ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Wohnungskürzel")}</b><span class="sub">${t("Höchstens 4 Buchstaben/Ziffern, eindeutig über alle Konten.")}</span></div></div><div class="gb">${codes}</div></div>` : ""}`;
   }
+  // v1.20.0: Reiter „Umsatzsteuer“ (Entscheidungen Betreiber 27.11.2026, siehe ust.py)
+  tabUst(meta) {
+    const d = this._draft, U = meta.ust || { bestandteile: [], kostenarten: [] };
+    const KIND = { ermaessigt: "ermäßigt", regel: "regulär", frei: "steuerfrei" };
+    const opt = (map, cur) => Object.entries(map).map(([k, l]) => `<option value="${esc(k)}" ${k === cur ? "selected" : ""}>${esc(t(l))}</option>`).join("");
+    const on = d.ust_mode === "regel";
+    const rates = (d.ust_rates || []).map((r, i) => `<div class="srow"><input type="date" data-ustrate="${i}|ab" value="${esc(r.ab)}">
+        <span class="unit">${t("ermäßigt")}</span><input type="number" min="0" max="50" step="0.5" data-ustrate="${i}|ermaessigt" value="${esc(r.ermaessigt)}" style="width:70px"><span class="unit">%</span>
+        <span class="unit">${t("regulär")}</span><input type="number" min="0" max="50" step="0.5" data-ustrate="${i}|regel" value="${esc(r.regel)}" style="width:70px"><span class="unit">%</span>
+        <button class="lnk" data-ustratedel="${i}" ${(d.ust_rates || []).length > 1 ? "" : "disabled"}>✕</button></div>`).join("");
+    const items = (U.bestandteile || []).map((b) => this.fld(b.name, `<select data-ustmap="${esc(b.name)}">${opt({ "": `Standard (${KIND[d.ust_default || "ermaessigt"]})`, ...KIND }, (d.ust_map || {})[b.name] || "")}</select>
+        <span class="unit">${b.anzahl} ${t(b.anzahl === 1 ? "Buchung" : "Buchungen")}</span>`)).join("") || `<div class="sub">${t("Noch keine Preisbestandteile in den Buchungen.")}</div>`;
+    const COST = { strom: "Strom", heizung: "Heizung", warmwasser: "Warmwasser", wasser: "Wasser", reinigung: "Reinigung (Lohn)", waesche: "Wäsche" };
+    const costs = (U.kostenarten || Object.keys(COST)).map((k) => this.fld(COST[k] || k, `<select data-ustcost="${esc(k)}">${opt(KIND, (d.ust_costs || {})[k] || "regel")}</select>`)).join("");
+    return `<div class="note">🧾 ${t("Optional: Beträge ohne Umsatzsteuer in Finanzen, Statistik und Umsatz-Sensoren. Die Smoobu-Preise bleiben unverändert – die Umsatzsteuer wird bei der Auswertung herausgerechnet.")}
+        <div class="sub">${t("Steuerliche Einordnung bitte mit dem Steuerberater klären – die Integration rechnet nur mit diesen Einstellungen.")}</div></div>
+      <div class="grp" data-neu="umsatzsteuer"><div class="gh"><div class="grow"><b>${t("Umsatzsteuer")}</b></div></div><div class="gb">
+        ${this.fld("Besteuerung", `<select data-sel="ust_mode">${opt({ aus: "Aus (wie bisher, alles brutto)", kleinunternehmer: "Kleinunternehmer (keine USt)", regel: "Regelbesteuerung" }, d.ust_mode || "aus")}</select>`, "", "ust_mode")}
+        ${on ? this.fld("USt-pflichtig seit", `<input type="date" data-txt="ust_since" value="${esc(d.ust_since || "")}">${d.ust_since ? `<button class="lnk" data-clear="ust_since">${t("Leeren")}</button>` : ""}`,
+          "Nächte vor diesem Datum ohne USt (leer = immer). Maßgeblich ist das Datum der Übernachtung.", "ust_since") : ""}
+        ${on ? this.fld("Standardansicht", `<select data-sel="ust_view">${opt({ ohne: "ohne USt", brutto: "brutto" }, d.ust_view || "ohne")}</select>`,
+          "Gilt für Umsatz-Sensoren und als Voreinstellung in Finanzen/Statistik (dort umschaltbar).", "ust_view") : ""}</div></div>
+      ${on ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Steuerart je Preisbestandteil")}</b><span class="sub">${t("Bestandteile aus deinen Smoobu-Buchungen. Nicht zugeordnet = Standard.")}</span></div></div><div class="gb">
+        ${this.fld("Standard", `<select data-sel="ust_default">${opt(KIND, d.ust_default || "ermaessigt")}</select>`, "Beherbergung ist in Deutschland ermäßigt.")}
+        ${this.fld("Portal-Buchungen", `<select data-sel="ust_portal">${opt(KIND, d.ust_portal || "ermaessigt")}</select>`, "Portalpreis komplett mit dieser Steuerart (wie die Portal-Rechnung).")}
+        ${items}
+        ${this.fld("Netto aus Lexware", this.sw("ust_lexware", "Netto aus Lexware"), "Gibt es zur Buchung eine Lexware-Rechnung, gilt deren Nettobetrag (Rechnung und Statistik rechnen gleich).")}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Kosten ohne Vorsteuer")}</b><span class="sub">${t("Kostenwerte gelten als brutto; je Kostenart wird die Vorsteuer herausgerechnet. Provisionen der Portale: Reverse Charge – zählen wie berechnet.")}</span></div></div><div class="gb">${costs}</div></div>
+      <div class="grp"><div class="gh"><div class="grow"><b>${t("Steuersätze")}</b><span class="sub">${t("Mit Gültigkeit ab Datum – deutsche Sätze voreingetragen (u. a. 2. Halbjahr 2020).")}</span></div></div><div class="gb">
+        ${rates}${this.err("ust_rates")}<div class="row" style="gap:8px"><button class="btn flat" data-ustrateadd>＋ ${t("Zeile")}</button>
+        <button class="btn flat" data-ustratereset>${t("Standard wiederherstellen")}</button></div></div></div>` : ""}`;
+  }
   // v1.20.0 (BETA): Reiter „Lexware“ – Verbindung, Regelzeilen je Kanalgruppe, Steuer/Datum/Texte, Zahlungen, Bedeutung „bezahlt“
   tabLexware(meta) {
     const d = this._draft, L = meta.lexware || { artikel: [], vorlage: {}, status: {} };
@@ -7207,7 +7268,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const tabs = SET_TABS.filter(([k]) => k !== "kosten" || !hideCost).map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
     const konten = res.konten.length > 1 ? `<select data-entry>${res.konten.map((k) => `<option value="${esc(k.entry_id)}" ${k.entry_id === res.entry_id ? "selected" : ""}>${esc(k.title)}</option>`).join("")}</select>` : "";
     const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "kosten" && !hideCost ? this.tabCost(meta)
-      : tab === "rechte" ? this.tabRights(meta) : tab === "reinigung" ? this.tabCleaning(meta) : tab === "lexware" ? this.tabLexware(meta)
+      : tab === "rechte" ? this.tabRights(meta) : tab === "reinigung" ? this.tabCleaning(meta) : tab === "lexware" ? this.tabLexware(meta) : tab === "umsatzsteuer" ? this.tabUst(meta)
       : tab === "allgemein" || tab === "kosten" ? this.tabGeneral(meta) : this.tabPush(meta);
     const n = this.dirty ? Object.keys(this.changes()).length : 0;
     const status = this._state.saving ? t("Speichere … die Integration lädt danach neu.")
@@ -7231,6 +7292,28 @@ class SmoobuSettingsCard extends SmoobuCard {
     const d = this._draft;
     const redraw = () => this.render();
     root.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => this.setState({ tab: b.dataset.tab })));
+    // v1.20.0: Umsatzsteuer-Reiter
+    root.querySelectorAll("[data-ustmap]").forEach((el) => el.addEventListener("change", () => {
+      const m = { ...(d.ust_map || {}) };
+      if (el.value) m[el.dataset.ustmap] = el.value; else delete m[el.dataset.ustmap];
+      d.ust_map = m; this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-ustcost]").forEach((el) => el.addEventListener("change", () => {
+      d.ust_costs = { ...(d.ust_costs || {}), [el.dataset.ustcost]: el.value }; this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-ustrate]").forEach((el) => el.addEventListener("change", () => {
+      const [i, k] = el.dataset.ustrate.split("|"); const list = clone(d.ust_rates || []);
+      list[Number(i)][k] = k === "ab" ? el.value : Number(el.value); d.ust_rates = list; this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-ustratedel]").forEach((el) => el.addEventListener("click", () => {
+      const list = clone(d.ust_rates || []); list.splice(Number(el.dataset.ustratedel), 1); d.ust_rates = list; redraw();
+    }));
+    root.querySelector("[data-ustrateadd]")?.addEventListener("click", () => {
+      d.ust_rates = [...clone(d.ust_rates || []), { ab: this._data?.today || new Date().toISOString().slice(0, 10), ermaessigt: 7, regel: 19 }]; redraw();
+    });
+    root.querySelector("[data-ustratereset]")?.addEventListener("click", () => {
+      d.ust_rates = clone(this._data?.meta?.ust?.standard_saetze || []); redraw();
+    });
     // v1.20.0 (BETA): Lexware-Reiter
     const lxRules = () => { d.lexware_rules = clone(d.lexware_rules || { direkt: [], portal: [] }); return d.lexware_rules; };
     root.querySelectorAll("[data-lxr]").forEach((el) => el.addEventListener("change", () => {
@@ -7303,7 +7386,7 @@ class SmoobuSettingsCard extends SmoobuCard {
       d[inp.dataset.num] = inp.value === "" ? inp.value : Number(inp.value); this.refreshFoot();
     }));
     root.querySelectorAll("[data-txt]").forEach((inp) => inp.addEventListener("input", () => {
-      d[inp.dataset.txt] = inp.dataset.txt === "history_since" ? inp.value || null : inp.value; this.refreshFoot();
+      d[inp.dataset.txt] = ["history_since", "ust_since"].includes(inp.dataset.txt) ? inp.value || null : inp.value; this.refreshFoot();
     }));
     root.querySelectorAll("[data-sel]").forEach((s) => s.addEventListener("change", () => { d[s.dataset.sel] = s.value || null; redraw(); }));
     root.querySelectorAll("[data-clear]").forEach((b) => b.addEventListener("click", () => { d[b.dataset.clear] = null; redraw(); }));

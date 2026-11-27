@@ -21,6 +21,11 @@ from typing import Any
 
 NEWS: list[dict[str, Any]] = [
     # --- neue Einstellungen (Einrichtung) ------------------------------------------------------------
+    {"id": "opt-umsatzsteuer", "version": "1.20.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "umsatzsteuer", "sel": '[data-neu="umsatzsteuer"]',
+     "titel": "Umsatzsteuer einstellen", "titel_en": "Set up VAT",
+     "text": "Optional: Beträge ohne Umsatzsteuer in Finanzen, Statistik und Umsatz-Sensoren – mit „USt-pflichtig seit“, Steuerart je Preisbestandteil und Kosten ohne Vorsteuer. „Netto“ heißt jetzt „nach Provision“.",
+     "text_en": "Optional: amounts excluding VAT in finances, statistics and revenue sensors – with \"VAT liable since\", tax type per price element and costs without input VAT. \"Net\" is now called \"after commission\"."},
     {"id": "opt-lexware", "version": "1.20.0", "art": "einstellung", "recht": "einstellungen",
      "seite": "smoobu-einstellungen", "tab": "lexware", "sel": '[data-neu="lexware"]',
      "titel": "Lexware Office anbinden (Beta)", "titel_en": "Connect Lexware Office (beta)",

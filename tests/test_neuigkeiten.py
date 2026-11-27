@@ -5,7 +5,7 @@ from custom_components.smoobu.rechte import RIGHTS
 
 PAGES = {"smoobu", "smoobu-kalender", "smoobu-buchungen", "smoobu-finanzen", "smoobu-statistik", "smoobu-nachrichten",
          "smoobu-assistent", "smoobu-einstellungen", "smoobu-reinigung"}
-TABS = {"benachrichtigungen", "assistent", "provisionen", "kosten", "reinigung", "rechte", "allgemein", "lexware"}  # v1.20.0: Reiter Lexware (Beta)
+TABS = {"benachrichtigungen", "assistent", "provisionen", "kosten", "reinigung", "rechte", "allgemein", "lexware", "umsatzsteuer"}  # v1.20.0: Reiter Lexware (Beta)
 
 
 def test_register_valid():

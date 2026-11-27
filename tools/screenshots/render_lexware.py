@@ -46,7 +46,9 @@ RULES = {
     "portal": [{"artikel": "demo-portal", "hinweis": "Übernachtung [n] Person(en)", "menge": "pauschal", "preis": "rest"}],
 }
 OPTIONS = {"default_checkin": "16:00", "default_checkout": "11:00", "checkout_buffer": 30, "use_webhook": False,
-           "lexware_enabled": True, "lexware_mock": True, "lexware_rules": RULES}
+           "lexware_enabled": True, "lexware_mock": True, "lexware_rules": RULES,
+           # v1.20.0: Umsatzsteuer (Regelbesteuerung seit Jahresbeginn)
+           "ust_mode": "regel", "ust_map": {"Frühstück": "regel"}}
 
 
 def _shots(base: str, token: str, names: dict[str, str]) -> list[str]:
@@ -106,6 +108,19 @@ def _shots(base: str, token: str, names: dict[str, str]) -> list[str]:
             page.wait_for_timeout(400)
         page.locator("smoobu-overview-card").locator("section.three > .panel").nth(2).screenshot(path=str(OUT / "lexware_wartet.png"))
         done.append("lexware_wartet.png")
+        # 5) Einstellungen, Reiter Umsatzsteuer
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", ["smoobu-settings-card", {"tab": "umsatzsteuer"}, 1180])
+        wait_card("smoobu-settings-card")
+        page.wait_for_timeout(500)
+        page.locator("#stage").screenshot(path=str(OUT / "einstellungen_umsatzsteuer.png"))
+        done.append("einstellungen_umsatzsteuer.png")
+        # 6) Finanzen mit Umschalter Brutto / ohne USt und Kachel Umsatzsteuer
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", ["smoobu-analytics-card", {}, 1180])
+        wait_card("smoobu-analytics-card")
+        page.wait_for_timeout(800)
+        page.locator("smoobu-analytics-card").locator(".grid").first.screenshot(path=str(OUT / "finanzen_umsatzsteuer.png"))
+        page.locator("smoobu-analytics-card").locator(".fbar").first.screenshot(path=str(OUT / "finanzen_ust_umschalter.png"))
+        done += ["finanzen_umsatzsteuer.png", "finanzen_ust_umschalter.png"]
         browser.close()
         assert not errors, errors
     return done
@@ -122,6 +137,11 @@ async def test_render_lexware(socket_enabled, hass: HomeAssistant, aiohttp_clien
                                 data={"api_key": "demo", "api_secret": "demo", "user_id": 1000}, options=OPTIONS)
         entry.add_to_hass(hass)
         assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        c = entry.runtime_data
+        lex = c.lexware
+        lex.data["aktiv_seit"] = (today - timedelta(days=30)).isoformat()
+        hass.config_entries.async_update_entry(entry, options={**entry.options, "ust_since": f"{today.year}-01-01"})
         await hass.async_block_till_done()
         c = entry.runtime_data
         lex = c.lexware

@@ -41,9 +41,9 @@ MEASURES: dict[str, tuple[str, str, str]] = {
     "naechte": ("nacht", "Belegte Nächte", "N"),
     "auslastung": ("nacht", "Auslastung", "%"),
     "adr": ("nacht", "Ø Preis je belegter Nacht (ADR)", "€"),
-    "netto_pro_nacht": ("nacht", "Netto je belegter Nacht", "€"),
+    "netto_pro_nacht": ("nacht", "Nach Provision je belegter Nacht", "€"),
     "revpar": ("nacht", "Umsatz je verfügbarer Nacht (RevPAR)", "€"),
-    "netto_revpar": ("nacht", "Netto je verfügbarer Nacht", "€"),
+    "netto_revpar": ("nacht", "Nach Provision je verfügbarer Nacht", "€"),
     "kostenquote": ("nacht", "Kostenquote", "%"),
     # v1.18.0: variable Kosten (Reinigung, Wäsche, Heizung, Warmwasser, Wasser, Strom) und
     # Deckungsbeitrag = Netto − variable Kosten (siehe deckungsbeitrag.py)
