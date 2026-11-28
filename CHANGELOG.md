@@ -8,6 +8,8 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.20.0b2
+
 - Umsatzsteuer → „Steuerart je Preisbestandteil“: Liste nur noch aus **Direktbuchungen mit Nächten ab „USt-pflichtig seit“** (Portal-Buchungen nutzen die Zuordnung nicht); ältere Bestandteile ausgeblendet, außer schon zugeordnet – per „Ältere zeigen“ einblendbar / VAT → tax type per price element: list only from **direct bookings with nights since "VAT liable since"**; older elements hidden unless already mapped ("show older")
 
 ## 1.20.0b1
