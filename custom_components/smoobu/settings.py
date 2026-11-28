@@ -1110,8 +1110,9 @@ def validate(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any], u
         values[lex.CONF_LEX_KEY] = current(entry)[lex.CONF_LEX_KEY]
     if values.pop("lexware_api_key_loeschen", False):
         values[lex.CONF_LEX_KEY] = ""
-    if values.get(lex.CONF_LEX_ENABLED) and not values.get(lex.CONF_LEX_KEY) and not values.get(lex.CONF_LEX_MOCK):
-        errors.setdefault(lex.CONF_LEX_KEY, "lexware_key_required")
+    # v1.20.0b3 (Wunsch Betreiber 28.11.2026): Lexware ist ein Modul unter „Allgemein“ – einschalten geht auch ohne
+    # API-Key (Reiter „Lexware“ erscheint, dort Key oder Testmodus eintragen); ohne beides bleibt es inaktiv
+    # (LexwareModule.enabled), der Reiter zeigt „API-Key fehlt“.
 
     # Wer im Dashboard ändern darf und welche Rolle jemand hat, legen nur Admins fest
     if not (user and user.is_admin):

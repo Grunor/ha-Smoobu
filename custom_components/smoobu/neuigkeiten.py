@@ -32,7 +32,7 @@ NEWS: list[dict[str, Any]] = [
      "text": "Optional: Beträge ohne Umsatzsteuer in Finanzen, Statistik und Umsatz-Sensoren – mit „USt-pflichtig seit“, Steuerart je Preisbestandteil und Kosten ohne Vorsteuer. Neue Begriffe: Umsatz (bisher Brutto), Erlös (bisher Netto), inkl./ohne USt – Entitäts-IDs wurden umbenannt.",
      "text_en": "Optional: amounts excluding VAT in finances, statistics and revenue sensors – with \"VAT liable since\", tax type per price element and costs without input VAT. New terms: revenue (formerly gross), revenue after commission (formerly net), incl./excl. VAT – entity IDs were renamed."},
     {"id": "opt-lexware", "version": "1.20.0", "art": "einstellung", "recht": "einstellungen",
-     "seite": "smoobu-einstellungen", "tab": "lexware", "sel": '[data-neu="lexware"]',
+     "seite": "smoobu-einstellungen", "tab": "allgemein", "sel": '[data-neu="module"]',  # v1.20.0b3: Modul-Schalter
      "titel": "Lexware Office anbinden (Beta)", "titel_en": "Connect Lexware Office (beta)",
      "text": "Optional, ab Lexware-Tarif XL: Rechnungsentwürfe per Button aus den Buchungsdetails nach deinen Lexware-Artikeln, Zahlungsstand (Anzahlung/komplett) und Hinweise. Auch ohne Lexware neu: Bedeutung des Hakens „bezahlt“ je Kanalgruppe.",
      "text_en": "Optional, Lexware plan XL and up: draft invoices by button from the booking details based on your Lexware articles, payment status (deposit/full) and notices. Also new without Lexware: meaning of the \"paid\" tick per channel group."},

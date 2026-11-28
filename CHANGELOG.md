@@ -8,6 +8,8 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+- **Lexware ist jetzt ein Modul:** Ein-/Ausschalten unter Allgemein & Abruf → Module („Lexware Office (Beta)“, gleiche Einstellung wie bisher). Der Reiter „Lexware (Beta)“ erscheint nur mit eingeschaltetem Modul; einschalten geht auch ohne API-Key (Hinweis „API-Key fehlt“, Modul bleibt bis Key/Testmodus inaktiv). „Bedeutung bezahlt“ steht ohne Lexware im Reiter Preise & Kanäle / **Lexware is now a module:** switch it on/off under General & sync → Modules; the Lexware tab only shows with the module on; "meaning of paid" moves to Prices & channels without Lexware
+
 ## 1.20.0b2
 
 - Umsatzsteuer → „Steuerart je Preisbestandteil“: Liste nur noch aus **Direktbuchungen mit Nächten ab „USt-pflichtig seit“** (Portal-Buchungen nutzen die Zuordnung nicht); ältere Bestandteile ausgeblendet, außer schon zugeordnet – per „Ältere zeigen“ einblendbar / VAT → tax type per price element: list only from **direct bookings with nights since "VAT liable since"**; older elements hidden unless already mapped ("show older")

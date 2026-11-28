@@ -29,9 +29,11 @@ async def test_lexware_ablauf(hass: HomeAssistant, setup, aioclient_mock, hass_w
     res = await _call(ws, 1, type="smoobu/lexware/status", reservation_id=2)
     assert res["success"] and res["result"]["aktiv"] is False
 
-    # Einschalten ohne Key und ohne Testmodus → Fehler; mit Testmodus ok
+    # v1.20.0b3: Modul einschalten ohne Key und ohne Testmodus geht (Reiter erscheint), bleibt aber inaktiv
     res = await _call(ws, 2, type="smoobu/settings/set", entry_id=entry.entry_id, changes={"lexware_enabled": True})
-    assert res["result"]["ok"] is False and res["result"]["fehler"]["lexware_api_key"] == "lexware_key_required"
+    assert res["result"]["ok"] is True, res
+    await hass.async_block_till_done()
+    assert hass.config_entries.async_entries(DOMAIN)[0].runtime_data.lexware.enabled is False
     res = await _call(ws, 3, type="smoobu/settings/set", entry_id=entry.entry_id,
                       changes={"lexware_enabled": True, "lexware_mock": True, "lexware_rules": RULES})
     assert res["result"]["ok"] is True, res

@@ -477,6 +477,10 @@ const EN = {
   "Reinigungskosten": "Cleaning costs", "Reinigungszeit (Standard)": "Cleaning time (default)",
   "Reinigungszeit (leer = Standard)": "Cleaning time (empty = default)", "Reinigungszeit gespeichert": "Cleaning time saved",
   "Reinigungstag gespeichert": "Cleaning day saved",
+  "Was der Haken „bezahlt“ je Kanalgruppe bedeutet – beschriftet Buttons und „Wartet auf dich“.": "What the \"paid\" tick means per channel group – labels buttons and \"Waiting for you\".",
+  "Lexware Office": "Lexware Office", "API-Key fehlt": "API key missing",
+  "Ein- und ausschalten unter Allgemein & Abruf → Module. Ohne API-Key bzw. Testmodus bleibt das Modul inaktiv.": "Switch on and off under General & sync → Modules. Without API key or test mode the module stays inactive.",
+  "Rechnungsentwürfe, Zahlungsstand und Hinweise in „Wartet auf dich“ (ab Tarif XL). An: Reiter „Lexware (Beta)“ erscheint – dort API-Key oder Testmodus eintragen.": "Draft invoices, payment status and hints in \"Waiting for you\" (plan XL and up). On: the tab \"Lexware (beta)\" appears – enter API key or test mode there.",
   "nur vor dem Stichtag": "only before the cut-off date", "Ältere ausblenden": "Hide older", "Ältere zeigen": "Show older",
   "Keine Preisbestandteile in Direktbuchungen ab dem Stichtag.": "No price elements in direct bookings since the cut-off date.",
   "Nur Direktbuchungen mit Nächten ab „USt-pflichtig seit“ – Portal-Buchungen nutzen die Zuordnung nicht.": "Only direct bookings with nights since \"VAT liable since\" – portal bookings don't use the mapping.",
@@ -6437,6 +6441,7 @@ const SET_FIELD_TAB = (key) => {
   if (key.startsWith("cleaning_") || key.startsWith("door_") || ["cost_cleaning", "cost_cleaning_minutes"].includes(key)) return "reinigung";
   if (key.startsWith("cost_")) return "kosten";
   if (["user_roles", "default_role", "settings_users", "role_rights", "custom_roles", "focus_roles"].includes(key)) return "rechte";
+  if (key === "lexware_enabled") return "allgemein"; // v1.20.0b3: Modul-Schalter
   if (key.startsWith("lexware_") || key === "paid_meaning") return "lexware"; // v1.20.0
   if (key.startsWith("ust_")) return "umsatzsteuer"; // v1.20.0
   return "allgemein";
@@ -6739,7 +6744,18 @@ class SmoobuSettingsCard extends SmoobuCard {
         <div class="gb">${this.pick("direct_channels", meta.kanaele, chn, true)}${this.err("direct_channels")}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Zahlung über das Portal")}</b><span class="sub">${t("Buchungen dieser Kanäle zählen nicht als offene Zahlung.")}</span></div></div>
         <div class="gb">${this.pick("payment_excluded_channels", meta.kanaele, chn, true)}${this.err("payment_excluded_channels")}</div></div>
+      ${d.lexware_enabled ? "" : this.paidMeaningBlock()}
       ${d.module_preise !== false ? this.priceBlocks(meta) : ""}`;
+  }
+  // v1.20.0b3: „Bedeutung bezahlt“ ohne Modul Lexware (der Reiter Lexware ist dann ausgeblendet) – nur die Varianten
+  // von Hand; mit Lexware steht die Einstellung je Kanalgruppe im Reiter Lexware (dort auch „automatisch“).
+  paidMeaningBlock() {
+    const d = this._draft;
+    const own = { zahlung: LEX_MEANING.zahlung, rechnung: LEX_MEANING.rechnung };
+    const cur = (g) => String(d.paid_meaning?.[g] || (g === "direkt" ? "zahlung" : "rechnung")).replace(/^lexware_/, "");
+    const sel = (g) => `<select data-lxmean="${g}">${Object.entries(own).map(([k, l]) => `<option value="${k}" ${cur(g) === k ? "selected" : ""}>${esc(t(l))}</option>`).join("")}</select>`;
+    return `<div class="grp"><div class="gh"><div class="grow"><b>${t("Bedeutung „bezahlt“")}</b><span class="sub">${t("Was der Haken „bezahlt“ je Kanalgruppe bedeutet – beschriftet Buttons und „Wartet auf dich“.")}</span></div></div>
+      <div class="gb">${this.fld("Direktbuchungen", sel("direkt"), "", "paid_meaning")}${this.fld("Portal-Buchungen", sel("portal"))}</div></div>`;
   }
   // v1.18.0: variable Kosten (Deckungsbeitrag) und Preisaufschläge aus dem Smoobu-Preistool
   // v1.19.0 (Wunsch Betreiber 20.11.2026): Strom, Wasser und Heizung jeweils konstant (wie bisher, Standard) oder aus
@@ -7202,7 +7218,9 @@ class SmoobuSettingsCard extends SmoobuCard {
         <span class="sub">${t("Ausgeschaltete Module verschwinden aus Dashboard, Einstellungen und Pushes. Gespeicherte Daten bleiben erhalten.")}</span></div></div>
       <div class="gb">${this.fld("Reinigung", this.sw("module_reinigung", "Reinigung"), "Reinigungsboard, Reinigung in den Buchungsdetails, Reinigungs-Pushes und -Aufgaben, Statistik-Modul. Aus: Reinigungskosten nach Standardlohn.", "module_reinigung")}
         ${this.fld("Kosten", this.sw("module_kosten", "Kosten"), "Variable Kosten, Deckungsbeitrag in Finanzen und Statistik, Zählermessung, Nebenkosten-Upload. Aus: nur Umsatz und Provisionen.", "module_kosten")}
-        ${this.fld("Preise", this.sw("module_preise", "Preise"), "Bewertung & Empfehlung, Preis- und Last-Minute-Aufgaben, Aufschläge, Genius und Last-Minute-Einstellungen (Reiter Preise & Kanäle). Preise im Kalender setzen bleibt möglich.", "module_preise")}</div></div>`;
+        ${this.fld("Preise", this.sw("module_preise", "Preise"), "Bewertung & Empfehlung, Preis- und Last-Minute-Aufgaben, Aufschläge, Genius und Last-Minute-Einstellungen (Reiter Preise & Kanäle). Preise im Kalender setzen bleibt möglich.", "module_preise")}
+        ${/* v1.20.0b3 (Wunsch Betreiber 28.11.2026): Lexware als Modul – gleiche Option wie bisher (lexware_enabled), Standard aus */ ""}
+        ${this.fld("Lexware Office (Beta)", this.sw("lexware_enabled", "Lexware Office"), "Rechnungsentwürfe, Zahlungsstand und Hinweise in „Wartet auf dich“ (ab Tarif XL). An: Reiter „Lexware (Beta)“ erscheint – dort API-Key oder Testmodus eintragen.", "lexware_enabled")}</div></div>`;
     return `${mods}${board}<div class="grp"><div class="gh"><div class="grow"><b>${t("Abruf")}</b></div></div><div class="gb">
         ${this.fld("Webhook (Echtzeit)", this.sw("use_webhook", "Webhook"), "Smoobu meldet Änderungen sofort über Nabu Casa.")}
         ${this.fld("Abfrageintervall", this.numIn("scan_interval", 1, 120, 1, "min"), "Zusätzlicher Abgleich neben dem Webhook.", "scan_interval")}
@@ -7294,8 +7312,9 @@ class SmoobuSettingsCard extends SmoobuCard {
     const conn = st.verbunden === true ? `<span class="badge good">✓ ${t("verbunden")}</span>` : st.verbunden === false ? `<span class="badge bad" title="${esc(st.fehler || "")}">${t("Fehler")}: ${esc(st.fehler || "")}</span>` : "";
     return `<div class="note">🧾 ${t("Lexware Office (Public API, ab Tarif XL): Rechnungsentwürfe per Button in den Buchungsdetails, Zahlungsstand und Hinweise in „Wartet auf dich“.")}${BETA_LEX}
         <div class="sub">${t("Lexware bekommt immer nur einen Entwurf – prüfen und finalisieren in Lexware. Rechnungsdatum = heute, fällig am Anreisetag.")}</div></div>
-      <div class="grp ${d.lexware_enabled ? "" : "off"}" data-neu="lexware"><div class="gh"><div class="grow"><b>${t("Lexware einschalten")}${BETA_LEX}</b>
-        <span class="sub">${t("Ohne API-Key bzw. Testmodus bleibt das Modul aus.")}</span>${conn ? `<div>${conn}</div>` : ""}</div>${this.sw("lexware_enabled", "Lexware einschalten")}</div>
+      <div class="grp" data-neu="lexware"><div class="gh"><div class="grow"><b>${t("Verbindung")}${BETA_LEX}</b>
+        <span class="sub">${t("Ein- und ausschalten unter Allgemein & Abruf → Module. Ohne API-Key bzw. Testmodus bleibt das Modul inaktiv.")}</span>
+        ${conn ? `<div>${conn}</div>` : !d.lexware_api_key_gesetzt && !d.lexware_mock ? `<div><span class="badge warn">${t("API-Key fehlt")}</span></div>` : ""}</div></div>
         <div class="gb">
           ${this.fld("API-Key", `<input type="password" data-txt="lexware_api_key" autocomplete="off" placeholder="${esc(t(d.lexware_api_key_gesetzt ? "gespeichert – leer lassen zum Behalten" : "In Lexware: Erweiterungen → Public API"))}" style="width:min(100%,360px)">
             ${d.lexware_api_key_gesetzt ? `<button class="lnk" data-lxkeydel>${t(d.lexware_api_key_loeschen ? "wird entfernt" : "Entfernen")}</button>` : ""}`, "", "lexware_api_key")}
@@ -7328,10 +7347,11 @@ class SmoobuSettingsCard extends SmoobuCard {
     const errTabs = new Set(Object.keys(this._state.errors).map((k) => SET_FIELD_TAB(k.split(".")[0])));
     // v1.19.0b10: Reiter „Kosten“ nur mit Modul Kosten (v1.19.1: Preise liegen jetzt unter „Preise & Kanäle“)
     const hideCost = this._draft.module_kosten === false;
-    const tabs = SET_TABS.filter(([k]) => k !== "kosten" || !hideCost).map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
+    const hideLex = !this._draft.lexware_enabled;  // v1.20.0b3: Reiter „Lexware“ nur mit Modul Lexware
+    const tabs = SET_TABS.filter(([k]) => (k !== "kosten" || !hideCost) && (k !== "lexware" || !hideLex)).map(([k, l]) => `<button data-tab="${k}" aria-pressed="${tab === k}">${esc(t(l))}${errTabs.has(k) ? `<span class="e"></span>` : ""}</button>`).join("");
     const konten = res.konten.length > 1 ? `<select data-entry>${res.konten.map((k) => `<option value="${esc(k.entry_id)}" ${k.entry_id === res.entry_id ? "selected" : ""}>${esc(k.title)}</option>`).join("")}</select>` : "";
     const content = tab === "assistent" ? this.tabAssist(meta) : tab === "provisionen" ? this.tabProv(meta) : tab === "kosten" && !hideCost ? this.tabCost(meta)
-      : tab === "rechte" ? this.tabRights(meta) : tab === "reinigung" ? this.tabCleaning(meta) : tab === "lexware" ? this.tabLexware(meta) : tab === "umsatzsteuer" ? this.tabUst(meta)
+      : tab === "rechte" ? this.tabRights(meta) : tab === "reinigung" ? this.tabCleaning(meta) : tab === "lexware" && !hideLex ? this.tabLexware(meta) : tab === "umsatzsteuer" ? this.tabUst(meta)
       : tab === "allgemein" || tab === "kosten" ? this.tabGeneral(meta) : this.tabPush(meta);
     const n = this.dirty ? Object.keys(this.changes()).length : 0;
     const status = this._state.saving ? t("Speichere … die Integration lädt danach neu.")

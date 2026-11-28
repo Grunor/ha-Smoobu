@@ -108,6 +108,12 @@ def _shots(base: str, token: str, names: dict[str, str]) -> list[str]:
             page.wait_for_timeout(400)
         page.locator("smoobu-overview-card").locator("section.three > .panel").nth(2).screenshot(path=str(OUT / "lexware_wartet.png"))
         done.append("lexware_wartet.png")
+        # 4b) v1.20.0b3: Allgemein & Abruf → Module mit Schalter Lexware
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", ["smoobu-settings-card", {"tab": "allgemein"}, 1180])
+        wait_card("smoobu-settings-card")
+        page.wait_for_timeout(500)
+        page.locator("smoobu-settings-card").locator('[data-neu="module"]').screenshot(path=str(OUT / "einstellungen_module.png"))
+        done.append("einstellungen_module.png")
         # 5) Einstellungen, Reiter Umsatzsteuer
         page.evaluate("([t, c, w]) => showCard(t, c, w)", ["smoobu-settings-card", {"tab": "umsatzsteuer"}, 1180])
         wait_card("smoobu-settings-card")
