@@ -22,12 +22,24 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.20.0b3";
+const SMOOBU_CARDS_VERSION = "1.20.0b4";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
 // ---------------------------------------------------------------------------
 const EN = {
+  // v1.20.0b4: Zugangs-Anleitung
+  "Zugangs-Anleitung": "Access guide", "Anleitung erstellen": "Create guide", "Anleitung für": "Guide for", "Text kopieren": "Copy text",
+  "Teilen": "Share", "Leer = wer die Anleitung erstellt.": "Empty = whoever creates the guide.", "Passwort ändern": "Change password",
+  "Fertiger Text für neue Reinigungskräfte: App installieren, mit Home Assistant verbinden, anmelden, Passwort ändern, Reinigungsboard.":
+    "Ready-made text for new cleaners: install the app, connect to Home Assistant, log in, change password, cleaning board.",
+  "Noch keine Reinigungskraft ohne Admin-Rechte (Reiter Benutzer & Rechte).": "No cleaner without admin rights yet (Users & permissions tab).",
+  "Das Passwort steht bewusst nicht im Text – bitte auf einem anderen Weg schicken (z. B. SMS oder mündlich).":
+    "The password is deliberately not in the text – please send it another way (e.g. SMS or in person).",
+  "Text markiert – bitte kopieren": "Text selected – please copy",
+  "Keine externe Adresse – Nabu Casa oder externe URL in den HA-Netzwerkeinstellungen fehlt.": "No external address – Nabu Casa or an external URL in the HA network settings is missing.",
+  "Für Admins gibt es keine Anleitung.": "There is no guide for admins.", "Benutzer nicht gefunden.": "User not found.",
+  "Nur Ziffern, Leerzeichen und + ( ) / . -": "Only digits, spaces and + ( ) / . -", "Unbekannte Sprache": "Unknown language",
   // v1.20.0: Umsatzsteuer
   "Umsatzsteuer": "VAT", "inkl. USt": "incl. VAT", "Erlös-RevPAR (Erlös je verfügbarer Nacht)": "RevPAR after commission (per available night)", "ohne USt": "excl. VAT", "Erlös je belegter Nacht": "Revenue after commission per occupied night", "Erlös je verfügbarer Nacht": "Revenue after commission per available night", "Umsatz ohne USt": "Revenue excl. VAT", "Umsatz ohne USt/Nacht": "Revenue excl. VAT/night", "keine im Zeitraum": "none in period",
   "Beträge mit oder ohne Umsatzsteuer": "Amounts with or without VAT", "USt ab": "VAT from", "Erlös (nach Provision und Gebühren) je verfügbarer Nacht": "Revenue after commission and fees per available night",
@@ -6446,12 +6458,19 @@ const SET_FIELD_TAB = (key) => {
   if (key.startsWith("ust_")) return "umsatzsteuer"; // v1.20.0
   return "allgemein";
 };
+// v1.20.0b4: Sprachen der Zugangs-Anleitung (wie die Gastsprachen) und Fehlertexte von smoobu/guide
+const GUIDE_LANGS = [["de", "Deutsch"], ["en", "English"], ["pl", "Polski"], ["nl", "Nederlands"], ["fr", "Français"]];
+const GUIDE_ERR = {
+  no_external_url: "Keine externe Adresse – Nabu Casa oder externe URL in den HA-Netzwerkeinstellungen fehlt.",
+  is_admin: "Für Admins gibt es keine Anleitung.", user_not_found: "Benutzer nicht gefunden.",
+  unauthorized: "Keine Berechtigung für die Smoobu-Einstellungen",
+};
 const SET_ERR = {
   invalid: "Ungültiger Wert", invalid_time: "Uhrzeit als HH:MM", invalid_percent: "0–50 %", invalid_date: "Ungültiges Datum",
   invalid_entity: "Ungültige Entität", invalid_list: "Ungültige Liste", invalid_code: "Nur Buchstaben und Ziffern",
   duplicate_code: "Kürzel schon vergeben", ai_entity_required: "Bitte eine KI wählen oder „KI erlauben“ ausschalten",
   admin_only: "Nur Admins können das ändern", unknown_field: "Unbekanntes Feld",
-  invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_role: "Unbekannte Rolle",
+  invalid_number: "Ungültige Zahl oder außerhalb des erlaubten Bereichs", invalid_role: "Unbekannte Rolle", invalid_phone: "Nur Ziffern, Leerzeichen und + ( ) / . -", invalid_lang: "Unbekannte Sprache",
   // v1.19.0: Rollenkonfigurator
   invalid_right: "Unbekanntes Recht", invalid_role_name: "Name 1–30 Zeichen", duplicate_role_name: "Rollenname schon vergeben",
   invalid_role_count: "Höchstens 10 eigene Rollen", invalid_lock: "Unbekannter Schloss-Typ", invalid_lock_entity: "Schloss-Entität bzw. Skript prüfen",
@@ -6647,6 +6666,32 @@ class SmoobuSettingsCard extends SmoobuCard {
     return `<div class="grp ${d.cleaning_notify ? "" : "off"}" data-neu="push-reinigung"><div class="gh"><div class="grow"><b>${t("Reinigung")}${neuBadge("opt-reinigung")}</b>
         <span class="sub">${t("An die zugewiesene Person: bei Zuweisung/Abgabe und am Vorabend. Hält die Ruhezeit ein.")}</span></div>${this.sw("cleaning_notify", "Reinigung")}</div>
       <div class="gb">${this.fld("Erinnerung am Vorabend", this.timeIn("cleaning_remind_time"), "", "cleaning_remind_time")}${rows}</div></div>`;
+  }
+  // v1.20.0b4 (Wunsch Betreiber 28.11.2026): Zugangs-Anleitung je Reinigungskraft als Text zum Kopieren/Teilen
+  // (WhatsApp, Signal, SMS). Text kommt vom Backend (zugang.py, smoobu/guide) mit Nabu-Casa-Adresse und
+  // Anmeldename; Sprache und Ansprechpartner aus dem Entwurf, damit der Text auch vor dem Speichern stimmt.
+  // Das Passwort steht nie im Text.
+  guideBlock(meta) {
+    const d = this._draft;
+    const people = (meta.reinigungskraefte || []).filter((u) => !u.admin);
+    const langs = d.zugang_sprachen || {};
+    const g = this._guide;
+    const rows = people.length ? people.map((u) => this.fld(u.name, `<select data-glang="${esc(u.id)}">${GUIDE_LANGS.map(([k, n]) =>
+        `<option value="${k}" ${(langs[u.id] || "de") === k ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+        <button class="btn" data-guide="${esc(u.id)}">${t("Anleitung erstellen")}</button>`)).join("")
+      : `<div class="muted">${t("Noch keine Reinigungskraft ohne Admin-Rechte (Reiter Benutzer & Rechte).")}</div>`;
+    const out = g ? `<div class="sprop"><div class="gh"><b>${t("Anleitung für")} ${esc(g.name || "")}</b><span class="grow"></span>
+        <button class="btn" data-gact="copy">📋 ${t("Text kopieren")}</button>
+        ${navigator.share ? `<button class="btn" data-gact="share">↗ ${t("Teilen")}</button>` : ""}
+        <button class="btn" data-gact="wa">💬 WhatsApp</button><button class="lnk" data-gact="close">${t("Schließen")}</button></div>
+        <textarea readonly rows="16" style="width:100%;box-sizing:border-box;font:inherit;font-size:.85rem">${esc(g.text)}</textarea>
+        <div class="hint">${t("Das Passwort steht bewusst nicht im Text – bitte auf einem anderen Weg schicken (z. B. SMS oder mündlich).")}</div></div>` : "";
+    return `<div class="grp" data-neu="zugang"><div class="gh"><div class="grow"><b>${t("Zugangs-Anleitung")}${neuBadge("opt-zugang")}</b>
+        <span class="sub">${t("Fertiger Text für neue Reinigungskräfte: App installieren, mit Home Assistant verbinden, anmelden, Passwort ändern, Reinigungsboard.")}</span></div></div>
+      <div class="gb">${this.fld("Ansprechpartner", `<input type="text" data-txt="zugang_kontakt_name" maxlength="60" value="${esc(d.zugang_kontakt_name || "")}" placeholder="${esc(this._hass?.user?.name || "")}">`,
+          "Leer = wer die Anleitung erstellt.", "zugang_kontakt_name")}
+        ${this.fld("Telefon", `<input type="text" data-txt="zugang_kontakt_telefon" maxlength="40" value="${esc(d.zugang_kontakt_telefon || "")}" placeholder="0170 …">`, "", "zugang_kontakt_telefon")}
+        ${rows}${out}</div></div>`;
   }
   tabAssist(meta) {
     const d = this._draft;
@@ -7202,7 +7247,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const keep = rn ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Datenschutz")}</b>
         <span class="sub">${t("Erledigte Reinigungen speichern, wer gereinigt hat. Nach Ablauf der Frist wird daraus „Unbekannt“; Tag, Wohnung, Dauer und Kosten bleiben für die Statistik.")}</span></div></div><div class="gb">
         ${this.fld("Person aufbewahren", this.numIn("cleaning_keep_years", 1, 30, 1, "Jahre"), "Standard 10 Jahre (steuerliche Aufbewahrungsfrist).", "cleaning_keep_years")}</div></div>` : "";
-    return `${off}${cost}${keep}${rn ? this.cleaningPush(meta) : ""}${this.doorBlock(meta)}`;
+    return `${off}${cost}${keep}${rn ? this.cleaningPush(meta) : ""}${rn ? this.guideBlock(meta) : ""}${this.doorBlock(meta)}`;
   }
   tabGeneral(meta) {
     const d = this._draft;
@@ -7621,6 +7666,38 @@ class SmoobuSettingsCard extends SmoobuCard {
       if (sel.value) ph[sel.dataset.cphone] = sel.value; else delete ph[sel.dataset.cphone];
       d.cleaning_phones = ph; this.refreshFoot();
     }));
+    // v1.20.0b4: Zugangs-Anleitung – Sprache je Person, Text erzeugen, kopieren/teilen
+    root.querySelectorAll("[data-glang]").forEach((sel) => sel.addEventListener("change", () => {
+      const m = { ...(d.zugang_sprachen || {}) };
+      if (sel.value && sel.value !== "de") m[sel.dataset.glang] = sel.value; else delete m[sel.dataset.glang];
+      d.zugang_sprachen = m; this.refreshFoot();
+    }));
+    root.querySelectorAll("[data-guide]").forEach((b) => b.addEventListener("click", async () => {
+      const uid = b.dataset.guide;
+      b.disabled = true;
+      try {
+        this._guide = await this.store.ws("smoobu/guide", { entry_id: this._data.entry_id, user_id: uid,
+          sprache: (d.zugang_sprachen || {})[uid] || "de", kontakt_name: d.zugang_kontakt_name || "",
+          kontakt_telefon: d.zugang_kontakt_telefon || "" }, { cache: false });
+        redraw();
+      } catch (err) {
+        toast(`${t("Fehler")}: ${t(GUIDE_ERR[err?.code] || err?.message || String(err))}`);
+        b.disabled = false;
+      }
+    }));
+    root.querySelectorAll("[data-gact]").forEach((b) => b.addEventListener("click", async () => {
+      const text = this._guide?.text || "";
+      const a = b.dataset.gact;
+      if (a === "close") { this._guide = null; return redraw(); }
+      if (a === "copy") {
+        try { await navigator.clipboard.writeText(text); toast(t("Kopiert")); }
+        catch (e) { const ta = root.querySelector(".sprop textarea"); ta?.select(); toast(t("Text markiert – bitte kopieren")); }
+      } else if (a === "share") {
+        try { await navigator.share({ text }); } catch (e) { /* abgebrochen */ }
+      } else if (a === "wa") {
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+      }
+    }));
     // Benutzerrollen (nur Admins sehen die Auswahl); leer = Standardrolle
     root.querySelectorAll("[data-role]").forEach((sel) => sel.addEventListener("change", () => {
       const roles = { ...(d.user_roles || {}) };
@@ -7829,7 +7906,9 @@ class SmoobuCleaningCard extends SmoobuCard {
       ? `<div class="sub" style="margin-top:10px">⚠ = ${t("kein Handy für Pushes hinterlegt (Einstellungen → Reinigung & Zugang)")}</div>` : "";
     return `<div class="head"><h2>🧹 ${esc(t(this._config.title || "Reinigung"))}${neuBadge("neu-reinigung")}</h2>
         ${mine ? `<span class="badge good">${t("Für dich")}: ${num(mine)}</span>` : ""}
-        ${free ? `<span class="badge warn">${t("Nicht zugewiesen")}: ${num(free)}</span>` : ""}</div>
+        ${free ? `<span class="badge warn">${t("Nicht zugewiesen")}: ${num(free)}</span>` : ""}
+        ${/* v1.20.0b4: Fokus-Benutzer (Reinigung) kommen sonst nicht ins Profil – Passwort selbst ändern (HA erzwingt das nicht) */ ""}
+        ${window.__smoobuFocus?.aktiv ? `<span class="grow"></span><button class="btn" data-pw title="${esc(t("Passwort ändern"))}">🔑 ${t("Passwort ändern")}</button>` : ""}</div>
       <div class="seg" role="group">${CLEAN_FILTERS.filter(([k]) => k !== "fuer_mich" || r.darf_uebernehmen)
         .map(([k, l]) => `<button data-cf="${k}" aria-pressed="${filter === k}">${t(l)}</button>`).join("")}</div>
       ${html || `<div class="done" style="margin-top:14px">✓ ${t(filter === "erledigt" ? "Noch keine erledigten Reinigungen." : "Keine Reinigungen.")}</div>`}
@@ -7838,6 +7917,10 @@ class SmoobuCleaningCard extends SmoobuCard {
   }
   bind(root) {
     root.querySelectorAll("[data-cf]").forEach((b) => b.addEventListener("click", () => this.setState({ filter: b.dataset.cf })));
+    root.querySelector("[data-pw]")?.addEventListener("click", () => {
+      history.pushState(null, "", "/profile/security");
+      window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+    });
     const send = async (el, aktion, extra = {}) => {
       el.disabled = true;
       try {

@@ -124,7 +124,7 @@ async def test_fokus_modus(hass, setup, hass_ws_client, hass_read_only_access_to
     opts = {"user_roles": {"u": "reinigung"}, "assist_path": "/dashboard-fewo/smoobu-nachrichten"}
     assert rechte.focus_of(admin, opts) is None
     f = rechte.focus_of(u, opts)
-    assert f["start"] == "/dashboard-fewo/smoobu-reinigung" and f["erlaubt"] == ["/dashboard-fewo/smoobu", "/dashboard-fewo/smoobu-reinigung"]
+    assert f["start"] == "/dashboard-fewo/smoobu-reinigung" and f["erlaubt"] == ["/dashboard-fewo/smoobu", "/dashboard-fewo/smoobu-reinigung", "/profile/security"]
     assert rechte.focus_of(u, {**opts, "user_roles": {"u": "betrieb"}}) is None
     f = rechte.focus_of(u, {**opts, "user_roles": {"u": "lesen"}, "focus_roles": {"lesen": ""}})
     assert f["start"] == "/dashboard-fewo/smoobu"

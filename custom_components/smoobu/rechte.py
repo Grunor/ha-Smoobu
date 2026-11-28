@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .zugang import PROFILE_SECURITY
 from .const import (
     CONF_CUSTOM_ROLES,
     CONF_DEFAULT_ROLE,
@@ -202,8 +203,11 @@ def focus_of(user: Any, options: Any) -> dict[str, Any] | None:
         start = (f"{dash}/smoobu-reinigung" if module_on(options, "reinigung") and have <= _CLEANING_ONLY
                  and have & {"reinigung", "reinigung_zuweisen"} else f"{dash}/smoobu")
     sdash = "/" + start.strip("/").split("/")[0]
-    # erlaubt: alle Smoobu-Seiten im Dashboard der Startseite (Präfix „…/smoobu“ deckt smoobu-* ab) + Startseite
-    return {"start": start, "erlaubt": sorted({f"{sdash}/smoobu", start}), "rolle": role}
+    # erlaubt: alle Smoobu-Seiten im Dashboard der Startseite (Präfix „…/smoobu“ deckt smoobu-* ab) + Startseite.
+    # v1.20.0b4 (Entscheidung Betreiber 28.11.2026): + Profilseite „Sicherheit“, damit Fokus-Benutzer ihr Passwort
+    # selbst ändern können (HA kann den Wechsel nicht erzwingen; Zugangs-Anleitung und Reinigungsseite verlinken
+    # dorthin). Nur diese Unterseite, nicht das ganze Profil.
+    return {"start": start, "erlaubt": sorted({f"{sdash}/smoobu", start, PROFILE_SECURITY}), "rolle": role}
 
 
 def hints(rights: Any) -> list[dict[str, Any]]:

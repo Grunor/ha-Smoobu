@@ -64,7 +64,7 @@ from .analytics import (
 )
 from .api import SmoobuError
 from .seasons import from_options as seasons_from_options
-from . import neuigkeiten, umbuchung
+from . import neuigkeiten, umbuchung, zugang
 from .reinigung import ACTIONS as CLEANING_ACTIONS, CleaningError
 from .stats import DIMENSIONS, MEASURES, gaps as stats_gaps, pace as stats_pace, query as stats_query
 from .stats import ranking as stats_ranking, service as stats_service, storno as stats_storno
@@ -198,6 +198,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_cleaning_stats)
     websocket_api.async_register_command(hass, ws_energy_vacancy)
     websocket_api.async_register_command(hass, ws_focus)
+    websocket_api.async_register_command(hass, ws_guide)
     websocket_api.async_register_command(hass, ws_doorcode_get)
     websocket_api.async_register_command(hass, ws_doorcode_tasks)
     websocket_api.async_register_command(hass, ws_doorcode_renew)
@@ -1483,6 +1484,31 @@ def ws_focus(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
             connection.send_result(msg["id"], {"aktiv": True, **focus})
             return
     connection.send_result(msg["id"], {"aktiv": False})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "smoobu/guide",
+    vol.Optional("entry_id"): str,
+    vol.Required("user_id"): str,
+    vol.Optional("sprache"): vol.In(zugang.LANGS),
+    vol.Optional("kontakt_name"): vol.All(str, vol.Length(max=60)),
+    vol.Optional("kontakt_telefon"): vol.All(str, vol.Length(max=40)),
+})
+@websocket_api.async_response
+async def ws_guide(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """v1.20.0b4: Zugangs-Anleitung als Text (zugang.py). Nur wer die Smoobu-Einstellungen ändern darf; Sprache
+    und Ansprechpartner aus der Karte (Entwurf) haben Vorrang vor den gespeicherten Optionen."""
+    entry = _settings_entry(hass, connection, msg)
+    if entry is None:
+        connection.send_error(msg["id"], "unauthorized", "Keine Berechtigung für die Smoobu-Einstellungen")
+        return
+    try:
+        result = await zugang.async_guide(hass, entry, msg["user_id"], connection.user, msg.get("sprache"),
+                                          msg.get("kontakt_name"), msg.get("kontakt_telefon"))
+    except zugang.GuideError as err:
+        connection.send_error(msg["id"], str(err), str(err))
+        return
+    connection.send_result(msg["id"], result)
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,11 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.20.0b4
+
+- **Zugangs-Anleitung für Reinigungskräfte:** Einstellungen → Reinigung & Zugang → „Zugangs-Anleitung“. Je Reinigungskraft (ohne Admins) Sprache wählen (Deutsch, English, Polski, Nederlands, Français) und „Anleitung erstellen“: fertiger Text mit App-Links (iPhone/Android), externer Adresse (Nabu Casa bevorzugt), Benutzername, Link „Passwort ändern“ und Kurzanleitung Reinigungsboard – zum Kopieren, Teilen oder direkt per WhatsApp. Das Passwort steht nie im Text. Ansprechpartner (Name, Telefon) einstellbar, leer = wer die Anleitung erstellt. Nur mit Recht „Einstellungen“ / **Access guide for cleaners:** ready-made text per cleaner and language with app links, external address, username, change-password link and a short board guide – copy, share or WhatsApp; never contains the password
+- **Fokus-Modus:** Die Profilseite „Sicherheit“ (`/profile/security`) ist jetzt erlaubt, damit Reinigungskräfte ihr Passwort selbst ändern können (Home Assistant kann einen Wechsel beim ersten Login nicht erzwingen). Auf der Reinigungsseite gibt es dafür den Button 🔑 „Passwort ändern“ / **Focus mode:** the profile security page is allowed so cleaners can change their own password; 🔑 button on the cleaning page
+
 ## 1.20.0b3
 
 - **Lexware ist jetzt ein Modul:** Ein-/Ausschalten unter Allgemein & Abruf → Module („Lexware Office (Beta)“, gleiche Einstellung wie bisher). Der Reiter „Lexware (Beta)“ erscheint nur mit eingeschaltetem Modul; einschalten geht auch ohne API-Key (Hinweis „API-Key fehlt“, Modul bleibt bis Key/Testmodus inaktiv). „Bedeutung bezahlt“ steht ohne Lexware im Reiter Preise & Kanäle / **Lexware is now a module:** switch it on/off under General & sync → Modules; the Lexware tab only shows with the module on; "meaning of paid" moves to Prices & channels without Lexware

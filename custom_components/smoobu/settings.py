@@ -188,6 +188,7 @@ from .const import (
 )
 from .notifications import opt_enabled, opt_quiet, opt_recipients
 from . import privacy
+from . import zugang
 
 
 _HHMM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -281,6 +282,10 @@ def current(entry: ConfigEntry) -> dict[str, Any]:
         CONF_CLEANING_PHONES: {str(k): str(v) for k, v in (o.get(CONF_CLEANING_PHONES) or {}).items() if v},
         # v1.19.1b3: Datenschutz – Person in erledigten Reinigungen nach N Jahren anonymisieren
         CONF_CLEANING_KEEP_YEARS: int(o.get(CONF_CLEANING_KEEP_YEARS, DEFAULT_CLEANING_KEEP_YEARS)),
+        # v1.20.0b4: Zugangs-Anleitung – Sprache je Benutzer, Ansprechpartner (leer = wer den Text erzeugt)
+        zugang.CONF_GUIDE_LANGS: {str(k): str(v) for k, v in (o.get(zugang.CONF_GUIDE_LANGS) or {}).items() if v in zugang.LANGS},
+        zugang.CONF_GUIDE_CONTACT_NAME: str(o.get(zugang.CONF_GUIDE_CONTACT_NAME) or ""),
+        zugang.CONF_GUIDE_CONTACT_PHONE: str(o.get(zugang.CONF_GUIDE_CONTACT_PHONE) or ""),
         # Kosten & Preise (v1.18.0)
         CONF_COST_CLEANING: float(o.get(CONF_COST_CLEANING, DEFAULT_COST_CLEANING)),  # ab v1.19.0: €/h
         CONF_COST_CLEANING_MINUTES: float(o.get(CONF_COST_CLEANING_MINUTES, DEFAULT_COST_CLEANING_MINUTES)),
@@ -960,6 +965,20 @@ def _phones(value: Any) -> dict[str, str]:
     return out
 
 
+def _guide_langs(value: Any) -> dict[str, str]:
+    """v1.20.0b4: {Benutzer-ID: Sprache} der Zugangs-Anleitung; leer = Deutsch (wird nicht gespeichert)."""
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_list")
+    out = {}
+    for uid, lang in value.items():
+        if lang in (None, ""):
+            continue
+        if lang not in zugang.LANGS:
+            raise vol.Invalid("invalid_lang")
+        out[str(uid)] = str(lang)
+    return out
+
+
 def _codes(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         raise vol.Invalid("invalid_list")
@@ -1010,6 +1029,10 @@ FIELDS: dict[str, Any] = {
     CONF_CLEANING_REMIND_TIME: _hhmm,
     CONF_CLEANING_PHONES: _phones,
     CONF_CLEANING_KEEP_YEARS: _int(1, 30),
+    zugang.CONF_GUIDE_LANGS: _guide_langs,
+    zugang.CONF_GUIDE_CONTACT_NAME: vol.All(vol.Coerce(str), vol.Strip, vol.Length(max=60)),
+    zugang.CONF_GUIDE_CONTACT_PHONE: vol.All(vol.Coerce(str), vol.Strip, vol.Length(max=40),
+                                             vol.Match(r"^[0-9+()/ .\-]*$", msg="invalid_phone")),
     CONF_COST_CLEANING: _num(0, 1000),
     CONF_COST_CLEANING_MINUTES: _num(0, 600),
     CONF_CLEANING_WAGES: _wages,

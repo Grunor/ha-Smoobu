@@ -21,6 +21,11 @@ from typing import Any
 
 NEWS: list[dict[str, Any]] = [
     # --- neue Einstellungen (Einrichtung) ------------------------------------------------------------
+    {"id": "opt-zugang", "version": "1.20.0", "art": "einstellung", "recht": "einstellungen",
+     "seite": "smoobu-einstellungen", "tab": "reinigung", "sel": '[data-neu="zugang"]',
+     "titel": "Zugangs-Anleitung für Reinigungskräfte", "titel_en": "Access guide for cleaners",
+     "text": "Fertiger Text zum Kopieren oder Teilen (WhatsApp, Signal, SMS) – App, Nabu-Casa-Adresse, Benutzername, Passwort ändern, Reinigungsboard; Sprache je Person. Ansprechpartner eintragen.",
+     "text_en": "Ready-made text to copy or share (WhatsApp, Signal, SMS) – app, Nabu Casa address, username, change password, cleaning board; language per person. Enter a contact person."},
     {"id": "opt-tuercode-gueltig", "version": "1.20.0", "art": "einstellung", "recht": "einstellungen",
      "seite": "smoobu-einstellungen", "tab": "reinigung", "sel": '[data-neu="tuercode"]',
      "titel": "Statischen Türcode mit Gültigkeit", "titel_en": "Static door code with validity",
