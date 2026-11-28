@@ -100,18 +100,28 @@ def element_key(e: dict[str, Any]) -> str:
     return TYPE_KEYS.get(str(e.get("typ") or e.get("type") or ""), None) or str(e.get("typ") or e.get("type") or "Sonstiges")
 
 
-def elements_seen(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Alle Preisbestandteile der Buchungen (für die Zuordnung in den Einstellungen), häufigste zuerst."""
-    seen: dict[str, int] = {}
+def elements_seen(records: list[dict[str, Any]], since: str | None = None) -> list[dict[str, Any]]:
+    """Preisbestandteile der Buchungen für die Zuordnung in den Einstellungen, häufigste zuerst.
+
+    v1.20.0b2 (Wunsch Betreiber 28.11.2026, es waren hunderte): nur Direktbuchungen – Portal-Buchungen nutzen die
+    Zuordnung nicht (eine Steuerart für alles). Mit `since` (USt-pflichtig seit) zählen nur Aufenthalte mit
+    Nächten ab dem Stichtag; Bestandteile, die nur davor vorkamen, kommen mit `alt: True` (Karte blendet sie aus,
+    außer sie sind schon zugeordnet oder „ältere zeigen“ ist an). `anzahl` = Buchungen ab Stichtag (alte: gesamt)."""
+    new: dict[str, int] = {}
+    old: dict[str, int] = {}
     for r in records:
-        if r.get("blockiert") or r.get("storniert"):
+        if r.get("blockiert") or r.get("storniert") or r.get("gruppe") == "Portal":
             continue
+        recent = not since or str(r.get("abreise") or "") > since  # mindestens eine Nacht ab dem Stichtag
         for e in r.get("positionen") or []:
             if not float(e.get("betrag") or 0):
                 continue
             k = element_key(e)
-            seen[k] = seen.get(k, 0) + 1
-    return [{"name": k, "anzahl": n} for k, n in sorted(seen.items(), key=lambda x: (-x[1], x[0].casefold()))]
+            bucket = new if recent else old
+            bucket[k] = bucket.get(k, 0) + 1
+    out = [{"name": k, "anzahl": n, "alt": False} for k, n in new.items()]
+    out += [{"name": k, "anzahl": n, "alt": True} for k, n in old.items() if k not in new]
+    return sorted(out, key=lambda x: (x["alt"], -x["anzahl"], x["name"].casefold()))
 
 
 def _shares(r: dict[str, Any], cfg: dict[str, Any]) -> dict[str, float]:

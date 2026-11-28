@@ -481,7 +481,8 @@ async def meta(hass: HomeAssistant, entry: ConfigEntry, user: Any) -> dict[str, 
         # v1.19.0: Auswahl für Stromzähler, Strompreis und Vorheizstart + Messergebnis je Wohnung
         **energy_meta(hass, coordinator),
         # v1.20.0: Umsatzsteuer – Preisbestandteile aus den Buchungen (für die Zuordnung)
-        "ust": {"bestandteile": ust_mod.elements_seen(coordinator.records_all()) if coordinator else [],
+        "ust": {"bestandteile": ust_mod.elements_seen(coordinator.records_all(), (o.get(ust_mod.CONF_UST_SINCE) or None))
+                if coordinator else [],
                 "standard_saetze": ust_mod.DEFAULT_RATES, "kostenarten": list(ust_mod.COST_KINDS)},
         # v1.20.0 (BETA): Lexware – Artikel-Auswahl, Vorlage der Regelzeilen, Verbindungsstand
         "lexware": {

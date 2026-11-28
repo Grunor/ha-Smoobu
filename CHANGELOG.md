@@ -8,6 +8,8 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+- Umsatzsteuer → „Steuerart je Preisbestandteil“: Liste nur noch aus **Direktbuchungen mit Nächten ab „USt-pflichtig seit“** (Portal-Buchungen nutzen die Zuordnung nicht); ältere Bestandteile ausgeblendet, außer schon zugeordnet – per „Ältere zeigen“ einblendbar / VAT → tax type per price element: list only from **direct bookings with nights since "VAT liable since"**; older elements hidden unless already mapped ("show older")
+
 ## 1.20.0b1
 
 ⚠️ **Vor dem Update lesen:** Entitäts-IDs mit „nettoumsatz/nettopreis/auswertung_brutto/netto“ werden automatisch auf „erlos/umsatz“ umbenannt (Historie bleibt) – Automationen, Skripte und Dashboards mit den alten IDs bitte anpassen. Lexware ist **BETA**: jeden Entwurf in Lexware prüfen / **read before updating:** entity IDs are renamed automatically (history kept) – update automations, scripts and dashboards using the old IDs. Lexware is **BETA**: review every draft in Lexware.

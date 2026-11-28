@@ -122,3 +122,18 @@ async def test_ids_umsatz_erloes(hass):
     assert reg.async_get("sensor.smoobu_fw_analysis_revenue_after_commission_per_night")
     assert reg.async_get(c.entity_id) is not None  # von Hand vergebene ID bleibt
     assert len(done) == 2 and _migrate_entity_ids(hass, entry) == []  # idempotent
+
+
+def test_bestandteile_ab_stichtag():
+    """v1.20.0b2: Zuordnungsliste nur aus Direktbuchungen mit Nächten ab „USt-pflichtig seit“, ältere als `alt`."""
+    from custom_components.smoobu.ust import elements_seen
+
+    def rec(ab, names, gruppe="Direkt"):
+        return {"abreise": ab, "gruppe": gruppe, "positionen": [{"name": n, "betrag": 10} for n in names]}
+
+    recs = [rec("2025-06-03", ["Alt-Rabatt 2025", "Endreinigung"]), rec("2026-01-02", ["Endreinigung", "Hund"]),
+            rec("2026-03-01", ["Booking-Paket"], "Portal"), rec("2025-12-31", ["Silvester"])]
+    out = elements_seen(recs, "2026-01-01")
+    assert [(x["name"], x["anzahl"], x["alt"]) for x in out] == [
+        ("Endreinigung", 1, False), ("Hund", 1, False), ("Alt-Rabatt 2025", 1, True), ("Silvester", 1, True)]
+    assert all(not x["alt"] for x in elements_seen(recs))  # ohne Stichtag alle

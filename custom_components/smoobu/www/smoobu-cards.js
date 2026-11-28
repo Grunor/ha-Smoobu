@@ -477,6 +477,9 @@ const EN = {
   "Reinigungskosten": "Cleaning costs", "Reinigungszeit (Standard)": "Cleaning time (default)",
   "Reinigungszeit (leer = Standard)": "Cleaning time (empty = default)", "Reinigungszeit gespeichert": "Cleaning time saved",
   "Reinigungstag gespeichert": "Cleaning day saved",
+  "nur vor dem Stichtag": "only before the cut-off date", "Ältere ausblenden": "Hide older", "Ältere zeigen": "Show older",
+  "Keine Preisbestandteile in Direktbuchungen ab dem Stichtag.": "No price elements in direct bookings since the cut-off date.",
+  "Nur Direktbuchungen mit Nächten ab „USt-pflichtig seit“ – Portal-Buchungen nutzen die Zuordnung nicht.": "Only direct bookings with nights since \"VAT liable since\" – portal bookings don't use the mapping.",
   "gültig ab": "valid from", "Nächster Code": "Next code", "optional": "optional", "Erinnerung statischer Code": "Static code reminder",
   "Tage vor Ablauf": "days before expiry", "Kein Türcode": "No door code", "Buchung ohne Türcode": "Booking without door code",
   "Türcode läuft ab": "Door code expires", "Statischer Code gilt bis": "Static code valid until",
@@ -7227,8 +7230,17 @@ class SmoobuSettingsCard extends SmoobuCard {
         <span class="unit">${t("ermäßigt")}</span><input type="number" min="0" max="50" step="0.5" data-ustrate="${i}|ermaessigt" value="${esc(r.ermaessigt)}" style="width:70px"><span class="unit">%</span>
         <span class="unit">${t("regulär")}</span><input type="number" min="0" max="50" step="0.5" data-ustrate="${i}|regel" value="${esc(r.regel)}" style="width:70px"><span class="unit">%</span>
         <button class="lnk" data-ustratedel="${i}" ${(d.ust_rates || []).length > 1 ? "" : "disabled"}>✕</button></div>`).join("");
-    const items = (U.bestandteile || []).map((b) => this.fld(b.name, `<select data-ustmap="${esc(b.name)}">${opt({ "": `Standard (${KIND[d.ust_default || "ermaessigt"]})`, ...KIND }, (d.ust_map || {})[b.name] || "")}</select>
-        <span class="unit">${b.anzahl} ${t(b.anzahl === 1 ? "Buchung" : "Buchungen")}</span>`)).join("") || `<div class="sub">${t("Noch keine Preisbestandteile in den Buchungen.")}</div>`;
+    // v1.20.0b2 (Wunsch Betreiber 28.11.2026, es waren hunderte): nur Bestandteile aus Direktbuchungen mit Nächten ab
+    // „USt-pflichtig seit“; ältere (alt) ausgeblendet – außer schon zugeordnet oder „ältere zeigen“ angeklickt
+    const all = U.bestandteile || [];
+    const mapped = (b) => !!(d.ust_map || {})[b.name];
+    const showOld = !!this._state.ustAlt;
+    const hiddenOld = all.filter((b) => b.alt && !mapped(b)).length;
+    const items = all.filter((b) => !b.alt || mapped(b) || showOld).map((b) => this.fld(b.name, `<select data-ustmap="${esc(b.name)}">${opt({ "": `Standard (${KIND[d.ust_default || "ermaessigt"]})`, ...KIND }, (d.ust_map || {})[b.name] || "")}</select>
+        <span class="unit">${b.anzahl} ${t(b.anzahl === 1 ? "Buchung" : "Buchungen")}${b.alt ? ` · ${t("nur vor dem Stichtag")}` : ""}</span>`)).join("")
+      || `<div class="sub">${t(all.length ? "Keine Preisbestandteile in Direktbuchungen ab dem Stichtag." : "Noch keine Preisbestandteile in den Buchungen.")}</div>`;
+    const oldBtn = hiddenOld || showOld ? `<div class="row"><button class="lnk" data-ustold>${showOld ? t("Ältere ausblenden")
+      : `${t("Ältere zeigen")} (${hiddenOld})`}</button><span class="sub">${t("Nur Direktbuchungen mit Nächten ab „USt-pflichtig seit“ – Portal-Buchungen nutzen die Zuordnung nicht.")}</span></div>` : "";
     const COST = { strom: "Strom", heizung: "Heizung", warmwasser: "Warmwasser", wasser: "Wasser", reinigung: "Reinigung (Lohn)", waesche: "Wäsche" };
     const costs = (U.kostenarten || Object.keys(COST)).map((k) => this.fld(COST[k] || k, `<select data-ustcost="${esc(k)}">${opt(KIND, (d.ust_costs || {})[k] || "regel")}</select>`)).join("");
     return `<div class="note">🧾 ${t("Optional: Beträge ohne Umsatzsteuer in Finanzen, Statistik und Umsatz-Sensoren. Die Smoobu-Preise bleiben unverändert – die Umsatzsteuer wird bei der Auswertung herausgerechnet.")}
@@ -7242,7 +7254,7 @@ class SmoobuSettingsCard extends SmoobuCard {
       ${on ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Steuerart je Preisbestandteil")}</b><span class="sub">${t("Bestandteile aus deinen Smoobu-Buchungen. Nicht zugeordnet = Standard.")}</span></div></div><div class="gb">
         ${this.fld("Standard", `<select data-sel="ust_default">${opt(KIND, d.ust_default || "ermaessigt")}</select>`, "Beherbergung ist in Deutschland ermäßigt.")}
         ${this.fld("Portal-Buchungen", `<select data-sel="ust_portal">${opt(KIND, d.ust_portal || "ermaessigt")}</select>`, "Portalpreis komplett mit dieser Steuerart (wie die Portal-Rechnung).")}
-        ${items}
+        ${items}${oldBtn}
         ${this.fld("Nettobetrag aus Lexware", this.sw("ust_lexware", "Nettobetrag aus Lexware"), "Gibt es zur Buchung eine Lexware-Rechnung, gilt deren Nettobetrag (Rechnung und Statistik rechnen gleich).")}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Kosten ohne Vorsteuer")}</b><span class="sub">${t("Kostenwerte gelten als brutto; je Kostenart wird die Vorsteuer herausgerechnet. Provisionen der Portale: Reverse Charge – zählen wie berechnet.")}</span></div></div><div class="gb">${costs}</div></div>
       <div class="grp"><div class="gh"><div class="grow"><b>${t("Steuersätze")}</b><span class="sub">${t("Mit Gültigkeit ab Datum – deutsche Sätze voreingetragen (u. a. 2. Halbjahr 2020).")}</span></div></div><div class="gb">
@@ -7344,6 +7356,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const redraw = () => this.render();
     root.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => this.setState({ tab: b.dataset.tab })));
     // v1.20.0: Umsatzsteuer-Reiter
+    root.querySelector("[data-ustold]")?.addEventListener("click", () => this.setState({ ustAlt: !this._state.ustAlt }));  // v1.20.0b2
     root.querySelectorAll("[data-ustmap]").forEach((el) => el.addEventListener("change", () => {
       const m = { ...(d.ust_map || {}) };
       if (el.value) m[el.dataset.ustmap] = el.value; else delete m[el.dataset.ustmap];
