@@ -1,7 +1,7 @@
 """Zugangs-Anleitung für Reinigungskräfte (v1.20.0b4, Wunsch Betreiber 28.11.2026).
 
 Zweck: Eine neue Reinigungskraft soll ohne Hilfe in die HA-App und auf das Reinigungsboard kommen. In den
-Einstellungen (Reiter „Reinigung & Zugang“) erzeugt die Karte je Benutzer einen fertigen Text zum Kopieren
+Einstellungen (Reiter „Benutzer & Rechte“, bis 1.20.0b4 „Reinigung & Zugang“) erzeugt die Karte je Benutzer einen fertigen Text zum Kopieren
 oder Teilen (WhatsApp, Signal, SMS). Entscheidungen Betreiber 28.11.2026:
 - erst einmal nur Text (kein PDF) – die Nachricht kommt auf dem Handy an, auf dem auch die App läuft;
   Links lassen sich dort antippen, QR-Codes wären nur auf Papier sinnvoll

@@ -1,4 +1,4 @@
-"""Screenshot Zugangs-Anleitung (v1.20.0b4): Einstellungen → Reinigung & Zugang mit erzeugtem Text,
+"""Screenshot Zugangs-Anleitung (v1.20.0b4): Einstellungen → Benutzer & Rechte mit erzeugtem Text,
 Reinigungsseite mit Button 🔑 „Passwort ändern“ (Fokus-Modus simuliert).
 
 Aufruf (aus dem Repo-Stamm):
@@ -45,7 +45,7 @@ def _shots(base: str, token: str) -> list[str]:
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.goto(HARNESS.as_uri())
         page.evaluate("([b, t]) => setup(b, t)", [base, token])
-        page.evaluate("([t, c, w]) => showCard(t, c, w)", [CARD, {"tab": "reinigung"}, 1180])
+        page.evaluate("([t, c, w]) => showCard(t, c, w)", [CARD, {"tab": "rechte"}, 1180])
         page.wait_for_function(f"() => {{ const r = {_root(CARD)}; return r && r.querySelector('[data-guide]'); }}", timeout=20000)
         page.locator(CARD).locator("[data-guide]").first.click()
         page.wait_for_function(f"() => {{ const r = {_root(CARD)}; return r && r.querySelector('.sprop textarea'); }}", timeout=20000)

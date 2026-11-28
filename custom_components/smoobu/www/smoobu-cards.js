@@ -22,7 +22,7 @@
  * der Ausgabe maskiert (esc), damit kein fremdes HTML ausgeführt wird.
  */
 
-const SMOOBU_CARDS_VERSION = "1.20.0b4";
+const SMOOBU_CARDS_VERSION = "1.20.0b5";
 
 // ---------------------------------------------------------------------------
 // Texte (Deutsch; Englisch für HA-Oberflächen in anderer Sprache)
@@ -7095,6 +7095,10 @@ class SmoobuSettingsCard extends SmoobuCard {
       ${edit ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Rollen der Benutzer")}</b>
         <span class="sub">${t("Gilt für die Smoobu-Seiten und -Aktionen. Normale HA-Entitäten kann HA nicht je Benutzer sperren.")}</span></div></div>
         <div class="gb">${users}${this.fld("Standardrolle", `<select data-sel="default_role">${opts(d.default_role, false)}</select>`, "Für Benutzer ohne eigene Rolle (bisheriges Verhalten: Betrieb).", "default_role")}</div></div>` : ""}
+      ${/* v1.20.0b5 (Wunsch Betreiber 28.11.2026): Zugangs-Anleitung hier statt unter „Reinigung & Zugang“ – Benutzer anlegen,
+         Rolle vergeben, Zugang schicken an einer Stelle. Eigener Block mit meta.reinigungskraefte (nicht der Admin-Benutzerliste),
+         damit auch Verwalter (Recht „Einstellungen“) Anleitungen erstellen können. */ ""}
+      ${d.module_reinigung !== false ? this.guideBlock(meta) : ""}
       <div class="grp" data-neu="rollen"><div class="gh"><div class="grow"><b>${t("Was darf welche Rolle?")}${neuBadge("opt-rollen")}</b>
         ${edit ? `<span class="sub">${t("Häkchen setzen und speichern. Gilt sofort für alle Benutzer mit dieser Rolle.")}</span>` : ""}</div></div>
         <div class="gb"><div class="scroll"><table class="prov rr">${head}${rows}</table></div>${this.err("role_rights")}${this.err("custom_roles")}${warnHtml}${add}</div></div>
@@ -7247,7 +7251,7 @@ class SmoobuSettingsCard extends SmoobuCard {
     const keep = rn ? `<div class="grp"><div class="gh"><div class="grow"><b>${t("Datenschutz")}</b>
         <span class="sub">${t("Erledigte Reinigungen speichern, wer gereinigt hat. Nach Ablauf der Frist wird daraus „Unbekannt“; Tag, Wohnung, Dauer und Kosten bleiben für die Statistik.")}</span></div></div><div class="gb">
         ${this.fld("Person aufbewahren", this.numIn("cleaning_keep_years", 1, 30, 1, "Jahre"), "Standard 10 Jahre (steuerliche Aufbewahrungsfrist).", "cleaning_keep_years")}</div></div>` : "";
-    return `${off}${cost}${keep}${rn ? this.cleaningPush(meta) : ""}${rn ? this.guideBlock(meta) : ""}${this.doorBlock(meta)}`;
+    return `${off}${cost}${keep}${rn ? this.cleaningPush(meta) : ""}${this.doorBlock(meta)}`;
   }
   tabGeneral(meta) {
     const d = this._draft;

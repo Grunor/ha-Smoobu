@@ -8,9 +8,13 @@ Changes are collected on the `develop` branch under "Unreleased". A release is c
 
 ## Unveröffentlicht / Unreleased
 
+## 1.20.0b5
+
+- **Zugangs-Anleitung umgezogen:** jetzt unter Einstellungen → Benutzer & Rechte (unter „Rollen der Benutzer“), damit Benutzer anlegen, Rolle vergeben und Zugang schicken an einer Stelle liegen. Verwalter sehen den Block weiterhin. Einträge (Ansprechpartner, Sprachen) bleiben erhalten / **Access guide moved** to Settings → Users & permissions
+
 ## 1.20.0b4
 
-- **Zugangs-Anleitung für Reinigungskräfte:** Einstellungen → Reinigung & Zugang → „Zugangs-Anleitung“. Je Reinigungskraft (ohne Admins) Sprache wählen (Deutsch, English, Polski, Nederlands, Français) und „Anleitung erstellen“: fertiger Text mit App-Links (iPhone/Android), externer Adresse (Nabu Casa bevorzugt), Benutzername, Link „Passwort ändern“ und Kurzanleitung Reinigungsboard – zum Kopieren, Teilen oder direkt per WhatsApp. Das Passwort steht nie im Text. Ansprechpartner (Name, Telefon) einstellbar, leer = wer die Anleitung erstellt. Nur mit Recht „Einstellungen“ / **Access guide for cleaners:** ready-made text per cleaner and language with app links, external address, username, change-password link and a short board guide – copy, share or WhatsApp; never contains the password
+- **Zugangs-Anleitung für Reinigungskräfte:** Einstellungen → Reinigung & Zugang → „Zugangs-Anleitung“ (ab 1.20.0b5 unter Benutzer & Rechte). Je Reinigungskraft (ohne Admins) Sprache wählen (Deutsch, English, Polski, Nederlands, Français) und „Anleitung erstellen“: fertiger Text mit App-Links (iPhone/Android), externer Adresse (Nabu Casa bevorzugt), Benutzername, Link „Passwort ändern“ und Kurzanleitung Reinigungsboard – zum Kopieren, Teilen oder direkt per WhatsApp. Das Passwort steht nie im Text. Ansprechpartner (Name, Telefon) einstellbar, leer = wer die Anleitung erstellt. Nur mit Recht „Einstellungen“ / **Access guide for cleaners:** ready-made text per cleaner and language with app links, external address, username, change-password link and a short board guide – copy, share or WhatsApp; never contains the password
 - **Fokus-Modus:** Die Profilseite „Sicherheit“ (`/profile/security`) ist jetzt erlaubt, damit Reinigungskräfte ihr Passwort selbst ändern können (Home Assistant kann einen Wechsel beim ersten Login nicht erzwingen). Auf der Reinigungsseite gibt es dafür den Button 🔑 „Passwort ändern“ / **Focus mode:** the profile security page is allowed so cleaners can change their own password; 🔑 button on the cleaning page
 
 ## 1.20.0b3
